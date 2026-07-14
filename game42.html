@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Connect - A Fast-Paced Collocation Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            touch-action: none; /* Prevents scrolling on touch devices during gameplay */
+        }
+        .word-card {
+            transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.2s ease;
+            border: 4px solid transparent;
+        }
+        .word-card.selected {
+            transform: scale(1.1);
+            box-shadow: 0 0 25px rgba(251, 191, 36, 0.9);
+            border-color: #fbbf24; /* amber-400 */
+            z-index: 10;
+        }
+        .word-card.correct {
+            animation: correct-pulse 0.5s ease;
+        }
+        .word-card.incorrect {
+            animation: incorrect-shake 0.5s ease;
+        }
+        @keyframes correct-pulse {
+            0% { transform: scale(1.1); background-color: #86efac; /* green-300 */ }
+            50% { transform: scale(1.2); background-color: #86efac; }
+            100% { transform: scale(1); }
+        }
+        @keyframes incorrect-shake {
+            0%, 100% { transform: translateX(0); background-color: #fca5a5; /* red-300 */}
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+        .badge-unlocked, .level-up-pop {
+            animation: pop-in 0.7s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+        }
+        @keyframes pop-in {
+            0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        #start-button {
+            animation: pulse-button 2s infinite;
+        }
+        @keyframes pulse-button {
+            0% { transform: scale(1.0); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(251, 191, 36, 0); }
+            100% { transform: scale(1.0); box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-900 to-slate-900 text-white flex items-center justify-center h-screen overflow-hidden">
+
+    <div id="start-screen" class="text-center p-8">
+        <h1 class="text-6xl font-bold text-amber-400 mb-4">Word Connect</h1>
+        <p class="text-xl text-slate-300 mb-8">Link words that go together before time runs out!</p>
+        <button id="start-button" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-3 px-8 rounded-full text-xl shadow-lg transition-transform transform hover:scale-105">
+            Start Game
+        </button>
+    </div>
+
+    <div id="game-container" class="w-full max-w-4xl mx-auto p-4 flex flex-col h-screen hidden">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-4 p-4 bg-slate-800/50 rounded-xl backdrop-blur-sm">
+            <div>
+                <span class="text-lg text-slate-400">Score</span>
+                <p id="score" class="text-4xl font-bold text-amber-400">0</p>
+            </div>
+            <div class="text-center">
+                 <span class="text-lg text-slate-400">Level</span>
+                <p id="level" class="text-4xl font-bold">1</p>
+                 <p id="difficulty-level" class="text-sm font-semibold text-sky-400 mt-1">Beginner</p>
+            </div>
+            <div class="text-center">
+                <span class="text-lg text-slate-400">Round</span>
+                <p id="round" class="text-4xl font-bold">1 / 10</p>
+            </div>
+            <div>
+                <span class="text-lg text-slate-400">Time</span>
+                <div id="timer-bar-container" class="w-40 h-8 bg-slate-700 rounded-full overflow-hidden mt-1">
+                    <div id="timer-bar" class="h-full bg-green-500 transition-all duration-300 ease-linear"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Game Board -->
+        <main id="game-board-container" class="relative flex-grow">
+            <div id="word-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-4 p-4 h-full">
+                <!-- Word cards will be injected here -->
+            </div>
+            <canvas id="game-canvas"></canvas>
+        </main>
+
+        <!-- Footer for Badges -->
+        <footer class="mt-4 p-2 text-center">
+            <h3 class="text-slate-400 mb-2">Badges Unlocked</h3>
+            <div id="badges-container" class="flex justify-center items-center space-x-2 h-12">
+                <!-- Badges will appear here -->
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-black/70 flex items-center justify-center hidden z-50 p-4 backdrop-blur-sm">
+        <!-- Game Over Modal -->
+        <div id="game-over-modal" class="bg-slate-800 rounded-2xl p-8 text-center shadow-2xl hidden transform transition-all max-w-lg w-full">
+            <h2 class="text-5xl font-bold text-red-500 mb-2">Time's Up!</h2>
+            <p class="text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-6xl font-bold text-amber-400 mb-6">0</p>
+            
+            <!-- Missed Answers Section -->
+            <div id="answers-container" class="mt-4 text-left hidden">
+                <h3 class="text-lg font-bold text-sky-400 mb-2 text-center">Here are the pairs you missed:</h3>
+                <ul id="missed-answers-list" class="bg-slate-700/50 rounded-lg p-3 text-slate-200 text-center list-none">
+                    <!-- Missed answers will be populated here -->
+                </ul>
+            </div>
+
+            <div class="flex space-x-4 justify-center mt-8">
+                <button id="restart-button" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-2 px-6 rounded-full text-lg shadow-lg transition-transform transform hover:scale-105">
+                    Play Again
+                </button>
+                <button id="feedback-button" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-6 rounded-full text-lg shadow-lg transition-transform transform hover:scale-105">
+                    Provide Feedback
+                </button>
+            </div>
+        </div>
+        <!-- Feedback Modal -->
+        <div id="feedback-modal" class="bg-slate-800 rounded-2xl p-8 shadow-2xl hidden transform transition-all w-full max-w-md">
+            <h2 class="text-3xl font-bold text-sky-400 mb-4">Share Your Feedback</h2>
+            <p class="text-slate-300 mb-6">Help us improve the game! What did you like or dislike? Any ideas for new features?</p>
+            <form id="feedback-form">
+                <textarea id="feedback-textarea" class="w-full h-32 p-3 bg-slate-700 text-white rounded-lg focus:ring-2 focus:ring-sky-500 focus:outline-none" placeholder="Type your feedback here..."></textarea>
+                <div class="flex justify-end space-x-4 mt-6">
+                    <button type="button" id="cancel-feedback-button" class="bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-6 rounded-full">Cancel</button>
+                    <button type="submit" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-6 rounded-full">Submit</button>
+                </div>
+            </form>
+        </div>
+        <!-- Badge Unlocked Modal -->
+        <div id="badge-modal" class="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-8 text-center shadow-2xl hidden transform transition-all text-slate-900 badge-unlocked">
+             <div id="badge-icon" class="text-7xl mb-4"></div>
+             <h2 id="badge-name" class="text-4xl font-bold mb-2"></h2>
+             <p id="badge-description" class="text-lg"></p>
+        </div>
+        <!-- Level Up Modal -->
+        <div id="level-up-modal" class="bg-gradient-to-br from-green-400 to-cyan-500 rounded-2xl p-8 text-center shadow-2xl hidden transform transition-all text-slate-900 level-up-pop">
+             <div class="text-7xl mb-4">🎉</div>
+             <h2 class="text-4xl font-bold mb-2">Level Up!</h2>
+             <p id="level-up-description" class="text-lg"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const startScreen = document.getElementById('start-screen');
+            const gameContainer = document.getElementById('game-container');
+            const startButton = document.getElementById('start-button');
+            const restartButton = document.getElementById('restart-button');
+            const wordGrid = document.getElementById('word-grid');
+            const scoreEl = document.getElementById('score');
+            const levelEl = document.getElementById('level');
+            const roundEl = document.getElementById('round');
+            const difficultyLevelEl = document.getElementById('difficulty-level');
+            const timerBar = document.getElementById('timer-bar');
+            const badgesContainer = document.getElementById('badges-container');
+            const modalBackdrop = document.getElementById('modal-backdrop');
+            const gameOverModal = document.getElementById('game-over-modal');
+            const finalScoreEl = document.getElementById('final-score');
+            const answersContainer = document.getElementById('answers-container');
+            const missedAnswersList = document.getElementById('missed-answers-list');
+            const badgeModal = document.getElementById('badge-modal');
+            const badgeIconEl = document.getElementById('badge-icon');
+            const badgeNameEl = document.getElementById('badge-name');
+            const badgeDescriptionEl = document.getElementById('badge-description');
+            const levelUpModal = document.getElementById('level-up-modal');
+            const levelUpDescriptionEl = document.getElementById('level-up-description');
+            const canvas = document.getElementById('game-canvas');
+            const ctx = canvas.getContext('2d');
+            const gameBoardContainer = document.getElementById('game-board-container');
+            // Feedback elements
+            const feedbackButton = document.getElementById('feedback-button');
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackForm = document.getElementById('feedback-form');
+            const cancelFeedbackButton = document.getElementById('cancel-feedback-button');
+            const feedbackTextarea = document.getElementById('feedback-textarea');
+
+
+            // --- Game State ---
+            let score = 0;
+            let level = 1;
+            let round = 1;
+            const ROUNDS_PER_LEVEL = 10; // Changed from 5 to 10
+            let timer;
+            let timerInterval;
+            let firstTappedCard = null; // For tap-to-match
+            let cardBeingPressed = null; // For drag-and-drop
+            let isDragging = false; // To differentiate tap and drag
+            let startX, startY; // For drag threshold
+            let lineStartX, lineStartY, lineEndX, lineEndY;
+            let correctStreak = 0;
+            let unlockedBadges = new Set();
+            let currentDifficulty = 'A1';
+            let currentLevelPairs = {};
+            let particles = []; // For particle effects
+
+            // --- Game Configuration ---
+            const TIME_PER_LEVEL = 20; // seconds
+            const TIME_BONUS_PER_CORRECT = 1; // second
+            
+            // --- Adaptive Word Collocations by CEFR Level (Doubled) ---
+            const COLLOCATIONS = {
+                'A1': { 'good': 'morning', 'thank': 'you', 'blue': 'sky', 'big': 'house', 'red': 'car', 'have': 'time', 'nice': 'day', 'see': 'you', 'black': 'cat', 'new': 'friend', 'my': 'name', 'old': 'book', 'small': 'dog', 'good': 'night', 'how': 'are', 'what': 'is' },
+                'A2': { 'get': 'ready', 'make': 'friends', 'tell': 'story', 'heavy': 'rain', 'do': 'homework', 'take': 'photo', 'go': 'shopping', 'feel': 'good', 'listen': 'music', 'watch': 'movie', 'play': 'game', 'eat': 'food', 'drink': 'water', 'write': 'letter', 'read': 'book', 'fast': 'food' },
+                'B1': { 'make': 'decision', 'take': 'chance', 'break': 'promise', 'strong': 'coffee', 'pay': 'attention', 'save': 'time', 'keep': 'secret', 'lose': 'track', 'give': 'advice', 'make': 'progress', 'take': 'notes', 'run': 'business', 'deeply': 'concerned', 'highly': 'unlikely', 'fully': 'aware', 'get': 'married' },
+                'B2': { 'deep': 'thought', 'make': 'sense', 'catch': 'cold', 'break': 'record', 'crystal': 'clear', 'pitch': 'dark', 'high': 'priority', 'take': 'advantage', 'draw': 'conclusion', 'express': 'concern', 'gain': 'access', 'meet': 'deadline', 'place': 'emphasis', 'pose': 'threat', 'reach': 'agreement', 'take': 'action' },
+                'C1': { 'common': 'knowledge', 'joint': 'venture', 'raise': 'question', 'utter': 'chaos', 'vital': 'role', 'zero': 'tolerance', 'foregone': 'conclusion', 'vested': 'interest', 'abject': 'poverty', 'binding': 'agreement', 'heated': 'debate', 'inclement': 'weather', 'mitigating': 'circumstances', 'preliminary': 'results', 'ulterior': 'motive', 'unanimous': 'decision' }
+            };
+            
+            const ALL_PAIRS = {};
+            Object.values(COLLOCATIONS).forEach(level => {
+                for (const key in level) {
+                    const value = level[key];
+                    ALL_PAIRS[key] = value;
+                    ALL_PAIRS[value] = key;
+                }
+            });
+
+            const DIFFICULTY_COLORS = {
+                'A1': 'bg-green-200 text-green-800',
+                'A2': 'bg-blue-200 text-blue-800',
+                'B1': 'bg-purple-200 text-purple-800',
+                'B2': 'bg-yellow-200 text-yellow-800',
+                'C1': 'bg-red-200 text-red-800',
+            };
+
+            const BADGES = {
+                'streak3': { name: 'Combo!', icon: '🔥', description: '3 correct pairs in a row!', unlocked: false },
+                'streak5': { name: 'On Fire!', icon: '🚀', description: '5 correct pairs in a row!', unlocked: false },
+                'score100': { name: 'Centurion', icon: '💯', description: 'Reach 100 points!', unlocked: false },
+                'level5': { name: 'Word Scholar', icon: '🎓', description: 'Reach level 5!', unlocked: false },
+                'quickFinish': { name: 'Speed Demon', icon: '⚡', description: 'Finish a round in under 5 seconds!', unlocked: false },
+            };
+            
+            // --- Sound Engine (Tone.js) ---
+            const reverb = new Tone.Reverb(0.5).toDestination();
+            const feedbackDelay = new Tone.FeedbackDelay("8n", 0.5).connect(reverb);
+
+            const synths = {
+                select: new Tone.FMSynth({
+                    harmonicity: 3,
+                    modulationIndex: 10,
+                    envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.1 }
+                }).toDestination(),
+                correct: new Tone.PolySynth(Tone.FMSynth, {
+                    envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.4 }
+                }).connect(feedbackDelay),
+                incorrect: new Tone.MetalSynth({
+                    frequency: 120,
+                    envelope: { attack: 0.001, decay: 0.2, release: 0.1 },
+                    harmonicity: 8.5,
+                    modulationIndex: 20,
+                    resonance: 4000,
+                    octaves: 1.5
+                }).toDestination(),
+                timeTick: new Tone.MembraneSynth({
+                    pitchDecay: 0.01,
+                    octaves: 2,
+                    envelope: { attack: 0.001, decay: 0.1, sustain: 0 }
+                }).toDestination(),
+                fanfare: new Tone.PolySynth(Tone.Synth).toDestination()
+            };
+
+            const sounds = {
+                start: () => synths.fanfare.triggerAttackRelease(["C4", "G4"], "8n"),
+                select: () => synths.select.triggerAttackRelease("C5", "16n", Tone.now()),
+                correct: () => synths.correct.triggerAttackRelease(["C5", "E5", "G5"], "8n"),
+                incorrect: () => synths.incorrect.triggerAttack("C2", Tone.now(), 0.5),
+                timeTick: () => synths.timeTick.triggerAttackRelease("C5", "32n"),
+                gameOver: () => synths.fanfare.triggerAttackRelease(["G2", "F#2", "F2", "E2"], "4n"),
+                badge: () => synths.fanfare.triggerAttackRelease(["C5", "G5", "C6", "E6"], "8n"),
+                levelUp: () => synths.fanfare.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n"),
+            };
+
+            // --- Speech Synthesis ---
+            const praise = ["Excellent!", "Amazing!", "Word Master!", "Incredible!", "Genius!"];
+            function say(text) {
+                if ('speechSynthesis' in window) {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 1.2;
+                    utterance.pitch = 1.3;
+                    window.speechSynthesis.speak(utterance);
+                }
+            }
+
+            // --- Game Logic ---
+            function startGame() {
+                startScreen.classList.add('hidden');
+                gameContainer.classList.remove('hidden');
+                score = 0;
+                level = 1;
+                round = 1;
+                correctStreak = 0;
+                unlockedBadges.clear();
+                currentLevelPairs = {};
+                answersContainer.classList.add('hidden');
+                missedAnswersList.innerHTML = '';
+                updateScore(0);
+                updateLevelAndRound();
+                resetBadges();
+                startRound();
+                sounds.start();
+                animateParticles(); // Start the particle animation loop
+            }
+
+            function startRound() {
+                setDifficulty();
+                updateLevelAndRound();
+                wordGrid.innerHTML = '';
+                generateWords();
+                resetTimer();
+                startTimer();
+                checkBadgeUnlock('level' + level);
+            }
+            
+            function setDifficulty() {
+                if (level <= 1) {
+                    currentDifficulty = 'A1';
+                    difficultyLevelEl.textContent = 'Beginner';
+                } else if (level <= 2) {
+                    currentDifficulty = 'A2';
+                    difficultyLevelEl.textContent = 'Elementary';
+                } else if (level <= 3) {
+                    currentDifficulty = 'B1';
+                    difficultyLevelEl.textContent = 'Intermediate';
+                } else if (level <= 4) {
+                    currentDifficulty = 'B2';
+                    difficultyLevelEl.textContent = 'Advanced';
+                } else {
+                    currentDifficulty = 'C1';
+                    difficultyLevelEl.textContent = 'Expert';
+                }
+            }
+
+            function resetTimer() {
+                clearInterval(timerInterval);
+                timer = TIME_PER_LEVEL;
+            }
+
+            function startTimer() {
+                const roundStartTime = Date.now();
+                timerInterval = setInterval(() => {
+                    timer -= 0.05;
+                    updateTimerBar();
+                    if (timer <= 5 && timer > 0) {
+                        sounds.timeTick();
+                    }
+                    if (timer <= 0) {
+                        endGame();
+                    }
+                }, 50);
+                
+                // This logic needs to be tied to when the round actually ends, not a fixed timeout.
+                // It's moved to handleCorrectPair when the grid is cleared.
+            }
+
+            function updateTimerBar() {
+                const percentage = Math.max(0, (timer / TIME_PER_LEVEL) * 100);
+                timerBar.style.width = `${percentage}%`;
+                if (percentage < 25) {
+                    timerBar.classList.remove('bg-green-500', 'bg-yellow-500');
+                    timerBar.classList.add('bg-red-500');
+                } else if (percentage < 50) {
+                    timerBar.classList.remove('bg-green-500', 'bg-red-500');
+                    timerBar.classList.add('bg-yellow-500');
+                } else {
+                    timerBar.classList.remove('bg-yellow-500', 'bg-red-500');
+                    timerBar.classList.add('bg-green-500');
+                }
+            }
+
+            function generateWords() {
+                const numPairs = 2 + Math.floor(level / 2);
+                const availableCollocations = { ...COLLOCATIONS[currentDifficulty] };
+                const wordsForLevel = [];
+                currentLevelPairs = {};
+                
+                for (let i = 0; i < numPairs; i++) {
+                    const keys = Object.keys(availableCollocations);
+                    if (keys.length === 0) break;
+                    const randomKey = keys[Math.floor(Math.random() * keys.length)];
+                    const value = availableCollocations[randomKey];
+                    
+                    currentLevelPairs[randomKey] = value;
+                    
+                    wordsForLevel.push(randomKey, value);
+                    delete availableCollocations[randomKey];
+                }
+
+                wordsForLevel.sort(() => Math.random() - 0.5);
+
+                const colorClass = DIFFICULTY_COLORS[currentDifficulty];
+                wordsForLevel.forEach(word => {
+                    const wordEl = document.createElement('div');
+                    wordEl.textContent = word;
+                    wordEl.dataset.word = word;
+                    wordEl.className = `word-card ${colorClass} flex items-center justify-center text-xl sm:text-2xl font-semibold rounded-lg shadow-md cursor-pointer select-none p-2`;
+                    wordGrid.appendChild(wordEl);
+                });
+            }
+
+            function updateScore(points) {
+                score += points;
+                scoreEl.textContent = score;
+                checkBadgeUnlock('score100');
+            }
+            
+            function updateLevelAndRound() {
+                levelEl.textContent = level;
+                roundEl.textContent = `${round} / ${ROUNDS_PER_LEVEL}`;
+            }
+            
+            function handleRoundCompletion() {
+                if (round < ROUNDS_PER_LEVEL) {
+                    round++;
+                    setTimeout(startRound, 500); // Brief pause before next round
+                } else {
+                    level++;
+                    round = 1;
+                    showLevelUpModal();
+                }
+            }
+
+            function handleCorrectPair(el1, el2) {
+                sounds.correct();
+                updateScore(10);
+                correctStreak++;
+
+                const center1 = getElementCenter(el1);
+                createParticles(center1.x, center1.y);
+                const center2 = getElementCenter(el2);
+                createParticles(center2.x, center2.y);
+
+                const word1 = el1.dataset.word;
+                const word2 = el2.dataset.word;
+                if (currentLevelPairs[word1] === word2) {
+                    delete currentLevelPairs[word1];
+                } else if (currentLevelPairs[word2] === word1) {
+                    delete currentLevelPairs[word2];
+                }
+
+                timer = Math.min(TIME_PER_LEVEL, timer + TIME_BONUS_PER_CORRECT);
+                updateTimerBar();
+
+                el1.classList.add('correct');
+                el2.classList.add('correct');
+
+                if (correctStreak >= 5) {
+                    if (!unlockedBadges.has('streak5')) {
+                       say("Unstoppable!");
+                       checkBadgeUnlock('streak5');
+                    }
+                } else if (correctStreak >= 3) {
+                     if (!unlockedBadges.has('streak3')) {
+                        say(praise[Math.floor(Math.random() * praise.length)]);
+                        checkBadgeUnlock('streak3');
+                     }
+                }
+
+                setTimeout(() => {
+                    el1.remove();
+                    el2.remove();
+                    if (wordGrid.children.length === 0) {
+                        handleRoundCompletion();
+                    }
+                }, 500);
+            }
+
+            function handleIncorrectPair(el1, el2) {
+                sounds.incorrect();
+                correctStreak = 0;
+                el1.classList.add('incorrect');
+                if (el2) el2.classList.add('incorrect');
+                setTimeout(() => {
+                    el1.classList.remove('incorrect', 'selected');
+                    if (el2) el2.classList.remove('incorrect', 'selected');
+                }, 500);
+            }
+
+            function checkBadgeUnlock(badgeId) {
+                if (BADGES[badgeId] && !unlockedBadges.has(badgeId)) {
+                    if (badgeId === 'score100' && score < 100) return;
+                    
+                    unlockedBadges.add(badgeId);
+                    BADGES[badgeId].unlocked = true;
+                    sounds.badge();
+                    displayBadgeInFooter(badgeId);
+                    showBadgeModal(badgeId);
+                }
+            }
+            
+            function displayBadgeInFooter(badgeId) {
+                const badge = BADGES[badgeId];
+                const badgeEl = document.createElement('div');
+                badgeEl.className = 'text-3xl transform transition-transform hover:scale-125';
+                badgeEl.textContent = badge.icon;
+                badgeEl.title = `${badge.name}: ${badge.description}`;
+                badgesContainer.appendChild(badgeEl);
+            }
+
+            function showBadgeModal(badgeId) {
+                const badge = BADGES[badgeId];
+                badgeIconEl.textContent = badge.icon;
+                badgeNameEl.textContent = badge.name;
+                badgeDescriptionEl.textContent = badge.description;
+                
+                modalBackdrop.classList.remove('hidden');
+                badgeModal.classList.remove('hidden');
+
+                setTimeout(() => {
+                    if(!levelUpModal.classList.contains('hidden')) return;
+                    modalBackdrop.classList.add('hidden');
+                    badgeModal.classList.add('hidden');
+                }, 2500);
+            }
+            
+            function showLevelUpModal() {
+                sounds.levelUp();
+                setDifficulty(); // Get the name of the new difficulty
+                levelUpDescriptionEl.textContent = `You've mastered that level! Get ready for ${difficultyLevelEl.textContent} words.`;
+                modalBackdrop.classList.remove('hidden');
+                levelUpModal.classList.remove('hidden');
+
+                setTimeout(() => {
+                    modalBackdrop.classList.add('hidden');
+                    levelUpModal.classList.add('hidden');
+                    startRound(); // Start the first round of the new level
+                }, 3000);
+            }
+
+            function resetBadges() {
+                badgesContainer.innerHTML = '';
+                for (const key in BADGES) {
+                    BADGES[key].unlocked = false;
+                }
+            }
+
+            function endGame() {
+                clearInterval(timerInterval);
+                sounds.gameOver();
+                finalScoreEl.textContent = score;
+
+                missedAnswersList.innerHTML = '';
+                if (Object.keys(currentLevelPairs).length > 0) {
+                    for (const key in currentLevelPairs) {
+                        const li = document.createElement('li');
+                        li.textContent = `${key} - ${currentLevelPairs[key]}`;
+                        missedAnswersList.appendChild(li);
+                    }
+                    answersContainer.classList.remove('hidden');
+                } else {
+                    answersContainer.classList.add('hidden');
+                }
+
+
+                modalBackdrop.classList.remove('hidden');
+                gameOverModal.classList.remove('hidden');
+                gameContainer.classList.add('hidden');
+            }
+            
+            function resizeCanvas() {
+                canvas.width = gameBoardContainer.clientWidth;
+                canvas.height = gameBoardContainer.clientHeight;
+            }
+
+            // --- Canvas Drawing & Effects ---
+            function drawLine() {
+                if (!isDragging || !cardBeingPressed) return;
+                
+                const gradient = ctx.createLinearGradient(lineStartX, lineStartY, lineEndX, lineEndY);
+                gradient.addColorStop(0, 'rgba(251, 191, 36, 0.8)'); // Amber
+                gradient.addColorStop(1, 'rgba(250, 204, 21, 1)'); // Yellow
+
+                ctx.beginPath();
+                ctx.moveTo(lineStartX, lineStartY);
+                ctx.lineTo(lineEndX, lineEndY);
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 8;
+                ctx.lineCap = 'round';
+                ctx.shadowColor = 'rgba(251, 191, 36, 0.8)';
+                ctx.shadowBlur = 15;
+                ctx.stroke();
+                ctx.shadowBlur = 0; // Reset shadow blur
+            }
+
+            function createParticles(x, y) {
+                const particleCount = 20;
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push({
+                        x: x,
+                        y: y,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: (Math.random() - 0.5) * 4,
+                        size: Math.random() * 4 + 2,
+                        color: `hsl(${Math.random() * 60 + 30}, 100%, 70%)`, // Yellow/Orange hues
+                        life: 100,
+                    });
+                }
+            }
+
+            function animateParticles() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear for particles and line
+                
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.05; // gravity
+                    p.life--;
+
+                    if (p.life <= 0) {
+                        particles.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.globalAlpha = p.life / 100;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+
+                drawLine(); // Redraw the connection line on top of particles
+
+                requestAnimationFrame(animateParticles);
+            }
+
+            function getElementCenter(el) {
+                const rect = el.getBoundingClientRect();
+                const containerRect = gameBoardContainer.getBoundingClientRect();
+                return {
+                    x: rect.left + rect.width / 2 - containerRect.left,
+                    y: rect.top + rect.height / 2 - containerRect.top
+                };
+            }
+
+            function onPointerDown(e) {
+                if (e.button && e.button !== 0) return;
+                const target = e.target.closest('.word-card');
+                if (!target) return;
+                
+                e.preventDefault();
+                isDragging = false;
+                cardBeingPressed = target;
+
+                const clientPos = e.touches ? e.touches[0] : e;
+                startX = clientPos.clientX;
+                startY = clientPos.clientY;
+
+                const center = getElementCenter(cardBeingPressed);
+                lineStartX = center.x;
+                lineStartY = center.y;
+                const containerRect = gameBoardContainer.getBoundingClientRect();
+                lineEndX = clientPos.clientX - containerRect.left;
+                lineEndY = clientPos.clientY - containerRect.top;
+            }
+
+            function onPointerMove(e) {
+                if (!cardBeingPressed) return;
+                e.preventDefault();
+                
+                const clientPos = e.touches ? e.touches[0] : e;
+
+                if (!isDragging) {
+                    const dx = clientPos.clientX - startX;
+                    const dy = clientPos.clientY - startY;
+                    if (Math.sqrt(dx * dx + dy * dy) > 10) { // 10px threshold
+                        isDragging = true;
+                    }
+                }
+
+                if (isDragging) {
+                    if (!cardBeingPressed.classList.contains('selected')) {
+                        if (firstTappedCard) {
+                            firstTappedCard.classList.remove('selected');
+                            firstTappedCard = null;
+                        }
+                        cardBeingPressed.classList.add('selected');
+                        sounds.select();
+                    }
+                    
+                    const containerRect = gameBoardContainer.getBoundingClientRect();
+                    lineEndX = clientPos.clientX - containerRect.left;
+                    lineEndY = clientPos.clientY - containerRect.top;
+                    // Drawing is now handled by the animateParticles loop
+                }
+            }
+
+            function onPointerUp(e) {
+                if (!cardBeingPressed) return;
+                
+                // Clear the line immediately
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                if (isDragging) {
+                    const dropTarget = document.elementFromPoint(
+                        e.changedTouches ? e.changedTouches[0].clientX : e.clientX,
+                        e.changedTouches ? e.changedTouches[0].clientY : e.clientY
+                    )?.closest('.word-card');
+                    
+                    if (dropTarget && cardBeingPressed !== dropTarget) {
+                        const word1 = cardBeingPressed.dataset.word;
+                        const word2 = dropTarget.dataset.word;
+                        if (ALL_PAIRS[word1] === word2) {
+                            handleCorrectPair(cardBeingPressed, dropTarget);
+                        } else {
+                            handleIncorrectPair(cardBeingPressed, dropTarget);
+                        }
+                    } else {
+                        handleIncorrectPair(cardBeingPressed, null);
+                    }
+                    cardBeingPressed.classList.remove('selected');
+                } else {
+                    // This is a tap/click
+                    const tappedCard = cardBeingPressed;
+                    if (!firstTappedCard) {
+                        firstTappedCard = tappedCard;
+                        firstTappedCard.classList.add('selected');
+                        sounds.select();
+                    } else {
+                        if (firstTappedCard === tappedCard) {
+                            firstTappedCard.classList.remove('selected');
+                            firstTappedCard = null;
+                        } else {
+                            const word1 = firstTappedCard.dataset.word;
+                            const word2 = tappedCard.dataset.word;
+                            if (ALL_PAIRS[word1] === word2) {
+                                handleCorrectPair(firstTappedCard, tappedCard);
+                            } else {
+                                handleIncorrectPair(firstTappedCard, tappedCard);
+                            }
+                            firstTappedCard.classList.remove('selected');
+                            firstTappedCard = null;
+                        }
+                    }
+                }
+
+                cardBeingPressed = null;
+                isDragging = false;
+            }
+
+            // --- Initial Setup ---
+            startButton.addEventListener('click', async () => {
+                await Tone.start();
+                console.log('audio is ready');
+                startGame();
+            });
+            
+            restartButton.addEventListener('click', () => {
+                modalBackdrop.classList.add('hidden');
+                gameOverModal.classList.add('hidden');
+                feedbackModal.classList.add('hidden');
+                startGame();
+            });
+            
+            feedbackButton.addEventListener('click', () => {
+                gameOverModal.classList.add('hidden');
+                feedbackModal.classList.remove('hidden');
+            });
+
+            cancelFeedbackButton.addEventListener('click', () => {
+                feedbackModal.classList.add('hidden');
+                gameOverModal.classList.remove('hidden');
+            });
+
+            feedbackForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                console.log('Feedback submitted:', feedbackTextarea.value);
+                feedbackTextarea.value = '';
+                feedbackModal.classList.add('hidden');
+                modalBackdrop.classList.add('hidden');
+                startScreen.classList.remove('hidden');
+            });
+
+            gameBoardContainer.addEventListener('pointerdown', onPointerDown);
+            window.addEventListener('pointermove', onPointerMove);
+            window.addEventListener('pointerup', onPointerUp);
+            
+            window.addEventListener('resize', resizeCanvas);
+            
+            resizeCanvas();
+        });
+    </script>
+</body>
+</html>

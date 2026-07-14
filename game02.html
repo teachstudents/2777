@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Synonym Match - Enhanced</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    
+    <style>
+        :root {
+            --bg-main: #282a36;      /* Dracula Background */
+            --bg-container: #44475a;  /* Dracula Current Line */
+            --primary-color: #ff79c6; /* Pink */
+            --primary-dark: #ff55b8;
+            --text-light: #f8f8f2;   /* Dracula Foreground */
+            --text-dark: #bd93f9;    /* Purple */
+            --border-color: #6272a4;  /* Dracula Comment */
+            --correct-color: #50fa7b;   /* Green */
+            --incorrect-color: #ff5555; /* Red */
+            --gold-color: #f1fa8c;    /* Yellow */
+            --accent-cyan: #8be9fd;    /* Cyan */
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: var(--bg-main);
+            color: var(--text-light);
+            margin: 0;
+            font-size: 16px;
+            overflow: hidden;
+            touch-action: manipulation;
+            transition: background-color 0.3s ease;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 1em;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            overflow-y: auto;
+            animation: fadeIn 0.5s ease;
+        }
+        .screen.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        body.screen-flash-correct {
+            background-color: #3a5e4a;
+        }
+        body.screen-flash-incorrect {
+            background-color: #6d3b3b;
+        }
+
+        #game-board {
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 10px;
+            align-content: center;
+            justify-content: center;
+        }
+
+        .game-instance {
+            flex: 1 1 400px;
+            min-width: 320px;
+            height: 95vh;
+            max-height: 800px;
+            border: 1px solid var(--border-color);
+            border-radius: 15px;
+            background-color: var(--bg-container);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .hud {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0.5em 1em;
+            font-size: 0.9em;
+            font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-color);
+            gap: 10px;
+        }
+        .hud-item { color: var(--accent-cyan); }
+        .hud-item span { color: var(--text-light); }
+
+        .sorting-screen {
+             flex-grow: 1;
+             display: flex;
+             flex-direction: column;
+             justify-content: center;
+             align-items: center;
+        }
+
+        .main-word-container {
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 1em;
+            border-radius: 10px;
+            margin-bottom: 1.5em;
+            width: 90%;
+            max-width: 400px;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed var(--border-color);
+        }
+        .main-word {
+            color: var(--primary-color);
+            padding: 0.6em 1.2em;
+            font-size: clamp(1.5em, 5vw, 2em);
+            font-weight: bold;
+        }
+
+        .feedback-display {
+            font-size: 1.5em;
+            font-weight: bold;
+            transition: opacity 0.3s ease;
+            animation: popIn 0.3s ease;
+        }
+        @keyframes popIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .feedback-correct { color: var(--correct-color); }
+        .feedback-incorrect { color: var(--incorrect-color); }
+
+        .options-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 600px;
+            padding: 0 1em;
+            box-sizing: border-box;
+        }
+        .option-btn {
+            min-height: 60px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: clamp(1em, 4vw, 1.2em);
+            font-weight: bold;
+            transition: all 0.2s ease-in-out;
+            padding: 0.8em;
+            background-color: var(--bg-main);
+            color: var(--text-light);
+            cursor: pointer;
+        }
+        .option-btn:hover { border-color: var(--primary-color); transform: translateY(-3px); }
+
+        button {
+            background-color: var(--primary-color); color: var(--bg-main); border: none;
+            padding: 1em 2em; font-size: 1.1em; border-radius: 8px; font-weight: bold;
+            cursor: pointer; transition: all 0.2s ease; margin: 10px;
+        }
+        button:hover { background-color: var(--primary-dark); transform: translateY(-3px); }
+
+        h1 { font-size: clamp(2em, 8vw, 2.5em); }
+        h2 { font-size: 1.8em; }
+
+        #end-screen .results-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 900px;
+            margin: 2em 0;
+        }
+        .player-result {
+            background-color: var(--bg-container);
+            padding: 2em;
+            border-radius: 10px;
+            border: 2px solid var(--border-color);
+            flex-grow: 1;
+            min-width: 280px;
+        }
+        .player-result.winner {
+            border-color: var(--gold-color);
+            box-shadow: 0 0 20px var(--gold-color);
+        }
+        
+        .badges-container {
+            margin-top: 1.5em;
+        }
+        .badges-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 1em;
+        }
+        .badge {
+            background-color: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.5em;
+            width: 80px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .badge-icon { font-size: 1.8em; }
+        .badge-name { font-weight: bold; margin-top: 0.3em; font-size: 0.7em; }
+
+        #particle-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+        .token-particle {
+            position: absolute; width: 15px; height: 15px;
+            background: var(--gold-color); border-radius: 50%;
+        }
+        
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background-color: var(--accent-cyan);
+            color: var(--bg-main);
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            font-weight: bold;
+            opacity: 0;
+            transform: translateX(100%);
+            animation: slideIn-out 4s ease forwards;
+        }
+        @keyframes slideIn-out {
+            0%, 100% { opacity: 0; transform: translateX(100%); }
+            10%, 90% { opacity: 1; transform: translateX(0); }
+        }
+
+        .mode-selection button {
+            background-color: var(--bg-container);
+            color: var(--text-light);
+            border: 2px solid var(--border-color);
+        }
+        .mode-selection button.selected {
+            background-color: var(--primary-color);
+            color: var(--bg-main);
+            border-color: var(--primary-color);
+        }
+        .player-inputs {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 20px 0;
+            width: 80%;
+            max-width: 300px;
+        }
+         .player-inputs input {
+            background-color: var(--bg-container); 
+            border: 1px solid var(--border-color); 
+            color: var(--text-light); 
+            border-radius: 8px; 
+            padding: 0.8em; 
+            font-size: 1em; 
+            text-align: center;
+         }
+
+    </style>
+</head>
+<body>
+    <div id="start-screen" class="screen active">
+        <h1>Synonym Match</h1>
+        <p style="color: var(--text-dark); max-width: 500px;">Match the synonym before time runs out. Play solo or challenge a friend!</p>
+        
+        <div class="mode-selection" style="margin: 20px 0;">
+            <button id="one-player-btn" class="selected">1 Player</button>
+            <button id="two-player-btn">2 Players</button>
+        </div>
+
+        <div class="player-inputs">
+            <input type="text" id="player1-name-input" placeholder="Enter Player 1 Name">
+            <input type="text" id="player2-name-input" placeholder="Enter Player 2 Name" style="display:none;">
+        </div>
+
+        <button id="start-game-btn">Start Game</button>
+    </div>
+
+    <div id="game-board" class="screen">
+        <!-- Game instances will be created here -->
+    </div>
+    
+     <div id="end-screen" class="screen">
+        <h1 id="winner-announcement">Game Over!</h1>
+        <div class="results-container" id="results-container">
+            <!-- Player results will be created here -->
+        </div>
+        <button id="play-again-btn">Play Again</button>
+    </div>
+
+    <div id="particle-container"></div>
+    <div id="toast-container"></div>
+
+    <template id="game-instance-template">
+        <div class="game-instance">
+            <div class="hud">
+                <div class="hud-item">Player: <span class="player-name-display"></span></div>
+                <div class="hud-item">Level: <span class="level-display">A1</span></div>
+                <div class="hud-item">Score: <span class="score">0</span></div>
+                <div class="hud-item">Tokens: <span class="tokens">0</span></div>
+                <div class="hud-item">Time: <span class="timer">0:00</span></div>
+            </div>
+            <div class="sorting-screen">
+                <div class="level-interstitial" style="display:none; flex-direction: column; justify-content:center; align-items:center; height:100%;">
+                    <h2 class="level-interstitial-title"></h2>
+                    <div class="countdown-display" style="font-size: 3em; font-weight: bold;"></div>
+                </div>
+                <div class="main-word-container">
+                    <div class="feedback-display"></div>
+                </div>
+                <div class="options-container"></div>
+            </div>
+        </div>
+    </template>
+    
+    <template id="player-result-template">
+        <div class="player-result">
+            <h3 class="final-name">Player</h3>
+            <p>Final Score: <span class="final-score">0</span></p>
+            <p>Tokens Earned: <span class="final-tokens">0</span></p>
+            <div class="badges-container">
+                <h4>Badges</h4>
+                <div class="badges-grid"></div>
+            </div>
+        </div>
+    </template>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const synonymData = {
+            'A1': [
+                { mainWord: "happy", synonym: "joyful", options: ["joyful", "sad", "angry", "tired"] },
+                { mainWord: "big", synonym: "large", options: ["large", "small", "tiny", "short"] },
+                { mainWord: "fast", synonym: "quick", options: ["quick", "slow", "heavy", "calm"] },
+                { mainWord: "good", synonym: "fine", options: ["fine", "bad", "evil", "wrong"] },
+                { mainWord: "sad", synonym: "unhappy", options: ["unhappy", "joyful", "glad", "pleased"] },
+                { mainWord: "cold", synonym: "chilly", options: ["chilly", "hot", "warm", "burning"] },
+                { mainWord: "pretty", synonym: "beautiful", options: ["beautiful", "ugly", "plain", "dull"] },
+                { mainWord: "small", synonym: "little", options: ["little", "huge", "vast", "enormous"] },
+                { mainWord: "hard", synonym: "difficult", options: ["difficult", "easy", "soft", "simple"] },
+                { mainWord: "true", synonym: "correct", options: ["correct", "false", "wrong", "fake"] },
+                { mainWord: "rich", synonym: "wealthy", options: ["wealthy", "poor", "broke", "needy"] },
+                { mainWord: "ill", synonym: "sick", options: ["sick", "healthy", "well", "fine"] },
+                { mainWord: "scared", synonym: "afraid", options: ["afraid", "brave", "bold", "fearless"] },
+                { mainWord: "quiet", synonym: "silent", options: ["silent", "loud", "noisy", "vocal"] },
+                { mainWord: "smart", synonym: "clever", options: ["clever", "dumb", "stupid", "foolish"] },
+                { mainWord: "clean", synonym: "tidy", options: ["tidy", "dirty", "messy", "filthy"] },
+                { mainWord: "old", synonym: "ancient", options: ["ancient", "new", "modern", "young"] },
+                { mainWord: "tired", synonym: "sleepy", options: ["sleepy", "awake", "energetic", "lively"] },
+                { mainWord: "mad", synonym: "angry", options: ["angry", "happy", "calm", "pleased"] },
+                { mainWord: "start", synonym: "begin", options: ["begin", "end", "finish", "stop"] },
+                { mainWord: "end", synonym: "finish", options: ["finish", "start", "begin", "commence"] },
+                { mainWord: "huge", synonym: "enormous", options: ["enormous", "tiny", "small", "little"] },
+                { mainWord: "strange", synonym: "odd", options: ["odd", "normal", "usual", "common"] },
+                { mainWord: "strong", synonym: "powerful", options: ["powerful", "weak", "frail", "feeble"] },
+                { mainWord: "wrong", synonym: "incorrect", options: ["incorrect", "right", "correct", "true"] }
+            ],
+            'A2': [
+                { mainWord: "assist", synonym: "help", options: ["help", "hinder", "obstruct", "prevent"] },
+                { mainWord: "purchase", synonym: "buy", options: ["buy", "sell", "trade", "return"] },
+                { mainWord: "select", synonym: "choose", options: ["choose", "reject", "refuse", "decline"] },
+                { mainWord: "common", synonym: "usual", options: ["usual", "rare", "strange", "uncommon"] },
+                { mainWord: "complete", synonym: "finish", options: ["finish", "start", "fail", "abandon"] },
+                { mainWord: "connect", synonym: "join", options: ["join", "separate", "split", "divide"] },
+                { mainWord: "delicious", synonym: "tasty", options: ["tasty", "bland", "awful", "tasteless"] },
+                { mainWord: "describe", synonym: "explain", options: ["explain", "confuse", "hide", "obscure"] },
+                { mainWord: "different", synonym: "unlike", options: ["unlike", "same", "alike", "similar"] },
+                { mainWord: "polite", synonym: "courteous", options: ["courteous", "rude", "impolite", "disrespectful"] },
+                { mainWord: "receive", synonym: "get", options: ["get", "give", "send", "offer"] },
+                { mainWord: "repair", synonym: "fix", options: ["fix", "break", "damage", "ruin"] },
+                { mainWord: "search", synonym: "look for", options: ["look for", "find", "hide", "ignore"] },
+                { mainWord: "simple", synonym: "easy", options: ["easy", "hard", "complex", "difficult"] },
+                { mainWord: "important", synonym: "vital", options: ["vital", "trivial", "unimportant", "minor"] },
+                { mainWord: "idea", synonym: "thought", options: ["thought", "fact", "reality", "truth"] },
+                { mainWord: "gather", synonym: "collect", options: ["collect", "scatter", "disperse", "separate"] },
+                { mainWord: "famous", synonym: "renowned", options: ["renowned", "unknown", "obscure", "anonymous"] },
+                { mainWord: "eager", synonym: "keen", options: ["keen", "reluctant", "unwilling", "hesitant"] },
+                { mainWord: "brave", synonym: "courageous", options: ["courageous", "cowardly", "fearful", "timid"] },
+                { mainWord: "beautiful", synonym: "gorgeous", options: ["gorgeous", "ugly", "hideous", "plain"] },
+                { mainWord: "answer", synonym: "reply", options: ["reply", "question", "ask", "query"] },
+                { mainWord: "allow", synonym: "permit", options: ["permit", "forbid", "prevent", "ban"] },
+                { mainWord: "always", synonym: "forever", options: ["forever", "never", "sometimes", "rarely"] },
+                { mainWord: "arrive", synonym: "reach", options: ["reach", "depart", "leave", "exit"] }
+            ],
+            'B1': [
+                { mainWord: "achieve", synonym: "accomplish", options: ["accomplish", "fail", "lose", "forfeit"] },
+                { mainWord: "apparent", synonym: "obvious", options: ["obvious", "hidden", "unclear", "doubtful"] },
+                { mainWord: "consider", synonym: "ponder", options: ["ponder", "ignore", "neglect", "disregard"] },
+                { mainWord: "crucial", synonym: "critical", options: ["critical", "minor", "unimportant", "trivial"] },
+                { mainWord: "deceive", synonym: "mislead", options: ["mislead", "guide", "inform", "clarify"] },
+                { mainWord: "decrease", synonym: "reduce", options: ["reduce", "increase", "grow", "expand"] },
+                { mainWord: "sufficient", synonym: "enough", options: ["enough", "lacking", "insufficient", "scarce"] },
+                { mainWord: "frequent", synonym: "regular", options: ["regular", "rare", "infrequent", "seldom"] },
+                { mainWord: "generous", synonym: "giving", options: ["giving", "selfish", "stingy", "greedy"] },
+                { mainWord: "gradual", synonym: "steady", options: ["steady", "sudden", "abrupt", "rapid"] },
+                { mainWord: "hesitate", synonym: "pause", options: ["pause", "proceed", "continue", "advance"] },
+                { mainWord: "humble", synonym: "modest", options: ["modest", "proud", "arrogant", "boastful"] },
+                { mainWord: "intelligent", synonym: "brilliant", options: ["brilliant", "foolish", "stupid", "unintelligent"] },
+                { mainWord: "fortunate", synonym: "lucky", options: ["lucky", "unlucky", "cursed", "hapless"] },
+                { mainWord: "mature", synonym: "adult", options: ["adult", "childish", "immature", "juvenile"] },
+                { mainWord: "flexible", synonym: "adaptable", options: ["adaptable", "rigid", "stiff", "inflexible"] },
+                { mainWord: "permanent", synonym: "lasting", options: ["lasting", "temporary", "brief", "short-term"] },
+                { mainWord: "prohibit", synonym: "forbid", options: ["forbid", "allow", "permit", "authorize"] },
+                { mainWord: "accurate", synonym: "precise", options: ["precise", "inaccurate", "wrong", "flawed"] },
+                { mainWord: "reluctant", synonym: "unwilling", options: ["unwilling", "eager", "keen", "ready"] },
+                { mainWord: "sensible", synonym: "reasonable", options: ["reasonable", "foolish", "silly", "irrational"] },
+                { mainWord: "complex", synonym: "intricate", options: ["intricate", "simple", "basic", "plain"] },
+                { mainWord: "vacant", synonym: "empty", options: ["empty", "full", "occupied", "taken"] },
+                { mainWord: "valuable", synonym: "precious", options: ["precious", "worthless", "cheap", "useless"] },
+                { mainWord: "furious", synonym: "enraged", options: ["enraged", "calm", "pleased", "serene"] }
+            ],
+            'B2': [
+                { mainWord: "benevolent", synonym: "kindly", options: ["kindly", "malevolent", "malicious", "spiteful"] },
+                { mainWord: "ubiquitous", synonym: "omnipresent", options: ["omnipresent", "rare", "scarce", "infrequent"] },
+                { mainWord: "ephemeral", synonym: "transient", options: ["transient", "eternal", "permanent", "endless"] },
+                { mainWord: "pragmatic", synonym: "practical", options: ["practical", "idealistic", "unrealistic", "visionary"] },
+                { mainWord: "eloquent", synonym: "articulate", options: ["articulate", "inarticulate", "mumbling", "unclear"] },
+                { mainWord: "alleviate", synonym: "lessen", options: ["lessen", "worsen", "aggravate", "increase"] },
+                { mainWord: "gregarious", synonym: "sociable", options: ["sociable", "reclusive", "introverted", "shy"] },
+                { mainWord: "lucid", synonym: "clear", options: ["clear", "confusing", "vague", "ambiguous"] },
+                { mainWord: "mitigate", synonym: "ease", options: ["ease", "intensify", "heighten", "amplify"] },
+                { mainWord: "plausible", synonym: "believable", options: ["believable", "unlikely", "improbable", "absurd"] },
+                { mainWord: "superficial", synonym: "shallow", options: ["shallow", "deep", "profound", "thorough"] },
+                { mainWord: "tedious", synonym: "boring", options: ["boring", "exciting", "interesting", "engaging"] },
+                { mainWord: "volatile", synonym: "unstable", options: ["unstable", "stable", "calm", "steady"] },
+                { mainWord: "zealous", synonym: "enthusiastic", options: ["enthusiastic", "apathetic", "indifferent", "uninterested"] },
+                { mainWord: "ambiguous", synonym: "unclear", options: ["unclear", "explicit", "precise", "definite"] },
+                { mainWord: "arbitrary", synonym: "random", options: ["random", "planned", "deliberate", "systematic"] },
+                { mainWord: "authentic", synonym: "genuine", options: ["genuine", "fake", "counterfeit", "false"] },
+                { mainWord: "conceal", synonym: "hide", options: ["hide", "reveal", "show", "expose"] },
+                { mainWord: "diligent", synonym: "hard-working", options: ["hard-working", "lazy", "idle", "inactive"] },
+                { mainWord: "fragile", synonym: "delicate", options: ["delicate", "strong", "robust", "durable"] },
+                { mainWord: "innovative", synonym: "creative", options: ["creative", "unoriginal", "conventional", "traditional"] },
+                { mainWord: "lethargic", synonym: "sluggish", options: ["sluggish", "energetic", "lively", "active"] },
+                { mainWord: "meticulous", synonym: "thorough", options: ["thorough", "careless", "sloppy", "negligent"] },
+                { mainWord: "notorious", synonym: "infamous", options: ["infamous", "famous", "renowned", "celebrated"] },
+                { mainWord: "prudent", synonym: "cautious", options: ["cautious", "reckless", "impulsive", "careless"] }
+            ]
+        };
+        
+        const badgeData = {
+            'A1_COMPLETE': { name: 'A1 Graduate', icon: '🎓', description: 'Complete the A1 Level' },
+            'A2_COMPLETE': { name: 'A2 Achiever', icon: '🚀', description: 'Complete the A2 Level' },
+            'B1_COMPLETE': { name: 'B1 Pro', icon: '🌟', description: 'Complete the B1 Level' },
+            'B2_COMPLETE': { name: 'B2 Master', icon: '🏆', description: 'Complete the B2 Level' },
+            'STREAK_5': { name: 'Hot Streak', icon: '🔥', description: '5 correct answers in a row' },
+            'PERFECT_LEVEL': { name: 'Flawless', icon: '💎', description: 'Complete a level with no mistakes' },
+            'GAME_COMPLETE': { name: 'Word Wizard', icon: '🧙', description: 'Complete all challenges' },
+            'COMEBACK_KID': { name: 'Comeback Kid', icon: '💪', description: 'Pass a level after making a mistake' },
+            'PERFECTIONIST': { name: 'Perfectionist', icon: '💯', description: 'Complete the entire game with no mistakes' },
+            'SPEED_DEMON': { name: 'Speed Demon', icon: '⚡', description: 'Finish a level with more than half the time remaining' }
+        };
+
+        const praisePhrases = ["Awesome!", "Fantastic!", "Superb!", "Nailed it!", "Excellent!", "Great job!", "You're a star!", "Brilliant!"];
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        class GameInstance {
+            constructor(id, playerName, challengeList, audio, particleContainer, onFinishCallback, playerCount, mainController) {
+                this.id = id;
+                this.playerName = playerName;
+                this.masterChallengeList = challengeList;
+                this.audio = audio;
+                this.particleContainer = particleContainer;
+                this.onFinish = onFinishCallback;
+                this.playerCount = playerCount;
+                this.mainController = mainController;
+                
+                this.state = {};
+                this.dom = {};
+                
+                this.init();
+            }
+
+            init() {
+                this.setupDOM();
+                this.resetState();
+            }
+            
+            setupDOM() {
+                const template = document.getElementById('game-instance-template');
+                const clone = template.content.cloneNode(true);
+                this.container = clone.querySelector('.game-instance');
+                document.getElementById('game-board').appendChild(this.container);
+                
+                this.dom = {
+                    hud: {
+                        name: this.container.querySelector('.player-name-display'),
+                        level: this.container.querySelector('.level-display'),
+                        score: this.container.querySelector('.score'),
+                        tokens: this.container.querySelector('.tokens'),
+                        timer: this.container.querySelector('.timer'),
+                    },
+                    interstitial: {
+                        el: this.container.querySelector('.level-interstitial'),
+                        title: this.container.querySelector('.level-interstitial-title'),
+                        countdown: this.container.querySelector('.countdown-display')
+                    },
+                    mainWordContainer: this.container.querySelector('.main-word-container'),
+                    optionsContainer: this.container.querySelector('.options-container'),
+                    sortingScreen: this.container.querySelector('.sorting-screen')
+                };
+            }
+
+            resetState() {
+                 this.state = {
+                    score: 0,
+                    tokens: 0,
+                    currentChallengeIndex: 0,
+                    consecutiveCorrect: 0,
+                    totalErrors: 0,
+                    mistakeMadeInLevel: false,
+                    correctAnswersInLevel: 0,
+                    levelStartTime: 0,
+                    currentLevelWordList: [],
+                    currentLevelIndex: 0,
+                    gameTimer: null,
+                    timeLeft: 0,
+                    isFinished: false,
+                    unlockedBadges: new Set()
+                };
+            }
+
+            start(isFirstPlayer) {
+                this.startNextLevel(isFirstPlayer);
+            }
+
+            startNextLevel(playSound = true) {
+                if (this.state.isFinished) return;
+                const currentLevel = this.masterChallengeList[this.state.currentChallengeIndex]?.level;
+                if (!currentLevel) {
+                    this.finishGame(true);
+                    return;
+                }
+
+                this.state.mistakeMadeInLevel = false;
+                this.state.correctAnswersInLevel = 0;
+                this.state.levelStartTime = MainController.gameConfig.timePerLevel;
+                this.state.currentLevelWordList = shuffleArray([...this.masterChallengeList.filter(c => c.level === currentLevel)]);
+                this.state.currentLevelIndex = 0;
+                
+                if (playSound && this.audio.levelUpSound) this.audio.levelUpSound();
+
+                this.dom.interstitial.title.textContent = `Level ${currentLevel}`;
+                this.dom.interstitial.el.style.display = 'flex';
+                this.dom.mainWordContainer.style.display = 'none';
+                this.dom.optionsContainer.style.display = 'none';
+
+                let countdown = 3;
+                this.dom.interstitial.countdown.textContent = countdown;
+                const countdownInterval = setInterval(() => {
+                    countdown--;
+                    this.dom.interstitial.countdown.textContent = countdown > 0 ? countdown : 'Go!';
+                    if (countdown < 0) {
+                        clearInterval(countdownInterval);
+                        this.dom.interstitial.el.style.display = 'none';
+                        this.dom.mainWordContainer.style.display = 'flex';
+                        this.dom.optionsContainer.style.display = 'grid';
+                        this.state.timeLeft = this.state.levelStartTime;
+                        this.updateHUD(); 
+                        this.startTimer();
+                        this.presentNextChallenge();
+                    }
+                }, 1000);
+            }
+            
+            processNextAction() {
+                if (this.state.isFinished) return;
+
+                const currentLevel = this.state.currentLevelWordList[0].level;
+                let shouldAdvance = false;
+
+                if (this.playerCount === 1) {
+                    // 1-Player "Redemption" Logic
+                    if (this.state.mistakeMadeInLevel) {
+                        if (this.state.correctAnswersInLevel >= 25) {
+                            shouldAdvance = true;
+                            if (!this.state.unlockedBadges.has('COMEBACK_KID')) {
+                                this.state.unlockedBadges.add('COMEBACK_KID');
+                                MainController.showToast(badgeData['COMEBACK_KID']);
+                            }
+                        }
+                    } else {
+                        if (this.state.currentLevelIndex >= this.state.currentLevelWordList.length) {
+                            shouldAdvance = true;
+                        }
+                    }
+                } else {
+                    // 2-Player Logic: Advance after finishing the level's words
+                    if (this.state.currentLevelIndex >= this.state.currentLevelWordList.length) {
+                        shouldAdvance = true;
+                    }
+                }
+
+                if (shouldAdvance) {
+                    this.checkBadges(true); // Check for end-of-level badges
+
+                    const lastChallengeInLevelIndex = this.masterChallengeList.map(c => c.level).lastIndexOf(currentLevel);
+                    this.state.currentChallengeIndex = lastChallengeInLevelIndex + 1;
+
+                    if (this.state.currentChallengeIndex >= this.masterChallengeList.length) {
+                        this.finishGame(true); // Finished all levels
+                    } else {
+                        this.startNextLevel(false); // Start the next level
+                    }
+                } else {
+                    this.presentNextChallenge();
+                }
+            }
+
+            finishGame(completed) {
+                if(this.state.isFinished) return;
+                this.state.isFinished = true;
+                clearInterval(this.state.gameTimer);
+                this.checkBadges(true, true);
+                this.onFinish({
+                    id: this.id,
+                    name: this.playerName,
+                    score: this.state.score,
+                    tokens: this.state.tokens,
+                    badges: Array.from(this.state.unlockedBadges),
+                    completed: completed
+                });
+            }
+            
+            presentNextChallenge() {
+                if (this.state.isFinished) return;
+                
+                if (this.state.currentLevelIndex >= this.state.currentLevelWordList.length) {
+                    this.state.currentLevelIndex = 0;
+                    shuffleArray(this.state.currentLevelWordList);
+                }
+                const challenge = this.state.currentLevelWordList[this.state.currentLevelIndex];
+                
+                this.dom.mainWordContainer.innerHTML = `<div class="main-word">${challenge.mainWord}</div>`;
+                this.dom.optionsContainer.innerHTML = '';
+                
+                const shuffledOptions = shuffleArray([...challenge.options]);
+                
+                shuffledOptions.forEach(optionText => {
+                    const optionBtn = document.createElement('button');
+                    optionBtn.className = 'option-btn';
+                    optionBtn.textContent = optionText;
+                    optionBtn.onclick = (e) => this.handleGuess(optionText === challenge.synonym, e.currentTarget);
+                    this.dom.optionsContainer.appendChild(optionBtn);
+                });
+                this.updateHUD(this.mainController.masterTimeLeft);
+            }
+            
+            updateHUD(timeOverride) {
+                this.dom.hud.name.textContent = this.playerName;
+                this.dom.hud.score.textContent = this.state.score;
+                this.dom.hud.tokens.textContent = this.state.tokens;
+                
+                if (this.state.currentChallengeIndex < this.masterChallengeList.length) {
+                    this.dom.hud.level.textContent = this.masterChallengeList[this.state.currentChallengeIndex].level;
+                } else {
+                    this.dom.hud.level.textContent = 'End';
+                }
+                
+                let timeToDisplay = this.state.timeLeft;
+                if (this.playerCount > 1) {
+                    timeToDisplay = timeOverride !== undefined ? timeOverride : this.mainController.masterTimeLeft;
+                }
+
+                const minutes = Math.floor(timeToDisplay / 60) || 0;
+                const seconds = timeToDisplay % 60 || 0;
+                this.dom.hud.timer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            handleGuess(isCorrect, targetButton) {
+                if (this.state.isFinished) return;
+                this.dom.optionsContainer.innerHTML = '';
+                const feedback = document.createElement('div');
+                feedback.className = 'feedback-display';
+                document.body.classList.add(isCorrect ? 'screen-flash-correct' : 'screen-flash-incorrect');
+                setTimeout(() => document.body.classList.remove('screen-flash-correct', 'screen-flash-incorrect'), 400);
+
+                if (isCorrect) {
+                    this.state.score += 10;
+                    this.state.consecutiveCorrect++;
+                    this.state.correctAnswersInLevel++;
+                    let earnedTokens = 10 + (Math.floor(this.state.consecutiveCorrect / 3) * 5);
+                    this.state.tokens += earnedTokens;
+
+                    const praise = praisePhrases[Math.floor(Math.random() * praisePhrases.length)];
+                    feedback.textContent = `${praise} +${earnedTokens} Tokens`;
+                    feedback.className += " feedback-correct";
+                    
+                    if (this.state.consecutiveCorrect > 1 && this.state.consecutiveCorrect % 5 === 0) {
+                        if (this.audio.streakSound) this.audio.streakSound();
+                    } else {
+                        if (this.audio.correctSound) this.audio.correctSound();
+                    }
+
+                    if (targetButton) this.createTokenParticles(targetButton);
+                    this.checkBadges(false);
+
+                } else {
+                    this.state.score = Math.max(0, this.state.score - 5);
+                    this.state.consecutiveCorrect = 0; 
+                    this.state.mistakeMadeInLevel = true;
+                    this.state.totalErrors++;
+                    feedback.textContent = "Incorrect!";
+                    feedback.className += " feedback-incorrect";
+
+                    if(this.audio.incorrectSound) this.audio.incorrectSound();
+                }
+
+                this.dom.mainWordContainer.innerHTML = '';
+                this.dom.mainWordContainer.appendChild(feedback);
+                this.updateHUD(); // Update score immediately
+                
+                this.state.currentLevelIndex++;
+                
+                setTimeout(() => this.processNextAction(), 1500); 
+            }
+
+            checkBadges(isEndOfLevel, isEndOfGame = false) {
+                if (isEndOfLevel) {
+                    const currentLevel = this.state.currentLevelWordList[0]?.level;
+                    if (currentLevel) {
+                        const badgeId = `${currentLevel}_COMPLETE`;
+                        if (badgeData[badgeId] && !this.state.unlockedBadges.has(badgeId)) {
+                            this.state.unlockedBadges.add(badgeId);
+                            MainController.showToast(badgeData[badgeId]);
+                        }
+                        if (!this.state.mistakeMadeInLevel) {
+                             if (!this.state.unlockedBadges.has('PERFECT_LEVEL')) {
+                                this.state.unlockedBadges.add('PERFECT_LEVEL');
+                                MainController.showToast(badgeData['PERFECT_LEVEL']);
+                            }
+                        }
+                        if (this.playerCount === 1 && this.state.timeLeft > this.state.levelStartTime / 2) {
+                            if (!this.state.unlockedBadges.has('SPEED_DEMON')) {
+                                this.state.unlockedBadges.add('SPEED_DEMON');
+                                MainController.showToast(badgeData['SPEED_DEMON']);
+                            }
+                        }
+                    }
+                }
+                
+                if (isEndOfGame) {
+                    if (this.state.currentChallengeIndex >= this.masterChallengeList.length && !this.state.unlockedBadges.has('GAME_COMPLETE')) {
+                         this.state.unlockedBadges.add('GAME_COMPLETE');
+                         MainController.showToast(badgeData['GAME_COMPLETE']);
+                    }
+                    if (this.state.totalErrors === 0 && !this.state.unlockedBadges.has('PERFECTIONIST')) {
+                        this.state.unlockedBadges.add('PERFECTIONIST');
+                        MainController.showToast(badgeData['PERFECTIONIST']);
+                    }
+                }
+                
+                if (!isEndOfLevel) {
+                    if (this.state.consecutiveCorrect > 0 && this.state.consecutiveCorrect % 5 === 0 && !this.state.unlockedBadges.has('STREAK_5')) {
+                        this.state.unlockedBadges.add('STREAK_5');
+                        MainController.showToast(badgeData['STREAK_5']);
+                    }
+                }
+            }
+            
+            startTimer() {
+                if (this.playerCount > 1) return; // Only 1-player mode has per-level timers
+                clearInterval(this.state.gameTimer);
+                this.state.gameTimer = setInterval(() => {
+                    this.state.timeLeft--; 
+                    this.updateHUD();
+                    if (this.state.timeLeft <= 0) {
+                        this.finishGame(false);
+                    }
+                }, 1000);
+            }
+
+            createTokenParticles(originElement) {
+                const rect = originElement.getBoundingClientRect();
+                const startX = rect.left + rect.width / 2;
+                const startY = rect.top + rect.height / 2;
+                
+                const tokenHud = this.dom.hud.tokens.getBoundingClientRect();
+                const endX = tokenHud.left + tokenHud.width / 2;
+                const endY = tokenHud.top + tokenHud.height / 2;
+
+                for (let i = 0; i < 5; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'token-particle';
+                    this.particleContainer.appendChild(particle);
+
+                    const offsetX = (Math.random() - 0.5) * 50;
+                    const offsetY = (Math.random() - 0.5) * 50;
+
+                    particle.animate([
+                        { transform: `translate(${startX + offsetX}px, ${startY + offsetY}px) scale(1)`, opacity: 1 },
+                        { opacity: 1, offset: 0.8 },
+                        { transform: `translate(${endX}px, ${endY}px) scale(0)`, opacity: 0 }
+                    ], {
+                        duration: 800 + Math.random() * 200,
+                        easing: 'ease-in-out',
+                        delay: i * 50
+                    });
+
+                    setTimeout(() => particle.remove(), 1000);
+                }
+            }
+        }
+
+        const MainController = {
+            players: [],
+            finishedPlayerCount: 0,
+            results: [],
+            playerCount: 1,
+            gameConfig: { timePerLevel: 90, twoPlayerTime: 600 },
+            audio: {},
+            gameTimer: null,
+            masterTimeLeft: 0,
+            
+            init() {
+                this.dom = {
+                    startScreen: document.getElementById('start-screen'),
+                    gameBoard: document.getElementById('game-board'),
+                    endScreen: document.getElementById('end-screen'),
+                    onePlayerBtn: document.getElementById('one-player-btn'),
+                    twoPlayerBtn: document.getElementById('two-player-btn'),
+                    p1NameInput: document.getElementById('player1-name-input'),
+                    p2NameInput: document.getElementById('player2-name-input'),
+                    startButton: document.getElementById('start-game-btn'),
+                    playAgainButton: document.getElementById('play-again-btn'),
+                    winnerAnnouncement: document.getElementById('winner-announcement'),
+                    resultsContainer: document.getElementById('results-container'),
+                    toastContainer: document.getElementById('toast-container'),
+                    particleContainer: document.getElementById('particle-container')
+                };
+                
+                this.initAudio();
+                this.bindEvents();
+            },
+
+            initAudio() {
+                if (typeof Tone !== 'undefined') {
+                    const synth = new Tone.Synth().toDestination();
+                    const polySynth = new Tone.PolySynth(Tone.Synth).toDestination();
+                    this.audio.correctSound = () => synth.triggerAttackRelease("C5", "16n", Tone.now());
+                    this.audio.incorrectSound = () => synth.triggerAttackRelease("A2", "8n", Tone.now());
+                    this.audio.streakSound = () => polySynth.triggerAttackRelease(["C5", "E5", "G5"], "8n", Tone.now());
+                    
+                    let lastLevelUpSoundTime = -1;
+                    this.audio.levelUpSound = () => {
+                        const now = Tone.now();
+                        if (now <= lastLevelUpSoundTime + 0.5) return;
+                        lastLevelUpSoundTime = now;
+                        
+                        polySynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n", now);
+                    };
+                }
+            },
+
+            bindEvents() {
+                this.dom.onePlayerBtn.addEventListener('click', () => this.setPlayerCount(1));
+                this.dom.twoPlayerBtn.addEventListener('click', () => this.setPlayerCount(2));
+
+                this.dom.startButton.addEventListener('click', async () => {
+                    if (Tone.context.state !== 'running') await Tone.start();
+                    this.startGame();
+                });
+                this.dom.playAgainButton.addEventListener('click', () => this.resetGame());
+            },
+
+            setPlayerCount(count) {
+                this.playerCount = count;
+                this.dom.onePlayerBtn.classList.toggle('selected', count === 1);
+                this.dom.twoPlayerBtn.classList.toggle('selected', count === 2);
+                this.dom.p2NameInput.style.display = count === 2 ? 'block' : 'none';
+            },
+
+            startGame() {
+                this.showScreen('game-board');
+                this.finishedPlayerCount = 0;
+                this.results = [];
+                this.players = [];
+                this.dom.gameBoard.innerHTML = '';
+                clearInterval(this.gameTimer);
+
+                const levelOrder = ['A1', 'A2', 'B1', 'B2'];
+                let masterChallengeList = [];
+                levelOrder.forEach(level => {
+                    const challengesForLevel = synonymData[level].map((challenge, index) => ({ ...challenge, id: `${level}-challenge-${index}`, level: level }));
+                    shuffleArray(challengesForLevel);
+                    masterChallengeList.push(...challengesForLevel);
+                });
+                // DO NOT shuffle the master list, so levels are sequential
+
+                const p1Name = this.dom.p1NameInput.value.trim() || 'Player 1';
+                const player1 = new GameInstance(1, p1Name, [...masterChallengeList], this.audio, this.dom.particleContainer, this.handlePlayerFinish.bind(this), this.playerCount, this);
+                this.players.push(player1);
+                
+                if (this.playerCount === 2) {
+                    const p2Name = this.dom.p2NameInput.value.trim() || 'Player 2';
+                    const player2 = new GameInstance(2, p2Name, [...masterChallengeList], this.audio, this.dom.particleContainer, this.handlePlayerFinish.bind(this), this.playerCount, this);
+                    this.players.push(player2);
+                    
+                    this.masterTimeLeft = this.gameConfig.twoPlayerTime;
+                    this.gameTimer = setInterval(() => {
+                        this.masterTimeLeft--;
+                        this.players.forEach(p => p.updateHUD(this.masterTimeLeft));
+                        if (this.masterTimeLeft <= 0) {
+                            this.endGame();
+                        }
+                    }, 1000);
+                }
+                
+                this.players.forEach((player, index) => {
+                    player.start(index === 0);
+                });
+            },
+            
+            endGame(winningPlayer = null) {
+                if (this.finishedPlayerCount > 0 && this.playerCount > 1) return;
+                clearInterval(this.gameTimer);
+                
+                this.players.forEach(p => {
+                    if (!p.state.isFinished) {
+                        const won = p === winningPlayer;
+                        p.finishGame(won);
+                    }
+                });
+            },
+
+            handlePlayerFinish(result) {
+                this.finishedPlayerCount++;
+                this.results.push(result);
+                if (this.finishedPlayerCount === this.playerCount) {
+                    this.showEndScreen();
+                }
+            },
+
+            showEndScreen() {
+                this.dom.resultsContainer.innerHTML = '';
+
+                this.results.forEach(res => {
+                    const template = document.getElementById('player-result-template');
+                    const resultEl = template.content.cloneNode(true).querySelector('.player-result');
+                    
+                    resultEl.querySelector('.final-name').textContent = res.name;
+                    resultEl.querySelector('.final-score').textContent = res.score;
+                    resultEl.querySelector('.final-tokens').textContent = res.tokens;
+                    
+                    const badgesGrid = resultEl.querySelector('.badges-grid');
+                    this.displayBadges(badgesGrid, res.badges);
+                    
+                    res.element = resultEl;
+                    this.dom.resultsContainer.appendChild(resultEl);
+                });
+
+                if (this.playerCount === 1) {
+                    this.dom.winnerAnnouncement.textContent = 'Game Over!';
+                } else {
+                    const p1Res = this.results.find(r => r.id === 1);
+                    const p2Res = this.results.find(r => r.id === 2);
+                    
+                    if (p1Res.score > p2Res.score) {
+                        this.dom.winnerAnnouncement.textContent = `${p1Res.name} Wins!`;
+                        p1Res.element.classList.add('winner');
+                    } else if (p2Res.score > p1Res.score) {
+                        this.dom.winnerAnnouncement.textContent = `${p2Res.name} Wins!`;
+                        p2Res.element.classList.add('winner');
+                    } else {
+                        this.dom.winnerAnnouncement.textContent = "It's a Tie!";
+                    }
+                }
+
+                this.showScreen('end-screen');
+            },
+            
+            displayBadges(container, badgeIds) {
+                container.innerHTML = '';
+                if(badgeIds.length === 0) {
+                     container.innerHTML = '<p style="font-size:0.8em; color: var(--text-dark);">No badges earned.</p>';
+                } else {
+                    badgeIds.forEach(badgeId => {
+                        const badgeInfo = badgeData[badgeId];
+                        const badgeEl = document.createElement('div');
+                        badgeEl.className = 'badge';
+                        badgeEl.title = badgeInfo.description;
+                        badgeEl.innerHTML = `
+                            <div class="badge-icon">${badgeInfo.icon}</div>
+                            <div class="badge-name">${badgeInfo.name}</div>
+                        `;
+                        container.appendChild(badgeEl);
+                    });
+                }
+            },
+
+            showToast(badge) {
+                const toast = document.createElement('div');
+                toast.className = 'toast';
+                toast.textContent = `🎉 Badge Unlocked: ${badge.name}`;
+                this.dom.toastContainer.appendChild(toast);
+                setTimeout(() => toast.remove(), 4000);
+            },
+
+            resetGame() {
+                this.showScreen('start-screen');
+                this.dom.gameBoard.innerHTML = '';
+                this.dom.resultsContainer.innerHTML = '';
+                clearInterval(this.gameTimer);
+            },
+
+            showScreen(screenName) {
+                document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+                document.getElementById(screenName).classList.add('active');
+            }
+        };
+
+        MainController.init();
+    });
+    </script>
+</body>
+</html>

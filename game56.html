@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Moral Dilemma Adventure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .stage-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .stage-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .selected-card {
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.4);
+        }
+        .result-bar-fill {
+            transition: width 1s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex items-center justify-center min-h-screen p-4">
+    <div id="game-container" class="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-6 md:p-10 transition-all duration-500">
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center">
+            <h1 id="start-title" class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Moral Dilemma Adventure</h1>
+            <p id="start-desc" class="text-lg text-gray-600 mb-6 max-w-2xl mx-auto">This is a branching story where your choices matter. Your full moral profile will be revealed at the end.</p>
+            <div class="max-w-sm mx-auto mb-6">
+                <label for="name-input" id="name-label" class="block text-sm font-medium text-gray-700 mb-2">Please enter your name:</label>
+                <input type="text" id="name-input" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="Your Name">
+            </div>
+            <p id="lang-select-label" class="text-lg text-gray-600 mb-4">Select your language:</p>
+            <div class="flex justify-center space-x-4">
+                <button id="start-btn-en" class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700 transition-colors text-xl shadow-lg">English</button>
+                <button id="start-btn-zh" class="bg-teal-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-teal-700 transition-colors text-xl shadow-lg">中文</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="hidden">
+            <h2 id="dilemma-question" class="text-2xl md:text-3xl font-bold mb-8 text-gray-900"></h2>
+            <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Options will be injected here -->
+            </div>
+            <div class="mt-8 text-center">
+                <button id="continue-btn" class="bg-gray-800 text-white font-bold py-2 px-6 rounded-lg hover:bg-gray-900 transition-colors hidden">Continue</button>
+            </div>
+        </div>
+
+        <!-- Results Screen -->
+        <div id="results-screen" class="hidden text-center">
+            <h1 id="results-title" class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">Your Moral Profile</h1>
+            <p id="end-message" class="text-lg text-gray-600 mb-6"></p>
+            <p id="dominant-stage-text" class="text-xl text-gray-600 mb-8"></p>
+            <div id="results-chart" class="space-y-4 mb-8">
+                <!-- Results bars will be injected here -->
+            </div>
+            <button id="restart-btn" class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700 transition-colors text-xl shadow-lg">Play Again</button>
+        </div>
+
+    </div>
+
+    <script>
+        const translations = {
+            en: {
+                startTitle: "Moral Dilemma Adventure",
+                startDesc: "This is a branching story where your choices matter. Your full moral profile will be revealed at the end.",
+                nameLabel: "Please enter your name:",
+                namePlaceholder: "Your Name",
+                langSelectLabel: "Select your language:",
+                continueBtn: "Continue",
+                resultsTitle: "Your Moral Profile",
+                dominantStageText: (name, stages) => `${name}, your reasoning most frequently aligned with: ${stages.join(' and ')}.`,
+                journeyCompleted: (name) => `${name}, you have completed your journey.`,
+                playAgain: "Play Again",
+                choices: "choice(s)"
+            },
+            zh: {
+                startTitle: "道德困境大冒险",
+                startDesc: "这是一个选择决定命运的分支故事。在故事的最后，你将看到完整的道德档案分析。",
+                nameLabel: "请输入你的名字：",
+                namePlaceholder: "你的名字",
+                langSelectLabel: "请选择你的语言：",
+                continueBtn: "继续",
+                resultsTitle: "你的道德档案",
+                dominantStageText: (name, stages) => `${name}，你的推理最常与以下阶段保持一致: ${stages.join(' 和 ')}.`,
+                journeyCompleted: (name) => `${name}，你已完成你的旅程。`,
+                playAgain: "再玩一次",
+                choices: "个选择"
+            }
+        };
+
+        const story = {
+            'start': {
+                en: "1/10: You forgot to pay for a snack at a convenience store. No one noticed. What is your reasoning?",
+                zh: "1/10: 你在便利店买零食，忘了付钱。没人发现。你的理由是？",
+                options: [
+                    { en: "Go back and pay. Integrity matters even when no one is watching.", zh: "回去付钱。即使没人看见，诚信也很重要。", stage: "Stage 6: Universal Ethical Principles", next: 'A2' },
+                    { en: "Just walk away. If I'm not going to get caught, there's no reason to pay.", zh: "直接走掉。既然没被发现，就没必要付钱。", stage: "Stage 1: Obedience and Punishment", next: 'B2' }
+                ]
+            },
+            'A2': {
+                en: "2/10: The cashier thanks you. Later, you see classmates mocking a new student with a strong rural accent. What do you do?",
+                zh: "2/10: 收银员感谢了你。后来，你看到同学嘲笑一个有农村口音的新同学。你怎么办？",
+                options: [
+                    { en: "Speak up and defend the new student. Everyone deserves respect.", zh: "站出来为新同学说话。每个人都应得到尊重。", stage: "Stage 5: Social Contract", next: 'A3' },
+                    { en: "Stay quiet. You don't want to become the next target.", zh: "保持沉默。你不想成为下一个被嘲笑的目标。", stage: "Stage 3: Interpersonal Accord", next: 'C3' }
+                ]
+            },
+            'A3': {
+                en: "3/10: You helped the new student. Now, your teacher makes a grading mistake that gives you a higher score than you earned. What do you do?",
+                zh: "3/10: 你帮助了新同学。现在，老师批改作业时给你的分数比你应得的要高。你怎么办？",
+                options: [
+                    { en: "Tell the teacher to correct it. Fairness is a key part of the school system.", zh: "告诉老师更正。公平是学校体系的关键部分。", stage: "Stage 4: Authority and Social Order", next: 'A4' },
+                    { en: "Keep the higher score. It's a lucky break that benefits you.", zh: "接受高分。这是个好运，对你有利。", stage: "Stage 2: Self-Interest", next: 'D4' }
+                ]
+            },
+            'A4': {
+                en: "4/10: You corrected the score. A friend now asks you to lie to a teacher about why they missed class. What do you do?",
+                zh: "4/10: 你更正了分数。一个朋友现在请你向老师撒谎，解释他为什么缺课。你怎么办？",
+                options: [
+                    { en: "Refuse to lie. Lying undermines trust in the community.", zh: "拒绝撒谎。撒谎会破坏社区的信任。", stage: "Stage 5: Social Contract", next: 'A5' },
+                    { en: "Agree to lie. You want to be seen as a loyal friend.", zh: "同意撒谎。你想被看作一个忠诚的朋友。", stage: "Stage 3: Interpersonal Accord", next: 'E5' }
+                ]
+            },
+            'A5': {
+                en: "5/10: You refused to lie. Now you're asked to join a group project but you dislike the members. Do you accept?",
+                zh: "5/10: 你拒绝撒谎。现在你被邀请加入一个小组项目，但你很不喜欢里面的成员。你接受吗？",
+                options: [
+                    { en: "Accept. Collaboration teaches respect and it's your responsibility.", zh: "接受。合作能教会人尊重，这是你的责任。", stage: "Stage 4: Authority and Social Order", next: 'A6' },
+                    { en: "Refuse. Your own comfort and potential grade are more important.", zh: "拒绝。你自己的舒适和潜在的成绩更重要。", stage: "Stage 2: Self-Interest", next: 'F6' }
+                ]
+            },
+            'A6': {
+                en: "6/10: You joined the project. The school requires all students to attend mandatory 'self-study' sessions on weekends, which you feel is a waste of time. What do you do?",
+                zh: "6/10: 你加入了项目。学校规定所有学生周末必须参加强制性的“自习”课，你觉得这很浪费时间。你怎么办？",
+                options: [
+                    { en: "Find a way to skip it. Unjust rules should be questioned.", zh: "想办法逃课。不公正的规则就应该被质疑。", stage: "Stage 5: Social Contract", next: 'A7' },
+                    { en: "Follow the rule. Even if I disagree, rules are meant to support learning.", zh: "遵守规定。即使不同意，规则也是为了支持学习。", stage: "Stage 4: Authority and Social Order", next: 'G7' }
+                ]
+            },
+            'A7': {
+                en: "7/10: You skipped the session. Now, you get a spot in a competitive summer camp because of your family's connections (guanxi), not purely on merit. Do you accept?",
+                zh: "7/10: 你逃了自习课。现在，你因为家庭关系(guanxi)而不是纯粹靠实力，获得了一个竞争激烈的夏令营名额。你接受吗？",
+                options: [
+                    { en: "Decline. I must act with integrity, even if it costs me an opportunity.", zh: "拒绝。即使会损失机会，我也必须保持正直。", stage: "Stage 6: Universal Ethical Principles", next: 'A8' },
+                    { en: "Accept. Since it's an official spot, it's compliant.", zh: "接受。既然是官方给的名额，那就是合规的。", stage: "Stage 4: Authority and Social Order", next: 'H8' }
+                ]
+            },
+            'A8': {
+                en: "8/10: You declined the spot. You discover a popular restaurant owned by a family friend is secretly using low-quality ingredients. Do you expose them?",
+                zh: "8/10: 你拒绝了名额。你发现一位家人朋友开的网红餐厅，在偷偷使用劣质食材。你揭发他们吗？",
+                options: [
+                    { en: "Expose them. Public health and the right to know are more important.", zh: "揭发。公众的健康和知情权更重要。", stage: "Stage 6: Universal Ethical Principles", next: 'A9' },
+                    { en: "Stay silent. Exposing them could get your family in trouble.", zh: "保持沉默。揭发可能会让你家陷入麻烦。", stage: "Stage 1: Obedience and Punishment", next: 'I9' }
+                ]
+            },
+            'A9': {
+                en: "9/10: You exposed the restaurant. Now you witness a classmate stealing the final exam papers. Reporting them will get them expelled and you ostracized. Do you report it?",
+                zh: "9/10: 你揭发了餐厅。现在你目睹一个同学偷窃期末考试的试卷。举报他会让他被开除，并让你被孤立。你举报吗？",
+                options: [
+                    { en: "Report it. I must defend the fairness and justice of the exam.", zh: "举报。我必须捍卫考试的公平和正义。", stage: "Stage 6: Universal Ethical Principles", next: 'A10' },
+                    { en: "Stay silent. If I speak up, I might face retaliation from them.", zh: "保持沉默。如果我出声，可能会被他们报复。", stage: "Stage 1: Obedience and Punishment", next: 'J10' }
+                ]
+            },
+            'A10': {
+                en: "10/10: You reported the cheater. Finally, to uphold the collective honor of your class and school, a teacher asks you to hide an inconvenient truth during an important evaluation. What do you do?",
+                zh: "10/10: 你举报了作弊者。最后，为了维护班级和学校的集体荣誉，老师让你在一个重要评比中隐瞒一个对学校不利的真相。你怎么办？",
+                options: [
+                    { en: "Tell the truth. The truth is more important than collective honor.", zh: "说出真相。真相比集体荣誉更重要。", stage: "Stage 6: Universal Ethical Principles", next: 'end_high_road' },
+                    { en: "Uphold the collective honor. It is the duty of every member to protect the group.", zh: "维护集体荣誉。维护集体是每个成员的责任。", stage: "Stage 4: Authority and Social Order", next: 'end_principled_collective' }
+                ]
+            },
+            'B2': {
+                en: "2/10: You walked away. A few days later, you find a wallet in the library. What's your move?",
+                zh: "2/10: 你直接走了。几天后，你在图书馆发现了钱包。你怎么办？",
+                options: [
+                    { en: "Take the cash. A reward is possible, but taking the cash is a sure thing.", zh: "拿走现金。可能会有奖励，但拿走现金更实在。", stage: "Stage 2: Self-Interest", next: 'B3' },
+                    { en: "Turn it in to the front desk. Taking what isn't yours is against school rules.", zh: "交到前台。拿不属于自己的东西是违反校规的。", stage: "Stage 4: Authority and Social Order", next: 'K3' }
+                ]
+            },
+            'B3': {
+                en: "3/10: You took the money. Now someone offers you cash to do their homework. Do you accept?",
+                zh: "3/10: 你拿了钱。现在有人出钱让你帮他写作业。你接受吗？",
+                options: [
+                    { en: "Accept. It's a good deal and I need the money.", zh: "接受。这笔交易不错，我正好需要钱。", stage: "Stage 2: Self-Interest", next: 'B4' },
+                    { en: "Refuse. If I get caught, the punishment will be severe.", zh: "拒绝。如果被抓到，惩罚会很严重。", stage: "Stage 1: Obedience and Punishment", next: 'L4' }
+                ]
+            },
+            'B4': {
+                en: "4/10: You did the homework for cash. You're invited to a party, but your best friend wasn’t. Do you go?",
+                zh: "4/10: 你帮人写了作业。你被邀请参加一个派对，但你最好的朋友没被邀请。你去吗？",
+                options: [
+                    { en: "Go. I want to have fun, and this is my chance.", zh: "去。我想玩得开心，这是我的机会。", stage: "Stage 2: Self-Interest", next: 'B5' },
+                    { en: "Don't go. I don't want to hurt my friend's feelings.", zh: "不去。我不想伤害我朋友的感情。", stage: "Stage 3: Interpersonal Accord", next: 'M5' }
+                ]
+            },
+            'B5': {
+                en: "5/10: You went to the party. Now someone offers you an 'inside track' to get into a top university, bypassing the Gaokao. Do you take it?",
+                zh: "5/10: 你去了派对。现在有人为你提供一个“内部渠道”，可以绕过高考进入一所顶尖大学。你接受吗？",
+                options: [
+                    { en: "Take it. The normal path is too hard and this benefits you greatly.", zh: "接受。正常途径太难了，这对你非常有利。", stage: "Stage 2: Self-Interest", next: 'B6' },
+                    { en: "Refuse. Breaking the rules is too risky and wrong.", zh: "拒绝。破坏规则风险太大，而且是不对的。", stage: "Stage 4: Authority and Social Order", next: 'N6' }
+                ]
+            },
+            'B6': {
+                en: "6/10: You took the 'back door'. Now the school has a scandal and asks you to lie to protect its reputation. What do you do?",
+                zh: "6/10: 你走了“后门”。现在学校发生了一件丑闻，要求你撒谎来保护学校的声誉。你怎么办？",
+                options: [
+                    { en: "Lie for the school. Protecting the institution might benefit my standing.", zh: "为学校撒谎。保护学校可能对我的地位有好处。", stage: "Stage 2: Self-Interest", next: 'B7' },
+                    { en: "Refuse to lie. Truth is essential for institutional trust.", zh: "拒绝撒谎。真相对于机构的信任至关重要。", stage: "Stage 5: Social Contract", next: 'O7' }
+                ]
+            },
+            'B7': {
+                en: "7/10: You lied for the school. Now you see city inspectors confiscating an elderly street vendor's cart. What do you do?",
+                zh: "7/10: 你为学校撒了谎。现在你看到城管正在没收一位年迈街头小贩的推车。你怎么办？",
+                options: [
+                    { en: "Ignore them as instructed. I could get in trouble if I help.", zh: "按指示忽略他们。如果我帮忙，可能会惹上麻烦。", stage: "Stage 1: Obedience and Punishment", next: 'B8' },
+                    { en: "Help the vendor. It might make me feel good or earn praise.", zh: "帮助小贩。这可能会让我感觉良好或得到赞扬。", stage: "Stage 2: Self-Interest", next: 'P8' }
+                ]
+            },
+            'B8': {
+                en: "8/10: You ignored the vendor. You're late for class due to a bus delay. Do you accept the penalty?",
+                zh: "8/10: 你忽略了小贩。你因为公交晚点而上课迟到。你接受处罚吗？",
+                options: [
+                    { en: "Argue with the teacher. It wasn't my fault, I shouldn't be punished.", zh: "和老师争辩。这不是我的错，我不该被罚。", stage: "Stage 1: Obedience and Punishment", next: 'B9' },
+                    { en: "Accept the penalty. It might make the teacher lenient next time.", zh: "接受处罚。这可能会让老师下次对我宽容些。", stage: "Stage 2: Self-Interest", next: 'Q9' }
+                ]
+            },
+            'B9': {
+                en: "9/10: You argued with the teacher. Now, a friend is being bullied online. Do you intervene?",
+                zh: "9/10: 你和老师争辩了。现在，一个朋友在网上被欺凌。你干预吗？",
+                options: [
+                    { en: "Don't get involved. I might be targeted, too.", zh: "不介入。我也可能成为目标。", stage: "Stage 1: Obedience and Punishment", next: 'B10' },
+                    { en: "Intervene. Helping might make my friend grateful to me.", zh: "干预。帮助朋友可能会让他感激我。", stage: "Stage 2: Self-Interest", next: 'R10' }
+                ]
+            },
+            'B10': {
+                en: "10/10: You didn't get involved. Finally, the school asks you to follow a rule that seems unfair. What do you do?",
+                zh: "10/10: 你没有介入。最后，学校要求你遵守一条看起来不公平的规定。你怎么办？",
+                options: [
+                    { en: "Disobey. If I can get away with it, why not?", zh: "不遵守。如果能逃脱惩罚，为什么不呢？", stage: "Stage 1: Obedience and Punishment", next: 'end_low_road' },
+                    { en: "Obey. Following the rule helps me avoid more trouble.", zh: "遵守。遵守规定能帮我避免更多麻烦。", stage: "Stage 2: Self-Interest", next: 'end_calculated_road' }
+                ]
+            },
+            'C3': { en: "3/10: You stayed quiet. The new student looks hurt. Your journey continues down a path where avoiding conflict is a priority.", zh: "3/10: 你保持了沉默。新同学看起来很受伤。你的旅程在一个优先避免冲突的道路上继续。", next: 'D4'},
+            'D4': { en: "4/10: You kept the higher score. This choice sends you down a path focused on personal gain.", zh: "4/10: 你接受了高分。这个选择让你走上了一条专注于个人利益的道路。", next: 'M5'},
+            'E5': { en: "5/10: You lied for your friend. Your path is now defined by loyalty to your friends over formal rules.", zh: "5/10: 你为朋友撒了谎。你的道路现在由对朋友的忠诚而不是正式规则来定义。", next: 'end_A_good_bad_good'},
+            'F6': { en: "6/10: You refused the project. This decision prioritizes your own comfort over group responsibility.", zh: "6/10: 你拒绝了项目。这个决定将你自己的舒适置于集体责任之上。", next: 'end_A_bad_bad_bad'},
+            'G7': { en: "7/10: You obeyed the 'self-study' rule. Your journey shows a strong respect for established authority.", zh: "7/10: 你遵守了自习规定。你的旅程显示了对既定权威的强烈尊重。", next: 'end_B_good_good_bad'},
+            'H8': { en: "8/10: You accepted the spot from connections. You trust the system to be fair, even when others question it.", zh: "8/10: 你接受了名额。你相信系统是公平的，即使别人质疑。", next: 'end_A_bad_good_good'},
+            'I9': { en: "9/10: You stayed quiet about the restaurant. Fear of punishment guided your decision.", zh: "9/10: 你对餐厅的事保持沉默。对惩罚的恐惧引导了你的决定。", next: 'end_A_good_good_bad'},
+            'J10': { en: "10/10: You stayed silent about the stolen exam. The risk was too high. Your journey ends with a choice for self-preservation.", zh: "10/10: 你对偷窃试卷的事保持沉默。风险太高了。你的旅程以自我保护的选择结束。", next: 'end_B_bad_bad_bad'},
+            'K3': { en: "3/10: You returned the wallet. This honest act shifts your path.", zh: "3/10: 你归还了钱包。这个诚实的行为改变了你的道路。", next: 'A4'},
+            'L4': { en: "4/10: You refused the homework out of fear. Your path is now guided by avoiding punishment.", zh: "4/10: 你因为害怕而拒绝了代写作业。你的道路现在由避免惩罚来引导。", next: 'B9'},
+            'M5': { en: "5/10: You skipped the party for your friend. This shows a strong sense of interpersonal loyalty.", zh: "5/10: 你为了朋友放弃了派对。这显示了强烈的人际忠诚感。", next: 'end_A_good_bad_good'},
+            'N6': { en: "6/10: You refused the 'back door' to university. Your respect for the rules outweighs the potential gain.", zh: "6/10: 你拒绝了“后门”。你对法律的尊重超过了潜在的收益。", next: 'end_B_bad_good_bad'},
+            'O7': { en: "7/10: You refused to lie for the school. You chose transparency over protecting an institution.", zh: "7/10: 你拒绝为学校撒谎。你选择了透明而不是保护一个机构。", next: 'end_B_good_good_good'},
+            'P8': { en: "8/10: You helped the vendor for the good feeling it gave you. Your actions are guided by personal reward.", zh: "8/10: 你为了自我感觉良好而帮助了小贩。你的行动由个人回报驱动。", next: 'end_calculated_road'},
+            'Q9': { en: "9/10: You accepted the penalty to stay on the teacher's good side. A calculated choice for future benefit.", zh: "9/10: 你为了讨好老师而接受了处罚。这是一个为未来利益而做的计算性选择。", next: 'end_calculated_road'},
+            'R10': { en: "10/10: You helped your friend to gain their loyalty. Your final choice is one of strategic social exchange.", zh: "10/10: 你帮助朋友是为了获得他的忠诚。你的最终选择是一次策略性的社交交换。", next: 'end_B_good_bad_good'},
+            'end_high_road': { isEnd: true, en: "You consistently made choices based on universal principles of justice, fairness, and dignity, even at personal cost. Your journey ends on the highest moral road.", zh: "你始终如一地根据正义、公平和尊严的普适原则做出选择，即使需要付出个人代价。你的旅程在最高的道德道路上结束。" },
+            'end_principled_collective': { isEnd: true, en: "Your journey was guided by strong principles, but ultimately, you prioritized duty to the collective over universal truths. You are a person of order and conviction.", zh: "你的旅程由强烈的原则引导，但最终，你将对集体的责任置于普适的真理之上。你是一个有秩序和信念的人。" },
+            'end_low_road': { isEnd: true, en: "Your journey was primarily defined by avoiding punishment and doing what you could get away with. Your choices reflect a focus on the most basic level of moral reasoning.", zh: "你的旅程主要由避免惩罚和侥幸心理来定义。你的选择反映了最基本的道德推理水平。" },
+            'end_calculated_road': { isEnd: true, en: "Your path was a series of calculated decisions based on self-interest and potential rewards. You are a strategic actor, always weighing what's in it for you.", zh: "你的道路是一系列基于自身利益和潜在回报的计算性决定。你是一个战略家，总是在权衡利弊。" },
+            'end_A_good_bad_good': { isEnd: true, en: "You chose to protect your friend over the rules. Your journey ends with a focus on personal loyalty, even at the cost of formal principles.", zh: "你选择保护朋友而不是遵守规则。你的旅程以个人忠诚为中心，即使以牺牲正式原则为代价。" },
+            'end_A_bad_bad_bad': { isEnd: true, en: "You refused the project. This decision prioritizes your own comfort over group responsibility.", zh: "你拒绝了项目。这个决定将你自己的舒适置于集体责任之上。" },
+            'end_B_good_good_bad': { isEnd: true, en: "You obeyed the rule despite disagreeing with it, prioritizing order. Your journey ends with a deference to authority.", zh: "尽管不同意，你还是遵守了规则，将秩序放在首位。你的旅程以对权威的遵从告终。" },
+            'end_A_bad_good_good': { isEnd: true, en: "You accepted the spot from connections. You trust the system to be fair, even when others question it.", zh: "你接受了名额。你相信系统是公平的，即使别人质疑。" },
+            'end_B_bad_bad_bad': { isEnd: true, en: "You stayed out of the bullying incident to protect yourself. Your journey ends with a choice for personal safety over intervention.", zh: "你为了保护自己而没有介入欺凌事件。你的旅程以选择个人安全而不是干预告终。" },
+            'end_B_bad_good_bad': { isEnd: true, en: "You refused the 'back door' to university, choosing to follow the proper process. Your journey ends with a decision to respect the rules, even when it's inconvenient.", zh: "你拒绝了“后门”，选择遵循正当程序。你的旅程以尊重规则的决定告终，即使这很不方便。" },
+            'end_B_good_good_good': { isEnd: true, en: "You chose transparency over protecting an institution. Your journey ends with a successful stand for social contract and justice.", zh: "你选择了透明而不是保护一个机构。你的旅程以成功地捍卫社会契约和正义告终。" },
+        };
+
+        let currentStoryNodeKey = 'start';
+        let stageCounts = {};
+        let nextNodeKey = '';
+        let currentLang = 'en';
+        let playerName = '';
+        const stageOrder = [
+            "Stage 1: Obedience and Punishment",
+            "Stage 2: Self-Interest",
+            "Stage 3: Interpersonal Accord",
+            "Stage 4: Authority and Social Order",
+            "Stage 5: Social Contract",
+            "Stage 6: Universal Ethical Principles"
+        ];
+        const stageColors = {
+            "Stage 1": "bg-red-500",
+            "Stage 2": "bg-orange-500",
+            "Stage 3": "bg-yellow-500",
+            "Stage 4": "bg-green-500",
+            "Stage 5": "bg-blue-500",
+            "Stage 6": "bg-purple-500",
+        };
+
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const resultsScreen = document.getElementById('results-screen');
+        const startBtnEn = document.getElementById('start-btn-en');
+        const startBtnZh = document.getElementById('start-btn-zh');
+        const continueBtn = document.getElementById('continue-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const dilemmaQuestion = document.getElementById('dilemma-question');
+        const optionsContainer = document.getElementById('options-container');
+        const resultsChart = document.getElementById('results-chart');
+        const dominantStageText = document.getElementById('dominant-stage-text');
+        const endMessage = document.getElementById('end-message');
+        const nameInput = document.getElementById('name-input');
+
+        startBtnEn.addEventListener('click', () => startGame('en'));
+        startBtnZh.addEventListener('click', () => startGame('zh'));
+        continueBtn.addEventListener('click', advanceStory);
+        restartBtn.addEventListener('click', () => {
+             resultsScreen.classList.add('hidden');
+             startScreen.classList.remove('hidden');
+        });
+        
+        function updateUIText(lang) {
+            const t = translations[lang];
+            document.getElementById('start-title').textContent = t.startTitle;
+            document.getElementById('start-desc').textContent = t.startDesc;
+            document.getElementById('name-label').textContent = t.nameLabel;
+            document.getElementById('name-input').placeholder = t.namePlaceholder;
+            document.getElementById('lang-select-label').textContent = t.langSelectLabel;
+            document.getElementById('continue-btn').textContent = t.continueBtn;
+            document.getElementById('results-title').textContent = t.resultsTitle;
+            document.getElementById('restart-btn').textContent = t.playAgain;
+        }
+
+        function startGame(lang) {
+            currentLang = lang;
+            playerName = nameInput.value || (lang === 'en' ? 'Player' : '玩家');
+            updateUIText(lang);
+
+            currentStoryNodeKey = 'start';
+            stageCounts = {};
+            stageOrder.forEach(stage => stageCounts[stage] = 0);
+
+            startScreen.classList.add('hidden');
+            resultsScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            
+            displayNode();
+        }
+
+        function displayNode() {
+            continueBtn.classList.add('hidden');
+            optionsContainer.innerHTML = '';
+
+            const node = story[currentStoryNodeKey];
+            
+            if (!node) {
+                console.error("Error: Could not find story node for key:", currentStoryNodeKey);
+                return;
+            }
+
+            dilemmaQuestion.textContent = node[currentLang];
+
+            if (node.isEnd) {
+                showResults(node[currentLang]);
+                return;
+            }
+
+            if (node.options && node.options.length > 0) {
+                node.options.forEach(option => {
+                    const button = document.createElement('button');
+                    button.innerHTML = `<p class="font-semibold">${option[currentLang]}</p>`;
+                    button.className = 'stage-card bg-white p-4 rounded-lg border-2 border-gray-200 text-left hover:border-indigo-500 transition-colors h-full';
+                    button.addEventListener('click', () => selectAnswer(option, button));
+                    optionsContainer.appendChild(button);
+                });
+            } 
+            else if (node.next) {
+                nextNodeKey = node.next;
+                continueBtn.classList.remove('hidden');
+            } 
+            else {
+                console.error("Error: Story node is not an end node and has no options or next key:", currentStoryNodeKey);
+            }
+        }
+        
+        function selectAnswer(option, selectedCard) {
+            stageCounts[option.stage]++;
+            nextNodeKey = option.next;
+            
+            continueBtn.classList.remove('hidden');
+
+            Array.from(optionsContainer.children).forEach(child => {
+                child.disabled = true;
+                child.classList.remove('hover:border-indigo-500');
+                if (child !== selectedCard) {
+                    child.classList.add('opacity-50');
+                } else {
+                    child.classList.add('selected-card');
+                }
+            });
+        }
+
+        function advanceStory() {
+            currentStoryNodeKey = nextNodeKey;
+            displayNode();
+        }
+
+        function showResults(finalMessage) {
+            gameScreen.classList.add('hidden');
+            resultsScreen.classList.remove('hidden');
+            resultsChart.innerHTML = '';
+            endMessage.textContent = finalMessage;
+
+            let maxCount = 0;
+            let dominantStages = [];
+            let totalChoices = 0;
+
+            for (const stage in stageCounts) {
+                const count = stageCounts[stage];
+                totalChoices += count;
+                if (count > maxCount) {
+                    maxCount = count;
+                    dominantStages = [stage];
+                } else if (count === maxCount && maxCount > 0) {
+                    dominantStages.push(stage);
+                }
+            }
+            
+            if (dominantStages.length > 0) {
+                dominantStageText.textContent = translations[currentLang].dominantStageText(playerName, dominantStages);
+            } else {
+                dominantStageText.textContent = translations[currentLang].journeyCompleted(playerName);
+            }
+
+            stageOrder.forEach(stage => {
+                const count = stageCounts[stage] || 0;
+                if (count > 0) {
+                    const percentage = (count / totalChoices) * 100;
+                    const stageKey = stage.split(':')[0];
+                    const colorClass = stageColors[stageKey] || 'bg-gray-400';
+
+                    const barContainer = document.createElement('div');
+                    barContainer.className = 'w-full';
+                    barContainer.innerHTML = `
+                        <div class="flex justify-between mb-1">
+                            <span class="text-base font-medium text-gray-700">${stage}</span>
+                            <span class="text-sm font-medium text-gray-700">${count} ${translations[currentLang].choices}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-4">
+                            <div class="result-bar-fill ${colorClass} h-4 rounded-full" style="width: 0%;" data-width="${percentage}%"></div>
+                        </div>
+                    `;
+                    resultsChart.appendChild(barContainer);
+                }
+            });
+            
+            setTimeout(() => {
+                document.querySelectorAll('.result-bar-fill').forEach(bar => {
+                    bar.style.width = bar.dataset.width;
+                });
+            }, 100);
+        }
+        
+        // Set initial UI text to English
+        updateUIText('en');
+    </script>
+</body>
+</html>

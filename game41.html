@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Phrasal Verb Challenge - Classroom Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: flex;
+        }
+        .hidden-by-default {
+            display: none;
+        }
+        /* Custom animation for shaking */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+        .shake {
+            animation: shake 0.5s;
+        }
+        /* Animation for bonus points popup */
+        @keyframes fade-up-pop {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            50% { opacity: 1; transform: translateY(-30px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-80px) scale(1.2); }
+        }
+        .bonus-popup {
+            position: absolute;
+            animation: fade-up-pop 1.5s ease-out forwards;
+            font-size: 2rem;
+            font-weight: bold;
+            pointer-events: none;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+        /* Animation for the token icon */
+        @keyframes pop-icon {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.5) rotate(-15deg); }
+            100% { transform: scale(1); }
+        }
+        .pop {
+            animation: pop-icon 0.3s ease-out;
+            display: inline-block; /* Needed for transform to work properly */
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white overflow-hidden">
+
+    <!-- Main Menu Screen -->
+    <div id="main-menu" class="screen active flex-col justify-center items-center w-full h-screen p-4">
+        <div class="text-center w-full max-w-2xl mx-auto">
+            <h1 class="text-5xl md:text-6xl font-bold text-cyan-400 mb-2">Phrasal Verb Challenge</h1>
+            <p class="text-lg text-slate-300 mb-8">Classroom Edition</p>
+            
+            <div class="bg-slate-800 p-6 rounded-2xl mb-8">
+                <h2 class="text-2xl font-bold mb-4 text-white">Select Mode</h2>
+                <div class="flex gap-4 mb-6">
+                    <button id="one-player-btn" class="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition">1 Player</button>
+                    <button id="two-player-btn" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition">2 Players</button>
+                </div>
+                
+                <div id="name-input-section">
+                    <h2 class="text-2xl font-bold mb-4 text-white">Enter Player Name(s)</h2>
+                    <div id="team-inputs-container" class="flex flex-col md:flex-row gap-4 mb-4">
+                        <input type="text" id="team1-name-input" placeholder="Player 1 Name" class="flex-1 p-3 bg-slate-700 border-2 border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 transition">
+                        <input type="text" id="team2-name-input" placeholder="Player 2 Name" class="flex-1 p-3 bg-slate-700 border-2 border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-pink-500 transition hidden-by-default">
+                    </div>
+                    <button id="start-game-btn" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-8 rounded-lg text-xl transition transform hover:scale-105">Start Game</button>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-2xl">
+                <h2 class="text-2xl font-bold mb-4 text-white">Leaderboard</h2>
+                <div id="leaderboard" class="space-y-2 text-left">
+                    <p class="text-slate-400">Loading scores...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen w-full h-screen">
+        <div id="game-container" class="flex flex-col md:flex-row w-full h-full">
+            <!-- Team 1 Panel -->
+            <div id="team1-panel" class="player-panel relative flex-1 flex flex-col p-4 md:p-6 bg-slate-900 md:border-r-4 border-cyan-500">
+                <div class="hud grid grid-cols-3 gap-2 items-center w-full text-lg font-bold mb-4 text-cyan-400">
+                    <span id="team1-name-display" class="truncate">Player 1</span>
+                    <div class="text-center">
+                        <span id="team1-q-count">A1 (0/25)</span>
+                    </div>
+                    <div class="text-right">
+                        <span id="team1-score">Score: 0</span>
+                        <div class="flex items-center justify-end gap-2 text-base">
+                             <span id="team1-streak" class="text-amber-400">🔥 0</span>
+                             <span id="team1-tokens" class="text-yellow-400">🪙 0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="timer w-full h-4 bg-slate-700 rounded-full overflow-hidden mb-6">
+                    <div id="team1-timer-bar" class="timer-bar h-full bg-cyan-400 rounded-full" style="width: 100%;"></div>
+                </div>
+                <div class="question-container flex-grow flex items-center justify-center mb-6">
+                    <div id="team1-sentence" class="sentence-container text-2xl md:text-3xl font-semibold text-center leading-relaxed"></div>
+                </div>
+                <div id="team1-options" class="options-container w-full space-y-3"></div>
+            </div>
+            <!-- Team 2 Panel -->
+            <div id="team2-panel" class="player-panel relative flex-1 flex-col p-4 md:p-6 bg-slate-900 border-t-4 md:border-t-0 md:border-l-4 border-pink-500 hidden-by-default">
+                <div class="hud grid grid-cols-3 gap-2 items-center w-full text-lg font-bold mb-4 text-pink-400">
+                    <span id="team2-name-display" class="truncate">Player 2</span>
+                     <div class="text-center">
+                        <span id="team2-q-count">A1 (0/25)</span>
+                    </div>
+                    <div class="text-right">
+                        <span id="team2-score">Score: 0</span>
+                         <div class="flex items-center justify-end gap-2 text-base">
+                             <span id="team2-streak" class="text-amber-400">🔥 0</span>
+                             <span id="team2-tokens" class="text-yellow-400">🪙 0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="timer w-full h-4 bg-slate-700 rounded-full overflow-hidden mb-6">
+                    <div id="team2-timer-bar" class="timer-bar h-full bg-pink-400 rounded-full" style="width: 100%;"></div>
+                </div>
+                <div class="question-container flex-grow flex items-center justify-center mb-6">
+                    <div id="team2-sentence" class="sentence-container text-2xl md:text-3xl font-semibold text-center leading-relaxed"></div>
+                </div>
+                <div id="team2-options" class="options-container w-full space-y-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Winner Screen -->
+    <div id="winner-screen" class="screen flex-col justify-center items-center w-full h-screen p-4">
+        <div class="text-center w-full max-w-3xl mx-auto bg-slate-800 p-8 rounded-2xl shadow-2xl">
+            <h1 class="text-5xl font-bold text-yellow-400 mb-4">Game Over!</h1>
+            <h2 id="winner-declaration" class="text-4xl font-bold mb-6"></h2>
+            <div class="final-scores flex justify-around w-full mb-6">
+                <div id="team1-final-score-box" class="final-score-box p-6 rounded-lg bg-cyan-500 w-5/12">
+                    <h3 id="team1-final-name" class="text-2xl font-bold mb-2 truncate">Player 1</h3>
+                    <p id="team1-final-score-p" class="text-5xl font-bold">0</p>
+                    <p id="team1-final-tokens" class="text-2xl font-bold text-yellow-200">🪙 0</p>
+                </div>
+                <div id="team2-final-score-box" class="final-score-box p-6 rounded-lg bg-pink-500 w-5/12 hidden-by-default">
+                    <h3 id="team2-final-name" class="text-2xl font-bold mb-2 truncate">Player 2</h3>
+                    <p id="team2-final-score-p" class="text-5xl font-bold">0</p>
+                    <p id="team2-final-tokens" class="text-2xl font-bold text-yellow-200">🪙 0</p>
+                </div>
+            </div>
+             <div class="awards-section w-full mb-6">
+                <h3 class="text-2xl font-bold text-white mb-4">🏆 Awards 🏆</h3>
+                <div id="awards-container" class="flex justify-around">
+                    <div id="team1-awards" class="text-left w-full md:w-5/12"></div>
+                    <div id="team2-awards" class="text-left w-5/12 hidden-by-default"></div>
+                </div>
+            </div>
+            <div class="flex flex-col md:flex-row gap-4">
+                <button id="submit-score-btn" class="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition transform hover:scale-105">Submit to Leaderboard</button>
+                <button id="play-again-btn" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition transform hover:scale-105">Play Again</button>
+            </div>
+             <p id="submit-message" class="text-green-400 mt-4 h-6"></p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- GAME DATA ---
+        const PHRASAL_VERBS = { /* Data remains the same as provided */
+            "A1": [
+                { sentence: "Please ___ the TV, the show is starting.", options: ["turn on", "get on", "put on", "go on"], answer: "turn on" },
+                { sentence: "It's time to ___ for school.", options: ["get up", "stand up", "sit up", "wake on"], answer: "get up" },
+                { sentence: "Could you ___ when the teacher talks?", options: ["sit down", "go down", "get down", "put down"], answer: "sit down" },
+                { sentence: "___ and stretch your legs.", options: ["Stand up", "Get up", "Go up", "Sit up"], answer: "Stand up" },
+                { sentence: "___ at the board, please.", options: ["Look at", "See at", "Watch at", "View at"], answer: "Look at" },
+                { sentence: "I like to ___ to the radio.", options: ["listen to", "hear to", "sound to", "ear to"], answer: "listen to" },
+                { sentence: "My alarm clock helps me ___ in the morning.", options: ["wake up", "go up", "get up", "stand up"], answer: "wake up" },
+                { sentence: "Don't stop, ___ with your work.", options: ["go on", "get on", "put on", "be on"], answer: "go on" },
+                { sentence: "Please ___ , the door is open.", options: ["come in", "go in", "get in", "be in"], answer: "come in" },
+                { sentence: "Let's ___ tonight, I don't want to cook.", options: ["go out", "get out", "come out", "be out"], answer: "go out" },
+                { sentence: "I need to ___ my keys.", options: ["look for", "find for", "see for", "search for"], answer: "look for" },
+                { sentence: "Can you ___ that book from the floor?", options: ["pick up", "get up", "stand up", "take up"], answer: "pick up" },
+                { sentence: "It's cold, so ___ your jacket.", options: ["put on", "wear on", "dress on", "get on"], answer: "put on" },
+                { sentence: "It's warm inside, you can ___ your coat.", options: ["take off", "put off", "get off", "go off"], answer: "take off" },
+                { sentence: "Please ___ this form with your name and address.", options: ["fill in", "write in", "put in", "get in"], answer: "fill in" },
+                { sentence: "I want to ___ what time the movie starts.", options: ["find out", "get out", "look out", "see out"], answer: "find out" },
+                { sentence: "Hurry up and ___ the bus!", options: ["get on", "go on", "put on", "be on"], answer: "get on" },
+                { sentence: "Don't ___, you can do it!", options: ["give up", "get up", "go up", "put up"], answer: "give up" },
+                { sentence: "My grandmother will ___ the baby.", options: ["look after", "see after", "watch after", "view after"], answer: "look after" },
+                { sentence: "___ and look at me.", options: ["Turn around", "Go around", "Get around", "Be around"], answer: "Turn around" },
+                { sentence: "Please ___ my phone number.", options: ["write down", "put down", "get down", "go down"], answer: "write down" },
+                { sentence: "I want to ___ to my hometown.", options: ["go back", "get back", "come back", "be back"], answer: "go back" },
+                { sentence: "When will you ___ from your trip?", options: ["come back", "go back", "get back", "be back"], answer: "come back" },
+                { sentence: "I want to ___ and be a doctor.", options: ["grow up", "get up", "go up", "stand up"], answer: "grow up" },
+                { sentence: "You need a password to ___.", options: ["log in", "get in", "go in", "be in"], answer: "log in" }
+            ],
+            "A2": [
+                { sentence: "My car ___ on the way to work.", options: ["broke down", "went down", "got down", "put down"], answer: "broke down" },
+                { sentence: "His grandparents ___ him after his parents died.", options: ["brought him up", "grew him up", "got him up", "took him up"], answer: "brought him up" },
+                { sentence: "I'll ___ you ___ later when I'm free.", options: ["call back", "ring back", "phone back", "speak back"], answer: "call back" },
+                { sentence: "It's difficult, but we must ___.", options: ["carry on", "go on", "get on", "be on"], answer: "carry on" },
+                { sentence: "We need to ___ at the hotel before 3 PM.", options: ["check in", "go in", "get in", "be in"], answer: "check in" },
+                { sentence: "I ___ a very old coin in the garden.", options: ["came across", "went across", "got across", "was across"], answer: "came across" },
+                { sentence: "I ___ with my colleagues.", options: ["get along", "go along", "be along", "have along"], answer: "get along" },
+                { sentence: "It took him a long time to ___ the flu.", options: ["get over", "go over", "be over", "have over"], answer: "get over" },
+                { sentence: "I'm ___ to our holiday next month!", options: ["looking forward", "seeing forward", "watching forward", "viewing forward"], answer: "looking forward" },
+                { sentence: "We've ___ of milk, I need to buy some.", options: ["run out", "gone out", "got out", "been out"], answer: "run out" },
+                { sentence: "He didn't ___ for his appointment.", options: ["show up", "get up", "go up", "be up"], answer: "show up" },
+                { sentence: "She ___ her mother, they look so alike.", options: ["takes after", "gets after", "goes after", "is after"], answer: "takes after" },
+                { sentence: "Could I ___ these shoes, please?", options: ["try on", "wear on", "put on", "get on"], answer: "try on" },
+                { sentence: "He ___ the job offer because the salary was too low.", options: ["turned down", "went down", "got down", "put down"], answer: "turned down" },
+                { sentence: "I like to ___ at the gym three times a week.", options: ["work out", "do out", "make out", "get out"], answer: "work out" },
+                { sentence: "Can you ___ the bottle with water?", options: ["fill up", "get up", "go up", "put up"], answer: "fill up" },
+                { sentence: "If you don't know the word, ___ it ___ in a dictionary.", options: ["look up", "see up", "watch up", "view up"], answer: "look up" },
+                { sentence: "Sadly, his grandfather ___ last year.", options: ["passed away", "went away", "got away", "was away"], answer: "passed away" },
+                { sentence: "I need to ___ you ___ for the money I borrowed.", options: ["pay back", "give back", "get back", "go back"], answer: "pay back" },
+                { sentence: "Please ___ your toys after you finish playing.", options: ["put away", "get away", "go away", "be away"], answer: "put away" },
+                { sentence: "I'd like to order a pizza to ___.", options: ["take away", "get away", "go away", "be away"], answer: "take away" },
+                { sentence: "I need to ___ my room.", options: ["clean up", "do up", "make up", "get up"], answer: "clean up" },
+                { sentence: "She promised to ___ the book tomorrow.", options: ["give back", "take back", "get back", "go back"], answer: "give back" },
+                { sentence: "He had to ___ a difficult time.", options: ["go through", "get through", "be through", "have through"], answer: "go through" },
+                { sentence: "Don't ___ on me, I need your help!", options: ["hang up", "get up", "go up", "be up"], answer: "hang up" }
+            ],
+            "B1": [
+                { sentence: "The meeting was ___ because of the storm.", options: ["called off", "put off", "got off", "went off"], answer: "called off" },
+                { sentence: "She ___ a brilliant idea for the project.", options: ["came up with", "got up with", "went up with", "was up with"], answer: "came up with" },
+                { sentence: "I'm trying to ___ on sugar.", options: ["cut down", "get down", "go down", "put down"], answer: "cut down" },
+                { sentence: "How do you ___ with the stress of your job?", options: ["deal with", "get with", "go with", "be with"], answer: "deal with" },
+                { sentence: "He ___ of college after only one year.", options: ["dropped out", "got out", "went out", "was out"], answer: "dropped out" },
+                { sentence: "I can't ___ how to solve this puzzle.", options: ["figure out", "get out", "go out", "be out"], answer: "figure out" },
+                { sentence: "He thought he could ___ with cheating on the test.", options: ["get away", "go away", "be away", "have away"], answer: "get away" },
+                { sentence: "It's difficult to ___ with the new technology.", options: ["keep up", "get up", "go up", "be up"], answer: "keep up" },
+                { sentence: "I feel like you really ___ me ___.", options: ["let down", "get down", "go down", "put down"], answer: "let down" },
+                { sentence: "You shouldn't ___ on people just because they are different.", options: ["look down", "see down", "watch down", "view down"], answer: "look down" },
+                { sentence: "He ___ a crazy story about being abducted by aliens.", options: ["made up", "did up", "got up", "went up"], answer: "made up" },
+                { sentence: "The teacher ___ that the exam was next week.", options: ["pointed out", "got out", "went out", "was out"], answer: "pointed out" },
+                { sentence: "Never ___ until tomorrow what you can do today.", options: ["put off", "get off", "go off", "be off"], answer: "put off" },
+                { sentence: "I ___ an old friend at the supermarket.", options: ["ran into", "got into", "went into", "was into"], answer: "ran into" },
+                { sentence: "They plan to ___ a new company next year.", options: ["set up", "get up", "go up", "be up"], answer: "set up" },
+                { sentence: "A new manager will ___ the business.", options: ["take over", "get over", "go over", "be over"], answer: "take over" },
+                { sentence: "More people than expected ___ for the event.", options: ["turned up", "got up", "went up", "were up"], answer: "turned up" },
+                { sentence: "I'm sure we can ___ a solution.", options: ["work out", "do out", "make out", "get out"], answer: "work out" },
+                { sentence: "It's hard to ___ on such a small salary.", options: ["get by", "go by", "be by", "have by"], answer: "get by" },
+                { sentence: "The police are ___ the matter.", options: ["looking into", "seeing into", "watching into", "viewing into"], answer: "looking into" },
+                { sentence: "Traffic ___ for most of the delay.", options: ["accounted for", "gave for", "made for", "did for"], answer: "accounted for" },
+                { sentence: "The new law ___ many changes.", options: ["brought about", "got about", "went about", "was about"], answer: "brought about" },
+                { sentence: "You can always ___ me for support.", options: ["count on", "get on", "go on", "be on"], answer: "count on" },
+                { sentence: "Let's ___ the report one more time.", options: ["go over", "get over", "be over", "have over"], answer: "go over" },
+                { sentence: "He decided to ___ smoking.", options: ["give up", "get up", "go up", "put up"], answer: "give up" }
+            ],
+            "B2": [
+                { sentence: "We have to ___ the rules, even if we don't like them.", options: ["abide by", "stick by", "keep by", "go by"], answer: "abide by" },
+                { sentence: "The government has decided to ___ with the old tax system.", options: ["do away", "get away", "go away", "be away"], answer: "do away" },
+                { sentence: "If you don't study, you will ___ in your classes.", options: ["fall behind", "get behind", "go behind", "be behind"], answer: "fall behind" },
+                { sentence: "He never seems to ___ to doing his chores.", options: ["get around", "go around", "be around", "have around"], answer: "get around" },
+                { sentence: "You can't ___ on your promise now!", options: ["go back", "get back", "come back", "be back"], answer: "go back" },
+                { sentence: "We need to ___ the details of the contract.", options: ["iron out", "get out", "go out", "be out"], answer: "iron out" },
+                { sentence: "The company had to ___ 100 workers.", options: ["lay off", "get off", "go off", "be off"], answer: "lay off" },
+                { sentence: "The hotel didn't ___ to my expectations.", options: ["live up", "get up", "go up", "be up"], answer: "live up" },
+                { sentence: "I need to ___ for being so late.", options: ["make up", "do up", "get up", "go up"], answer: "make up" },
+                { sentence: "She ___ a great opportunity to work abroad.", options: ["passed up", "got up", "went up", "was up"], answer: "passed up" },
+                { sentence: "It was a difficult illness, but he managed to ___.", options: ["pull through", "get through", "go through", "be through"], answer: "pull through" },
+                { sentence: "I can't ___ with his rude behavior anymore.", options: ["put up", "get up", "go up", "be up"], answer: "put up" },
+                { sentence: "We can't ___ the possibility of a mistake.", options: ["rule out", "get out", "go out", "be out"], answer: "rule out" },
+                { sentence: "I can ___ his lies, he is not a good person.", options: ["see through", "look through", "watch through", "view through"], answer: "see through" },
+                { sentence: "The letters 'UN' ___ for United Nations.", options: ["stand for", "get for", "go for", "be for"], answer: "stand for" },
+                { sentence: "I was completely ___ by his story.", options: ["taken in", "got in", "went in", "was in"], answer: "taken in" },
+                { sentence: "He decided to ___ photography as a hobby.", options: ["take up", "get up", "go up", "be up"], answer: "take up" },
+                { sentence: "The teacher ___ him ___ for not doing his homework.", options: ["told off", "got off", "went off", "was off"], answer: "told off" },
+                { sentence: "The effect of the medicine will soon ___.", options: ["wear off", "get off", "go off", "be off"], answer: "wear off" },
+                { sentence: "If you ___ me ___, I'll support your decision.", options: ["back up", "get up", "go up", "be up"], answer: "back up" },
+                { sentence: "The police are going to ___ on speeding.", options: ["crack down", "get down", "go down", "put down"], answer: "crack down" },
+                { sentence: "You need to ___ with your commitments.", options: ["follow through", "get through", "go through", "be through"], answer: "follow through" },
+                { sentence: "The meeting has been ___ to next Friday.", options: ["brought forward", "got forward", "went forward", "was forward"], answer: "brought forward" },
+                { sentence: "The new fashion trend quickly ___ with teenagers.", options: ["caught on", "got on", "went on", "was on"], answer: "caught on" },
+                { sentence: "I've ___ my old clothes.", options: ["grown out of", "got out of", "went out of", "been out of"], answer: "grown out of" }
+            ]
+        };
+
+        // --- CONFIGURATION ---
+        const LEVEL_ORDER = ["A1", "A2", "B1", "B2"];
+        const TIME_PER_QUESTION = 10; // seconds
+        const BASE_POINTS_CORRECT = 10;
+        const TIME_BONUS_MAX = 10;
+        const POINTS_INCORRECT = -5;
+        const STREAK_MILESTONES = { 3: 25, 5: 50, 7: 100 };
+
+        // --- DOM ELEMENTS ---
+        const dom = {
+            screens: {
+                mainMenu: document.getElementById('main-menu'),
+                game: document.getElementById('game-screen'),
+                winner: document.getElementById('winner-screen')
+            },
+            buttons: {
+                onePlayer: document.getElementById('one-player-btn'),
+                twoPlayer: document.getElementById('two-player-btn'),
+                start: document.getElementById('start-game-btn'),
+                playAgain: document.getElementById('play-again-btn'),
+                submitScore: document.getElementById('submit-score-btn')
+            },
+            inputs: {
+                team1Name: document.getElementById('team1-name-input'),
+                team2Name: document.getElementById('team2-name-input')
+            },
+            leaderboard: document.getElementById('leaderboard'),
+            winnerDeclaration: document.getElementById('winner-declaration'),
+            submitMessage: document.getElementById('submit-message'),
+            team1: {
+                panel: document.getElementById('team1-panel'),
+                nameDisplay: document.getElementById('team1-name-display'),
+                qCountEl: document.getElementById('team1-q-count'),
+                scoreEl: document.getElementById('team1-score'),
+                streakEl: document.getElementById('team1-streak'),
+                tokensEl: document.getElementById('team1-tokens'),
+                sentenceEl: document.getElementById('team1-sentence'),
+                optionsEl: document.getElementById('team1-options'),
+                timerBarEl: document.getElementById('team1-timer-bar'),
+                finalScoreBox: document.getElementById('team1-final-score-box'),
+                finalNameEl: document.getElementById('team1-final-name'),
+                finalScoreEl: document.getElementById('team1-final-score-p'),
+                finalTokensEl: document.getElementById('team1-final-tokens'),
+                awardsEl: document.getElementById('team1-awards')
+            },
+            team2: {
+                panel: document.getElementById('team2-panel'),
+                nameDisplay: document.getElementById('team2-name-display'),
+                qCountEl: document.getElementById('team2-q-count'),
+                scoreEl: document.getElementById('team2-score'),
+                streakEl: document.getElementById('team2-streak'),
+                tokensEl: document.getElementById('team2-tokens'),
+                sentenceEl: document.getElementById('team2-sentence'),
+                optionsEl: document.getElementById('team2-options'),
+                timerBarEl: document.getElementById('team2-timer-bar'),
+                finalScoreBox: document.getElementById('team2-final-score-box'),
+                finalNameEl: document.getElementById('team2-final-name'),
+                finalScoreEl: document.getElementById('team2-final-score-p'),
+                finalTokensEl: document.getElementById('team2-final-tokens'),
+                awardsEl: document.getElementById('team2-awards')
+            }
+        };
+
+        // --- SOUND CLASS using Tone.js ---
+        class Sound {
+            constructor() {
+                 this.sounds = {
+                    correct: new Tone.Synth({
+                        oscillator: { type: "sine" },
+                        envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.4 },
+                        volume: -10
+                    }).toDestination(),
+                    
+                    incorrect: new Tone.MonoSynth({
+                        oscillator: { type: "sawtooth" },
+                        envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.2 },
+                        filter: { Q: 2, type: 'lowpass', rolloff: -12 },
+                        filterEnvelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1, baseFrequency: 800, octaves: -1.2 }
+                    }).toDestination(),
+
+                    levelUp: new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: "fatsawtooth" },
+                        envelope: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 1 }
+                    }).toDestination(),
+
+                    gameOver: new Tone.PolySynth(Tone.Synth, {
+                         envelope: { attack: 0.1, decay: 0.5, sustain: 0.2, release: 1.5 }
+                    }).toDestination(),
+
+                    click: new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, envelope: { attack: 0.001, decay: 0.2, sustain: 0 } }).toDestination(),
+
+                    streak: new Tone.PolySynth(Tone.Synth, {
+                        volume: -8,
+                        oscillator: { type: "pulse", width: 0.2 },
+                        envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.4 }
+                    }).toDestination(),
+
+                    token: new Tone.PluckSynth({
+                        attackNoise: 1,
+                        dampening: 4000,
+                        resonance: 0.7
+                    }).toDestination(),
+
+                    gameStart: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'amsine' } }).toDestination()
+                };
+            }
+            async play(soundName) {
+                if (Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+                if (this.sounds[soundName]) {
+                    const now = Tone.now();
+                    switch(soundName) {
+                        case 'correct': this.sounds.correct.triggerAttackRelease("C6", "16n", now); break;
+                        case 'incorrect': this.sounds.incorrect.triggerAttackRelease("G#2", "8n", now); break;
+                        case 'levelUp': this.sounds.levelUp.triggerAttackRelease(["G4", "C5", "E5", "G5"], "0.6s", now); break;
+                        case 'gameOver': this.sounds.gameOver.triggerAttackRelease(["C4", "G3", "C3"], "1.2s", now); break;
+                        case 'click': this.sounds.click.triggerAttackRelease("C2", "8n", now); break;
+                        case 'token': this.sounds.token.triggerAttack("C5", now); break;
+                        case 'streak': this.sounds.streak.triggerAttackRelease(["C5", "E5", "G5", "C6"], "8n", now); break;
+                        case 'gameStart': this.sounds.gameStart.triggerAttackRelease(["C4", "G4", "C5"], "4n", now); break;
+                    }
+                }
+            }
+        }
+        
+        // --- FIRESTORE CLASS ---
+        class FirestoreDB {
+            constructor() {
+                try {
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'phrasal-verb-game';
+                    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                    this.app = initializeApp(firebaseConfig);
+                    this.db = getFirestore(this.app);
+                    this.auth = getAuth(this.app);
+                    this.collectionPath = `/artifacts/${appId}/public/data/leaderboard`;
+                } catch (e) {
+                    console.error("Firebase initialization failed:", e);
+                    this.db = null;
+                }
+            }
+
+            async ensureAuth() {
+                try {
+                    if (this.auth.currentUser) return;
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(this.auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(this.auth);
+                    }
+                } catch (error) {
+                    console.error("Authentication failed:", error);
+                }
+            }
+
+            async saveScore(teamName, score) {
+                if (!this.db || !this.auth.currentUser) {
+                    console.log("Firestore not available or user not authenticated for saveScore.");
+                    return;
+                }
+                try {
+                    await addDoc(collection(this.db, this.collectionPath), {
+                        name: teamName,
+                        score: score,
+                        createdAt: new Date()
+                    });
+                } catch (e) {
+                    console.error("Error adding document: ", e);
+                }
+            }
+
+            async getHighScores(limitCount = 10) {
+                if (!this.db || !this.auth.currentUser) {
+                    console.log("Firestore not available or user not authenticated for getHighScores.");
+                    return [];
+                }
+                try {
+                    const q = query(collection(this.db, this.collectionPath), limit(limitCount));
+                    const querySnapshot = await getDocs(q);
+                    const scores = [];
+                    querySnapshot.forEach((doc) => {
+                        scores.push(doc.data());
+                    });
+                    return scores.sort((a, b) => b.score - a.score);
+                } catch (e) {
+                    console.error("Error getting documents: ", e);
+                    return [];
+                }
+            }
+        }
+
+        // --- TEAM CLASS ---
+        class Team {
+            constructor(id, name, domElements) {
+                this.id = id;
+                this.name = name;
+                this.dom = domElements;
+                this.reset();
+            }
+
+            reset() {
+                this.score = 0;
+                this.tokens = 0;
+                this.streak = 0;
+                this.levelIndex = 0;
+                this.isFinished = false;
+                this.questionQueue = [];
+                this.questionInLevelCounter = 0;
+                this.currentQuestion = null;
+                this.questionStartTime = 0;
+                this.levelMistakes = 0;
+                this.awards = new Set();
+                this.fastestAnswer = Infinity;
+                clearTimeout(this.timer);
+            }
+
+            updateHUD() {
+                this.dom.nameDisplay.textContent = this.name;
+                this.dom.scoreEl.textContent = `Score: ${this.score}`;
+                this.dom.streakEl.innerHTML = `🔥 ${this.streak}`;
+                this.dom.tokensEl.innerHTML = `🪙 ${this.tokens}`;
+                const levelName = LEVEL_ORDER[this.levelIndex];
+                if (levelName) {
+                    const totalForLevel = PHRASAL_VERBS[levelName].length;
+                    this.dom.qCountEl.textContent = `${levelName} (${this.questionInLevelCounter}/${totalForLevel})`;
+                }
+            }
+        }
+
+        // --- GAME CLASS ---
+        class Game {
+            constructor() {
+                this.sound = new Sound();
+                this.firestore = new FirestoreDB();
+                this.team1 = new Team('team1', 'Player 1', dom.team1);
+                this.team2 = new Team('team2', 'Player 2', dom.team2);
+                this.gameMode = '1p'; // Default to 1 player
+                this.isGameOver = false;
+            }
+
+            async init() {
+                dom.buttons.onePlayer.addEventListener('click', () => this.setGameMode('1p'));
+                dom.buttons.twoPlayer.addEventListener('click', () => this.setGameMode('2p'));
+                dom.buttons.start.addEventListener('click', () => this.startGame());
+                dom.buttons.playAgain.addEventListener('click', () => this.resetGame());
+                dom.buttons.submitScore.addEventListener('click', () => this.submitScores());
+                
+                this.setGameMode(this.gameMode); // Set initial UI state
+
+                if (this.firestore.db) {
+                    await this.updateLeaderboard();
+                } else {
+                    dom.leaderboard.innerHTML = '<p class="text-red-500">Leaderboard connection failed.</p>';
+                }
+            }
+
+            setGameMode(mode) {
+                this.gameMode = mode;
+                if (mode === '1p') {
+                    dom.buttons.onePlayer.classList.replace('bg-slate-700', 'bg-cyan-600');
+                    dom.buttons.twoPlayer.classList.replace('bg-pink-600', 'bg-slate-700');
+                    dom.inputs.team2Name.style.display = 'none';
+                } else { // 2p
+                    dom.buttons.onePlayer.classList.replace('bg-cyan-600', 'bg-slate-700');
+                    dom.buttons.twoPlayer.classList.replace('bg-slate-700', 'bg-pink-600');
+                    dom.inputs.team2Name.style.display = 'block';
+                }
+            }
+            
+            async updateLeaderboard() {
+                if (!this.firestore.db) return;
+                await this.firestore.ensureAuth();
+                const scores = await this.firestore.getHighScores();
+                dom.leaderboard.innerHTML = '';
+                if (scores.length === 0) {
+                    dom.leaderboard.innerHTML = '<p class="text-slate-400">No scores yet. Be the first!</p>';
+                    return;
+                }
+                scores.forEach((s, index) => {
+                    const entry = document.createElement('div');
+                    entry.className = `flex justify-between items-center p-2 rounded-lg ${index === 0 ? 'bg-yellow-500/30' : 'bg-slate-700'}`;
+                    entry.innerHTML = `
+                        <span class="font-bold text-white">${index + 1}. ${s.name}</span>
+                        <span class="font-bold text-cyan-400">${s.score}</span>
+                    `;
+                    dom.leaderboard.appendChild(entry);
+                });
+            }
+
+            switchScreen(screenName) {
+                this.sound.play('click');
+                Object.values(dom.screens).forEach(s => s.classList.remove('active'));
+                dom.screens[screenName].classList.add('active');
+            }
+
+            shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            startGame() {
+                this.sound.play('gameStart');
+                this.isGameOver = false;
+                
+                this.team1.name = dom.inputs.team1Name.value || 'Player 1';
+                this.team1.reset();
+                this.setupLevelQueue(this.team1);
+                this.team1.updateHUD();
+                
+                dom.team1.panel.classList.remove('md:border-r-4');
+
+                if (this.gameMode === '2p') {
+                    this.team2.name = dom.inputs.team2Name.value || 'Player 2';
+                    this.team2.reset();
+                    this.setupLevelQueue(this.team2);
+                    this.team2.updateHUD();
+                    dom.team2.panel.style.display = 'flex';
+                    dom.team1.panel.classList.add('md:border-r-4');
+                } else {
+                    dom.team2.panel.style.display = 'none';
+                }
+
+                this.switchScreen('game');
+                this.loadNextQuestion(this.team1);
+                if (this.gameMode === '2p') {
+                    this.loadNextQuestion(this.team2);
+                }
+            }
+            
+            resetGame() {
+                this.switchScreen('mainMenu');
+                this.updateLeaderboard();
+                dom.buttons.submitScore.disabled = false;
+                dom.submitMessage.textContent = '';
+            }
+
+            setupLevelQueue(team) {
+                const level = LEVEL_ORDER[team.levelIndex];
+                if (level) {
+                    const levelQuestions = [...PHRASAL_VERBS[level]];
+                    team.questionQueue = this.shuffleArray(levelQuestions);
+                    team.questionInLevelCounter = 0;
+                    team.levelMistakes = 0;
+                }
+            }
+
+            loadNextQuestion(team) {
+                if (team.isFinished || this.isGameOver) return;
+
+                if (team.questionQueue.length === 0) {
+                    if (team.levelMistakes === 0 && team.questionInLevelCounter > 0) {
+                        team.awards.add("Perfect Level");
+                    }
+                    if (team.levelIndex < LEVEL_ORDER.length - 1) {
+                        this.sound.play('levelUp');
+                        team.levelIndex++;
+                        this.setupLevelQueue(team);
+                    } else {
+                        team.isFinished = true;
+                        team.dom.sentenceEl.textContent = "Finished!";
+                        team.dom.optionsEl.innerHTML = "";
+                        clearTimeout(team.timer);
+                        
+                        const bothFinished = this.team1.isFinished && this.team2.isFinished;
+                        if (this.gameMode === '1p' && this.team1.isFinished) {
+                            this.endGame();
+                        } else if (this.gameMode === '2p' && bothFinished) {
+                            this.endGame();
+                        }
+                        return;
+                    }
+                }
+
+                const question = team.questionQueue.shift();
+                team.currentQuestion = question;
+                team.dom.sentenceEl.textContent = question.sentence;
+                team.dom.optionsEl.innerHTML = '';
+                const shuffledOptions = this.shuffleArray([...question.options]);
+
+                shuffledOptions.forEach(option => {
+                    const button = document.createElement('button');
+                    button.className = 'w-full p-4 bg-slate-800 border-2 border-slate-700 rounded-lg text-lg text-white hover:border-cyan-500 transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-slate-700';
+                    if (team.id === 'team2') button.classList.add('hover:border-pink-500');
+                    button.textContent = option;
+                    button.onclick = (e) => this.handleAnswerSelection(team, button, e);
+                    team.dom.optionsEl.appendChild(button);
+                });
+
+                if (LEVEL_ORDER[team.levelIndex]) {
+                    team.questionInLevelCounter++;
+                }
+                team.updateHUD();
+                this.startQuestionTimer(team);
+            }
+
+            startQuestionTimer(team) {
+                clearTimeout(team.timer);
+                team.questionStartTime = Date.now();
+                team.dom.timerBarEl.style.transition = 'none';
+                team.dom.timerBarEl.style.width = '100%';
+
+                setTimeout(() => {
+                    team.dom.timerBarEl.style.transition = `width ${TIME_PER_QUESTION}s linear`;
+                    team.dom.timerBarEl.style.width = '0%';
+                }, 100);
+
+                team.timer = setTimeout(() => this.handleAnswerSelection(team, null, null), TIME_PER_QUESTION * 1000);
+            }
+
+            handleAnswerSelection(team, button, event) {
+                clearTimeout(team.timer);
+                const answerTime = (Date.now() - team.questionStartTime) / 1000;
+                const isCorrect = button && button.textContent === team.currentQuestion.answer;
+
+                Array.from(team.dom.optionsEl.children).forEach(btn => {
+                    btn.disabled = true;
+                    if (btn.textContent === team.currentQuestion.answer) {
+                        btn.classList.remove('bg-slate-800', 'border-slate-700');
+                        btn.classList.add('bg-green-500', 'border-green-400', 'scale-105');
+                    }
+                });
+
+                if (isCorrect) {
+                    this.sound.play('correct');
+                    this.sound.play('token');
+
+                    const timeBonus = Math.max(0, Math.floor((1 - (answerTime / TIME_PER_QUESTION)) * TIME_BONUS_MAX));
+                    const pointsGained = BASE_POINTS_CORRECT + timeBonus;
+                    team.score += pointsGained;
+                    team.tokens += 1;
+                    team.streak++;
+                    
+                    if (team.dom.tokensEl) {
+                        team.dom.tokensEl.classList.add('pop');
+                        setTimeout(() => team.dom.tokensEl.classList.remove('pop'), 300);
+                    }
+
+                    if (answerTime < team.fastestAnswer) team.fastestAnswer = answerTime;
+
+                    if (STREAK_MILESTONES[team.streak]) {
+                        const streakBonus = STREAK_MILESTONES[team.streak];
+                        team.score += streakBonus;
+                        team.tokens += Math.floor(streakBonus / 10);
+                        this.sound.play('streak');
+                        this.showBonusPopup(team, `🔥 +${streakBonus} STREAK!`, event, true);
+                        if (team.streak >= 7) team.awards.add("Streak Master");
+                    }
+
+                } else {
+                    this.sound.play('incorrect');
+                    team.score += POINTS_INCORRECT;
+                    team.streak = 0;
+                    team.levelMistakes++;
+                    team.questionQueue.push(team.currentQuestion); 
+                    if (button) {
+                        button.classList.remove('bg-slate-800', 'border-slate-700');
+                        button.classList.add('bg-red-500', 'border-red-400', 'shake');
+                    }
+                }
+                team.updateHUD();
+                setTimeout(() => this.loadNextQuestion(team), 1500);
+            }
+
+            showBonusPopup(team, text, event, isStreak) {
+                const popup = document.createElement('div');
+                popup.textContent = text;
+                popup.className = 'bonus-popup';
+                if (isStreak) {
+                    popup.className += ' text-amber-400';
+                } else {
+                    popup.className += ' text-yellow-300';
+                }
+                if (event) {
+                    popup.style.left = `${event.clientX - team.dom.panel.offsetLeft}px`;
+                    popup.style.top = `${event.clientY - team.dom.panel.offsetTop}px`;
+                } else {
+                    popup.style.left = '50%';
+                    popup.style.top = '50%';
+                }
+                team.dom.panel.appendChild(popup);
+                setTimeout(() => popup.remove(), 1500);
+            }
+
+            endGame() {
+                if(this.isGameOver) return;
+                this.isGameOver = true;
+                
+                clearTimeout(this.team1.timer);
+                if (this.gameMode === '2p') clearTimeout(this.team2.timer);
+                this.sound.play('gameOver');
+
+                this.updateFinalScreen(this.team1);
+                if (this.gameMode === '2p') {
+                    this.updateFinalScreen(this.team2);
+                    dom.team2.finalScoreBox.style.display = 'block';
+                    dom.team2.awardsEl.style.display = 'block';
+                    dom.team1.finalScoreBox.classList.remove('w-full');
+                    dom.team1.finalScoreBox.classList.add('w-5/12');
+
+                    if (this.team1.score > this.team2.score) {
+                        dom.winnerDeclaration.textContent = `${this.team1.name} Wins!`;
+                        dom.winnerDeclaration.className = 'text-4xl font-bold mb-8 text-cyan-400';
+                    } else if (this.team2.score > this.team1.score) {
+                        dom.winnerDeclaration.textContent = `${this.team2.name} Wins!`;
+                        dom.winnerDeclaration.className = 'text-4xl font-bold mb-8 text-pink-400';
+                    } else {
+                        dom.winnerDeclaration.textContent = "It's a Draw!";
+                        dom.winnerDeclaration.className = 'text-4xl font-bold mb-8 text-yellow-400';
+                    }
+                } else {
+                    dom.team2.finalScoreBox.style.display = 'none';
+                    dom.team2.awardsEl.style.display = 'none';
+                    dom.team1.finalScoreBox.classList.remove('w-5/12');
+                    dom.team1.finalScoreBox.classList.add('w-full');
+                    dom.winnerDeclaration.textContent = "Your Final Score";
+                    dom.winnerDeclaration.className = 'text-4xl font-bold mb-8 text-white';
+                }
+                this.switchScreen('winner');
+            }
+            
+            updateFinalScreen(team) {
+                if (team.fastestAnswer < 1.5) team.awards.add("Speed Demon");
+                team.dom.finalScoreEl.textContent = team.score;
+                team.dom.finalTokensEl.textContent = `🪙 ${team.tokens}`;
+                team.dom.finalNameEl.textContent = team.name;
+                team.dom.awardsEl.innerHTML = ''; // Clear previous
+                if (team.awards.size > 0) {
+                    team.awards.forEach(award => {
+                        const p = document.createElement('p');
+                        p.className = 'text-yellow-400 font-semibold';
+                        p.textContent = `- ${award}`;
+                        team.dom.awardsEl.appendChild(p);
+                    });
+                } else {
+                    team.dom.awardsEl.innerHTML = '<p class="text-slate-400">No awards</p>';
+                }
+            }
+            
+            async submitScores() {
+                this.sound.play('click');
+                dom.buttons.submitScore.disabled = true;
+                dom.submitMessage.textContent = 'Submitting...';
+                
+                await this.firestore.ensureAuth();
+
+                if (this.gameMode === '1p') {
+                    await this.firestore.saveScore(this.team1.name, this.team1.score);
+                } else {
+                    const winningTeam = this.team1.score > this.team2.score ? this.team1 : (this.team2.score > this.team1.score ? this.team2 : null);
+                    if (winningTeam) {
+                        await this.firestore.saveScore(winningTeam.name, winningTeam.score);
+                    } else { 
+                        await this.firestore.saveScore(this.team1.name, this.team1.score);
+                        await this.firestore.saveScore(this.team2.name, this.team2.score);
+                    }
+                }
+
+                dom.submitMessage.textContent = 'Score submitted!';
+                await this.updateLeaderboard();
+            }
+        }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            const game = new Game();
+            await game.init();
+        });
+
+    </script>
+</body>
+</html>

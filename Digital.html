@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Digital World: Connection & Responsibility</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        @keyframes digitalColors {
+            0% { background-color: #1e1b4b; } /* indigo-950 */
+            25% { background-color: #312e81; } /* indigo-900 */
+            50% { background-color: #4c1d95; } /* violet-900 */
+            75% { background-color: #312e81; } /* indigo-900 */
+            100% { background-color: #1e1b4b; } /* indigo-950 */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+            animation: digitalColors 120s linear infinite;
+            padding-top: 85px; /* Adjusted padding for progress bar */
+        }
+        #background-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+        }
+        .page { display: none; position: relative; }
+        .page.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .action-button, .nav-button, .quiz-option, .tfng-button, .word-bank-word, .btn-animated-3d {
+            transition: all 0.15s ease-out;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -2px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+            border: none;
+        }
+        .action-button:hover, .nav-button:hover, .quiz-option:hover:not(:disabled), .tfng-button:hover:not(:disabled), .word-bank-word:hover, .btn-animated-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px -3px rgba(0,0,0,0.2), 0 4px 6px -4px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+        }
+        .action-button:active, .nav-button:active, .quiz-option:active, .tfng-button:active, .btn-animated-3d:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px -1px rgba(0,0,0,0.2), 0 1px 2px -2px rgba(0,0,0,0.1), inset 0 -2px 0 0 rgba(0,0,0,0.2);
+        }
+        
+        /* Gap Fill Styles */
+        .gap-fill-container .gap {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 120px; height: 44px; padding: 0 4px;
+            border: 2px dashed #9ca3af; border-radius: 8px; margin: 0 4px;
+            vertical-align: middle; background-color: #f3f4f6;
+        }
+        .word-bank-word {
+            cursor: grab; padding: 8px 16px; border-radius: 8px;
+            background-color: white; user-select: none;
+        }
+        .word-bank-word.selected { outline: 2px solid #6366f1; transform: scale(1.05); }
+        .gap .word-bank-word { cursor: pointer; }
+        .gap.correct .word-bank-word { background-color: #dcfce7; border-color: #22c55e; color: #15803d; }
+        .gap.incorrect .word-bank-word { background-color: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+        /* Feedback Message & Badge Notification */
+        .feedback-toast, .badge-toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border-radius: 9999px; color: white;
+            font-weight: bold; z-index: 200;
+            animation: slideUpFadeIn 0.5s ease-out, slideDownFadeOut 0.5s ease-in 3.5s forwards;
+        }
+        .feedback-toast.correct { background-color: #22c55e; }
+        .feedback-toast.encouraging { background-color: #f59e0b; }
+        .badge-toast { background: linear-gradient(45deg, #a855f7, #3b82f6); animation-duration: 4.5s; }
+        @keyframes slideUpFadeIn { from { opacity: 0; bottom: 0; } to { opacity: 1; bottom: 20px; } }
+        @keyframes slideDownFadeOut { from { opacity: 1; bottom: 20px; } to { opacity: 0; bottom: 0; } }
+
+        /* Certificate Canvas */
+        #completion-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        
+        /* Progress Bar */
+        #progress-container { background-color: #e5e7eb; border-radius: 9999px; overflow: hidden; height: 8px; width: 100%; margin-top: 8px; }
+        #progress-bar { height: 100%; width: 0%; background-color: #8b5cf6; transition: width 0.5s ease-out; }
+        
+        /* Vocab Game Timer */
+        #vocab-game-timer-bar { height: 6px; background-color: #8b5cf6; transition: width 0.1s linear; }
+        
+        /* Shake Animation for incorrect answers */
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .shake { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .explanation-text {
+            margin-top: 12px;
+            padding: 10px;
+            background-color: #f3f4f6;
+            border-left: 4px solid #8b5cf6;
+            font-size: 0.9em;
+            color: #4b5563;
+            border-radius: 4px;
+        }
+        
+        /* Helper class for word banks */
+        .word-bank {
+            margin-top: 1.5rem; /* mt-6 */
+        }
+        .word-bank h4 {
+            font-weight: 700; /* font-bold */
+            font-size: 1.125rem; /* text-lg */
+            color: #4338ca; /* indigo-700 */
+        }
+        .word-bank-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem; /* gap-2 */
+            margin-top: 0.5rem; /* mt-2 */
+            padding: 1rem; /* p-4 */
+            background-color: #f3f4f6; /* bg-gray-100 */
+            border-radius: 0.5rem; /* rounded-lg */
+        }
+         .word-bank-pills span {
+            background-color: #ffffff; /* bg-white */
+            border: 1px solid #d1d5db; /* border border-gray-300 */
+            padding-left: 0.75rem; /* px-3 */
+            padding-right: 0.75rem;
+            padding-top: 0.25rem; /* py-1 */
+            padding-bottom: 0.25rem;
+            border-radius: 9999px; /* rounded-full */
+            font-size: 0.875rem; /* text-sm */
+            font-weight: 500; /* font-medium */
+            color: #374151; /* text-gray-700 */
+         }
+
+
+        /* Print Styles */
+        @media print {
+            body * { visibility: hidden; }
+            #certificate-to-print, #certificate-to-print * { visibility: visible; }
+            #certificate-to-print { 
+                position: absolute; 
+                left: 0; 
+                top: 0; 
+                width: 100%;
+                padding: 40px;
+                border: 10px solid #4c1d95;
+                background: #fff;
+            }
+        }
+
+        /* Floating Emoji / Moving critters styles */
+        #emoji-floating-container {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 40; /* above content, below nav z-50 */
+        }
+        .floating-emoji {
+            position: absolute;
+            font-size: 28px;
+            will-change: transform, opacity;
+            white-space: nowrap;
+            user-select: none;
+            opacity: 0;
+            display: inline-block;
+            text-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        @keyframes floatAcross {
+            0% { transform: translateX(-10vw); opacity: 0; }
+            10% { opacity: 1; }
+            100% { transform: translateX(110vw); opacity: 0; }
+        }
+        @keyframes bob {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0); }
+        }
+        @keyframes slowRotate {
+            0% { transform: rotate(-6deg); }
+            50% { transform: rotate(6deg); }
+            100% { transform: rotate(-6deg); }
+        }
+        .floating-emoji.turtle { /* Used for main icon */
+            font-size: 38px;
+            animation-name: floatAcross;
+            animation-timing-function: linear;
+            animation-iteration-count: 1;
+        }
+        .floating-emoji.turtle .inner { animation: bob 3s ease-in-out infinite; display:inline-block; }
+        
+        .floating-emoji.lizard { /* Used for secondary icon */
+            font-size: 34px;
+            animation-name: floatAcross;
+            animation-timing-function: linear;
+            animation-iteration-count: 1;
+        }
+        .floating-emoji.lizard .inner { animation: slowRotate 4s ease-in-out infinite; display:inline-block; transform-origin: center; }
+        
+        /* slightly smaller for scenic emojis */
+        .floating-emoji.scenic { font-size: 30px; animation-name: floatAcross; animation-timing-function: linear; animation-iteration-count: 1; }
+    
+        /* --- Reward Animation Styles --- */
+        .particle {
+            position: fixed; /* Use fixed to overlay everything */
+            pointer-events: none;
+            z-index: 9999;
+            will-change: transform, opacity;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+        }
+        .particle.glitter {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #fde047; /* yellow glitter */
+            box-shadow: 0 0 5px #fde047, 0 0 10px #fde047, 0 0 15px #fff;
+        }
+        .particle.glitter.alt {
+            background: #c084fc; /* purple glitter */
+            box-shadow: 0 0 5px #c084fc, 0 0 10px #fff, 0 0 15px #8b5cf6;
+        }
+        .particle.chocolate {
+            font-size: 32px;
+            /* No background, just the emoji */
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+    <canvas id="background-canvas"></canvas>
+    <!-- This container is for the reward animations -->
+    <div id="reward-animation-container" class="fixed top-0 left-0 w-full h-full pointer-events-none z-[60]"></div>
+
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 p-2" style="display: none;">
+        <div class="max-w-md mx-auto bg-white/90 backdrop-blur-sm shadow-lg rounded-full p-2">
+            <div class="flex justify-center items-center gap-2">
+                <button onclick="goBack()" class="nav-button bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <div class="font-bold text-base text-violet-600 px-3 whitespace-nowrap">Points ⚡: <span id="score-display">0</span></div>
+                <button onclick="navigateTo('main-menu')" class="nav-button bg-gray-800 text-white font-bold p-2 rounded-full hover:bg-gray-900">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6-4h.01M5 19h14"></path></svg>
+                </button>
+                <button onclick="toggleTTS(this)" class="nav-button p-2 rounded-full hover:bg-gray-200" title="Toggle Sound">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"></path></svg>
+                </button>
+                <button onclick="goNext()" class="nav-button bg-violet-600 hover:bg-violet-700 text-white font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Floating emoji container -->
+    <div id="emoji-floating-container" aria-hidden="true"></div>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+        <section id="page-title-screen" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 id="main-title" class="text-5xl md:text-6xl font-bold text-slate-800 mb-4"></h1>
+                <p id="main-subtitle" class="text-xl md:text-2xl text-gray-600 mb-8"></p>
+                <div id="main-svg-container" class="rounded-lg mb-8 w-full max-w-lg mx-auto"></div>
+                <button onclick="startApp()" class="action-button bg-violet-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-violet-700">START UNIT 1</button>
+            </div>
+        </section>
+        <div id="dynamic-pages-container"></div>
+    </div>
+    
+    <script>
+        // ===================================================================================
+        // --- LESSON CONTENT CONFIGURATION (UNIT 1: THE DIGITAL WORLD) ---
+        // ===================================================================================
+        const lessonData = {
+            title: "Unit 1: The Digital World",
+            subtitle: "Connection & Responsibility <span aria-hidden='true'>📱</span>",
+            startPageId: 'title-screen',
+            homePageId: 'main-menu',
+            mainMenu: [
+                { id: 'menu-tps', text: '0. Think-Pair-Share <span aria-hidden="true">🧠</span>', color: 'green', target: 'tps-start' },
+                { id: 'menu-goals', text: '1. Learning Goals <span aria-hidden="true">🎯</span>', color: 'teal', target: 'learning-goals' },
+                { id: 'menu-warmup', text: '2. Pre-Reading & Vocab <span aria-hidden="true">📚</span>', color: 'sky', target: 'warm-up' },
+                { id: 'menu-vocab-game', text: 'Vocab Game <span aria-hidden="true">🎮</span>', color: 'sky', target: 'vocab-game'},
+                { id: 'menu-reading', text: '3. Reading & Comprehension <span aria-hidden="true">📖</span>', color: 'blue', target: 'reading-main' },
+                { id: 'menu-convo', text: '4. Conversation Practice <span aria-hidden="true">🗣️</span>', color: 'indigo', target: 'conversation-practice' },
+                { id: 'menu-lecture1', text: '5. Listening: Lecture <span aria-hidden="true">🧑‍🏫</span>', color: 'amber', target: 'lecture-uni' },
+                { id: 'menu-lecture2', text: '6. Listening: Expert Talk <span aria-hidden="true">🎙️</span>', color: 'orange', target: 'lecture-expert' },
+                { id: 'menu-podcast1', text: '7. Listening: Podcast <span aria-hidden="true">🎧</span>', color: 'lime', target: 'podcast-convo' },
+                { id: 'menu-podcast2', text: '8. Listening: Digital Wellness <span aria-hidden="true">🧘</span>', color: 'emerald', target: 'podcast-futures' },
+                { id: 'menu-debate', text: '9. Discussion: School Phones <span aria-hidden="true">🤔</span>', color: 'rose', target: 'debate-planning' },
+                { id: 'menu-dilemma', text: '10. Bonus: Digital Ethics <span aria-hidden="true">⚠️</span>', color: 'red', target: 'dilemma-ethics' },
+                { id: 'menu-thinking', text: '11. Thinking & Exam Prep <span aria-hidden="true">📝</span>', color: 'purple', target: 'thinking-prompts' },
+                { id: 'menu-final', text: '12. Final Project <span aria-hidden="true">✍️</span>', color: 'violet', target: 'final-project-hub' },
+            ],
+            vocabulary: [
+                { word: 'Digital Footprint', def: 'The trail of data you create while using the internet.', sentence: 'Everything you post online becomes part of your digital footprint.' },
+                { word: 'Algorithm', def: 'A set of rules used by computers to solve problems or make decisions.', sentence: 'The TikTok algorithm shows you videos it thinks you will like.' },
+                { word: 'Misinformation', def: 'False or inaccurate information, often spread on social media.', sentence: 'It is important to check facts to avoid sharing misinformation.' },
+                { word: 'Cyberbullying', def: 'The use of electronic communication to bully a person.', sentence: 'Schools have strict rules against cyberbullying.' },
+                { word: 'Influencer', def: 'A person on social media who has access to a large audience and can persuade others.', sentence: 'Many students want to become a famous YouTube influencer.' },
+                { word: 'Privacy Settings', def: 'Controls that allow you to limit who can see your information.', sentence: 'You should check your privacy settings to stay safe online.' },
+                { word: 'Viral', def: 'An image, video, or link that spreads rapidly through a population by being frequently shared.', sentence: 'The video of the cat playing piano went viral overnight.' },
+                { word: 'Notification', def: 'A message or alert on a digital device.', sentence: 'I turned off my notifications so I could study without distraction.' },
+                { word: 'Phishing', def: 'Trying to trick people into giving away personal information like passwords.', sentence: 'Never click on suspicious links to avoid phishing scams.' },
+                { word: 'Screen Time', def: 'The amount of time spent using a device with a screen.', sentence: 'Doctors recommend limiting your daily screen time.' }
+            ],
+            pages: [
+                // 0. Think Pair Share
+                { id: 'tps-start', type: 'simple', content: { title: 'Activity: Think-Pair-Share <span aria-hidden="true">🧠</span>', text: 'Let\'s think about how we connect with the world.' } },
+                { id: 'tps-think', type: 'timer', content: { title: '1. Think <span aria-hidden="true">🤔</span>', text: 'Think about the last 24 hours. How many different digital apps or websites did you use? Make a quick mental list. You have 60 seconds.', duration: 60, timerId: 'tps-timer-1' } },
+                { id: 'tps-pair', type: 'timer', content: { title: '2. Pair <span aria-hidden="true">👥</span>', text: 'With a partner, compare your lists. Which app do you think knows the most about you? Why? You have 2 minutes.', duration: 120, timerId: 'tps-timer-2' } },
+                { id: 'tps-share', type: 'timer', content: { title: '3. Share <span aria-hidden="true">🗣️</span>', text: 'As a class, let\'s discuss: Is technology bringing us closer together or driving us further apart?', duration: 180, timerId: 'tps-timer-3' } },
+                
+                // 1. Learning Goals
+                { id: 'learning-goals', type: 'html-content', content: { title: 'Learning Goals <span aria-hidden="true">🎯</span>', html: `
+                                <div class="text-left space-y-4">
+                                    <p><strong class="text-teal-600">Learning Intention:</strong> We are learning to analyze the impact of digital technology on communication and identity, and to evaluate the responsibilities of a good digital citizen.</p>
+                                    <hr class="my-4">
+                                    <h3 class="text-2xl font-bold text-teal-600 mb-3">Success Criteria</h3>
+                                    <ul class="list-disc list-inside space-y-2 text-xl">
+                                        <li>I can define what a <strong>digital footprint</strong> is and explain why it matters.</li>
+                                        <li>I can identify examples of <strong>misinformation</strong> and <strong>cyberbullying</strong>.</li>
+                                        <li>I can express my opinion on the benefits and risks of <strong>social media</strong>.</li>
+                                        <li>I can use vocabulary like <strong>algorithm</strong> and <strong>privacy</strong> correctly in sentences.</li>
+                                    </ul>
+                                </div>` } },
+                
+                // 2. Warm-Up & Vocab
+                { id: 'warm-up', type: 'html-content', content: { title: 'Pre-Reading: The Online World <span aria-hidden="true">📚</span>', html: `
+                                <ol class="list-decimal list-inside space-y-4 text-xl text-left">
+                                    <li>Look at the vocabulary list. Which word do you think is the biggest problem for teenagers today?</li>
+                                    <li>Do you think "Influencers" have a positive or negative effect on young people?</li>
+                                    <li>What steps do you take to protect your privacy online?</li>
+                                </ol>` } },
+                { id: 'vocab-start', type: 'simple', content: { title: 'Unit Vocabulary <span aria-hidden="true">📚</span>', text: 'Let\'s learn the key terms for this unit. Click the "Next" arrow to see each word.' } },
+                { id: 'vocab-game', type: 'vocab-game', content: { title: 'Vocabulary Review Game <span aria-hidden="true">🎮</span>'} },
+                
+                // 3. Reading & Comprehension
+                { id: 'reading-main', type: 'html-content', content: { title: 'Reading: The Double-Edged Sword <span aria-hidden="true">📖</span>', html: `
+                                <div class="space-y-6 text-left">
+                                    <div class="bg-blue-50 p-4 rounded-lg">
+                                        <h4 class="font-bold text-xl text-blue-800">A World of Connection</h4>
+                                        <p>The internet has revolutionized how we communicate. Today, a student in Tokyo can instantly chat with a friend in New York. Social media platforms allow us to share our lives, express our creativity, and stay informed. For many, the online world is a place of community and support. <strong>Influencers</strong> can inspire us to learn new skills, from cooking to coding. However, this constant connection creates a permanent record of our actions known as a <strong>digital footprint</strong>.</p>
+                                    </div>
+                                    <div class="bg-yellow-50 p-4 rounded-lg">
+                                        <h4 class="font-bold text-xl text-yellow-800">The Hidden Algorithms</h4>
+                                        <p>Behind every social media feed is a powerful <strong>algorithm</strong>. These computer programs are designed to keep you online for as long as possible by showing you content you are likely to click on. While this can be helpful, it can also create "echo chambers" where we only see opinions that match our own. Furthermore, the drive for clicks can help <strong>misinformation</strong> go <strong>viral</strong> faster than the truth. It is crucial to check sources and not believe everything we see on a screen.</p>
+                                    </div>
+                                    <div class="bg-red-50 p-4 rounded-lg">
+                                        <h4 class="font-bold text-xl text-red-800">Risks and Responsibility</h4>
+                                        <p>With great power comes great responsibility. The anonymity of the internet can sometimes lead to <strong>cyberbullying</strong>, where people say hurtful things they would never say face-to-face. Additionally, managing <strong>screen time</strong> is a growing health concern, with excessive use linked to sleep problems and anxiety. Protecting your <strong>privacy</strong> settings and treating others with respect are the core skills of modern digital citizenship.</p>
+                                    </div>
+                                </div>` } },
+                { id: 'reading-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Comprehension: Gap Fill', sentences: [] } },
+                { id: 'reading-quiz-tfng', type: 'quiz-tfng', content: { title: 'Comprehension: True/False/Not Given', questions: [] } },
+                { id: 'reading-quiz-mcq', type: 'quiz-mcq', content: { title: 'Comprehension: Multiple Choice', questions: [] } },
+                
+                // 4. Conversation Practice
+                { id: 'conversation-practice', type: 'dialogue', content: { title: 'Conversation Practice <span aria-hidden="true">🗣️</span>', dialogue: `Sam: Hey Alex, did you see that video that went viral yesterday? The one with the dancing dog?
+
+Alex: No, I missed it. I'm trying to limit my screen time this week. I realized I was spending four hours a day just scrolling through TikTok.
+
+Sam: Wow, four hours? That is a lot. But how do you stay updated? I feel like I'll miss out if I don't check my notifications every hour.
+
+Alex: It's called FOMO—Fear Of Missing Out. But honestly, I feel better. Less anxiety. Plus, I read an article about how algorithms are designed to make us addicted.
+
+Sam: That's true. Sometimes I look up one thing for homework, and suddenly it's midnight and I'm watching videos about cake decorating.
+
+Alex: Exactly! You should try turning off your notifications for just one evening. You might be surprised at how much homework you get done.
+
+Sam: Maybe I'll try it. But first, you have to watch the dancing dog video. It's hilarious!` } },
+                
+                // 5. Listening: Lecture
+                { id: 'lecture-uni', type: 'dialogue', content: { title: 'Listening: University Lecture <span aria-hidden="true">🧑‍🏫</span>', dialogue: `Professor Davis: Good morning everyone. Today we are discussing the concept of the 'Digital Footprint'. Many of you think that when you delete a photo or a post, it is gone forever. I am here to tell you that is rarely the case.
+
+Professor Davis: A digital footprint is the trail of data you leave behind while using the internet. It includes the websites you visit, the emails you send, and the information you submit to online services. There are two types: passive and active.
+
+Professor Davis: An 'active' digital footprint includes data that you intentionally submit online. Publishing a blog, posting on Instagram, or tweeting—these are active choices. You know you are doing it.
+
+Professor Davis: However, a 'passive' digital footprint is data collected without you knowing. For example, when a website collects your IP address, or when an algorithm tracks which videos you pause on. This data is often sold to advertisers. Why does this matter? Because colleges and employers increasingly check these footprints. A rude comment you made on a gaming forum three years ago could effectively lose you a job opportunity today. In the digital age, your reputation is permanent.` } },
+                { id: 'lecture-uni-quiz-mcq', type: 'quiz-mcq', content: { title: 'Lecture Quiz (MCQ)', questions: [] } },
+                { id: 'lecture-uni-quiz-tfng', type: 'quiz-tfng', content: { title: 'Lecture Quiz (TFNG)', questions: [] } },
+                { id: 'lecture-uni-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Lecture Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+                
+                // 6. Listening: Expert Talk
+                { id: 'lecture-expert', type: 'dialogue', content: { title: 'Listening: Expert Talk <span aria-hidden="true">🎙️</span>', dialogue: `Host: We are joined today by Dr. Chen, a psychologist specializing in teen technology use. Dr. Chen, is social media actually bad for mental health?
+
+Dr. Chen: That is the big question. The answer is complex. It's not inherently 'bad', but the way we use it matters. We see a strong link between heavy social media use and feelings of inadequacy or anxiety.
+
+Host: Why is that?
+
+Dr. Chen: It comes down to comparison. On Instagram, you are seeing everyone's 'highlight reel'—their best moments, edited and filtered. You compare that to your own raw, messy, behind-the-scenes life. It's an unfair comparison that makes you feel like you aren't enough.
+
+Host: So, should teens just delete their accounts?
+
+Dr. Chen: Not necessarily. It's about 'curating' your feed. I tell my patients: if an account makes you feel bad about yourself, unfollow it. Follow accounts that inspire you, or make you laugh, or teach you something. And most importantly, put the phone down an hour before sleep. The blue light and the mental stimulation destroy your sleep quality, which makes everything feel worse the next day.` } },
+                { id: 'lecture-expert-quiz-mcq', type: 'quiz-mcq', content: { title: 'Expert Talk Quiz (MCQ)', questions: [] } },
+                { id: 'lecture-expert-quiz-tfng', type: 'quiz-tfng', content: { title: 'Expert Talk Quiz (TFNG)', questions: [] } },
+                { id: 'lecture-expert-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Expert Talk Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+
+                // 7. Listening: Podcast
+                { id: 'podcast-convo', type: 'dialogue', content: { title: 'Listening: Podcast <span aria-hidden="true">🎧</span>', dialogue: `Interviewer: Welcome to 'Tech Tomorrow'. I'm chatting with Mark, a professional gamer and streamer. Mark, lots of kids want to do what you do. Is it as easy as it looks?
+
+Mark: Definitely not! People see me playing games for six hours and think, "Wow, easy life." They don't see the hours I spend editing video, fixing technical audio issues, and managing my community. It's a full-time business.
+
+Interviewer: What about the toxicity? Online gaming chats can be pretty rough.
+
+Mark: Oh, absolutely. Cyberbullying is a huge issue in the gaming world. I have zero tolerance for it in my chat. If someone is being racist or mean, I ban them instantly. As an influencer, I have a responsibility to set the tone. If I let people be mean, my whole community becomes toxic.
+
+Interviewer: That's a great policy. What advice do you have for aspiring streamers?
+
+Mark: Be consistent, and be yourself. Don't try to be a character. And protect your privacy. Never leak your personal address or phone number. There are some crazy people out there, and once that info is out, you can't get it back.` } },
+                { id: 'podcast-convo-quiz-mcq', type: 'quiz-mcq', content: { title: 'Podcast Quiz (MCQ)', questions: [] } },
+                { id: 'podcast-convo-quiz-tfng', type: 'quiz-tfng', content: { title: 'Podcast Quiz (TFNG)', questions: [] } },
+                { id: 'podcast-convo-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Podcast Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+                
+                // 8. Listening: Sustainable Futures (Rebranded to Digital Wellness)
+                { id: 'podcast-futures', type: 'dialogue', content: { title: 'Listening: Digital Wellness <span aria-hidden="true">🧘</span>', dialogue: `Narrator: In a world of constant notifications, a new movement is emerging: Digital Minimalism. It isn't about rejecting technology, but using it intentionally.
+
+Narrator: Step one is the 'digital declutter'. This involves removing all non-essential apps from your phone for 30 days. It breaks the habit of constantly checking for updates.
+
+Narrator: Step two is reclaiming leisure. Instead of spending two hours scrolling through a feed, digital minimalists use that time for high-quality analogue activities, like reading a physical book, playing a sport, or talking to friends face-to-face.
+
+Narrator: Finally, digital minimalists turn off notifications. They decide when they want to check their email or social media, rather than letting the device decide for them. By taking back control of our attention, we can reduce anxiety and increase our ability to focus on deep work. Technology should be a tool we use, not a master that uses us.` } },
+                { id: 'podcast-futures-quiz-mcq', type: 'quiz-mcq', content: { title: 'Wellness Quiz (MCQ)', questions: [] } },
+                { id: 'podcast-futures-quiz-tfng', type: 'quiz-tfng', content: { title: 'Wellness Quiz (TFNG)', questions: [] } },
+                { id: 'podcast-futures-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Wellness Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+
+                // 9. Discussion: Debate
+                { id: 'debate-planning', type: 'dialogue', content: { title: 'Discussion: School Phone Bans <span aria-hidden="true">🤔</span>', dialogue: `Moderator: Today's debate topic: "Smartphones should be completely banned in schools." Sarah, open for the affirmative.
+
+Sarah: Thank you. Phones are the single biggest distraction in the classroom. When a phone vibrates, a student's focus is broken. It takes 20 minutes to get back to deep focus. Furthermore, phones are used for cyberbullying during school hours and filming teachers without consent. To improve grades and mental health, phones must be locked away during the school day.
+
+Moderator: David, the negative case?
+
+David: Banning phones is a step backward. Smartphones are incredible learning tools. We use them to research facts instantly, use calculator apps, and create digital media projects. Instead of banning them, schools should teach us how to use them responsibly. Also, in an emergency, parents need to be able to reach their children. Taking our phones away creates safety anxiety, not better learning.
+
+Sarah: But David, the "educational tool" argument is weak. Most students aren't using them for research; they are using them for Snapchat and gaming under the desk.
+
+David: That is a discipline issue, not a technology issue. If a student passes notes in class, you don't ban paper. You address the behavior. We are preparing for a digital workplace; banning technology doesn't prepare us for the real world.` } },
+                { id: 'debate-planning-quiz-mcq', type: 'quiz-mcq', content: { title: 'Debate Quiz (MCQ)', questions: [] } },
+                { id: 'debate-planning-quiz-tfng', type: 'quiz-tfng', content: { title: 'Debate Quiz (TFNG)', questions: [] } },
+                { id: 'debate-planning-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Debate Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+
+                // 10. Bonus: Ethical Dilemma
+                { id: 'dilemma-ethics', type: 'dialogue', content: { title: 'Bonus: Ethical Dilemma <span aria-hidden="true">⚠️</span>', dialogue: `Teacher: Here is a situation. You are in a group chat with your closest friends. One friend, Jason, shares a screenshot of a private conversation he had with another student, Maya, where she reveals a personal secret. Jason is making fun of her. Maya doesn't know.
+
+Teacher: What do you do? Do you stay silent? Do you laugh along? Do you tell Maya? Or do you call out Jason in the chat?
+
+Student 1: I wouldn't say anything in the chat because I don't want Jason to turn on me. But I might text Jason privately and say, "Hey, that's not cool, delete it."
+
+Student 2: That's too passive. If you don't speak up, you are part of the bullying. I would write in the group chat: "This is private. You shouldn't be sharing this." It might be awkward, but Maya's privacy is more important than Jason's joke.` } },
+                { id: 'dilemma-ethics-quiz-mcq', type: 'quiz-mcq', content: { title: 'Dilemma Quiz (MCQ)', questions: [] } },
+                { id: 'dilemma-ethics-quiz-tfng', type: 'quiz-tfng', content: { title: 'Dilemma Quiz (TFNG)', questions: [] } },
+                { id: 'dilemma-ethics-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Dilemma Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+
+                // 11. Thinking & Exam Prep
+                { id: 'thinking-prompts', type: 'html-content', content: { title: 'Thinking & Exam Prep <span aria-hidden="true">📝</span>', html: `
+                                <div class="text-left">
+                                    <h3 class="text-2xl font-bold text-purple-600 mb-3">Higher-Order Thinking Questions</h3>
+                                    <ul class="list-disc list-inside space-y-4 text-lg">
+                                        <li><b>Analyzing:</b> How might an algorithm change your opinion on a political topic without you realizing it?</li>
+                                        <li><b>Evaluating:</b> "Privacy is dead." Do you agree or disagree with this statement? Why?</li>
+                                        <li><b>Creating:</b> Design a new app that helps teenagers feel <i>better</i> about themselves instead of worse. What features would it have?</li>
+                                    </ul>
+                                    <div class="word-bank">
+                                        <h4>Word Bank:</h4>
+                                        <div class="word-bank-pills">
+                                            <span>bias</span><span>echo chamber</span><span>manipulate</span><span>data</span>
+                                            <span>security</span><span>essential</span><span>overrated</span><span>mental health</span>
+                                            <span>features</span><span>positive reinforcement</span><span>community</span>
+                                        </div>
+                                    </div>
+                                </div>` } },
+                { id: 'exam-practice', type: 'html-content', content: { title: 'IELTS & TOEFL Practice', html: `
+                                <div class="space-y-6 text-left">
+                                    <div>
+                                        <h3 class="text-2xl font-bold text-purple-600 mb-3">IELTS Part 2 (Cue Card)</h3>
+                                        <p>Describe a website or app you use often. You should say:
+                                            <ul class="list-disc list-inside ml-4 my-2">
+                                                <li>what it is</li>
+                                                <li>how often you use it</li>
+                                                <li>what you use it for</li>
+                                            </ul>
+                                            and explain why it is useful or important to you.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-2xl font-bold text-purple-600 mb-3">TOEFL Independent Speaking</h3>
+                                        <p>Some people prefer to communicate via text messages. Others prefer to talk on the phone or in person. Which do you prefer and why?</p>
+                                    </div>
+                                    <div class="word-bank">
+                                        <h4>Word Bank:</h4>
+                                        <div class="word-bank-pills">
+                                            <span>convenient</span><span>instant</span><span>misunderstanding</span><span>tone of voice</span>
+                                            <span>personal</span><span>efficient</span><span>addictive</span><span>interface</span>
+                                        </div>
+                                    </div>
+                                </div>` } },
+
+                // 12. Final Project
+                { id: 'final-project-hub', type: 'html-content', content: { title: 'Final Project Hub <span aria-hidden="true">✍️</span>', html: `
+                                <div class="bg-white rounded-2xl shadow-xl p-8 text-left">
+                                <h2 class="text-3xl font-bold text-violet-600 mb-4">GRASPS Task: The Digital Citizen Campaign</h2>
+                                <div class="space-y-3 text-lg">
+                                    <p><strong class="font-semibold text-violet-700">Goal:</strong> To create a guide or campaign for younger students (10-12 years old) entering the world of social media.</p>
+                                    <p><strong class="font-semibold text-violet-700">Role:</strong> You are a "Digital Mentor" at your school.</p>
+                                    <p><strong class="font-semibold text-violet-700">Audience:</strong> Younger students who just got their first smartphone.</p>
+                                    <p><strong class="font-semibold text-violet-700">Situation:</strong> Many younger students are making mistakes online (oversharing, being mean). They need guidance.</p>
+                                    <p><strong class="font-semibold text-violet-700">Product:</strong> A "Survival Guide" infographic or a script for a TikTok/Reels video giving "Top 3 Tips for Staying Safe."</p>
+                                </div>
+                                <div class="mt-8">
+                                    <h3 class="text-2xl font-bold text-violet-600 mb-3">My Project Ideas <span aria-hidden="true">📓</span></h3>
+                                    <textarea id="field-notes" class="w-full h-48 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Brainstorm your tips here (e.g., Tip 1: Never share your password...)..."></textarea>
+                                </div>
+                                </div>` } },
+                { id: 'writing-task', type: 'writing-task', content: { 
+                    title: 'Project Writing Activity <span aria-hidden="true">✍️</span>', 
+                    prompt: 'Write the script for your 60-second "Digital Safety" video. Introduce yourself, state the problem (e.g., cyberbullying), and give three clear pieces of advice.',
+                    starters: [
+                        "Hey everyone, welcome back to my channel...",
+                        "Did you know that everything you post is permanent?",
+                        "Here are three rules I live by to stay safe online...",
+                        "Don't let the algorithms control you..."
+                    ],
+                    wordBank: ['privacy', 'password', 'respect', 'screenshot', 'block', 'report', 'kindness', 'permanent', 'think before you post']
+                } },
+                { id: 'self-assessment', type: 'html-content', content: { title: 'Self-Assessment <span aria-hidden="true">🧑‍🏫</span>', html: `
+                                <div class="text-left">
+                                    <h3 class="text-2xl font-bold text-purple-600 mb-3">Metacognitive Self-Assessment</h3>
+                                    <ol class="list-decimal list-inside space-y-4 text-xl">
+                                        <li>"Did I change my mind about anything (like screen time or privacy) during this unit? Why?"</li>
+                                        <li>"What is one digital habit I want to change starting today?"</li>
+                                    </ol>
+                                </div>` } },
+                { id: 'certificate', type: 'certificate', content: { title: 'Module Complete! <span aria-hidden="true">🎉</span>', text: 'You have successfully completed the "Digital World" module.' } }
+            ]
+        };
+        // --- END OF LESSON CONTENT CONFIGURATION ---
+        // ===================================================================================
+
+        class SpeechService {
+             constructor() { this.synth = window.speechSynthesis; this.isInitialized = false; this.isTtsEnabled = true; this.voices = {}; this.speechRate = 0.85; this.isDialoguePlaying = false; }
+             async _setupVoices() {
+                 const voicesPromise = new Promise(resolve => { if (this.synth.getVoices().length) return resolve(this.synth.getVoices()); this.synth.onvoiceschanged = () => resolve(this.synth.getVoices()); });
+                 const availableVoices = await voicesPromise;
+                 if (!availableVoices.length) { console.warn("No speech synthesis voices available."); return; }
+                 
+                 // Updated Speaker Map for New Unit
+                 const speakerToVoiceMap = {
+                     'sam': ['Microsoft Brian Online (Natural) - English (United States)', 'Microsoft Andrew Online (Natural) - English (United States)'],
+                     'alex': ['Microsoft Emma Online (Natural) - English (United States)', 'Microsoft Ava Online (Natural) - English (United States)'],
+                     'professor davis': ['Microsoft Brian Online (Natural) - English (United States)'],
+                     'host': ['Microsoft Emma Online (Natural) - English (United States)'],
+                     'dr. chen': ['Microsoft Ava Online (Natural) - English (United States)'],
+                     'interviewer': ['Microsoft Andrew Online (Natural) - English (United States)'],
+                     'mark': ['Microsoft Brian Online (Natural) - English (United States)'],
+                     'narrator': ['Microsoft Brian Online (Natural) - English (United States)'],
+                     'moderator': ['Microsoft Andrew Online (Natural) - English (United States)'],
+                     'sarah': ['Microsoft Ava Online (Natural) - English (United States)'],
+                     'david': ['Microsoft Brian Online (Natural) - English (United States)'],
+                     'teacher': ['Microsoft Emma Online (Natural) - English (United States)'],
+                     'student 1': ['Microsoft Andrew Online (Natural) - English (United States)'],
+                     'student 2': ['Microsoft Ava Online (Natural) - English (United States)'],
+                 };
+                 for (const speaker in speakerToVoiceMap) {
+                     const voicePriorityList = speakerToVoiceMap[speaker];
+                     let chosenVoice = null;
+                     for (const voiceName of voicePriorityList) {
+                         const foundVoice = availableVoices.find(v => v.name === voiceName);
+                         if (foundVoice) { chosenVoice = foundVoice; break; }
+                     }
+                     if (chosenVoice) { this.voices[speaker] = chosenVoice; }
+                 }
+                 this.voices['default'] = availableVoices.find(v => v.name === 'Microsoft Ava Online (Natural) - English (United States)') || availableVoices.find(v => v.lang === 'en-US') || availableVoices[0];
+             }
+             async init() { if (this.isInitialized) return; try { const warmUp = new SpeechSynthesisUtterance(' '); warmUp.volume = 0; this.synth.speak(warmUp); this.synth.cancel(); await this._setupVoices(); this.isInitialized = true; } catch (e) { console.error("Speech init failed", e); } }
+             _cleanTextForSpeech(text) { const tempDiv = document.createElement('div'); const textWithoutSpans = text.replace(/<span aria-hidden="true">.*?<\/span>/g, ' '); tempDiv.innerHTML = textWithoutSpans; return tempDiv.innerText || tempDiv.textContent || ''; }
+             async speak(text, { onEndCallback = null } = {}) { if (!this.isInitialized || !this.isTtsEnabled || !text) { if (onEndCallback) onEndCallback(); return; } if (this.synth.speaking) { this.cancel(); } const utterance = new SpeechSynthesisUtterance(this._cleanTextForSpeech(text)); utterance.voice = this.voices['default']; utterance.rate = this.speechRate; if (onEndCallback) utterance.onend = onEndCallback; this.synth.speak(utterance); }
+             async speakDialogue(text) { if (!this.isInitialized || !this.isTtsEnabled || !text || this.isDialoguePlaying) return; this.cancel(); this.isDialoguePlaying = true; const lines = text.split('\n\n'); const speakLine = (index) => { if (index >= lines.length || !this.isDialoguePlaying) { this.isDialoguePlaying = false; return; } const line = lines[index]; const [speaker, ...rest] = line.split(': '); const lineText = rest.join(': '); const utterance = new SpeechSynthesisUtterance(this._cleanTextForSpeech(lineText || speaker)); utterance.voice = this.voices[speaker.trim().toLowerCase()] || this.voices['default']; utterance.rate = this.speechRate; utterance.onend = () => speakLine(index + 1); this.synth.speak(utterance); }; speakLine(0); }
+             cancel() { if (this.synth) { this.isDialoguePlaying = false; this.synth.cancel(); } }
+             toggleTTS(forceState) { this.isTtsEnabled = forceState === undefined ? !this.isTtsEnabled : forceState; if (!this.isTtsEnabled) { this.cancel(); } return this.isTtsEnabled; }
+         }
+
+        // --- Global App State and Functions ---
+        const speechService = new SpeechService();
+        let score = 0, currentPage = lessonData.startPageId, timerInterval;
+        const pageHistory = [lessonData.startPageId];
+        let pageSequence = [];
+        let completedSections = new Set();
+        let vocabGameTimer;
+        
+        // --- Emoji Spawner Globals ---
+        let emojiSpawnerInterval = null;
+        const emojiContainer = document.getElementById('emoji-floating-container');
+        const spawnIntervalMs = 900;
+
+        // --- Reward Animation Globals ---
+        let particles = [];
+        let rewardAfHandle = null;
+
+        function spawnRewardAnimation(x, y) {
+            const numParticles = 40; 
+            const container = document.getElementById('reward-animation-container');
+            if (!container) return;
+            
+            for (let i = 0; i < numParticles; i++) {
+                const el = document.createElement('div');
+                el.classList.add('particle');
+                
+                let type;
+                if (Math.random() < 0.15) { 
+                    type = 'chocolate';
+                    el.classList.add('chocolate');
+                    el.textContent = '⚡'; // Lightning bolt for points
+                } else {
+                    type = 'glitter';
+                    el.classList.add('glitter');
+                    if (Math.random() < 0.5) el.classList.add('alt'); 
+                }
+
+                // Use viewport coordinates
+                const particle = {
+                    el: el,
+                    x: x, 
+                    y: y, 
+                    vx: (Math.random() - 0.5) * 12, 
+                    vy: (Math.random() * -10) - 5, 
+                    life: 60 + Math.random() * 60, 
+                    gravity: 0.2,
+                    friction: 0.98,
+                    type: type
+                };
+
+                particles.push(particle);
+                container.appendChild(el);
+            }
+
+            if (!rewardAfHandle) {
+                rewardAfHandle = requestAnimationFrame(animateParticles);
+            }
+        }
+
+        function animateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.vx *= p.friction; p.vy += p.gravity; p.x += p.vx; p.y += p.vy; p.life--;
+
+                if (p.life <= 0) {
+                    p.el.remove(); particles.splice(i, 1);
+                } else {
+                    if (p.life < 20) p.el.style.opacity = p.life / 20;
+                    if (p.type === 'chocolate') p.el.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${p.x}deg)`;
+                    else p.el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+                }
+            }
+            if (particles.length > 0) rewardAfHandle = requestAnimationFrame(animateParticles);
+            else rewardAfHandle = null; 
+        }
+
+        // --- Sound Effect Helpers ---
+        function playCorrectSound() { if (typeof Tone !== 'undefined') { try { const synth = new Tone.Synth().toDestination(); synth.triggerAttackRelease("C5", "8n"); } catch (e) { console.error("Tone.js sound failed:", e); } } }
+        function playIncorrectSound() { if (typeof Tone !== 'undefined') { try { const synth = new Tone.Synth().toDestination(); synth.triggerAttackRelease("C3", "8n"); } catch (e) { console.error("Tone.js sound failed:", e); } } }
+
+
+        // --- Progress and Completion Logic ---
+        const pageToMenuMap = {};
+        function buildPageToMenuMap() {
+            lessonData.mainMenu.forEach(menuItem => {
+                let queue = [menuItem.target];
+                let visited = new Set(queue);
+                while (queue.length > 0) {
+                    const pageId = queue.shift();
+                    pageToMenuMap[pageId] = menuItem.id;
+                    const pageDef = lessonData.pages.find(p => p.id === pageId);
+                    if (pageDef && pageDef.type.startsWith('quiz')) {
+                        const nextQuizPage = getNextQuizPage(pageId);
+                        if (nextQuizPage && !visited.has(nextQuizPage)) {
+                            queue.push(nextQuizPage);
+                            visited.add(nextQuizPage);
+                        }
+                    }
+                }
+            });
+            pageToMenuMap['vocab-game'] = 'menu-vocab-game';
+        }
+
+        function getNextQuizPage(pageId) {
+            const sequence = ['mcq', 'tfng', 'gap-fill'];
+            const parts = pageId.split('-quiz-');
+            if (parts.length < 2) return null;
+            const prefix = parts[0];
+            const type = parts[1];
+            const currentIndex = sequence.indexOf(type);
+            if (currentIndex > -1 && currentIndex < sequence.length - 1) {
+                const nextPageId = `${prefix}-quiz-${sequence[currentIndex + 1]}`;
+                if (lessonData.pages.find(p => p.id === nextPageId)) return nextPageId;
+            }
+            return null;
+        }
+
+        function updateProgressBar() {
+            const progress = (completedSections.size / lessonData.mainMenu.length) * 100;
+            const bar = document.getElementById('progress-bar');
+            if (bar) bar.style.width = `${progress}%`;
+        }
+
+        function updateMenuCompletionState() {
+            const menuContainer = document.getElementById('page-main-menu');
+            if (!menuContainer) return;
+            lessonData.mainMenu.forEach(item => {
+                const button = menuContainer.querySelector(`#menu-btn-${item.id}`);
+                if (button && completedSections.has(item.id)) {
+                    if (!button.innerHTML.includes('✓')) button.innerHTML += ' <span class="text-green-300">✓</span>';
+                }
+            });
+        }
+
+        function markSectionAsComplete(pageId) {
+            const menuId = pageToMenuMap[pageId];
+            if (menuId && !completedSections.has(menuId)) {
+                completedSections.add(menuId);
+                updateProgressBar();
+            }
+        }
+        
+        function checkQuizPageCompletion(pageId) {
+            const pageElement = document.getElementById(`page-${pageId}`);
+            if (!pageElement) return false;
+            if (pageId.includes('gap-fill')) {
+                const gaps = pageElement.querySelectorAll('.gap');
+                return gaps.length > 0 && Array.from(gaps).every(g => g.classList.contains('correct'));
+            } else {
+                const questions = pageElement.querySelectorAll('.question-group');
+                return questions.length > 0 && Array.from(questions).every(q => q.querySelector('button:disabled'));
+            }
+        }
+
+
+        // --- App Navigation ---
+        window.toggleTTS = (button) => {
+            const isNowEnabled = speechService.toggleTTS();
+            const iconPath = isNowEnabled 
+                ? "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"
+                : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z M17 14l-4-4m0 4l4-4";
+            button.querySelector('svg').classList.toggle('text-gray-600', isNowEnabled);
+            button.querySelector('svg').classList.toggle('text-gray-400', !isNowEnabled);
+            button.querySelector('path').setAttribute('d', iconPath);
+
+            if (isNowEnabled) {
+                const pageData = lessonData.pages.find(p => p.id === currentPage);
+                const targetPage = document.getElementById(`page-${currentPage}`);
+                if (pageData && pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else if (targetPage) {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    if (readableContent) speechService.speak(readableContent.innerText);
+                    else if (titleElement) speechService.speak(titleElement.innerText);
+                }
+            }
+        };
+
+        window.startApp = async function() {
+            await speechService.init(); 
+            try { await Tone.start(); } catch (e) { console.error(e); }
+            navigateTo(lessonData.homePageId);
+        }
+        
+        function startTimer(duration, display, onComplete) {
+            let timer = duration;
+            const update = () => { display.textContent = `${String(Math.floor(timer/60)).padStart(2,'0')}:${String(timer%60).padStart(2,'0')}`; };
+            update();
+            timerInterval = setInterval(() => { timer--; update(); if (timer < 0) { clearInterval(timerInterval); if (onComplete) onComplete(); } }, 1000);
+        }
+
+        window.navigateTo = (pageId) => {
+            const previousPageId = currentPage;
+            
+            // Mark completion if leaving a quiz page and it's fully answered
+            if (previousPageId.includes('-quiz-')) {
+                if (checkQuizPageCompletion(previousPageId)) markSectionAsComplete(previousPageId);
+            }
+            
+            const targetPage = document.getElementById(`page-${pageId}`);
+            if (!targetPage) return console.warn('navigateTo: no page found for id', pageId);
+            if (pageId === currentPage) return;
+            
+            clearInterval(timerInterval);
+            clearTimeout(vocabGameTimer);
+            speechService.cancel();
+
+            const previousPageDef = lessonData.pages.find(p => p.id === previousPageId);
+            if (previousPageDef && !previousPageDef.type.startsWith('quiz') && previousPageId !== 'vocab-game') {
+                 markSectionAsComplete(previousPageId);
+            }
+
+            document.getElementById(`page-${currentPage}`)?.classList.remove('active');
+            targetPage.classList.add('active');
+            currentPage = pageId;
+            if (pageHistory[pageHistory.length - 1] !== currentPage) pageHistory.push(currentPage);
+
+            // Start or stop emojis based on the page
+            if (pageId.startsWith('vocab-') || pageId === 'warm-up' || pageId === 'vocab-start' || pageId === 'vocab-game') {
+                startFloatingEmojis();
+            } else {
+                stopFloatingEmojis();
+            }
+            
+            const pageData = lessonData.pages.find(p => p.id === pageId);
+            if (pageData) {
+                if (pageData.type === 'timer') {
+                    const timerEl = document.getElementById(pageData.content.timerId);
+                    if (timerEl) startTimer(pageData.content.duration, timerEl, goNext);
+                } else if (pageData.type === 'vocab-game') {
+                    startVocabGame();
+                } else if (pageId === 'certificate') {
+                    startConfetti();
+                    showBadgeToast('🎉 Module Complete! Well done! 🎉');
+                }
+                
+                if (pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    const contentToSpeak = readableContent ? readableContent.innerText : (titleElement ? titleElement.innerText : '');
+                    speechService.speak(contentToSpeak);
+                }
+            } else if (pageId === lessonData.homePageId) {
+                speechService.speak(targetPage.querySelector('h2').innerText);
+                updateMenuCompletionState();
+            }
+            updateNavButtons();
+            window.scrollTo(0, 0);
+        }
+
+        window.goNext = () => { const currentIndex = pageSequence.indexOf(currentPage); if (currentIndex > -1 && currentIndex < pageSequence.length - 1) navigateTo(pageSequence[currentIndex + 1]); }
+        window.goBack = () => { if (pageHistory.length > 1) { pageHistory.pop(); navigateTo(pageHistory.pop()); } }
+
+        function updateNavButtons() {
+            const nav = document.getElementById('nav-header');
+            if (!nav) return;
+            nav.style.display = (currentPage === lessonData.startPageId) ? 'none' : 'block';
+            const backBtn = nav.querySelector('button:first-child');
+            backBtn.disabled = pageHistory.length <= 1;
+            backBtn.classList.toggle('opacity-50', backBtn.disabled);
+            const nextBtn = nav.querySelector('button:last-child');
+            const currentIndex = pageSequence.indexOf(currentPage);
+            const isLast = currentIndex >= pageSequence.length - 1;
+            nextBtn.disabled = isLast || currentPage === lessonData.homePageId;
+            nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+        }
+        
+        function showFeedbackMessage(isCorrect) {
+            const correctFeedback = ["That's right!", "Excellent!", "Perfect!", "Great job!"];
+            const incorrectFeedback = ["Not quite.", "Keep trying!", "Almost there."];
+            const message = isCorrect ? correctFeedback[Math.floor(Math.random() * correctFeedback.length)] : incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.className = `feedback-toast ${isCorrect ? 'correct' : 'encouraging'}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function showBadgeToast(message) {
+            const toast = document.createElement('div');
+            toast.innerHTML = message;
+            toast.className = 'badge-toast';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000); 
+        }
+
+        function updateScore(points) { score += points; document.getElementById('score-display').textContent = score; }
+
+        function checkCompletionAndMark() {
+            if(checkQuizPageCompletion(currentPage)) markSectionAsComplete(currentPage);
+        }
+
+        window.checkTfngAnswer = function(clickedButton, chosenAnswer, correctAnswer) {
+            const buttonContainer = clickedButton.parentElement;
+            Array.from(buttonContainer.children).forEach(btn => btn.disabled = true);
+            const isCorrect = chosenAnswer === correctAnswer;
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                playCorrectSound();
+                updateScore(10);
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-green-500');
+                const rect = clickedButton.getBoundingClientRect();
+                spawnRewardAnimation(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            } else {
+                playIncorrectSound();
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-red-600');
+                const correctBtn = Array.from(buttonContainer.children).find(btn => btn.textContent === correctAnswer.charAt(0));
+                if (correctBtn) correctBtn.className = correctBtn.className.replace(/bg-\w+-500/, 'bg-green-500');
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+        
+        window.checkMcqAnswer = function(button, isCorrect) {
+            const questionGroup = button.closest('.question-group');
+            questionGroup.querySelectorAll('.quiz-option').forEach(opt => opt.disabled = true);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                playCorrectSound();
+                updateScore(10);
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                const rect = button.getBoundingClientRect();
+                spawnRewardAnimation(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            } else {
+                playIncorrectSound();
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-red-500', 'border-red-600', 'text-white', 'shake');
+                const correctButton = questionGroup.querySelector(".quiz-option[data-correct='true']");
+                if (correctButton) {
+                    correctButton.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                    correctButton.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                }
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+
+        function initGapFill(pageId) {
+            const page = document.getElementById(pageId);
+            if (!page) return;
+            
+            let selectedWord = { element: null, text: '' }; 
+
+            const gaps = page.querySelectorAll('.gap');
+            const words = page.querySelectorAll('.word-bank-word');
+            const wordBank = page.querySelector('.word-bank-container');
+
+            words.forEach(word => {
+                word.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', word.dataset.word); });
+                word.addEventListener('click', handleWordClick);
+            });
+            gaps.forEach(gap => {
+                gap.addEventListener('dragover', e => e.preventDefault());
+                gap.addEventListener('drop', e => handleDrop(e, gap));
+                gap.addEventListener('click', handleGapClick);
+            });
+
+            function handleWordClick(e) {
+                const clickedWord = e.currentTarget;
+                if (clickedWord.parentElement.classList.contains('gap')) { wordBank.appendChild(clickedWord); return; }
+                if (selectedWord.element) selectedWord.element.classList.remove('selected');
+                if (selectedWord.element === clickedWord) { selectedWord = { element: null, text: '' }; } 
+                else { selectedWord = { element: clickedWord, text: clickedWord.dataset.word }; clickedWord.classList.add('selected'); }
+            }
+            function handleGapClick(e) {
+                const clickedGap = e.currentTarget;
+                if (!selectedWord.element || clickedGap.children.length > 0) return;
+                clickedGap.appendChild(selectedWord.element);
+                checkGap(clickedGap);
+                selectedWord.element.classList.remove('selected');
+                selectedWord = { element: null, text: '' };
+            }
+            function handleDrop(e, gap) {
+                e.preventDefault();
+                if (gap.children.length > 0) return;
+                const wordText = e.dataTransfer.getData('text/plain');
+                const wordElement = page.querySelector(`.word-bank-word[data-word="${wordText}"]`);
+                if (wordElement) { gap.appendChild(wordElement); checkGap(gap); }
+            }
+            function checkGap(gap) {
+                const word = gap.querySelector('.word-bank-word');
+                const isCorrect = word && word.dataset.word.toLowerCase() === gap.dataset.answer.toLowerCase();
+                gap.classList.toggle('correct', isCorrect);
+                gap.classList.toggle('incorrect', !isCorrect);
+                if (isCorrect) { 
+                    playCorrectSound();
+                    updateScore(10); 
+                    showFeedbackMessage(true); 
+                    const rect = gap.getBoundingClientRect();
+                    spawnRewardAnimation(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                } else { 
+                    playIncorrectSound();
+                    showFeedbackMessage(false); 
+                }
+                setTimeout(checkCompletionAndMark, 100);
+            }
+        }
+
+        // --- Vocab Game Logic ---
+        let vocabGameQuestions = [];
+        let vocabGameCurrentIndex = 0;
+        let vocabGameScore = 0;
+        const ROUND_TIME = 10000;
+
+        function startVocabGame() {
+            vocabGameQuestions = [...lessonData.vocabulary].sort(() => 0.5 - Math.random());
+            vocabGameCurrentIndex = 0;
+            vocabGameScore = 0;
+            document.getElementById('vocab-game-score').textContent = '0';
+            nextVocabGameRound();
+        }
+
+        function nextVocabGameRound() {
+            if (vocabGameCurrentIndex >= vocabGameQuestions.length) {
+                endVocabGame();
+                return;
+            }
+            
+            const question = vocabGameQuestions[vocabGameCurrentIndex];
+            document.getElementById('vocab-game-definition').textContent = question.def;
+            
+            const options = [question.word];
+            const wrongAnswers = lessonData.vocabulary.filter(v => v.word !== question.word);
+            while (options.length < 4 && wrongAnswers.length > 0) {
+                const randomWrong = wrongAnswers.splice(Math.floor(Math.random() * wrongAnswers.length), 1)[0];
+                options.push(randomWrong.word);
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.innerHTML = '';
+            options.sort(() => 0.5 - Math.random()).forEach(opt => {
+                const button = document.createElement('button');
+                button.className = 'quiz-option p-3 rounded-lg text-left bg-gray-100 hover:bg-gray-200 border border-gray-200';
+                button.textContent = opt;
+                button.onclick = () => checkVocabGameAnswer(button, opt === question.word);
+                optionsContainer.appendChild(button);
+            });
+
+            startRoundTimer();
+        }
+        
+        function startRoundTimer() {
+            clearTimeout(vocabGameTimer);
+            const timerBar = document.getElementById('vocab-game-timer-bar');
+            timerBar.style.transition = 'none';
+            timerBar.style.width = '100%';
+            
+            setTimeout(() => {
+                timerBar.style.transition = `width ${ROUND_TIME / 1000}s linear`;
+                timerBar.style.width = '0%';
+            }, 100);
+
+            vocabGameTimer = setTimeout(() => {
+                showFeedbackMessage(false);
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, ROUND_TIME);
+        }
+
+        function checkVocabGameAnswer(button, isCorrect) {
+            clearTimeout(vocabGameTimer);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                playCorrectSound();
+                vocabGameScore++;
+                updateScore(5);
+                document.getElementById('vocab-game-score').textContent = vocabGameScore;
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-green-500', 'text-white');
+                const rect = button.getBoundingClientRect();
+                spawnRewardAnimation(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            } else {
+                playIncorrectSound();
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-red-500', 'text-white', 'shake');
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.querySelectorAll('button').forEach(btn => btn.disabled = true);
+
+            setTimeout(() => {
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, 1500);
+        }
+
+        function endVocabGame() {
+            document.getElementById('vocab-game-definition').textContent = `Game Over! You scored ${vocabGameScore} out of ${vocabGameQuestions.length}.`;
+            document.getElementById('vocab-game-options').innerHTML = `<button onclick="startVocabGame()" class="action-button bg-blue-500 text-white font-bold p-3 rounded-lg">Play Again</button>`;
+            markSectionAsComplete('vocab-game');
+        }
+
+        window.printCertificate = function() { window.print(); }
+        
+        window.downloadCertificate = function() {
+            const certElement = document.getElementById('certificate-to-print');
+            if (!certElement) { console.error('Certificate element not found'); return; }
+            certElement.classList.add('shadow-2xl', 'border-2', 'border-yellow-500');
+            html2canvas(certElement, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
+                const a = document.createElement('a');
+                a.href = canvas.toDataURL('image/png');
+                a.download = 'DigitalWorld_Certificate.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                certElement.classList.remove('shadow-2xl', 'border-2', 'border-yellow-500');
+            }).catch(err => {
+                console.error('Failed to download certificate:', err);
+                certElement.classList.remove('shadow-2xl', 'border-2', 'border-yellow-500');
+            });
+        }
+
+        function startConfetti() {
+            const canvas = document.getElementById('completion-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            
+            if (canvas.parentElement) {
+                canvas.width = canvas.parentElement.offsetWidth;
+                canvas.height = canvas.parentElement.offsetHeight;
+            } else {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+
+            let confetti = [];
+            const colors = ['#fde047', '#f97316', '#38bdf8', '#22c55e', '#6366f1'];
+            
+            for (let i = 0; i < 100; i++) {
+                confetti.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height - canvas.height, 
+                    size: Math.random() * 10 + 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    speed: Math.random() * 3 + 2,
+                    angle: Math.random() * 2 * Math.PI,
+                });
+            }
+            
+            let animationFrameId;
+            function drawConfetti() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                confetti.forEach((p, i) => {
+                    p.y += p.speed;
+                    p.x += Math.sin(p.angle);
+                    p.angle += 0.05;
+                    
+                    if (p.y > canvas.height) confetti.splice(i, 1);
+                    
+                    ctx.save();
+                    ctx.fillStyle = p.color;
+                    ctx.translate(p.x + p.size / 2, p.y + p.size / 2);
+                    ctx.rotate(p.angle);
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                    ctx.restore();
+                });
+                
+                if (confetti.length > 0) animationFrameId = requestAnimationFrame(drawConfetti);
+                else { ctx.clearRect(0, 0, canvas.width, canvas.height); cancelAnimationFrame(animationFrameId); }
+            }
+            drawConfetti();
+        }
+
+
+        function createPageElement(id, content) {
+            const section = document.createElement('section');
+            section.id = `page-${id}`;
+            section.className = 'page';
+            section.innerHTML = content;
+            document.getElementById('dynamic-pages-container').appendChild(section);
+        }
+        
+        function populateAllQuizzes() {
+            const readingGapFill = lessonData.pages.find(p => p.id === 'reading-quiz-gap-fill');
+            if (readingGapFill) {
+                readingGapFill.content.sentences = [
+                    { text: ['A', 'tracks everything you do online.'], answer: 'digital footprint' },
+                    { text: ['Computer', 'decide what content appears in your social media feed.'], answer: 'algorithms' },
+                    { text: ['It is important to check facts to avoid spreading', '.'], answer: 'misinformation' },
+                    { text: ['People behave differently online because of', '.'], answer: 'anonymity' },
+                    { text: ['Excessive screen time is linked to', 'and sleep problems.'], answer: 'anxiety' }
+                ];
+                readingGapFill.content.wordBank = ['digital footprint', 'algorithms', 'misinformation', 'anonymity', 'anxiety'];
+            }
+            const readingTfng = lessonData.pages.find(p => p.id === 'reading-quiz-tfng');
+            if(readingTfng) readingTfng.content.questions = [
+                { statement: 'Your digital footprint disappears when you delete a post.', correctAnswer: 'False' },
+                { statement: 'Algorithms are designed to keep you online for as long as possible.', correctAnswer: 'True' },
+                { statement: 'Influencers always have a positive impact on teenagers.', correctAnswer: 'False' },
+                { statement: 'Cyberbullying is easier for people because they don\'t see the other person\'s face.', correctAnswer: 'True' },
+                { statement: 'The text says you should stop using social media completely.', correctAnswer: 'False' }
+            ];
+            const readingMcq = lessonData.pages.find(p => p.id === 'reading-quiz-mcq');
+            if(readingMcq) readingMcq.content.questions = [
+                { question: 'What is a "passive" digital footprint?', options: ['Data you post yourself.', 'Data collected about you without you knowing.', 'Data you delete.', 'Data you send in emails.'], correctAnswer: 'Data collected about you without you knowing.' },
+                { question: 'What is an "echo chamber"?', options: ['A room with bad acoustics.', 'A place where you only hear opinions that match your own.', 'A type of social media app.', 'A viral video.'], correctAnswer: 'A place where you only hear opinions that match your own.' },
+                { question: 'Why do algorithms show you specific content?', options: ['To educate you.', 'To make you happy.', 'To keep you clicking and scrolling.', 'To protect your privacy.'], correctAnswer: 'To keep you clicking and scrolling.' },
+                { question: 'What is one risk of excessive screen time mentioned in the text?', options: ['Poor eyesight.', 'Sleep problems.', 'Bad grades.', 'Loss of friends.'], correctAnswer: 'Sleep problems.' },
+                { question: 'What is the "double-edged sword" referring to?', options: ['The internet has both good and bad sides.', 'Cyberbullying is dangerous.', 'Smartphones are expensive.', 'Privacy settings are hard to use.'], correctAnswer: 'The internet has both good and bad sides.' }
+            ];
+
+            const lectureMcq = lessonData.pages.find(p => p.id === 'lecture-uni-quiz-mcq');
+            if(lectureMcq) lectureMcq.content.questions = [
+                { question: 'What is the main topic of the lecture?', options: ['How to code.', 'The Digital Footprint.', 'The history of the internet.', 'How to become an influencer.'], correctAnswer: 'The Digital Footprint.' },
+                { question: 'What is an example of an "active" footprint?', options: ['Your IP address.', 'A post you write on Instagram.', 'Your browsing history.', 'GPS tracking.'], correctAnswer: 'A post you write on Instagram.' },
+                { question: 'Why do employers check digital footprints?', options: ['To see if you are popular.', 'To steal your identity.', 'To check your reputation and character.', 'To see your grades.'], correctAnswer: 'To check your reputation and character.' },
+                { question: 'What happens to passive data?', options: ['It is deleted immediately.', 'It is often sold to advertisers.', 'It is sent to your parents.', 'It is kept secret.'], correctAnswer: 'It is often sold to advertisers.' },
+                { question: 'How long does a digital footprint last?', options: ['24 hours.', 'One year.', 'Until you delete it.', 'It is effectively permanent.'], correctAnswer: 'It is effectively permanent.' }
+            ];
+            const lectureTfng = lessonData.pages.find(p => p.id === 'lecture-uni-quiz-tfng');
+            if(lectureTfng) lectureTfng.content.questions = [
+                { statement: 'You can completely erase your digital footprint easily.', correctAnswer: 'False' },
+                { statement: 'Passive footprints are created without you knowing.', correctAnswer: 'True' },
+                { statement: 'Colleges do not care about your social media presence.', correctAnswer: 'False' },
+                { statement: 'Posting a tweet is an example of an active footprint.', correctAnswer: 'True' },
+                { statement: 'Your IP address is part of your active footprint.', correctAnswer: 'False' }
+            ];
+            const lectureGap = lessonData.pages.find(p => p.id === 'lecture-uni-quiz-gap-fill');
+            if(lectureGap) {
+                lectureGap.content.sentences = [
+                    { text: ['A digital footprint is the', 'of data you leave behind.'], answer: 'trail' },
+                    { text: ['Passive data is often collected without your', '.'], answer: 'knowledge' },
+                    { text: ['Employers check your online', 'before hiring you.'], answer: 'reputation' },
+                    { text: ['Data is often sold to', 'to target you with ads.'], answer: 'advertisers' },
+                    { text: ['In the digital age, your actions are', '.'], answer: 'permanent' }
+                ];
+                lectureGap.content.wordBank = ['trail', 'knowledge', 'reputation', 'advertisers', 'permanent'];
+            }
+            
+            const expertMcq = lessonData.pages.find(p => p.id === 'lecture-expert-quiz-mcq');
+            if(expertMcq) expertMcq.content.questions = [
+                { question: 'What link does Dr. Chen see in her patients?', options: ['Heavy social media use and anxiety.', 'Gaming and better reflexes.', 'Smartphones and better sleep.', 'Internet use and higher grades.'], correctAnswer: 'Heavy social media use and anxiety.' },
+                { question: 'Why does social media make people feel inadequate?', options: ['Because people are mean.', 'Because of the "highlight reel" comparison.', 'Because it is boring.', 'Because of the ads.'], correctAnswer: 'Because of the "highlight reel" comparison.' },
+                { question: 'What does Dr. Chen suggest you do if an account makes you feel bad?', options: ['Report it.', 'Unfollow it.', 'Leave a mean comment.', 'Delete your app.'], correctAnswer: 'Unfollow it.' },
+                { question: 'What destroys sleep quality?', options: ['Blue light and mental stimulation.', 'Listening to music.', 'Reading a book.', 'Talking to friends.'], correctAnswer: 'Blue light and mental stimulation.' },
+                { question: 'What does Dr. Chen mean by "curating" your feed?', options: ['Deleting everything.', 'Choosing carefully what you look at.', 'Posting more photos.', 'Paying for followers.'], correctAnswer: 'Choosing carefully what you look at.' }
+            ];
+            const expertTfng = lessonData.pages.find(p => p.id === 'lecture-expert-quiz-tfng');
+            if(expertTfng) expertTfng.content.questions = [
+                { statement: 'Dr. Chen says social media is inherently evil.', correctAnswer: 'False' },
+                { statement: 'People usually post their messy, real lives on Instagram.', correctAnswer: 'False' },
+                { statement: 'Comparing yourself to influencers can make you feel like you aren\'t enough.', correctAnswer: 'True' },
+                { statement: 'You should use your phone right before bed to relax.', correctAnswer: 'False' },
+                { statement: 'You have control over who you follow.', correctAnswer: 'True' }
+            ];
+            const expertGap = lessonData.pages.find(p => p.id === 'lecture-expert-quiz-gap-fill');
+            if(expertGap) {
+                expertGap.content.sentences = [
+                    { text: ['Social media presents a', 'reel of people\'s lives.'], answer: 'highlight' },
+                    { text: ['Comparing your life to others can cause feelings of', '.'], answer: 'inadequacy' }, 
+                    { text: ['You should', 'accounts that make you feel bad.'], answer: 'unfollow' },
+                    { text: ['Blue light affects your ability to', 'well.'], answer: 'sleep' },
+                    { text: ['It is important to', 'your feed to include positive content.'], answer: 'curate' }
+                ];
+                expertGap.content.wordBank = ['highlight', 'inadequacy', 'unfollow', 'sleep', 'curate'];
+            }
+
+            const convoMcq = lessonData.pages.find(p => p.id === 'podcast-convo-quiz-mcq');
+            if(convoMcq) convoMcq.content.questions = [
+                { question: 'What does Mark do for a living?', options: ['He is a doctor.', 'He is a professional gamer and streamer.', 'He is a teacher.', 'He is a software engineer.'], correctAnswer: 'He is a professional gamer and streamer.' },
+                { question: 'Why is streaming harder than it looks?', options: ['The games are difficult.', 'It involves editing, technical work, and management.', 'It pays very little.', 'The chair is uncomfortable.'], correctAnswer: 'It involves editing, technical work, and management.' },
+                { question: 'How does Mark handle toxicity in his chat?', options: ['He ignores it.', 'He argues back.', 'He bans them instantly.', 'He cries.'], correctAnswer: 'He bans them instantly.' },
+                { question: 'What is Mark\'s advice on privacy?', options: ['Share everything with your fans.', 'Never leak your address or phone number.', 'Use a fake name.', 'Don\'t use a camera.'], correctAnswer: 'Never leak your address or phone number.' },
+                { question: 'Why does Mark enforce strict rules?', options: ['To be mean.', 'To set the tone for his community.', 'Because he hates people.', 'To get more views.'], correctAnswer: 'To set the tone for his community.' }
+            ];
+            const convoTfng = lessonData.pages.find(p => p.id === 'podcast-convo-quiz-tfng');
+            if(convoTfng) convoTfng.content.questions = [
+                { statement: 'Mark works very few hours a day.', correctAnswer: 'False' },
+                { statement: 'Cyberbullying is common in the gaming world.', correctAnswer: 'True' },
+                { statement: 'Mark believes influencers have a responsibility to stop bullying.', correctAnswer: 'True' },
+                { statement: 'Mark suggests trying to act like a character to get famous.', correctAnswer: 'False' },
+                { statement: 'Leaking personal info can be dangerous.', correctAnswer: 'True' }
+            ];
+            const convoGap = lessonData.pages.find(p => p.id === 'podcast-convo-quiz-gap-fill');
+            if(convoGap) {
+                convoGap.content.sentences = [
+                    { text: ['Streaming involves a lot of behind-the-scenes', '.'], answer: 'work' },
+                    { text: ['Mark has zero', 'for bullying in his chat.'], answer: 'tolerance' },
+                    { text: ['If you let people be mean, the community becomes', '.'], answer: 'toxic' },
+                    { text: ['You should never leak your personal', 'online.'], answer: 'address' },
+                    { text: ['Mark advises aspiring streamers to be', 'and be themselves.'], answer: 'consistent' }
+                ];
+                convoGap.content.wordBank = ['work', 'tolerance', 'toxic', 'address', 'consistent'];
+            }
+
+            const futuresMcq = lessonData.pages.find(p => p.id === 'podcast-futures-quiz-mcq');
+            if(futuresMcq) futuresMcq.content.questions = [
+                { question: 'What is "Digital Minimalism"?', options: ['Throwing away your phone.', 'Using technology intentionally.', 'Using only old computers.', 'Buying the smallest phone.'], correctAnswer: 'Using technology intentionally.' },
+                { question: 'What is a "digital declutter"?', options: ['Cleaning your screen.', 'Removing non-essential apps for 30 days.', 'Organizing your desktop.', 'Deleting old photos.'], correctAnswer: 'Removing non-essential apps for 30 days.' },
+                { question: 'What should you do with the time you save?', options: ['Sleep.', 'High-quality analogue activities.', 'Watch TV.', 'Work more.'], correctAnswer: 'High-quality analogue activities.' },
+                { question: 'Why turn off notifications?', options: ['To save battery.', 'To stop the device from controlling your attention.', 'To be rude.', 'Because the sound is annoying.'], correctAnswer: 'To stop the device from controlling your attention.' },
+                { question: 'What is the goal of digital minimalism?', options: ['To reduce anxiety and increase focus.', 'To become a monk.', 'To save money.', 'To protest against Apple.'], correctAnswer: 'To reduce anxiety and increase focus.' }
+            ];
+            const futuresTfng = lessonData.pages.find(p => p.id === 'podcast-futures-quiz-tfng');
+            if(futuresTfng) futuresTfng.content.questions = [
+                { statement: 'Digital minimalism means rejecting all technology.', correctAnswer: 'False' },
+                { statement: 'A digital declutter involves taking a break from apps.', correctAnswer: 'True' },
+                { statement: 'You should let your phone decide when you check it.', correctAnswer: 'False' },
+                { statement: 'Reclaiming leisure time for hobbies is a key part of the movement.', correctAnswer: 'True' },
+                { statement: 'Technology should be a tool, not a master.', correctAnswer: 'True' }
+            ];
+            const futuresGap = lessonData.pages.find(p => p.id === 'podcast-futures-quiz-gap-fill');
+            if(futuresGap) {
+                futuresGap.content.sentences = [
+                    { text: ['Digital minimalism is about using technology', '.'], answer: 'intentionally' },
+                    { text: ['A digital declutter breaks the habit of constantly', 'for updates.'], answer: 'checking' },
+                    { text: ['We should replace scrolling with high-quality', 'activities.'], answer: 'analogue' },
+                    { text: ['By turning off notifications, we take back', 'of our attention.'], answer: 'control' },
+                    { text: ['Technology should be a', 'we use, not a master.'], answer: 'tool' }
+                ];
+                futuresGap.content.wordBank = ['intentionally', 'checking', 'analogue', 'control', 'tool'];
+            }
+
+            const debateMcq = lessonData.pages.find(p => p.id === 'debate-planning-quiz-mcq');
+            if(debateMcq) debateMcq.content.questions = [
+                { question: 'What is Sarah\'s main argument?', options: ['Phones are expensive.', 'Phones are the biggest distraction in class.', 'Phones break easily.', 'Teachers hate phones.'], correctAnswer: 'Phones are the biggest distraction in class.' },
+                { question: 'What is David\'s main argument?', options: ['Phones are fun.', 'Phones are learning tools and needed for safety.', 'Students will be bored without them.', 'Parents want to call constantly.'], correctAnswer: 'Phones are learning tools and needed for safety.' },
+                { question: 'How long does Sarah say it takes to refocus after a distraction?', options: ['5 minutes.', '10 minutes.', '20 minutes.', '1 hour.'], correctAnswer: '20 minutes.' },
+                { question: 'What does David suggest schools do instead of banning phones?', options: ['Buy everyone a laptop.', 'Teach students to use them responsibly.', 'Let students do whatever they want.', 'Confiscate them.'], correctAnswer: 'Teach students to use them responsibly.' },
+                { question: 'Sarah argues that students mostly use phones for...', options: ['Research.', 'Calculators.', 'Snapchat and gaming.', 'Calling parents.'], correctAnswer: 'Snapchat and gaming.' }
+            ];
+            const debateTfng = lessonData.pages.find(p => p.id === 'debate-planning-quiz-tfng');
+            if(debateTfng) debateTfng.content.questions = [
+                { statement: 'Sarah believes phones improve mental health.', correctAnswer: 'False' },
+                { statement: 'David believes banning phones creates safety anxiety.', correctAnswer: 'True' },
+                { statement: 'Sarah says phones are used for cyberbullying during school.', correctAnswer: 'True' },
+                { statement: 'David agrees that students use phones for gaming.', correctAnswer: 'False' },
+                { statement: 'Sarah thinks the "educational tool" argument is strong.', correctAnswer: 'False' }
+            ];
+            const debateGap = lessonData.pages.find(p => p.id === 'debate-planning-quiz-gap-fill');
+            if(debateGap) {
+                debateGap.content.sentences = [
+                    { text: ['Phones can break a student\'s', 'during a lesson.'], answer: 'focus' },
+                    { text: ['David argues that phones are important for', 'in emergencies.'], answer: 'safety' },
+                    { text: ['Sarah mentions that students film teachers without', '.'], answer: 'consent' },
+                    { text: ['David believes misusing phones is a', 'issue, not a tech issue.'], answer: 'discipline' },
+                    { text: ['We need to learn to use technology', '.'], answer: 'responsibly' }
+                ];
+                debateGap.content.wordBank = ['focus', 'safety', 'consent', 'discipline', 'responsibly'];
+            }
+
+            const dilemmaMcq = lessonData.pages.find(p => p.id === 'dilemma-ethics-quiz-mcq');
+            if(dilemmaMcq) dilemmaMcq.content.questions = [ 
+                { question: 'What did Jason do?', options: ['He stole money.', 'He shared a private screenshot to mock someone.', 'He cheated on a test.', 'He lost his phone.'], correctAnswer: 'He shared a private screenshot to mock someone.' }, 
+                { question: 'Why does Student 2 want to speak up?', options: ['They hate Jason.', 'They want to be popular.', 'They believe Maya\'s privacy is more important than the joke.', 'They want to get Jason expelled.'], correctAnswer: 'They believe Maya\'s privacy is more important than the joke.' } 
+            ];
+            const dilemmaTfng = lessonData.pages.find(p => p.id === 'dilemma-ethics-quiz-tfng');
+            if(dilemmaTfng) dilemmaTfng.content.questions = [ 
+                { statement: 'Student 1 suggests staying completely silent.', correctAnswer: 'False' }, 
+                { statement: 'Student 2 thinks staying silent makes you part of the bullying.', correctAnswer: 'True' }, 
+                { statement: 'Maya knows about the screenshot.', correctAnswer: 'False' } 
+            ];
+            const dilemmaGap = lessonData.pages.find(p => p.id === 'dilemma-ethics-quiz-gap-fill');
+            if(dilemmaGap) {
+                dilemmaGap.content.sentences = [ 
+                    { text: ['Jason violated Maya\'s', 'by sharing the screenshot.'], answer: 'privacy' }, 
+                    { text: ['Student 1 is afraid Jason will', 'on them.'], answer: 'turn' }, 
+                    { text: ['If you don\'t speak up, you are part of the', '.'], answer: 'bullying' } 
+                ];
+                dilemmaGap.content.wordBank = ['privacy', 'turn', 'bullying'];
+            }
+        }
+        
+        function initializeLesson() {
+            document.getElementById('main-title').innerHTML = lessonData.title;
+            document.getElementById('main-subtitle').innerHTML = lessonData.subtitle;
+            document.getElementById('main-svg-container').innerHTML = `<svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:1" /><stop offset="100%" style="stop-color:#6366f1;stop-opacity:1" /></linearGradient><linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#38bdf8;stop-opacity:1" /><stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" /></linearGradient><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur in="SourceAlpha" stdDeviation="3"/><feOffset dx="2" dy="2" result="offsetblur"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><rect x="150" y="50" width="300" height="200" rx="20" fill="white" stroke="url(#grad1)" stroke-width="8" filter="url(#shadow)" /><rect x="170" y="70" width="260" height="140" rx="5" fill="#f0f9ff" /><circle cx="300" cy="225" r="12" fill="#ddd" /><text x="210" y="150" font-size="60" font-family="Inter, sans-serif" font-weight="bold" fill="#8b5cf6">HELLO</text><text x="230" y="190" font-size="20" font-family="Inter, sans-serif" fill="#6b7280">WORLD</text><circle cx="500" cy="80" r="40" fill="url(#grad2)" opacity="0.8" /><circle cx="100" cy="250" r="30" fill="url(#grad2)" opacity="0.6" /></svg>`;
+
+            populateAllQuizzes();
+            buildPageToMenuMap();
+
+            const menuButtons = lessonData.mainMenu.map(item => {
+                const colors = { green: 'bg-green-500 border-green-700', blue: 'bg-blue-500 border-blue-700', sky: 'bg-sky-500 border-sky-700', amber: 'bg-amber-500 border-amber-700', rose: 'bg-rose-500 border-rose-700', indigo: 'bg-indigo-500 border-indigo-700', purple: 'bg-purple-500 border-purple-700', violet: 'bg-violet-500 border-violet-700', red: 'bg-red-500 border-red-700', orange: 'bg-orange-500 border-orange-700', lime: 'bg-lime-500 border-lime-700', emerald: 'bg-emerald-500 border-emerald-700', teal: 'bg-teal-500 border-teal-700' };
+                return `<button id="menu-btn-${item.id}" onclick="navigateTo('${item.target}')" class="btn-animated-3d ${colors[item.color] || colors['green']} text-white font-bold text-xl p-4 rounded-lg w-full text-left">${item.text}</button>`;
+            }).join('');
+            createPageElement(lessonData.homePageId, `<div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-slate-800 mb-8">Main Menu</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-4">${menuButtons}</div></div>`);
+            
+            const pageOrderMap = {
+                'tps-start': ['tps-think'], 'tps-think': ['tps-pair'], 'tps-pair': ['tps-share'],
+                'warm-up': ['vocab-start'], 'vocab-start': [...lessonData.vocabulary.map((v, i) => `vocab-${i}`), 'vocab-game'],
+                'vocab-game': ['reading-main'], 'reading-main': ['reading-quiz-gap-fill'],
+                'reading-quiz-gap-fill': ['reading-quiz-tfng'], 'reading-quiz-tfng': ['reading-quiz-mcq'],
+                'lecture-uni': ['lecture-uni-quiz-mcq'], 'lecture-uni-quiz-mcq': ['lecture-uni-quiz-tfng'], 'lecture-uni-quiz-tfng': ['lecture-uni-quiz-gap-fill'],
+                'lecture-expert': ['lecture-expert-quiz-mcq'], 'lecture-expert-quiz-mcq': ['lecture-expert-quiz-tfng'], 'lecture-expert-quiz-tfng': ['lecture-expert-quiz-gap-fill'],
+                'podcast-convo': ['podcast-convo-quiz-mcq'], 'podcast-convo-quiz-mcq': ['podcast-convo-quiz-tfng'], 'podcast-convo-quiz-tfng': ['podcast-convo-quiz-gap-fill'],
+                'podcast-futures': ['podcast-futures-quiz-mcq'], 'podcast-futures-quiz-mcq': ['podcast-futures-quiz-tfng'], 'podcast-futures-quiz-tfng': ['podcast-futures-quiz-gap-fill'],
+                'debate-planning': ['debate-planning-quiz-mcq'], 'debate-planning-quiz-mcq': ['debate-planning-quiz-tfng'], 'debate-planning-quiz-tfng': ['debate-planning-quiz-gap-fill'],
+                'dilemma-ethics': ['dilemma-ethics-quiz-mcq'], 'dilemma-ethics-quiz-mcq': ['dilemma-ethics-quiz-tfng'], 'dilemma-ethics-quiz-tfng': ['dilemma-ethics-quiz-gap-fill'],
+                'thinking-prompts': ['exam-practice'], 'final-project-hub': ['writing-task'],
+                'writing-task': ['self-assessment'], 'self-assessment': ['certificate']
+            };
+
+            let flatPageList = [lessonData.startPageId];
+            lessonData.mainMenu.forEach(item => {
+                let queue = [item.target];
+                let visited = new Set();
+                while(queue.length > 0) {
+                    let current = queue.shift();
+                    if (visited.has(current)) continue;
+                    const pageExists = lessonData.pages.find(p => p.id === current) || lessonData.vocabulary.find((v,i) => `vocab-${i}` === current) || current === 'vocab-game';
+                    if (!pageExists || flatPageList.includes(current)) continue;
+                    visited.add(current);
+                    flatPageList.push(current);
+                    if (pageOrderMap[current]) queue.push(...pageOrderMap[current]);
+                }
+            });
+            pageSequence = [...new Set(flatPageList)];
+
+            lessonData.vocabulary.forEach((v, i) => {
+                createPageElement(`vocab-${i}`, `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h3 class="text-2xl font-bold text-sky-600 mb-2">Vocabulary</h3><h2 class="text-5xl font-bold text-gray-800 mb-4">${v.word}</h2><p class="text-2xl text-gray-600 mb-6">${v.def}</p><p class="text-xl text-gray-500 italic">e.g. "${v.sentence}"</p></div></div>`);
+            });
+
+            lessonData.pages.forEach(page => {
+                let pageHTML = '';
+                switch (page.type) {
+                    case 'simple': pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-gray-800 mb-6">${page.content.title}</h2><p class="text-2xl text-gray-600">${page.content.text}</p></div></div>`; break;
+                    case 'timer': pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-left pt-16"><div class="w-full flex justify-between items-center mb-4"><h2 class="text-2xl md:text-3xl font-bold text-gray-800">${page.content.title}</h2><span id="${page.content.timerId}" class="text-3xl font-bold text-blue-600 bg-blue-100 px-4 py-2 rounded-lg">00:00</span></div><div class="readable-content"><p class="text-xl text-gray-600">${page.content.text}</p></div></div>`; break;
+                    case 'dialogue':
+                    case 'html-content':
+                        const contentHTML = page.type === 'html-content' ? page.content.html : 
+                            (page.content.dialogue || '').split('\n\n').map(line => {
+                                if (line.startsWith('Professor Davis: ') || line.startsWith('Narrator: ') || line.startsWith('Teacher: ')) {
+                                    return `<p class="mb-4">${line.substring(line.indexOf(': ') + 2)}</p>`;
+                                }
+                                return `<p class="mb-4">${line.replace(/([^:]+):/, '<strong class="font-bold text-indigo-700">$1:</strong>')}</p>`;
+                            }).join('');
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-slate-800 mb-6">${page.content.title}</h2><div class="readable-content text-xl max-w-2xl mx-auto">${contentHTML}</div></div>`;
+                        break;
+                    case 'vocab-game':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-sky-600 mb-4">${page.content.title}</h2><div class="text-center mb-4 text-2xl font-bold">Score: <span id="vocab-game-score" class="text-blue-600">0</span></div><div class="w-full bg-gray-200 rounded-full h-2.5 mb-4"><div id="vocab-game-timer-bar" class="bg-blue-600 h-2.5 rounded-full"></div></div><div class="bg-gray-50 p-6 rounded-lg min-h-[120px] flex items-center justify-center mb-6"><p id="vocab-game-definition" class="text-2xl text-center font-medium"></p></div><div id="vocab-game-options" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div></div>`;
+                        break;
+                    case 'writing-task':
+                        const startersHTML = page.content.starters.map(s => `<li class="text-gray-500">${s}</li>`).join('');
+                        const wordBankHTML = page.content.wordBank ? `<div class="word-bank"><h4 class="text-violet-600">Word Bank:</h4><div class="word-bank-pills">${page.content.wordBank.map(w => `<span>${w}</span>`).join('')}</div></div>` : '';
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-center text-violet-700 mb-6">${page.content.title}</h2><div class="text-left max-w-2xl mx-auto"><p class="text-xl text-gray-700 mb-4">${page.content.prompt}</p><ul class="list-disc list-inside mb-4 text-lg space-y-1">${startersHTML}</ul>${wordBankHTML}</div></div></div>`;
+                        break;
+                    case 'certificate':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16 relative overflow-hidden"><canvas id="completion-canvas"></canvas><div class="relative z-10"><div class="readable-content"><h2 class="text-5xl font-bold text-amber-500 mb-4">${page.content.title}</h2><p class="text-2xl text-gray-600 mb-8">${page.content.text}</p></div><div id="certificate-to-print" class="max-w-xl mx-auto bg-white p-8 rounded-lg border-4 border-dashed border-blue-700 text-left"><h3 class="text-3xl font-bold text-blue-800 text-center mb-4">Certificate of Completion</h3><p class="text-xl mb-4">This certifies that</p><div class="w-full bg-gray-200 h-px mb-4"></div><p class="text-xl mb-4">has successfully completed the module</p><p class="text-2xl font-bold text-blue-700 text-center mb-6">Unit 1: The Digital World</p><p class="text-lg">Congratulations on demonstrating excellent digital citizenship! <span aria-hidden="true">📱</span></p></div><div class="flex justify-center gap-4 mt-8"><button onclick="downloadCertificate()" class="action-button bg-blue-600 text-white font-bold py-2 px-6 rounded-full text-lg hover:bg-blue-700">Download</button><button onclick="printCertificate()" class="action-button bg-gray-600 text-white font-bold py-2 px-6 rounded-full text-lg hover:bg-gray-700">Print</button></div></div></div>`;
+                        break;
+                    case 'quiz-tfng':
+                    case 'quiz-mcq':
+                    case 'quiz-gap-fill':
+                        let questionsHTML = '';
+                        if (page.type === 'quiz-tfng' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group flex flex-col sm:flex-row items-center gap-4 p-4 rounded-lg bg-gray-50 border border-gray-200"><p class="font-semibold flex-1 text-left">${i + 1}. ${q.statement}</p><div class="flex-shrink-0 flex gap-2">${['True', 'False', 'Not Given'].map(a => `<button onclick="checkTfngAnswer(this, '${a}', '${q.correctAnswer}')" class="tfng-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-full">${a.charAt(0)}</button>`).join('')}</div></div>`).join('');
+                        } else if (page.type === 'quiz-mcq' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group ${i > 0 ? 'border-t border-gray-200 pt-6 mt-6' : ''}"><p class="font-semibold mb-4 text-left">${i + 1}. ${q.question}</p><div class="space-y-3">${q.options.map(opt => `<button onclick="checkMcqAnswer(this, ${opt === q.correctAnswer})" data-correct="${opt === q.correctAnswer}" class="quiz-option p-3 rounded-lg text-left w-full bg-gray-100 hover:bg-gray-200 border border-gray-200">${opt}</button>`).join('')}</div></div>`).join('');
+                        } else if (page.type === 'quiz-gap-fill' && page.content.sentences) {
+                            const words = page.content.wordBank 
+                                ? [...page.content.wordBank].sort(() => Math.random() - 0.5)
+                                : page.content.sentences.map(s => s.answer).sort(() => Math.random() - 0.5);
+                            questionsHTML = `<div class="gap-fill-container text-left">${page.content.sentences.map((s, i) => `<p class="text-xl mb-6">${i + 1}. ${s.text[0]} <span class="gap" data-answer="${s.answer}"></span> ${s.text[1] || ''}</p>`).join('')}</div><div class="word-bank-container flex flex-wrap justify-center gap-3 p-4 mt-6 bg-gray-100 rounded-lg">${words.map(w => `<div class="word-bank-word" draggable="true" data-word="${w}">${w}</div>`).join('')}</div>`;
+                        }
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-3xl font-bold text-rose-600 mb-6 text-center">${page.content.title}</h3><div class="space-y-6">${questionsHTML}</div></div>`;
+                        break;
+                }
+                if (pageHTML) {
+                    createPageElement(page.id, pageHTML);
+                    if (page.type === 'quiz-gap-fill') initGapFill(`page-${page.id}`);
+                    if (page.id === 'final-project-hub') {
+                        const fieldNotes = document.getElementById('field-notes');
+                        if (fieldNotes) {
+                            fieldNotes.value = localStorage.getItem('unit1FieldNotes') || '';
+                            fieldNotes.addEventListener('input', (e) => localStorage.setItem('unit1FieldNotes', e.target.value));
+                        }
+                    }
+                }
+            });
+            updateNavButtons();
+        }
+
+        // ----------------------------
+        // Floating emoji + moving logic
+        // ----------------------------
+        function spawnFloatingEmoji() {
+            const container = emojiContainer;
+            if (!container) return;
+            const palette = ['📱','💻','⌨️','🖱️','📡','📶','🔒','🌐','👁️','💬'];
+            const maxOnScreen = 18;
+            if (container.children.length >= maxOnScreen) return;
+            const emoji = palette[Math.floor(Math.random() * palette.length)];
+            const el = document.createElement('div');
+            el.className = 'floating-emoji ' + (Math.random() > 0.5 ? 'scenic' : 'lizard'); 
+            el.innerHTML = `<span class="inner">${emoji}</span>`;
+            const top = Math.random() * 75 + 5; 
+            el.style.top = `${top}%`;
+            el.style.left = `-8vw`;
+            const base = 8000 + Math.random() * 12000;
+            const duration = Math.max(6000, base);
+            el.style.animationDuration = `${duration}ms`;
+            const scale = 0.85 + Math.random() * 0.6;
+            el.style.transform = `scale(${scale})`;
+            el.addEventListener('animationend', () => { if (container.contains(el)) container.removeChild(el); });
+            container.appendChild(el);
+        }
+
+        function startFloatingEmojis() {
+            if (!emojiSpawnerInterval && emojiContainer) {
+                emojiSpawnerInterval = setInterval(spawnFloatingEmoji, spawnIntervalMs);
+            }
+        }
+
+        function stopFloatingEmojis() {
+            if (emojiSpawnerInterval) {
+                clearInterval(emojiSpawnerInterval);
+                emojiSpawnerInterval = null;
+            }
+            if (emojiContainer) emojiContainer.innerHTML = '';
+        }
+
+        // ----------------------------
+        // Initialization and background particle animation
+        // ----------------------------
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeLesson();
+            const bgCanvas = document.getElementById('background-canvas');
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            let particles = [];
+            function animateBackground() {
+                bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+                particles.forEach((p, i) => {
+                    p.y -= p.speed;
+                    if (p.y < -p.radius) particles.splice(i, 1);
+                    bgCtx.beginPath();
+                    bgCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    bgCtx.fillStyle = p.color;
+                    bgCtx.fill();
+                });
+                if (Math.random() > 0.95 && particles.length < 50) {
+                    particles.push({ 
+                        x: Math.random() * bgCanvas.width, 
+                        y: bgCanvas.height + 20, 
+                        radius: Math.random() * 8 + 2, 
+                        speed: Math.random() * 1 + 0.5, 
+                        color: `rgba(255, 255, 255, ${Math.random() * 0.2 + 0.1})`
+                    });
+                }
+                requestAnimationFrame(animateBackground);
+            }
+            window.addEventListener('resize', () => { bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; });
+            animateBackground();
+        });
+    </script>
+</body>
+</html>

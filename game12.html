@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language Recall Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+            transition: background-color 5s ease-in-out;
+            background-color: #f3f4f6;
+        }
+        .card {
+            background-color: white;
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+        .timer-bar-container {
+            height: 10px;
+            background-color: #e5e7eb;
+            border-radius: 5px;
+            overflow: hidden;
+            width: 100%;
+        }
+        .timer-bar {
+            height: 100%;
+            background-color: #4ade80;
+            border-radius: 5px;
+            transition: width 0.1s linear;
+        }
+        .btn-primary {
+            background-color: #3b82f6;
+            color: white;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb;
+        }
+        .btn-primary:disabled {
+            background-color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .icon {
+            width: 1.5rem;
+            height: 1.5rem;
+            stroke-width: 2;
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto text-center">
+        
+        <div id="start-screen" class="card">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">Language Recall</h1>
+            <p class="text-gray-600 mb-6">Listen to the question, read the answer, and click "Got It!" to score a point. A new question appears every 20 seconds.</p>
+            <p id="voice-status" class="text-sm text-gray-500 mb-8">Loading voices...</p>
+            <button id="start-button" class="w-full py-3 px-6 rounded-lg font-semibold text-lg btn-primary shadow-lg" disabled>
+                Loading...
+            </button>
+        </div>
+
+        <div id="game-screen" class="hidden">
+            <div class="flex justify-between items-center mb-2 text-gray-700 text-base sm:text-lg">
+                <div class="font-semibold flex items-center gap-2">
+                    <svg class="icon text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Level <span id="level-display" class="font-bold">1</span>
+                </div>
+                <div class="font-semibold">Score: <span id="score" class="font-bold">0</span></div>
+                <div>Question: <span id="question-count" class="font-bold">0</span> / 25</div>
+            </div>
+            <div class="flex items-center gap-4 mb-4">
+                <div class="text-3xl sm:text-4xl font-bold text-gray-800 w-16 flex items-center justify-center gap-2">
+                    <svg class="icon text-gray-500 h-7 w-7 sm:h-8 sm:w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span id="countdown-text">20</span>
+                </div>
+                <div class="timer-bar-container flex-grow">
+                    <div id="timer-bar" class="timer-bar"></div>
+                </div>
+            </div>
+            <div id="qa-card" class="card">
+                <p id="question-text" aria-live="polite" class="text-left text-lg sm:text-xl md:text-2xl text-gray-600 mb-4"></p>
+                <p id="answer-text" aria-live="polite" class="text-left text-xl sm:text-2xl md:text-4xl font-bold text-gray-900 mb-6 min-h-[150px] flex items-center justify-start"></p>
+                <button id="next-button" class="w-full mt-4 py-3 px-6 rounded-lg font-semibold text-lg btn-primary shadow-lg">Got It!</button>
+            </div>
+        </div>
+
+        <div id="end-screen" class="hidden card">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">Session Complete!</h1>
+            <p class="text-xl sm:text-2xl text-gray-600 mb-8">Your final score is: <span id="final-score" class="font-bold">0</span></p>
+            <button id="restart-button" class="w-full py-3 px-6 rounded-lg font-semibold text-lg btn-primary shadow-lg">
+                Play Again
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const endScreen = document.getElementById('end-screen');
+        
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const voiceStatusEl = document.getElementById('voice-status');
+        const nextButton = document.getElementById('next-button');
+
+        const levelDisplayEl = document.getElementById('level-display');
+        const questionCountEl = document.getElementById('question-count');
+        const scoreEl = document.getElementById('score');
+        const finalScoreEl = document.getElementById('final-score');
+        const timerBar = document.getElementById('timer-bar');
+        const countdownTextEl = document.getElementById('countdown-text');
+        const qaCard = document.getElementById('qa-card');
+        const questionTextEl = document.getElementById('question-text');
+        const answerTextEl = document.getElementById('answer-text');
+        const statusTextEl = document.getElementById('status-text');
+
+        // --- Speech Synthesis & Sound Setup ---
+        const synth = window.speechSynthesis;
+        let voices = [];
+        let timeUpSound;
+
+        function setupSound() {
+             if (window.Tone) {
+                timeUpSound = new Tone.Synth({
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.5 }
+                }).toDestination();
+            }
+        }
+
+        function loadVoices() {
+            try {
+                const allVoices = synth.getVoices();
+                if (allVoices.length === 0) return;
+
+                let preferredVoices = allVoices.filter(voice => 
+                    voice.lang.startsWith('en') && 
+                    voice.name.toLowerCase().includes('microsoft') &&
+                    !voice.localService
+                );
+
+                if (preferredVoices.length > 0) {
+                    voices = preferredVoices;
+                    voiceStatusEl.textContent = `Using Microsoft online voices.`;
+                } else {
+                    voices = allVoices.filter(voice => voice.lang.startsWith('en'));
+                    if (voices.length > 0) {
+                        voiceStatusEl.textContent = `Using ${voices.length} available English voices.`;
+                    } else {
+                         voiceStatusEl.textContent = "Could not find any English voices.";
+                    }
+                }
+
+                if (voices.length > 0) {
+                    startButton.disabled = false;
+                    startButton.textContent = 'Start Learning';
+                } else {
+                    startButton.textContent = 'Voice Error';
+                }
+            } catch (error) {
+                console.error("Error loading voices:", error);
+                voiceStatusEl.textContent = "Could not load voices due to an error.";
+                startButton.disabled = true;
+                startButton.textContent = 'Voice Error';
+            }
+        }
+
+        // --- Game State ---
+        let questionIndex = 0;
+        let questions = [];
+        let score = 0;
+        let timerInterval;
+        let bgInterval;
+        let turnActive = false;
+        const GAME_DURATION = 20;
+        const QUESTIONS_PER_LEVEL = 25;
+        const TOTAL_QUESTIONS = 100;
+
+        const bgColors = ['#f3f4f6', '#eef2ff', '#f0fdf4', '#fdf2f8', '#faf5ff', '#fffbeb'];
+        let bgColorIndex = 0;
+
+        function changeBackgroundColor() {
+            bgColorIndex = (bgColorIndex + 1) % bgColors.length;
+            document.body.style.backgroundColor = bgColors[bgColorIndex];
+        }
+
+        function shuffle(a) {
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        // --- Educational Content Generation ---
+        function generateQuestions() {
+            const countries = [
+                { name: 'Canada', continent: 'North America', capital: 'Ottawa', population: '38 million', borders: ['the United States'], language: 'English and French' },
+                { name: 'Brazil', continent: 'South America', capital: 'Brasília', population: '214 million', borders: ['Argentina', 'Bolivia', 'Colombia'], language: 'Portuguese' },
+                { name: 'Japan', continent: 'Asia', capital: 'Tokyo', population: '125 million', borders: ['none (it is an island nation)'], language: 'Japanese' },
+                { name: 'Germany', continent: 'Europe', capital: 'Berlin', population: '83 million', borders: ['France', 'Poland', 'Austria'], language: 'German' },
+                { name: 'Nigeria', continent: 'Africa', capital: 'Abuja', population: '211 million', borders: ['Benin', 'Niger', 'Chad', 'Cameroon'], language: 'English' },
+                { name: 'Australia', continent: 'Australia', capital: 'Canberra', population: '26 million', borders: ['none (it is an island continent)'], language: 'English' },
+                { name: 'India', continent: 'Asia', capital: 'New Delhi', population: '1.4 billion', borders: ['Pakistan', 'China', 'Nepal'], language: 'Hindi and English' },
+                { name: 'Mexico', continent: 'North America', capital: 'Mexico City', population: '126 million', borders: ['the United States', 'Guatemala', 'Belize'], language: 'Spanish' }
+            ];
+            
+            const politePhrases = [
+                { q: 'How do you politely ask for someone\'s name?', a: 'You can ask, "May I have your name, please?"' },
+                { q: 'What is a polite way to interrupt a conversation?', a: 'A polite way is to say, "Excuse me, I\'m sorry to interrupt, but..."' },
+                { q: 'How can you ask for directions politely?', a: 'You could say, "Pardon me, could you help me find the nearest train station?"' }
+            ];
+
+            const classroomInfo = [
+                { q: 'What time does the history class start?', a: 'The history class starts at 9:00 AM in room 204.' },
+                { q: 'Where can students find the science lab?', a: 'The science lab is located on the third floor, at the end of the hallway.' }
+            ];
+
+            const fillInTheBlanks = [
+                { q: 'The capital of Japan is ____.', a: 'The capital of Japan is Tokyo.' },
+                { q: 'Brazil is located on the continent of ____ ____.', a: 'Brazil is located on the continent of South America.' },
+                { q: 'A person from Nigeria is called a ____.', a: 'A person from Nigeria is called a Nigerian.' },
+                { q: 'The main language spoken in Mexico is ____.', a: 'The main language spoken in Mexico is Spanish.' }
+            ];
+
+            const allPossibleQuestions = [];
+
+            countries.forEach(c => {
+                allPossibleQuestions.push({ question: `What is the capital city of ${c.name}?`, answer: `The capital city of ${c.name} is ${c.capital}.` });
+                allPossibleQuestions.push({ question: `On which continent is ${c.name} located?`, answer: `${c.name} is located on the continent of ${c.continent}.` });
+                allPossibleQuestions.push({ question: `What is the approximate population of ${c.name}?`, answer: `The approximate population of ${c.name} is ${c.population}.` });
+                allPossibleQuestions.push({ question: `Name a country that borders ${c.name}.`, answer: `A country that borders ${c.name} is ${c.borders[0]}.` });
+            });
+
+            politePhrases.forEach(p => allPossibleQuestions.push(p));
+            classroomInfo.forEach(c => allPossibleQuestions.push(c));
+            fillInTheBlanks.forEach(f => allPossibleQuestions.push(f));
+            
+            const namesToSpell = ['Alex', 'Sofia', 'Kenji', 'Maria'];
+            namesToSpell.forEach(name => {
+                allPossibleQuestions.push({ question: `How do you spell the name ${name}?`, answer: `${name} is spelled ${name.split('').join('-')}.` });
+            });
+
+            const birthdays = [
+                { name: 'Liam', date: 'April 22nd' },
+                { name: 'Aisha', date: 'November 10th' }
+            ];
+            birthdays.forEach(b => {
+                 allPossibleQuestions.push({ question: `When is ${b.name}'s date of birth?`, answer: `${b.name}'s date of birth is ${b.date}.` });
+            });
+
+
+            shuffle(allPossibleQuestions);
+            while (allPossibleQuestions.length < TOTAL_QUESTIONS) {
+                allPossibleQuestions.push(...shuffle(allPossibleQuestions.slice()));
+            }
+
+            return allPossibleQuestions.slice(0, TOTAL_QUESTIONS);
+        }
+
+        // --- Game Logic ---
+        function startGame() {
+            if (window.Tone && Tone.context.state !== 'running') {
+                Tone.start();
+            }
+            setupSound();
+
+            questionIndex = 0;
+            score = 0;
+            scoreEl.textContent = score;
+            questions = generateQuestions();
+            
+            clearInterval(timerInterval);
+            clearInterval(bgInterval);
+
+            startScreen.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+
+            bgInterval = setInterval(changeBackgroundColor, 8000);
+            
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            clearInterval(timerInterval);
+            synth.cancel();
+            turnActive = false;
+
+            if (questionIndex >= TOTAL_QUESTIONS) {
+                endGame();
+                return;
+            }
+            
+            const currentLevel = Math.floor(questionIndex / QUESTIONS_PER_LEVEL) + 1;
+            const questionInLevel = (questionIndex % QUESTIONS_PER_LEVEL) + 1;
+            
+            levelDisplayEl.textContent = currentLevel;
+            questionCountEl.textContent = `${questionInLevel} / ${QUESTIONS_PER_LEVEL}`;
+            
+            const q = questions[questionIndex];
+            
+            questionTextEl.textContent = q.question;
+            answerTextEl.textContent = ""; 
+            nextButton.disabled = true;
+
+            countdownTextEl.textContent = GAME_DURATION;
+            timerBar.style.width = '100%';
+            timerBar.classList.remove('bg-yellow-400', 'bg-red-500');
+            timerBar.classList.add('bg-green-400');
+
+            setTimeout(() => {
+                const utterance = new SpeechSynthesisUtterance(q.question);
+                if (voices.length > 0) {
+                    utterance.voice = voices[questionIndex % voices.length];
+                }
+                utterance.rate = 1; 
+                utterance.onend = () => {
+                    answerTextEl.textContent = q.answer; 
+                    startTurn();
+                };
+                synth.speak(utterance);
+            }, 500);
+        }
+
+        function startTurn() {
+            turnActive = true;
+            nextButton.disabled = false;
+            
+            const startTime = Date.now();
+            
+            timerInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const timeLeftMs = (GAME_DURATION * 1000) - elapsed;
+
+                if (timeLeftMs <= 0) {
+                    handleTimeout();
+                    return;
+                }
+
+                const percentage = (timeLeftMs / (GAME_DURATION * 1000)) * 100;
+                timerBar.style.width = `${percentage}%`;
+                countdownTextEl.textContent = Math.ceil(timeLeftMs / 1000);
+
+                if (percentage < 50 && percentage > 25) {
+                    timerBar.classList.remove('bg-green-400');
+                    timerBar.classList.add('bg-yellow-400');
+                } else if (percentage <= 25) {
+                    timerBar.classList.remove('bg-yellow-400');
+                    timerBar.classList.add('bg-red-500');
+                }
+            }, 100);
+        }
+        
+        function handleCorrectClick() {
+            if (!turnActive) return;
+            turnActive = false;
+            
+            score++;
+            scoreEl.textContent = score;
+
+            clearInterval(timerInterval);
+            questionIndex++;
+            setTimeout(nextQuestion, 500); // Give a little delay
+        }
+
+        function handleTimeout() {
+            if (!turnActive) return;
+            turnActive = false;
+
+            clearInterval(timerInterval);
+            if (timeUpSound) {
+                timeUpSound.triggerAttackRelease("C4", "0.5");
+            }
+            questionIndex++;
+            nextQuestion();
+        }
+
+        function endGame() {
+            clearInterval(bgInterval);
+            finalScoreEl.textContent = score;
+            gameScreen.classList.add('hidden');
+            endScreen.classList.remove('hidden');
+        }
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+        nextButton.addEventListener('click', handleCorrectClick);
+
+        // --- Voice Initialization ---
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = loadVoices;
+        }
+        window.addEventListener('load', loadVoices);
+        setTimeout(loadVoices, 500);
+
+    </script>
+</body>
+</html>

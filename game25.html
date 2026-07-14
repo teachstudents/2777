@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Spree Challenge - Enhanced Edition</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>'), auto;
+        }
+        button, input {
+             cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13.5V4a2 2 0 0 1 2-2h8.5L20 7.5V20a2 2 0 0 1-2 2h-5.5"/><polyline points="14 2 14 8 20 8"/><path d="M5 18a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1H6a1 1 0 0 0-1 1z"/><path d="M10 18a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-3a1 1 0 0 0-1-1h-1a1 1 0 0 0-1 1z"/></svg>'), pointer;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f9ff;
+            background-image: radial-gradient(circle at top right, #e0f2fe, #f0f9ff);
+            transition: background-color 1.5s ease-in-out;
+        }
+        .app-container {
+             transition: background-color 2s ease-in-out;
+        }
+        .hidden { display: none !important; }
+        .view-container { 
+            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out; 
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .view-container.hidden { opacity: 0; transform: scale(0.98); pointer-events: none; }
+
+        @keyframes pulse-warning {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            50% { transform: scale(1.02); box-shadow: 0 0 10px 5px rgba(220, 38, 38, 0); }
+        }
+        .progress-bar-warning {
+            animation: pulse-warning 1.5s infinite;
+        }
+
+        @keyframes round-winner-intense-flash {
+            0% { background-color: rgba(251, 191, 36, 0); border-color: rgba(251, 191, 36, 0.5); transform: scale(1); }
+            25% { background-color: rgba(251, 191, 36, 0.4); border-color: rgba(251, 191, 36, 1); transform: scale(1.02); }
+            50% { background-color: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.6); transform: scale(1); }
+            75% { background-color: rgba(251, 191, 36, 0.5); border-color: rgba(251, 191, 36, 1); transform: scale(1.02); }
+            100% { background-color: rgba(251, 191, 36, 0); border-color: rgba(251, 191, 36, 0.5); transform: scale(1); }
+        }
+        .round-winner { animation: round-winner-intense-flash 1.5s ease-in-out; }
+        
+        @keyframes audio-wave {
+            0% { transform: scaleY(0.4); } 25% { transform: scaleY(1); }
+            50% { transform: scaleY(0.6); } 75% { transform: scaleY(0.8); }
+            100% { transform: scaleY(0.4); }
+        }
+        .audio-wave-bar { animation: audio-wave 1.2s infinite ease-in-out; }
+        .audio-wave-bar:nth-child(2) { animation-delay: -1.0s; }
+        .audio-wave-bar:nth-child(3) { animation-delay: -0.8s; }
+        .audio-wave-bar:nth-child(4) { animation-delay: -0.6s; }
+        .audio-wave-bar:nth-child(5) { animation-delay: -0.4s; }
+
+        .coin {
+            position: absolute;
+            width: 20px; height: 20px;
+            background-color: #fbbF24; /* amber-400 */
+            border-radius: 50%;
+            border: 2px solid #f59e0b; /* amber-500 */
+            opacity: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+        @keyframes fly-to-p1 {
+            0% { top: 50%; left: 50%; opacity: 1; transform: scale(1.5) translate(-50%, -50%); }
+            100% { top: var(--p1-score-top); left: var(--p1-score-left); opacity: 0; transform: scale(0.2) translate(-50%, -50%); }
+        }
+        @keyframes fly-to-p2 {
+            0% { top: 50%; left: 50%; opacity: 1; transform: scale(1.5) translate(-50%, -50%); }
+            100% { top: var(--p2-score-top); left: var(--p2-score-left); opacity: 0; transform: scale(0.2) translate(-50%, -50%); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-2 sm:p-4 text-slate-800">
+
+    <div id="app-container" class="app-container relative w-full max-w-4xl h-full max-h-[95vh] sm:max-h-[90vh] p-4 sm:p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl flex flex-col">
+        <div id="coin-animation-container" class="absolute inset-0 pointer-events-none overflow-hidden z-50"></div>
+        
+        <!-- View: Mode Selection -->
+        <div id="mode-selection-view" class="view-container text-center">
+            <div>
+                <h1 class="text-3xl sm:text-4xl font-extrabold mb-2 text-sky-700">Shopping Spree Challenge</h1>
+                <p class="mb-8 text-slate-600 text-base sm:text-lg">Choose your game mode.</p>
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                     <button id="one-player-mode-btn" class="w-full sm:w-auto text-white font-bold py-4 px-8 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 bg-sky-500 hover:bg-sky-600">
+                        <span class="text-xl">1-Player</span>
+                    </button>
+                    <button id="two-player-mode-btn" class="w-full sm:w-auto text-white font-bold py-4 px-8 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 bg-rose-500 hover:bg-rose-600">
+                        <span class="text-xl">2-Player</span>
+                    </button>
+                </div>
+                <p id="audio-loading-prompt" class="mt-8 text-slate-500 text-sm">Loading audio resources...</p>
+            </div>
+        </div>
+
+        <!-- View: Name Input -->
+        <div id="name-input-view" class="view-container hidden text-center">
+             <div>
+                <h1 class="text-3xl sm:text-4xl font-extrabold mb-2 text-sky-700">Enter Player Names</h1>
+                <div id="name-inputs-container" class="my-6 space-y-4">
+                     <input type="text" id="player1-name" placeholder="Enter Player 1 Name" class="w-full max-w-sm mx-auto px-4 py-3 text-lg border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition">
+                     <div id="player2-name-wrapper" class="hidden">
+                        <input type="text" id="player2-name" placeholder="Enter Player 2 Name" class="w-full max-w-sm mx-auto px-4 py-3 text-lg border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition">
+                     </div>
+                </div>
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <button id="start-game-btn" class="w-full sm:w-auto text-white font-bold py-4 px-8 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 bg-green-500 hover:bg-green-600">
+                        <span class="text-2xl">Start Game</span>
+                    </button>
+                     <button id="back-to-mode-btn" class="w-full sm:w-auto bg-slate-400 hover:bg-slate-500 text-white font-bold py-4 px-8 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300">
+                        <span class="text-2xl">Back</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- View: Game (Combined for 1P and 2P) -->
+        <div id="game-view" class="view-container hidden">
+            <!-- Game header -->
+            <div class="flex-shrink-0">
+                <div id="progress-bar-container" class="w-full h-2 bg-slate-200 rounded-full overflow-hidden mb-3">
+                    <div id="progress-bar" class="h-full" style="width: 100%; background-color: #22c55e; transition: width 1s linear, background-color 1s linear;"></div>
+                </div>
+                <div class="flex justify-between items-center mb-3">
+                    <div id="score-boxes" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div id="player1-score-box" class="p-2 rounded-lg bg-sky-100 text-center">
+                            <div id="player1-score-display" class="font-bold text-2xl text-sky-800">0</div>
+                            <div class="text-xs text-sky-600" id="player1-name-score">Player 1</div>
+                        </div>
+                        <div id="player2-score-box" class="p-2 rounded-lg bg-rose-100 text-center">
+                            <div id="player2-score-display" class="font-bold text-2xl text-rose-800">0</div>
+                            <div class="text-xs text-rose-600" id="player2-name-score">Player 2</div>
+                        </div>
+                    </div>
+                    <div class="text-xl sm:text-2xl font-bold text-rose-600 bg-rose-100 px-3 py-1 sm:px-4 sm:py-2 rounded-lg">
+                        <span id="game-countdown-display">10:00</span>
+                    </div>
+                </div>
+                <div class="text-center mb-2 font-semibold text-slate-600">Question <span id="question-count">0</span> / <span id="question-total">25</span></div>
+            </div>
+            
+            <!-- Question Area -->
+            <div id="question-area" class="w-full max-w-4xl mx-auto p-3 sm:p-4 bg-white rounded-2xl shadow-lg flex-grow flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <p class="text-xs sm:text-sm text-slate-500">Time: <span id="question-timer" class="font-bold text-sm sm:text-base text-rose-600">--</span>s</p>
+                    <button id="repeat-button" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 sm:py-2 sm:px-4 rounded-lg shadow-sm hover:shadow-md transition flex items-center gap-2 disabled:bg-slate-400 text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.6A9 9 0 0 1 12 3a9 9 0 0 1 8.4 5.4"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.4A9 9 0 0 1 12 21a9 9 0 0 1-8.4-5.4"/></svg>
+                        <span class="hidden sm:inline">Repeat</span>
+                    </button>
+                </div>
+
+                <div id="stimulus-area" class="mb-2 p-2 min-h-[80px] bg-slate-100 rounded-lg flex flex-col justify-center items-center">
+                    <div id="audio-visualizer" class="flex items-center justify-center h-12 space-x-1.5">
+                        <div class="audio-wave-bar w-2 h-full bg-sky-500 rounded-full"></div>
+                        <div class="audio-wave-bar w-2 h-full bg-sky-500 rounded-full"></div>
+                        <div class="audio-wave-bar w-2 h-full bg-sky-500 rounded-full"></div>
+                        <div class="audio-wave-bar w-2 h-full bg-sky-500 rounded-full"></div>
+                        <div class="audio-wave-bar w-2 h-full bg-sky-500 rounded-full"></div>
+                    </div>
+                </div>
+
+                <div id="players-answer-area" class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 flex-grow mt-4">
+                    <!-- Player 1 Area -->
+                    <div id="player1-container" class="p-3 rounded-lg bg-sky-50 border-2 border-sky-200 transition-all duration-500">
+                        <h3 id="player1-name-display" class="text-lg font-bold text-sky-800 text-center mb-2">Player 1</h3>
+                        <div id="answer-options-p1" class="grid grid-cols-2 gap-2"></div>
+                        <div id="feedback-p1" class="mt-2 font-semibold text-center min-h-[24px] text-base"></div>
+                    </div>
+                    <!-- Player 2 Area -->
+                    <div id="player2-container" class="p-3 rounded-lg bg-rose-50 border-2 border-rose-200 transition-all duration-500">
+                        <h3 id="player2-name-display" class="text-lg font-bold text-rose-800 text-center mb-2">Player 2</h3>
+                        <div id="answer-options-p2" class="grid grid-cols-2 gap-2"></div>
+                        <div id="feedback-p2" class="mt-2 font-semibold text-center min-h-[24px] text-base"></div>
+                    </div>
+                </div>
+                <div id="round-winner-feedback" class="mt-3 font-bold text-xl text-center text-amber-600 min-h-[30px]"></div>
+            </div>
+        </div>
+
+        <!-- View: Game Over -->
+        <div id="game-over-view" class="view-container hidden text-center">
+            <div class="flex flex-col h-full">
+                <div class="flex-shrink-0">
+                    <h2 class="text-3xl sm:text-4xl font-extrabold text-sky-800 mb-1">Game Over!</h2>
+                    <p id="game-over-winner" class="text-xl font-bold text-amber-600 mb-4"></p>
+                    
+                    <div id="final-scores-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <!-- P1 Final Score -->
+                        <div id="final-p1-card" class="bg-sky-100 p-4 rounded-lg space-y-1">
+                            <h3 id="final-player1-name" class="text-lg font-bold text-sky-800">Player 1</h3>
+                            <p class="text-3xl font-bold text-sky-900"><span id="final-score-p1">0</span></p>
+                            <p class="text-sm text-slate-600">Score</p>
+                             <p class="text-sm text-slate-600"><span id="final-accuracy-p1" class="font-semibold">0</span>% Accuracy</p>
+                        </div>
+                        <!-- P2 Final Score -->
+                        <div id="final-p2-card" class="bg-rose-100 p-4 rounded-lg space-y-1">
+                            <h3 id="final-player2-name" class="text-lg font-bold text-rose-800">Player 2</h3>
+                            <p class="text-3xl font-bold text-rose-900"><span id="final-score-p2">0</span></p>
+                            <p class="text-sm text-slate-600">Score</p>
+                            <p class="text-sm text-slate-600"><span id="final-accuracy-p2" class="font-semibold">0</span>% Accuracy</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="review-section" class="mt-4 text-left flex-grow min-h-0">
+                    <h4 class="text-lg sm:text-xl font-semibold text-sky-700 mb-2">Review Incorrect Answers</h4>
+                    <div id="incorrect-answers-list" class="space-y-3 h-full overflow-y-auto p-3 bg-slate-50 rounded-lg"></div>
+                </div>
+                 <div id="highscore-section-1p" class="mt-4 text-left flex-grow min-h-0 hidden">
+                    <h4 class="text-lg sm:text-xl font-semibold text-sky-700 mb-2">High Scores</h4>
+                    <div id="highscores-list-1p" class="space-y-2 h-full overflow-y-auto p-3 bg-slate-50 rounded-lg"></div>
+                </div>
+
+                <div class="mt-4 flex-shrink-0">
+                    <button id="play-again-button" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 w-full">Play Again</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM ELEMENT CACHE ---
+        const dom = {
+            appContainer: document.getElementById('app-container'),
+            coinContainer: document.getElementById('coin-animation-container'),
+            // Views
+            modeSelectionView: document.getElementById('mode-selection-view'),
+            nameInputView: document.getElementById('name-input-view'),
+            gameView: document.getElementById('game-view'),
+            gameOverView: document.getElementById('game-over-view'),
+            // Mode Selection
+            onePlayerModeBtn: document.getElementById('one-player-mode-btn'),
+            twoPlayerModeBtn: document.getElementById('two-player-mode-btn'),
+            audioLoadingPrompt: document.getElementById('audio-loading-prompt'),
+            // Name Input
+            nameInputsContainer: document.getElementById('name-inputs-container'),
+            player1Name: document.getElementById('player1-name'),
+            player2NameWrapper: document.getElementById('player2-name-wrapper'),
+            player2Name: document.getElementById('player2-name'),
+            startGameBtn: document.getElementById('start-game-btn'),
+            backToModeBtn: document.getElementById('back-to-mode-btn'),
+            // Game View
+            playersAnswerArea: document.getElementById('players-answer-area'),
+            player1Container: document.getElementById('player1-container'),
+            player2Container: document.getElementById('player2-container'),
+            player1NameDisplay: document.getElementById('player1-name-display'),
+            player2NameDisplay: document.getElementById('player2-name-display'),
+            player1ScoreBox: document.getElementById('player1-score-box'),
+            player2ScoreBox: document.getElementById('player2-score-box'),
+            player1ScoreDisplay: document.getElementById('player1-score-display'),
+            player2ScoreDisplay: document.getElementById('player2-score-display'),
+            player1NameScore: document.getElementById('player1-name-score'),
+            player2NameScore: document.getElementById('player2-name-score'),
+            answerOptionsP1: document.getElementById('answer-options-p1'),
+            answerOptionsP2: document.getElementById('answer-options-p2'),
+            feedbackP1: document.getElementById('feedback-p1'),
+            feedbackP2: document.getElementById('feedback-p2'),
+            progressBar: document.getElementById('progress-bar'),
+            questionCountDisplay: document.getElementById('question-count'),
+            questionTotalDisplay: document.getElementById('question-total'),
+            gameCountdownDisplay: document.getElementById('game-countdown-display'),
+            questionTimer: document.getElementById('question-timer'),
+            audioVisualizer: document.getElementById('audio-visualizer'),
+            roundWinnerFeedback: document.getElementById('round-winner-feedback'),
+            repeatButton: document.getElementById('repeat-button'),
+            // Game Over View
+            gameOverWinner: document.getElementById('game-over-winner'),
+            finalScoresContainer: document.getElementById('final-scores-container'),
+            finalP1Card: document.getElementById('final-p1-card'),
+            finalP2Card: document.getElementById('final-p2-card'),
+            finalPlayer1Name: document.getElementById('final-player1-name'),
+            finalPlayer2Name: document.getElementById('final-player2-name'),
+            finalScoreP1: document.getElementById('final-score-p1'),
+            finalScoreP2: document.getElementById('final-score-p2'),
+            finalAccuracyP1: document.getElementById('final-accuracy-p1'),
+            finalAccuracyP2: document.getElementById('final-accuracy-p2'),
+            reviewSection: document.getElementById('review-section'),
+            incorrectAnswersList: document.getElementById('incorrect-answers-list'),
+            highscoreSection1P: document.getElementById('highscore-section-1p'),
+            highscoresList1P: document.getElementById('highscores-list-1p'),
+            playAgainButton: document.getElementById('play-again-button'),
+        };
+
+        // --- GAME DATA & CONFIG ---
+        const config = {
+            QUESTIONS_PER_GAME: 25,
+            GAME_DURATION_SECONDS: 600, // 10 minutes
+            POINTS_PER_CORRECT: 4,
+            TIME_PER_QUESTION_SECONDS: 15,
+        };
+        const correctFeedback = ["That's right!", "You got it!", "Excellent!", "Perfect!", "Great listening!", "Awesome!", "Nailed it!", "Superb!"];
+        const incorrectFeedback = ["Not quite!", "Listen carefully!", "Keep trying!", "You'll get the next one!"];
+        const backgroundColors = ['#f0f9ff', '#f5f3ff', '#f0fff0', '#fff5f0', '#fff0f5', '#f0ffff'];
+        let bgColorIndex = 0;
+        let bgInterval = null;
+        
+        const items = ["T-shirt", "Jacket", "Dress", "Hat", "Skirt", "Scarf", "Shoes", "Sweater", "Pants", "Blouse", "Shorts", "Coat", "Gloves", "Socks", "Belt", "Tie", "Cap", "Jeans", "Boots", "Sweatshirt", "Leggings", "Vest", "Blazer", "Cardigan", "Sandals", "Handbag", "Watch", "Sunglasses", "Necklace", "Bracelet", "Ring", "Earrings", "Suit", "Swimsuit", "Pajamas", "Robe", "Slippers", "Hoodie", "Tank top", "Polo shirt", "Beanie", "Mittens", "Choker", "Anklet", "Brooch", "Cufflinks", "Suspenders", "Bow tie", "Cummerbund", "Pocket square"];
+        const pluralItems = ["Shoes", "Pants", "Shorts", "Gloves", "Socks", "Jeans", "Boots", "Leggings", "Sandals", "Sunglasses", "Earrings", "Pajamas", "Slippers", "Mittens", "Cufflinks", "Suspenders"];
+        const colors = ["Red", "Green", "Blue", "Yellow", "Pink", "White", "Black", "Orange", "Purple", "Brown", "Grey", "Beige", "Navy", "Teal", "Maroon", "Olive", "Turquoise", "Gold", "Silver", "Bronze"];
+        
+        const scenarioTemplates = [
+             (itemPhrase, correct, d1, d2) => `I was deciding on ${itemPhrase}. ${d1} was okay, ${d2} was interesting, but ${correct} was definitely the best fit.`,
+             (itemPhrase, correct, d1, d2) => `For ${itemPhrase}, ${d1} was an option, and so was ${d2}. In the end, though, I chose ${correct}.`,
+             (itemPhrase, correct, d1, d2) => `My quest for ${itemPhrase} started with ${d1}. I then pondered over ${d2}. The final decision? It had to be ${correct}.`,
+             (itemPhrase, correct, d1, d2) => `I needed ${itemPhrase}. My first choice was ${correct}, and I stuck with it, even though I also saw a nice ${d1} one and a ${d2} one.`,
+             (itemPhrase, correct, d1, d2) => `I went with the ${correct} ${itemPhrase.split(' ').slice(1).join(' ')} right away. I didn't like the ${d1} one, and the ${d2} version was too expensive.`,
+             (itemPhrase, correct, d1, d2) => `The ${correct} ${itemPhrase.split(' ').slice(1).join(' ')} immediately caught my eye. I briefly considered the ${d1} one, but went back to my first choice. The ${d2} one was not even in the running.`,
+             (itemPhrase, correct, d1, d2) => `When choosing ${itemPhrase}, I first liked ${d1}. Then I saw the ${correct} one, which was perfect. I didn't even bother looking at the ${d2} one after that.`,
+             (itemPhrase, correct, d1, d2) => `I almost picked the ${d1} ${itemPhrase.split(' ').slice(1).join(' ')}, but then I found the ${correct} one and it was a much better fit. The ${d2} one was nice too, but not as good.`,
+             (itemPhrase, correct, d1, d2) => `${itemPhrase.charAt(0).toUpperCase() + itemPhrase.slice(1)} came in ${d1}, ${correct}, and ${d2}. My friend said the ${d1} was best, but I fell in love with the ${correct} one and bought it.`,
+             (itemPhrase, correct, d1, d2) => `My friend recommended the ${d1} ${itemPhrase.split(' ').slice(1).join(' ')}, but I preferred the ${correct} one. The ${d2} option wasn't really my style.`,
+             (itemPhrase, correct, d1, d2) => `Between the ${d1}, ${d2}, and ${correct} options for ${itemPhrase}, the choice was clear. I picked the ${correct} one.`,
+             (itemPhrase, correct, d1, d2) => `I saw a ${d1} ${itemPhrase.split(' ').slice(1).join(' ')} in the window, but inside, the ${correct} one was on sale. It was a better deal than the ${d2} one, so I got it.`
+        ];
+
+        // --- STATE MANAGEMENT ---
+        let state = {};
+
+        // --- UI & DISPLAY ---
+        function switchView(viewToShow) {
+            [dom.modeSelectionView, dom.nameInputView, dom.gameView, dom.gameOverView].forEach(view => {
+                if (view) view.classList.add('hidden');
+            });
+            if (viewToShow) viewToShow.classList.remove('hidden');
+        }
+        
+        // --- AUDIO ---
+        function initAudio() {
+            if (!state.audio) state.audio = {};
+            if (typeof Tone !== 'undefined' && !state.audio.correctSounds) {
+                state.audio.correctSounds = [
+                    () => new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination().triggerAttackRelease("C5", "8n"),
+                    () => new Tone.PluckSynth().toDestination().triggerAttack("C4", Tone.now()),
+                    () => new Tone.FMSynth({ harmonicity: 3, modulationIndex: 10, detune: 0, oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.01, sustain: 1, release: 0.5 }, modulation: { type: "square" }, modulationEnvelope: { attack: 0.5, decay: 0, sustain: 1, release: 0.5 } }).toDestination().triggerAttackRelease("C4", "4n"),
+                ];
+            }
+        }
+
+        function playCorrectSound() {
+            if (state.audio.correctSounds && state.audio.correctSounds.length > 0) {
+                const randomSound = state.audio.correctSounds[Math.floor(Math.random() * state.audio.correctSounds.length)];
+                randomSound();
+            }
+        }
+
+        function populateVoiceList() {
+            if (state.audio.voices && state.audio.voices.length > 0) return;
+            const allVoices = speechSynthesis.getVoices();
+            if (allVoices.length > 0) {
+                const qualityKeywords = ["neural", "premium", "enhanced", "google", "microsoft"];
+                state.audio.voices = allVoices
+                    .filter(v => (v.lang.startsWith('en-US') || v.lang.startsWith('en-GB') || v.lang.startsWith('en-AU')))
+                    .sort((a, b) => {
+                        const aQuality = qualityKeywords.some(kw => a.name.toLowerCase().includes(kw));
+                        const bQuality = qualityKeywords.some(kw => b.name.toLowerCase().includes(kw));
+                        if (aQuality && !bQuality) return -1;
+                        if (!aQuality && bQuality) return 1;
+                        return 0;
+                    });
+                
+                state.audio.isReady = true;
+                dom.audioLoadingPrompt.textContent = 'Audio ready!';
+                setTimeout(() => dom.audioLoadingPrompt.classList.add('hidden'), 1500);
+                dom.onePlayerModeBtn.disabled = false;
+                dom.twoPlayerModeBtn.disabled = false;
+            }
+        }
+
+        function initSpeechSynthesis() {
+            dom.onePlayerModeBtn.disabled = true;
+            dom.twoPlayerModeBtn.disabled = true;
+            if ('speechSynthesis' in window) {
+                if (speechSynthesis.getVoices().length > 0) populateVoiceList();
+                else speechSynthesis.onvoiceschanged = populateVoiceList;
+            } else {
+                dom.audioLoadingPrompt.textContent = 'Text-to-speech not supported.';
+                state.audio.isTtsEnabled = false;
+            }
+        }
+
+        function speak(text, voice, callback) {
+            if (!state.audio.isTtsEnabled || !('speechSynthesis' in window) || !text) {
+                if (callback) setTimeout(callback, 0);
+                return;
+            }
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.voice = voice;
+            let wasCalled = false;
+            const onceCallback = () => {
+                if (!wasCalled) {
+                    wasCalled = true;
+                    if(dom.audioVisualizer) dom.audioVisualizer.classList.add('hidden');
+                    if(dom.repeatButton) dom.repeatButton.disabled = false;
+                    if (callback) callback();
+                }
+            };
+            utterance.onend = onceCallback;
+            utterance.onerror = (event) => { onceCallback(); };
+            if(dom.audioVisualizer) dom.audioVisualizer.classList.remove('hidden');
+            if(dom.repeatButton) dom.repeatButton.disabled = true;
+            speechSynthesis.speak(utterance);
+        }
+
+        // --- GAME LOGIC ---
+        function triggerCoinAnimation(playerId) {
+            const scoreBox = playerId === 1 ? dom.player1ScoreBox : dom.player2ScoreBox;
+            const rect = scoreBox.getBoundingClientRect();
+            const appRect = dom.appContainer.getBoundingClientRect();
+            const targetX = rect.left - appRect.left + (rect.width / 2);
+            const targetY = rect.top - appRect.top + (rect.height / 2);
+            
+            document.documentElement.style.setProperty(`--p${playerId}-score-top`, `${targetY}px`);
+            document.documentElement.style.setProperty(`--p${playerId}-score-left`, `${targetX}px`);
+
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    const coin = document.createElement('div');
+                    coin.className = 'coin';
+                    dom.coinContainer.appendChild(coin);
+                    coin.style.animation = `fly-to-p${playerId} 1s ease-in forwards`;
+                    setTimeout(() => coin.remove(), 1000);
+                }, i * 100);
+            }
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function generateQuestions() {
+            const allQuestions = [];
+            for (let i = 0; i < config.QUESTIONS_PER_GAME; i++) {
+                const template = scenarioTemplates[Math.floor(Math.random() * scenarioTemplates.length)];
+                const item = items[Math.floor(Math.random() * items.length)];
+                const chosenColors = shuffleArray([...colors]).slice(0, 4);
+                const correctAnswer = chosenColors[0];
+                const itemPhrase = (pluralItems.includes(item) ? "a pair of" : (['A', 'E', 'I', 'O', 'U'].includes(item[0]) ? "an" : "a")) + ` ${item.toLowerCase()}`;
+                const sentence = template(itemPhrase, correctAnswer, chosenColors[1], chosenColors[2]);
+                const options = shuffleArray(chosenColors);
+                allQuestions.push({ sentence, correctAnswer, options });
+            }
+            return allQuestions;
+        }
+
+        function resetBaseState() {
+            const oldAudio = state.audio;
+            state = {
+                gameMode: null,
+                gameState: null,
+                currentQuestionData: {},
+                timers: { question: null, game: null },
+                audio: {
+                    synth: null,
+                    voices: [],
+                    isTtsEnabled: true,
+                    isReady: false
+                },
+                shuffledQuestions: [],
+                isRoundOver: false,
+            };
+            if (oldAudio && oldAudio.isReady) {
+                state.audio = oldAudio;
+            }
+        }
+
+        // --- GAME CONTROLLERS ---
+        const gameController = {
+            init() {
+                resetBaseState();
+                initAudio();
+                initSpeechSynthesis();
+                this.setupEventListeners();
+                switchView(dom.modeSelectionView);
+            },
+            setupEventListeners() {
+                dom.onePlayerModeBtn.addEventListener('click', () => this.selectMode('1P'));
+                dom.twoPlayerModeBtn.addEventListener('click', () => this.selectMode('2P'));
+                dom.backToModeBtn.addEventListener('click', () => switchView(dom.modeSelectionView));
+                dom.startGameBtn.addEventListener('click', () => {
+                    if (state.gameMode === '1P') onePlayerController.startGame();
+                    else twoPlayerController.startGame();
+                });
+                dom.playAgainButton.addEventListener('click', () => this.init());
+            },
+            selectMode(mode) {
+                state.gameMode = mode;
+                if(state.gameMode === '1P') {
+                    dom.player2NameWrapper.classList.add('hidden');
+                } else {
+                    dom.player2NameWrapper.classList.remove('hidden');
+                }
+                switchView(dom.nameInputView);
+            },
+            startOverallGameTimer(duration, onEnd) {
+                clearInterval(state.timers.game);
+                let timeLeft = duration;
+                dom.progressBar.classList.remove('progress-bar-warning');
+
+                state.timers.game = setInterval(() => {
+                    timeLeft--;
+                    const percent = (timeLeft / duration) * 100;
+                    dom.progressBar.style.width = `${percent}%`;
+                    if (percent < 20) {
+                        dom.progressBar.classList.add('progress-bar-warning');
+                    }
+                    const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+                    const seconds = String(timeLeft % 60).padStart(2, '0');
+                    dom.gameCountdownDisplay.textContent = `${minutes}:${seconds}`;
+                    if (timeLeft <= 0) onEnd();
+                }, 1000);
+            },
+            startQuestionTimer(duration, onEnd) {
+                clearInterval(state.timers.question);
+                let timeLeft = duration;
+                dom.questionTimer.textContent = timeLeft;
+                state.timers.question = setInterval(() => {
+                    timeLeft--;
+                    dom.questionTimer.textContent = timeLeft;
+                    if (timeLeft <= 0) {
+                        if(state.audio.synth) state.audio.synth.triggerAttackRelease("A2", "8n");
+                        onEnd();
+                    }
+                }, 1000);
+            },
+            endGame() {
+                clearInterval(state.timers.game);
+                clearInterval(state.timers.question);
+                if (state.gameMode === '1P') {
+                    onePlayerController.showEndScreen();
+                } else {
+                    twoPlayerController.showEndScreen();
+                }
+            }
+        };
+
+        const onePlayerController = {
+            startGame() {
+                state.shuffledQuestions = generateQuestions();
+                state.gameState = {
+                    player: { name: dom.player1Name.value.trim() || "Player 1", score: 0, incorrectAnswers: [] },
+                    questionsAnswered: 0,
+                };
+                dom.player1NameScore.textContent = state.gameState.player.name;
+                
+                // UI adjustments for 1P
+                dom.playersAnswerArea.classList.remove('md:grid-cols-2');
+                dom.player1Container.classList.add('max-w-lg', 'mx-auto');
+                dom.player1NameDisplay.classList.add('hidden');
+                dom.player2Container.classList.add('hidden');
+                dom.player2ScoreBox.classList.add('hidden');
+                dom.finalP2Card.classList.add('hidden');
+                dom.reviewSection.classList.remove('hidden');
+                dom.highscoreSection1P.classList.remove('hidden');
+                
+                switchView(dom.gameView);
+                gameController.startOverallGameTimer(config.GAME_DURATION_SECONDS, () => gameController.endGame());
+                this.startNewQuestionRound();
+            },
+            startNewQuestionRound() {
+                if (state.gameState.questionsAnswered >= config.QUESTIONS_PER_GAME) {
+                    gameController.endGame();
+                    return;
+                }
+                state.isRoundOver = false;
+                dom.questionCountDisplay.textContent = state.gameState.questionsAnswered + 1;
+                dom.questionTotalDisplay.textContent = config.QUESTIONS_PER_GAME;
+                dom.player1ScoreDisplay.textContent = state.gameState.player.score;
+
+                state.currentQuestionData = state.shuffledQuestions[state.gameState.questionsAnswered];
+                
+                let voice = null;
+                if (state.audio.voices && state.audio.voices.length > 0) {
+                    voice = state.audio.voices[state.gameState.questionsAnswered % state.audio.voices.length];
+                }
+                state.currentQuestionData.voice = voice;
+
+                speak(state.currentQuestionData.sentence, voice, () => {
+                    this.displayQuestionOptions();
+                });
+            },
+            displayQuestionOptions() {
+                const { correctAnswer, options } = state.currentQuestionData;
+                dom.answerOptionsP1.innerHTML = '';
+                shuffleArray([...options]).forEach(optionText => {
+                    const btn = document.createElement('button');
+                    btn.className = 'w-full p-4 text-lg font-semibold bg-white border-2 border-slate-300 rounded-lg hover:bg-gray-100 transition-all';
+                    btn.textContent = optionText;
+                    btn.onclick = () => this.handleAnswer(optionText === correctAnswer, btn);
+                    dom.answerOptionsP1.appendChild(btn);
+                });
+                dom.feedbackP1.textContent = '';
+                gameController.startQuestionTimer(config.TIME_PER_QUESTION_SECONDS, () => this.handleAnswer(false, null));
+            },
+            handleAnswer(isCorrect, button) {
+                if (state.isRoundOver) return;
+                state.isRoundOver = true;
+                clearInterval(state.timers.question);
+                Array.from(dom.answerOptionsP1.children).forEach(btn => {
+                    btn.disabled = true;
+                    if (btn.textContent === state.currentQuestionData.correctAnswer) {
+                        btn.classList.add('!bg-green-200', '!border-green-400');
+                    }
+                });
+
+                if (isCorrect) {
+                    playCorrectSound();
+                    triggerCoinAnimation(1);
+                    dom.player1Container.classList.add('round-winner');
+                    setTimeout(() => dom.player1Container.classList.remove('round-winner'), 1500);
+
+                    state.gameState.player.score += config.POINTS_PER_CORRECT;
+                    const praise = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    dom.feedbackP1.textContent = praise;
+                    speak(praise, state.currentQuestionData.voice);
+                    dom.feedbackP1.className = 'mt-2 font-semibold text-center min-h-[24px] text-base text-green-600';
+                    button.classList.add('flash-correct', '!bg-green-500', '!text-white', '!border-green-600');
+                } else {
+                    state.gameState.player.incorrectAnswers.push({ ...state.currentQuestionData, selectedAnswer: button ? button.textContent : "Timeout" });
+                    const encouragement = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    dom.feedbackP1.textContent = encouragement;
+                    speak(encouragement, state.currentQuestionData.voice);
+                    dom.feedbackP1.className = 'mt-2 font-semibold text-center min-h-[24px] text-base text-rose-600';
+                    if(button) button.classList.add('!bg-rose-500', '!text-white', '!border-rose-600');
+                }
+                
+                state.gameState.questionsAnswered++;
+                setTimeout(() => this.startNewQuestionRound(), 2500);
+            },
+            showEndScreen() {
+                const player = state.gameState.player;
+                const correctCount = player.score / config.POINTS_PER_CORRECT;
+                const attemptedCount = correctCount + player.incorrectAnswers.length;
+                const accuracy = attemptedCount > 0 ? Math.round((correctCount / attemptedCount) * 100) : 0;
+
+                dom.gameOverWinner.textContent = `You scored ${player.score} points!`;
+                dom.finalPlayer1Name.textContent = player.name;
+                dom.finalScoreP1.textContent = player.score;
+                dom.finalAccuracyP1.textContent = accuracy;
+                
+                this.saveHighScore(player.name, player.score);
+                this.displayHighScores();
+
+                if (player.incorrectAnswers.length > 0) {
+                    dom.reviewSection.classList.remove('hidden');
+                    dom.incorrectAnswersList.innerHTML = player.incorrectAnswers.map(item => `
+                        <div class="p-2 bg-white border border-slate-200 rounded-md">
+                            <p class="text-slate-500 text-sm">${item.sentence}</p>
+                            <p class="mt-1 text-sm">You answered: <span class="font-semibold text-rose-600">${item.selectedAnswer}</span> | Correct: <span class="font-semibold text-green-600">${item.correctAnswer}</span></p>
+                        </div>`).join('');
+                } else {
+                    dom.reviewSection.classList.add('hidden');
+                }
+                switchView(dom.gameOverView);
+            },
+            saveHighScore(name, score) {
+                const highScores = JSON.parse(localStorage.getItem('shoppingSpreeHighScores') || '[]');
+                highScores.push({ name, score });
+                highScores.sort((a, b) => b.score - a.score);
+                localStorage.setItem('shoppingSpreeHighScores', JSON.stringify(highScores.slice(0, 5)));
+            },
+            displayHighScores() {
+                const highScores = JSON.parse(localStorage.getItem('shoppingSpreeHighScores') || '[]');
+                if (highScores.length === 0) {
+                    dom.highscoresList1P.innerHTML = `<p class="text-slate-500">No high scores yet!</p>`;
+                } else {
+                    dom.highscoresList1P.innerHTML = highScores.map((s, i) => `
+                        <div class="flex justify-between items-center p-2 rounded ${i === 0 ? 'bg-amber-100' : ''}">
+                            <span class="font-semibold">${i + 1}. ${s.name}</span>
+                            <span class="font-bold text-sky-700">${s.score} pts</span>
+                        </div>
+                    `).join('');
+                }
+            }
+        };
+
+        const twoPlayerController = {
+            startGame() {
+                state.shuffledQuestions = generateQuestions();
+                state.gameState = {
+                    player1: { name: dom.player1Name.value.trim() || "Player 1", score: 0, hasAnswered: false, incorrectAnswers: [] },
+                    player2: { name: dom.player2Name.value.trim() || "Player 2", score: 0, hasAnswered: false, incorrectAnswers: [] },
+                    questionsAnswered: 0,
+                };
+                dom.player1NameDisplay.textContent = state.gameState.player1.name;
+                dom.player2NameDisplay.textContent = state.gameState.player2.name;
+                dom.player1NameScore.textContent = state.gameState.player1.name;
+                dom.player2NameScore.textContent = state.gameState.player2.name;
+                
+                // UI adjustments for 2P
+                dom.playersAnswerArea.classList.add('md:grid-cols-2');
+                dom.player1Container.classList.remove('max-w-lg', 'mx-auto');
+                dom.player1NameDisplay.classList.remove('hidden');
+                dom.player2Container.classList.remove('hidden');
+                dom.player2ScoreBox.classList.remove('hidden');
+                dom.finalP2Card.classList.remove('hidden');
+                dom.reviewSection.classList.remove('hidden');
+                dom.highscoreSection1P.classList.add('hidden');
+
+                switchView(dom.gameView);
+                gameController.startOverallGameTimer(config.GAME_DURATION_SECONDS, () => gameController.endGame());
+                this.startNewQuestionRound();
+            },
+            startNewQuestionRound() {
+                 if (state.gameState.questionsAnswered >= config.QUESTIONS_PER_GAME) {
+                    gameController.endGame();
+                    return;
+                }
+                state.isRoundOver = false;
+                state.gameState.player1.hasAnswered = false;
+                state.gameState.player2.hasAnswered = false;
+                dom.questionCountDisplay.textContent = state.gameState.questionsAnswered + 1;
+                dom.questionTotalDisplay.textContent = config.QUESTIONS_PER_GAME;
+                dom.player1ScoreDisplay.textContent = state.gameState.player1.score;
+                dom.player2ScoreDisplay.textContent = state.gameState.player2.score;
+                dom.player1Container.classList.remove('round-winner');
+                dom.player2Container.classList.remove('round-winner');
+
+                state.currentQuestionData = state.shuffledQuestions[state.gameState.questionsAnswered];
+                
+                let voice = null;
+                if (state.audio.voices && state.audio.voices.length > 0) {
+                    voice = state.audio.voices[state.gameState.questionsAnswered % state.audio.voices.length];
+                }
+                state.currentQuestionData.voice = voice;
+
+                speak(state.currentQuestionData.sentence, voice, () => {
+                    this.displayQuestionOptions();
+                });
+            },
+            displayQuestionOptions() {
+                const { options } = state.currentQuestionData;
+                [dom.answerOptionsP1, dom.answerOptionsP2].forEach((container, index) => {
+                    container.innerHTML = '';
+                    const shuffledOptions = shuffleArray([...options]);
+                    shuffledOptions.forEach(optionText => {
+                        const btn = document.createElement('button');
+                        btn.className = 'w-full p-3 text-base font-semibold bg-white border-2 border-slate-300 rounded-lg hover:bg-gray-100 transition-all';
+                        btn.textContent = optionText;
+                        btn.onclick = () => this.handleAnswer(optionText, index + 1, btn);
+                        container.appendChild(btn);
+                    });
+                });
+                dom.feedbackP1.textContent = '';
+                dom.feedbackP2.textContent = '';
+                dom.roundWinnerFeedback.textContent = '';
+                gameController.startQuestionTimer(config.TIME_PER_QUESTION_SECONDS, () => this.endRound(null));
+            },
+            handleAnswer(selected, playerId, button) {
+                if (state.isRoundOver) return;
+                const player = state.gameState[`player${playerId}`];
+                if (player.hasAnswered) return;
+                player.hasAnswered = true;
+
+                const isCorrect = selected === state.currentQuestionData.correctAnswer;
+                if (isCorrect) {
+                    this.endRound(player, button);
+                } else {
+                    const playerOptionContainer = dom[`answerOptionsP${playerId}`];
+                    Array.from(playerOptionContainer.children).forEach(btn => btn.disabled = true);
+                    button.classList.add('!bg-rose-500', '!text-white', '!border-rose-600');
+                    dom[`feedbackP${playerId}`].textContent = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    dom[`feedbackP${playerId}`].className = 'mt-2 font-semibold text-center min-h-[24px] text-base text-rose-600';
+                    player.incorrectAnswers.push({ ...state.currentQuestionData, selectedAnswer: selected });
+                    
+                    if (state.gameState.player1.hasAnswered && state.gameState.player2.hasAnswered) {
+                        this.endRound(null);
+                    }
+                }
+            },
+            endRound(winningPlayer, button) {
+                if (state.isRoundOver) return;
+                state.isRoundOver = true;
+                clearInterval(state.timers.question);
+                [dom.answerOptionsP1, dom.answerOptionsP2].forEach(c => Array.from(c.children).forEach(b => b.disabled = true));
+
+                const proceed = () => {
+                    state.gameState.questionsAnswered++;
+                    setTimeout(() => this.startNewQuestionRound(), 2500);
+                };
+
+                if (winningPlayer) {
+                    playCorrectSound();
+                    triggerCoinAnimation(winningPlayer === state.gameState.player1 ? 1 : 2);
+                    const winnerContainer = winningPlayer === state.gameState.player1 ? dom.player1Container : dom.player2Container;
+                    winnerContainer.classList.add('round-winner');
+                    winningPlayer.score += config.POINTS_PER_CORRECT;
+                    button.classList.add('flash-correct', '!bg-green-500', '!text-white', '!border-green-600');
+                    const praise = `${correctFeedback[Math.floor(Math.random() * correctFeedback.length)]} ${winningPlayer.name} wins the round!`;
+                    dom.roundWinnerFeedback.textContent = praise;
+                    speak(praise, state.currentQuestionData.voice);
+                } else {
+                    const encouragement = `The correct answer was ${state.currentQuestionData.correctAnswer}.`;
+                    dom.roundWinnerFeedback.textContent = encouragement;
+                    speak(encouragement, state.currentQuestionData.voice);
+                    if (!state.gameState.player1.hasAnswered) state.gameState.player1.incorrectAnswers.push({ ...state.currentQuestionData, selectedAnswer: 'N/A' });
+                    if (!state.gameState.player2.hasAnswered) state.gameState.player2.incorrectAnswers.push({ ...state.currentQuestionData, selectedAnswer: 'N/A' });
+                }
+                
+                [dom.answerOptionsP1, dom.answerOptionsP2].forEach(container => {
+                    Array.from(container.children).forEach(btn => {
+                        if (btn.textContent === state.currentQuestionData.correctAnswer) {
+                            btn.classList.add('!bg-green-200', '!border-green-400');
+                        }
+                    });
+                });
+
+                proceed();
+            },
+            showEndScreen() {
+                const { player1, player2 } = state.gameState;
+                let winnerMessage = "";
+                if (player1.score > player2.score) winnerMessage = `${player1.name} wins!`;
+                else if (player2.score > player1.score) winnerMessage = `${player2.name} wins!`;
+                else winnerMessage = "It's a tie!";
+                dom.gameOverWinner.textContent = winnerMessage;
+
+                const p1Correct = player1.score / config.POINTS_PER_CORRECT;
+                const p1Attempted = p1Correct + player1.incorrectAnswers.length;
+                const p1Accuracy = p1Attempted > 0 ? Math.round((p1Correct / p1Attempted) * 100) : 0;
+
+                const p2Correct = player2.score / config.POINTS_PER_CORRECT;
+                const p2Attempted = p2Correct + player2.incorrectAnswers.length;
+                const p2Accuracy = p2Attempted > 0 ? Math.round((p2Correct / p2Attempted) * 100) : 0;
+
+                dom.finalPlayer1Name.textContent = player1.name;
+                dom.finalScoreP1.textContent = player1.score;
+                dom.finalAccuracyP1.textContent = p1Accuracy;
+                dom.finalPlayer2Name.textContent = player2.name;
+                dom.finalScoreP2.textContent = player2.score;
+                dom.finalAccuracyP2.textContent = p2Accuracy;
+
+                const allIncorrect = [...player1.incorrectAnswers.map(a => ({...a, player: player1.name})), ...player2.incorrectAnswers.map(a => ({...a, player: player2.name}))];
+                if (allIncorrect.length > 0) {
+                    dom.reviewSection.classList.remove('hidden');
+                    dom.incorrectAnswersList.innerHTML = allIncorrect.map(item => `
+                        <div class="p-2 bg-white border border-slate-200 rounded-md">
+                            <p class="text-slate-500 text-sm"><strong>${item.player}</strong>: ${item.sentence}</p>
+                            <p class="mt-1 text-sm">Answer: <span class="font-semibold text-rose-600">${item.selectedAnswer}</span> | Correct: <span class="font-semibold text-green-600">${item.correctAnswer}</span></p>
+                        </div>`).join('');
+                } else {
+                    dom.reviewSection.classList.add('hidden');
+                }
+                switchView(dom.gameOverView);
+            }
+        };
+
+        gameController.init();
+    });
+    </script>
+</body>
+</html>

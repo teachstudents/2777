@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Adventure Game!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #fbc2eb, #a6c1ee, #84fab0, #8fd3f4);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .correct-animation { animation: pulse 0.5s; }
+        .incorrect-animation { animation: shake 0.5s; }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+        .fade-in { animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        #praise-overlay.active { display: flex; animation: flash-praise 1.5s ease-out forwards; }
+        @keyframes flash-praise {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        .player-box { transition: box-shadow 0.3s ease-in-out, border-color 0.3s ease-in-out; }
+        .winner-glow { box-shadow: 0 0 25px 5px rgba(74, 222, 128, 0.7); border-color: #4ade80 !important; }
+
+        /* Circular Timer Styles */
+        .timer-svg { transform: scaleX(-1) rotate(-90deg); }
+        .timer-svg-circle { transition: stroke-dashoffset 1s linear; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="quiz-container w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-2xl text-center relative">
+
+        <div id="praise-overlay" class="hidden absolute inset-0 bg-black/30 items-center justify-center rounded-2xl z-50 pointer-events-none">
+            <span id="praise-text" class="text-5xl md:text-7xl font-extrabold text-white" style="text-shadow: 0 0 15px rgba(255,255,255,0.8), 0 0 5px #ffc107;"></span>
+        </div>
+
+        <div id="mode-screen">
+            <h2 class="text-3xl sm:text-4xl font-bold text-blue-600 mb-8">Choose Your Adventure</h2>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <button id="one-player-btn" class="game-button bg-blue-600 text-white font-bold py-4 px-8 rounded-full hover:bg-blue-700 transition-transform transform hover:scale-105 shadow-lg">1 Player</button>
+                <button id="two-player-btn" class="game-button bg-purple-600 text-white font-bold py-4 px-8 rounded-full hover:bg-purple-700 transition-transform transform hover:scale-105 shadow-lg">2 Players</button>
+            </div>
+        </div>
+
+        <div id="level-screen" class="hidden">
+            <h2 class="text-3xl sm:text-4xl font-bold text-blue-600 mb-8">Choose Your Level</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <button class="level-btn game-button bg-green-500 text-white font-bold py-4 px-8 rounded-full hover:bg-green-600" data-level="A1">A1</button>
+                <button class="level-btn game-button bg-yellow-500 text-white font-bold py-4 px-8 rounded-full hover:bg-yellow-600" data-level="A2">A2</button>
+                <button class="level-btn game-button bg-orange-500 text-white font-bold py-4 px-8 rounded-full hover:bg-orange-600" data-level="B1">B1</button>
+                <button class="level-btn game-button bg-red-500 text-white font-bold py-4 px-8 rounded-full hover:bg-red-600" data-level="B2">B2</button>
+                <button class="level-btn game-button bg-rose-500 text-white font-bold py-4 px-8 rounded-full hover:bg-rose-600 col-span-2 sm:col-span-1" data-level="C1">C1</button>
+            </div>
+        </div>
+
+        <div id="start-screen" class="hidden">
+            <h2 class="text-3xl sm:text-4xl font-bold text-blue-600 mb-4">Ready Up!</h2>
+            <p class="text-gray-600 mb-6">Enter player name(s) to begin.</p>
+            <div id="player-inputs" class="space-y-4">
+                <input type="text" id="username1" placeholder="Player 1 Name" class="w-full max-w-xs mx-auto block px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-blue-500" required>
+                <input type="text" id="username2" placeholder="Player 2 Name" class="w-full max-w-xs mx-auto block px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-purple-500 hidden" required>
+            </div>
+            <button id="start-btn" class="mt-8 game-button bg-green-500 text-white font-bold py-3 px-8 rounded-full hover:bg-green-600">Start Adventure</button>
+        </div>
+
+        <div id="quiz-screen" class="hidden">
+            <div id="quiz-header" class="flex flex-wrap justify-between items-center font-semibold text-gray-700 mb-4 text-xs sm:text-sm gap-2">
+                <div id="questions-remaining-display" class="bg-indigo-200 text-indigo-800 px-3 py-2 rounded-full">Questions Left: 50</div>
+                <div id="question-timer-display" class="bg-yellow-400 text-yellow-900 font-bold px-3 py-2 rounded-full">Time: 10</div>
+                <div id="main-timer-container" class="relative w-10 h-10">
+                    <svg id="main-timer-svg" class="timer-svg w-full h-full" viewBox="0 0 36 36">
+                        <path class="text-gray-300" stroke-width="4" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        <path id="main-timer-progress" class="timer-svg-circle text-red-500" stroke-width="4" fill="none" stroke-dasharray="100, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    </svg>
+                    <span id="main-timer-text" class="absolute inset-0 flex items-center justify-center text-xs font-bold">10:00</span>
+                </div>
+            </div>
+            <div id="progress-bar-container" class="w-full bg-gray-200 rounded-full h-2.5 mb-5"><div id="progress-bar" class="bg-green-500 h-2.5 rounded-full"></div></div>
+            <div id="question-area" class="text-xl sm:text-2xl font-bold text-gray-800 mb-6 min-h-[64px]"></div>
+            <div id="options-area" class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                <div id="player-1-box" class="player-box border-2 border-blue-300 bg-blue-50/50 p-4 rounded-xl">
+                    <div id="score-display" class="text-blue-800 font-bold text-lg mb-3">P1 Score: 0</div>
+                    <div id="p1-options-container" class="space-y-3"></div>
+                </div>
+                <div id="player-2-box" class="player-box border-2 border-purple-300 bg-purple-50/50 p-4 rounded-xl hidden">
+                    <div id="score-display-p2" class="text-purple-800 font-bold text-lg mb-3">P2 Score: 0</div>
+                    <div id="p2-options-container" class="space-y-3"></div>
+                </div>
+            </div>
+            <div id="feedback" class="mt-4 font-semibold min-h-[50px]"></div>
+        </div>
+
+        <div id="result-screen" class="hidden">
+            <h3 class="text-3xl sm:text-4xl font-bold text-blue-600 mb-4">Adventure Complete!</h3>
+            <div id="winner-display" class="text-2xl font-bold text-green-600 mb-4"></div>
+            <div id="final-scores" class="text-xl font-semibold text-gray-800 mb-6"></div>
+            <div id="badges-container" class="flex justify-center items-center gap-4 sm:gap-8 my-8"></div>
+            <div id="error-report" class="text-left mt-8 max-h-60 overflow-y-auto p-2 bg-gray-50 rounded-lg"></div>
+            <div class="mt-8 flex justify-center gap-4">
+                <button id="play-again-btn" class="game-button bg-blue-600 text-white font-bold py-3 px-8 rounded-full">Play Again</button>
+                <button id="review-mistakes-btn" class="hidden game-button bg-yellow-500 text-white font-bold py-3 px-8 rounded-full">Review Mistakes</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- GAME DATA ---
+        const questionsByLevel = {
+            A1: [{q:"The opposite of 'hot' is ______.",o:["cold","warm","big","fast"]},{q:"You use your ______ to see.",o:["eyes","ears","nose","hands"]},{q:"A baby cat is called a ______.",o:["kitten","puppy","chick","cub"]},{q:"The color of the sun is ______.",o:["yellow","blue","green","red"]},{q:"To ask a question, you ______ your hand.",o:["raise","eat","run","sleep"]},{q:"You write with a ______ or a pencil.",o:["pen","book","chair","door"]},{q: "The number after one is ______.", o: ["two", "three", "four", "five"]}, {q: "A ______ is a place where you can read many books.", o: ["library", "park", "shop", "beach"]}, {q: "You wear a ______ on your head.", o: ["hat", "shoe", "sock", "glove"]}, {q: "To make something clean, you ______ it.", o: ["wash", "break", "throw", "draw"]},{q:"A ______ gives us milk.",o:["cow","horse","sheep","chicken"]},{q:"We use a ______ to call people.",o:["phone","television","radio","camera"]},{q:"The opposite of 'day' is ______.",o:["night","morning","evening","noon"]},{q:"An apple is a type of ______.",o:["fruit","vegetable","meat","drink"]},{q:"You sleep in a ______.",o:["bed","chair","table","sofa"]},{q:"A ______ is a doctor for animals.",o:["vet","dentist","nurse","teacher"]},{q:"The season with snow is ______.",o:["winter","summer","spring","autumn"]},{q:"A ______ has seven days.",o:["week","month","year","hour"]},{q:"You eat soup with a ______.",o:["spoon","fork","knife","plate"]},{q:"The color of grass is ______.",o:["green","red","blue","yellow"]},{q:"A ______ is a place where children learn.",o:["school","hospital","airport","station"]},{q:"You wear ______ on your feet.",o:["shoes","gloves","scarf","hat"]},{q:"The opposite of 'happy' is ______.",o:["sad","angry","tired","hungry"]},{q:"A ______ flies in the sky.",o:["bird","fish","dog","cat"]},{q:"We drink ______ when we are thirsty.",o:["water","bread","rice","cheese"]},{q:"A ______ tells the time.",o:["clock","calendar","map","book"]},{q:"The opposite of 'big' is ______.",o:["small","long","tall","wide"]},{q:"A ______ is a parent's son.",o:["boy","girl","man","woman"]},{q:"You read a ______.",o:["book","song","picture","film"]},{q:"A ______ helps people who are sick.",o:["doctor","farmer","baker","pilot"]},{q:"The opposite of 'fast' is ______.",o:["slow","quick","rapid","swift"]},{q:"A ______ is a room for cooking.",o:["kitchen","bathroom","bedroom","living room"]},{q:"You use ______ to hear music.",o:["ears","eyes","nose","mouth"]},{q:"A ______ is a sweet food.",o:["cake","pizza","salad","soup"]},{q:"The ______ shines during the day.",o:["sun","moon","star","cloud"]},{q:"A ______ is a home for a bird.",o:["nest","cave","den","hole"]},{q:"The opposite of 'open' is ______.",o:["closed","shut","ajar","unlocked"]},{q:"You use a ______ to unlock a door.",o:["key","lock","handle","knob"]},{q:"A ______ is a baby dog.",o:["puppy","kitten","calf","foal"]},{q:"A ______ has four wheels.",o:["car","bicycle","motorcycle","scooter"]},{q:"The opposite of 'black' is ______.",o:["white","red","green","blue"]},{q:"A ______ is a place to buy food.",o:["supermarket","library","school","park"]},{q:"You use a ______ to write on a blackboard.",o:["chalk","pen","pencil","crayon"]},{q:"A ______ is a large body of water.",o:["sea","river","lake","pond"]},{q:"The opposite of 'young' is ______.",o:["old","new","fresh","modern"]},{q:"A ______ is a person who grows food.",o:["farmer","teacher","doctor","builder"]},{q:"You use an ______ to protect from rain.",o:["umbrella","hat","coat","scarf"]},{q:"A ______ is a sweet, yellow fruit.",o:["banana","apple","orange","grape"]},{q:"The opposite of 'good' is ______.",o:["bad","nice","great","fine"]},{q:"A ______ is a building where people live.",o:["house","office","factory","shop"]}],
+            A2: [{q:"If you are not sick, you are ______.",o:["healthy","tired","sad","busy"]},{q:"A person who flies a plane is a ______.",o:["pilot","doctor","teacher","farmer"]},{q:"You can buy stamps at a ______ office.",o:["post","police","fire","doctor's"]},{q:"The meal you eat in the morning is ______.",o:["breakfast","lunch","dinner","snack"]},{q:"A ______ is a vehicle with two wheels.",o:["bicycle","car","bus","train"]},{q:"To find out what a word means, you can use a ______.",o:["dictionary","map","camera","computer"]},{q:"The season after summer is ______.",o:["autumn","winter","spring","rainy"]},{q:"Someone who works in a hospital and helps doctors is a ______.",o:["nurse","chef","driver","singer"]},{q:"You should ______ your teeth twice a day.",o:["brush","comb","cut","color"]},{q:"A place where you wait for a bus is called a bus ______.",o:["stop","station","house","park"]},{q:"A ______ is a place where you can see historical objects.",o:["museum","cinema","theater","stadium"]},{q:"You need a ______ to travel to another country.",o:["passport","ticket","ID card","license"]},{q:"The opposite of 'expensive' is ______.",o:["cheap","costly","valuable","pricey"]},{q:"A ______ is a person who writes articles for a newspaper.",o:["journalist","novelist","poet","author"]},{q:"You can borrow money from a ______.",o:["bank","library","supermarket","pharmacy"]},{q:"A ______ is a large, strong building from the past.",o:["castle","cottage","mansion","apartment"]},{q:"The opposite of 'difficult' is ______.",o:["easy","hard","challenging","tough"]},{q:"A ______ is a person who designs buildings.",o:["architect","engineer","builder","artist"]},{q:"You can see a play in a ______.",o:["theater","gallery","concert hall","opera house"]},{q:"The opposite of 'polite' is ______.",o:["rude","courteous","respectful","kind"]},{q:"A ______ is a journey by sea.",o:["voyage","trip","excursion","tour"]},{q:"You use a ______ to take photographs.",o:["camera","telescope","microscope","binoculars"]},{q:"The opposite of 'empty' is ______.",o:["full","vacant","bare","hollow"]},{q:"A ______ is a person who acts in films or plays.",o:["actor","director","producer","writer"]},{q:"You go to a ______ to get your hair cut.",o:["hairdresser's","barber's","salon","beauty parlor"]},{q:"A ______ is a set of instructions for cooking a dish.",o:["recipe","menu","prescription","formula"]},{q:"The opposite of 'interesting' is ______.",o:["boring","fascinating","exciting","engaging"]},{q:"A ______ is a piece of paper that shows you have paid for something.",o:["receipt","invoice","bill","statement"]},{q:"You can buy medicine at a ______.",o:["pharmacy","clinic","hospital","surgery"]},{q:"The opposite of 'dangerous' is ______.",o:["safe","risky","hazardous","perilous"]},{q:"A ______ is a person who is very good at a sport.",o:["athlete","player","competitor","champion"]},{q:"You use a ______ to see things that are far away.",o:["telescope","microscope","magnifying glass","glasses"]},{q:"The opposite of 'beautiful' is ______.",o:["ugly","pretty","lovely","handsome"]},{q:"A ______ is a formal event where people wear special clothes.",o:["ceremony","party","festival","celebration"]},{q:"You can learn about the stars and planets in a ______.",o:["planetarium","observatory","aquarium","zoo"]},{q:"A ______ is a story that is not true.",o:["fiction","non-fiction","biography","autobiography"]},{q:"The opposite of 'strong' is ______.",o:["weak","powerful","mighty","sturdy"]},{q:"A ______ is a person who studies science.",o:["scientist","researcher","expert","scholar"]},{q:"You can see many different animals in a ______.",o:["zoo","farm","jungle","forest"]},{q:"The opposite of 'noisy' is ______.",o:["quiet","loud","silent","peaceful"]},{q:"A ______ is a place where planes take off and land.",o:["airport","harbor","port","station"]},{q:"You use a ______ to measure temperature.",o:["thermometer","barometer","speedometer","altimeter"]},{q:"The opposite of 'early' is ______.",o:["late","soon","prompt","punctual"]},{q:"A ______ is a person who makes bread and cakes.",o:["baker","butcher","grocer","chef"]},{q:"You can send a letter from a ______.",o:["postbox","mailbox","letterbox","pillar box"]},{q:"A ______ is a large area of land covered with trees.",o:["forest","jungle","wood","copse"]},{q:"The opposite of 'clean' is ______.",o:["dirty","tidy","neat","spotless"]},{q:"A ______ is a person who helps you in a shop.",o:["shop assistant","cashier","clerk","salesperson"]},{q:"You can see famous paintings in an art ______.",o:["gallery","exhibition","studio","workshop"]},{q:"The opposite of 'right' (correct) is ______.",o:["wrong","incorrect","false","mistaken"]}],
+            B1: [{q:"He was very ______ of his son's success.",o:["proud","ashamed","jealous","angry"]},{q:"Can you ______ me some money until tomorrow?",o:["lend","borrow","give","take"]},{q:"It's important to be ______ when you speak to elderly people.",o:["polite","rude","loud","fast"]},{q:"I need to ______ my flight reservation.",o:["confirm","cancel","change","book"]},{q:"The company decided to ______ a new product.",o:["launch","stop","hide","sell"]},{q:"She has a very ______ lifestyle; she travels all the time.",o:["hectic","calm","boring","simple"]},{q:"It is not ______ to drop litter in the street.",o:["acceptable","easy","common","fun"]},{q:"You need a lot of ______ to run a marathon.",o:["stamina","money","time","luck"]},{q:"The government plans to ______ taxes next year.",o:["reduce","increase","remove","pay"]},{q:"He gave a ______ description of the thief.",o:["vivid","dull","short","wrong"]},{q:"She has a very ______ sense of humor.",o:["witty","dull","serious","childish"]},{q:"The police are ______ the crime.",o:["investigating","ignoring","creating","solving"]},{q:"I would like to ______ for the position of manager.",o:["apply","resign","retire","work"]},{q:"It is ______ to rain later today.",o:["likely","unlikely","certain","impossible"]},{q:"He is a very ______ person; he always gets what he wants.",o:["determined","hesitant","lazy","weak"]},{q:"The ______ of the film was very exciting.",o:["plot","cast","soundtrack","setting"]},{q:"She is ______ to peanuts.",o:["allergic","immune","addicted","indifferent"]},{q:"The company made a huge ______ last year.",o:["profit","loss","debt","investment"]},{q:"I need to ______ my computer's software.",o:["update","downgrade","delete","install"]},{q:"He is a very ______ speaker.",o:["persuasive","boring","confusing","quiet"]},{q:"The ______ of living has increased in recent years.",o:["cost","price","value","worth"]},{q:"She is a very ______ and supportive friend.",o:["loyal","disloyal","unreliable","untrustworthy"]},{q:"The two countries have a strong economic ______.",o:["bond","tie","link","connection"]},{q:"He was accused of ______.",o:["fraud","theft","burglary","robbery"]},{q:"The company is facing fierce ______.",o:["competition","cooperation","collaboration","partnership"]},{q:"She has a natural ______ for music.",o:["talent","skill","ability","gift"]},{q:"The ______ of the rainforest is a major concern.",o:["destruction","preservation","conservation","protection"]},{q:"He is a very ______ and generous person.",o:["charitable","selfish","miserly","stingy"]},{q:"The ______ of the new law is still being debated.",o:["impact","effect","consequence","result"]},{q:"She is a very ______ and ambitious person.",o:["driven","lazy","apathetic","indifferent"]},{q:"The ______ of the project was a great success.",o:["outcome","result","conclusion","end"]},{q:"He is a very ______ and experienced negotiator.",o:["shrewd","naive","innocent","gullible"]},{q:"The company has a very ______ and diverse workforce.",o:["multicultural","homogeneous","uniform","monolithic"]},{q:"She is a very ______ and creative artist.",o:["innovative","traditional","conventional","unoriginal"]},{q:"The ______ of the evidence was overwhelming.",o:["weight","amount","quantity","volume"]},{q:"He is a very ______ and influential figure in the industry.",o:["prominent","obscure","unknown","insignificant"]},{q:"The company is committed to ______ development.",o:["sustainable","unsustainable","destructive","harmful"]},{q:"She is a very ______ and articulate speaker.",o:["eloquent","inarticulate","unintelligible","incoherent"]},{q:"The ______ of the meeting was to discuss the new budget.",o:["purpose","reason","goal","objective"]},{q:"He is a very ______ and respected member of the community.",o:["esteemed","despised","hated","disliked"]},{q:"The ______ of the new policy is to improve public health.",o:["aim","objective","target","goal"]},{q:"She is a very ______ and dedicated teacher.",o:["conscientious","careless","negligent","irresponsible"]},{q:"The ______ of the city is a major tourist attraction.",o:["architecture","scenery","landscape","view"]},{q:"He is a very ______ and resourceful problem-solver.",o:["ingenious","unimaginative","uncreative","dull"]},{q:"The company has a very ______ and loyal customer base.",o:["devoted","fickle","unreliable","disloyal"]},{q:"She is a very ______ and compassionate person.",o:["empathetic","apathetic","indifferent","callous"]},{q:"The ______ of the situation is very serious.",o:["gravity","levity","humor","frivolity"]},{q:"He is a very ______ and meticulous worker.",o:["thorough","careless","sloppy","hasty"]},{q:"The company has a very ______ and positive work environment.",o:["conducive","unfavorable","hostile","negative"]},{q:"She is a very ______ and resilient person.",o:["tenacious","weak","fragile","delicate"]}],
+            B2: [{q:"The politician's speech was so ______ that many people were moved to tears.",o:["eloquent","ambiguous","monotonous","verbose"]},{q:"Despite the initial setbacks, they ______ and completed the project.",o:["persevered","quit","hesitated","failed"]},{q:"The evidence was ______; it clearly showed he was guilty.",o:["irrefutable","debatable","circumstantial","flimsy"]},{q:"She has an ______ desire to learn new things.",o:["insatiable","occasional","indifferent","limited"]},{q:"The two countries finally signed a peace ______.",o:["treaty","contract","argument","document"]},{q:"His ______ behavior at the party embarrassed everyone.",o:["obnoxious","charming","subtle","pleasant"]},{q:"The museum has an ______ collection of artifacts.",o:["eclectic","uniform","small","boring"]},{q:"We need to ______ our resources to avoid waste.",o:["consolidate","squander","divide","ignore"]},{q:"The novel's plot was too ______ to be believable.",o:["convoluted","straightforward","simple","clear"]},{q:"Her ______ nature made her an excellent diplomat.",o:["gregarious","introverted","shy","hostile"]},{q:"The ______ of the problem is its complexity.",o:["crux","pinnacle","nadir","periphery"]},{q:"He was ______ for his bravery.",o:["lauded","castigated","denigrated","rebuked"]},{q:"The ______ of the two companies created a market giant.",o:["merger","schism","division","separation"]},{q:"Her ______ remarks were completely uncalled for.",o:["acerbic","soothing","complimentary","kind"]},{q:"The city is a ______ of different cultures.",o:["melting pot","monolith","enclave","ghetto"]},{q:"He is known for his ______ and attention to detail.",o:["meticulousness","carelessness","sloppiness","negligence"]},{q:"The ______ of the new law was met with widespread protest.",o:["promulgation","repeal","amendment","enactment"]},{q:"She has a ______ for making people feel at ease.",o:["knack","inability","difficulty","struggle"]},{q:"The ______ of the situation demands immediate action.",o:["exigency","triviality","insignificance","unimportance"]},{q:"He is a ______ of the arts.",o:["patron","critic","detractor","opponent"]},{q:"The ______ of the evidence points to his innocence.",o:["preponderance","scarcity","dearth","lack"]},{q:"She is a ______ and respected academic.",o:["venerable","disreputable","notorious","infamous"]},{q:"The ______ of the two ideas is the key to the solution.",o:["synthesis","analysis","antithesis","hypothesis"]},{q:"He has a ______ for exaggeration.",o:["penchant","aversion","dislike","hatred"]},{q:"The ______ of the company's success is its innovative products.",o:["linchpin","cornerstone","foundation","bedrock"]},{q:"She is a ______ and influential figure in the fashion industry.",o:["luminary","nobody","nonentity","cipher"]},{q:"The ______ of the new policy is to reduce carbon emissions.",o:["rationale","pretext","excuse","justification"]},{q:"He is a ______ and skilled orator.",o:["consummate","amateurish","inept","clumsy"]},{q:"The ______ of the two cultures is evident in the city's cuisine.",o:["amalgamation","separation","segregation","division"]},{q:"She is a ______ and tireless advocate for human rights.",o:["stalwart","wavering","fickle","unreliable"]},{q:"The ______ of the argument is that we need to act now.",o:["gist","subtlety","nuance","complexity"]},{q:"He is a ______ and respected member of the community.",o:["pillar","outcast","pariah","leper"]},{q:"The ______ of the two companies will create a monopoly.",o:["cartel","trust","syndicate","consortium"]},{q:"She has a ______ and inquisitive mind.",o:["voracious","apathetic","indifferent","uninterested"]},{q:"The ______ of the problem is the lack of funding.",o:["nub","core","heart","essence"]},{q:"He is a ______ and visionary leader.",o:["sagacious","foolish","imprudent","unwise"]},{q:"The ______ of the two cultures has resulted in a unique blend of traditions.",o:["confluence","divergence","separation","disparity"]},{q:"She is a ______ and determined athlete.",o:["indomitable","vulnerable","weak","fragile"]},{q:"The ______ of the new law is to protect consumers.",o:["purport","intent","design","plan"]},{q:"He is a ______ and respected philanthropist.",o:["magnanimous","petty","mean","selfish"]},{q:"The ______ of the evidence is overwhelming.",o:["corpus","paucity","scarcity","dearth"]},{q:"She is a ______ and influential figure in the world of finance.",o:["doyenne","neophyte","novice","beginner"]},{q:"The ______ of the two companies will result in a stronger market position.",o:["synergy","antagonism","conflict","opposition"]},{q:"He has a ______ and insatiable appetite for knowledge.",o:["prodigious","meager","scant","paltry"]},{q:"The ______ of the problem is the lack of political will.",o:["kernel","husk","shell","crust"]},{q:"She is a ______ and respected journalist.",o:["scrupulous","unscrupulous","dishonest","corrupt"]},{q:"The ______ of the two rivers creates a fertile valley.",o:["conjunction","disjunction","separation","division"]},{q:"He is a ______ and unwavering supporter of the cause.",o:["staunch","faltering","wavering","hesitant"]},{q:"The ______ of the new policy is to promote social equality.",o:["ethos","pathos","logos","mythos"]},{q:"She is a ______ and celebrated author.",o:["prolific","unproductive","barren","sterile"]}],
+            C1: [{q:"The CEO's ______ decisions led to the company's downfall.",o:["impetuous","cautious","deliberate","prudent"]},{q:"The ancient text was full of ______ symbols.",o:["esoteric","common","simple","modern"]},{q:"He was known for his ______ lifestyle, despite his wealth.",o:["ascetic","lavish","luxurious","extravagant"]},{q:"The ______ of the new policy was felt by all citizens.",o:["ramifications","beginnings","causes","ideas"]},{q:"She offered a ______ apology, but it was clear she wasn't sincere.",o:["perfunctory","heartfelt","genuine","long"]},{q:"The artist's work is a ______ of different styles and influences.",o:["juxtaposition","separation","harmony","monolith"]},{q:"His arguments were ______ and full of logical fallacies.",o:["specious","sound","valid","convincing"]},{q:"The defendant remained ______ throughout the trial.",o:["taciturn","talkative","loquacious","vocal"]},{q:"The ______ between the two versions of the story was striking.",o:["dichotomy","similarity","agreement","harmony"]},{q:"The politician was accused of ______ for his inflammatory remarks.",o:["demagoguery","statesmanship","diplomacy","integrity"]},{q:"The ______ of the evidence was not enough to secure a conviction.",o:["paucity","abundance","plethora","surfeit"]},{q:"He is a ______ and respected academic.",o:["erudite","ignorant","uneducated","illiterate"]},{q:"The ______ of the new law was met with widespread condemnation.",o:["abrogation","enactment","ratification","approval"]},{q:"She has a ______ for spotting talent.",o:["prescience","hindsight","nescience","ignorance"]},{q:"The ______ of the problem is its multifaceted nature.",o:["labyrinth","maze","puzzle","enigma"]},{q:"He is a ______ of the old school.",o:["scion","progenitor","ancestor","forefather"]},{q:"The ______ of the two cultures has created a vibrant society.",o:["symbiosis","parasitism","commensalism","mutualism"]},{q:"She is a ______ and respected figure in the legal profession.",o:["paragon","charlatan","impostor","fraud"]},{q:"The ______ of the situation is that we are running out of time.",o:["gravamen","essence","substance","core"]},{q:"He is a ______ and respected statesman.",o:["doyen","novice","apprentice","tyro"]},{q:"The ______ of the evidence is indisputable.",o:["veracity","falsity","mendacity","duplicity"]},{q:"She is a ______ and influential figure in the world of art.",o:["virtuoso","amateur","dabbler","dilettante"]},{q:"The ______ of the two companies will create a formidable competitor.",o:["conglomeration","disintegration","fragmentation","separation"]},{q:"He has a ______ and encyclopedic knowledge of history.",o:["recondite","superficial","shallow","cursory"]},{q:"The ______ of the problem is the lack of a clear strategy.",o:["quagmire","morass","bog","marsh"]},{q:"She is a ______ and respected leader.",o:["luminary","obscurity","nonentity","nobody"]},{q:"The ______ of the new policy is to foster innovation.",o:["impetus","hindrance","obstacle","impediment"]},{q:"He is a ______ and respected scholar.",o:["savant","ignoramus","dunce","simpleton"]},{q:"The ______ of the two cultures is a testament to their shared history.",o:["intertwining","unraveling","disentangling","separating"]},{q:"She is a ______ and respected humanitarian.",o:["altruist","egoist","narcissist","solipsist"]},{q:"The ______ of the evidence is a matter of interpretation.",o:["ambiguity","clarity","lucidity","transparency"]},{q:"He is a ______ and respected artist.",o:["maverick","conformist","traditionalist","conventionalist"]},{q:"The ______ of the two companies will lead to greater efficiency.",o:["amalgam","separation","division","split"]},{q:"She has a ______ and discerning eye for detail.",o:["perspicacious","obtuse","dull","stupid"]},{q:"The ______ of the problem is the lack of a coherent narrative.",o:["conundrum","riddle","enigma","mystery"]},{q:"He is a ______ and respected philosopher.",o:["polymath","specialist","expert","authority"]},{q:"The ______ of the two cultures is a source of both conflict and creativity.",o:["juxtaposition","synthesis","harmony","fusion"]},{q:"She is a ______ and respected scientist.",o:["pioneer","follower","imitator","copycat"]},{q:"The ______ of the new law is to address systemic inequality.",o:["panacea","placebo","nostrum","cure-all"]},{q:"He is a ______ and respected writer.",o:["stylist","plagiarist","imitator","copyist"]},{q:"The ______ of the evidence is a cause for concern.",o:["dearth","plethora","surfeit","abundance"]},{q:"She is a ______ and respected diplomat.",o:["adept","inept","clumsy","maladroit"]},{q:"The ______ of the two companies will create a new market leader.",o:["goliath","david","minnow","shrimp"]},{q:"He has a ______ and profound understanding of human nature.",o:["trenchant","superficial","shallow","glib"]},{q:"The ______ of the problem is the lack of a clear vision.",o:["aporia","certainty","conviction","assurance"]},{q:"She is a ______ and respected musician.",o:["maestro","amateur","novice","beginner"]},{q:"The ______ of the two cultures is a reflection of their shared values.",o:["osmosis","diffusion","filtration","dialysis"]},{q:"He is a ______ and respected historian.",o:["antiquarian","modernist","futurist","visionary"]},{q:"The ______ of the new law is to simplify the tax code.",o:["codification","complication","obfuscation","confusion"]},{q:"She is a ______ and respected activist.",o:["firebrand","pacifist","peacemaker","conciliator"]}]
+        };
+        
+        let gameMode = '1p', selectedLevel = 'A1', gameQuestions = [], currentQuestionIndex = 0;
+        let p1Score = 0, p2Score = 0, p1Tokens = 0, p2Tokens = 0;
+        const TOTAL_TEST_TIME = 600, TIME_PER_QUESTION = 10;
+        let totalTimeRemaining = TOTAL_TEST_TIME, questionTimeRemaining = TIME_PER_QUESTION;
+        let mainTimerInterval, questionTimerInterval;
+        let incorrectAnswers = { 1: [], 2: [] };
+        let p1Name = "Player 1", p2Name = "Player 2";
+        let currentShuffledOptions = [], currentCorrectIndex = -1, questionAnswered = false, isReviewMode = false;
+        const praiseWords = ["Awesome!", "Incredible!", "Stunning!", "Magnificent!", "Fantastic!", "Brilliant!", "Superb!", "Unstoppable!", "Godlike!", "Lightning Fast!", "Amazing!"];
+
+        let audioCtx;
+        function initAudio() { if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } }
+        function playSound(type) {
+            if (!audioCtx) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            
+            let duration = 0.3; // Default duration
+            
+            switch (type) {
+                case 'correct': 
+                    gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.01);
+                    oscillator.type = 'sine'; 
+                    oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+                    oscillator.frequency.linearRampToValueAtTime(659.25, audioCtx.currentTime + 0.1); 
+                    oscillator.frequency.linearRampToValueAtTime(783.99, audioCtx.currentTime + 0.2); 
+                    break;
+                case 'incorrect': 
+                    gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.01);
+                    oscillator.type = 'square'; 
+                    oscillator.frequency.setValueAtTime(200, audioCtx.currentTime); 
+                    oscillator.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.15); 
+                    break;
+                case 'finish': 
+                    gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.01);
+                    oscillator.type = 'triangle'; 
+                    oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); 
+                    oscillator.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); 
+                    oscillator.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2); 
+                    break;
+                case 'click': 
+                    gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.01);
+                    oscillator.type = 'triangle'; 
+                    oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); 
+                    duration = 0.1;
+                    break;
+                case 'transition': 
+                    gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.01);
+                    oscillator.type = 'sawtooth'; 
+                    oscillator.frequency.setValueAtTime(100, audioCtx.currentTime); 
+                    oscillator.frequency.linearRampToValueAtTime(500, audioCtx.currentTime + 0.2); 
+                    duration = 0.2;
+                    break;
+                case 'badge': 
+                    gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.01);
+                    oscillator.type = 'sine'; 
+                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
+                    duration = 0.5;
+                    break;
+            }
+            
+            oscillator.start(audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+
+        const dom = {
+            modeScreen: document.getElementById("mode-screen"), levelScreen: document.getElementById("level-screen"), startScreen: document.getElementById("start-screen"), quizScreen: document.getElementById("quiz-screen"), resultScreen: document.getElementById("result-screen"),
+            onePlayerBtn: document.getElementById("one-player-btn"), twoPlayerBtn: document.getElementById("two-player-btn"), startBtn: document.getElementById("start-btn"), playAgainBtn: document.getElementById("play-again-btn"), reviewMistakesBtn: document.getElementById("review-mistakes-btn"),
+            username1Input: document.getElementById("username1"), username2Input: document.getElementById("username2"), player1Box: document.getElementById("player-1-box"), player2Box: document.getElementById("player-2-box"),
+            scoreDisplayP1: document.getElementById("score-display"), scoreDisplayP2: document.getElementById("score-display-p2"), questionsRemainingDisplay: document.getElementById("questions-remaining-display"),
+            questionTimerDisplay: document.getElementById("question-timer-display"), mainTimerContainer: document.getElementById("main-timer-container"), mainTimerText: document.getElementById("main-timer-text"), mainTimerProgress: document.getElementById("main-timer-progress"),
+            questionArea: document.getElementById("question-area"), p1OptionsContainer: document.getElementById("p1-options-container"), p2OptionsContainer: document.getElementById("p2-options-container"),
+            feedbackDiv: document.getElementById("feedback"), winnerDisplay: document.getElementById("winner-display"), finalScoresDiv: document.getElementById("final-scores"), badgesContainer: document.getElementById("badges-container"),
+            errorReportDiv: document.getElementById("error-report"), progressBar: document.getElementById("progress-bar"), praiseOverlay: document.getElementById("praise-overlay"), praiseText: document.getElementById("praise-text"),
+        };
+
+        dom.onePlayerBtn.addEventListener("click", () => { playSound('click'); setupGameMode('1p'); });
+        dom.twoPlayerBtn.addEventListener("click", () => { playSound('click'); setupGameMode('2p'); });
+        document.querySelectorAll('.level-btn').forEach(button => button.addEventListener('click', (e) => { playSound('click'); selectLevel(e.currentTarget.dataset.level); }));
+        dom.startBtn.addEventListener("click", () => { playSound('click'); startQuiz(); });
+        dom.playAgainBtn.addEventListener("click", () => { playSound('click'); location.reload(); });
+        dom.reviewMistakesBtn.addEventListener("click", () => { playSound('click'); startReviewMode(); });
+
+        function setupGameMode(mode) { gameMode = mode; dom.modeScreen.classList.add("hidden"); dom.levelScreen.classList.remove("hidden"); playSound('transition'); }
+        function selectLevel(level) {
+            selectedLevel = level;
+            gameQuestions = questionsByLevel[selectedLevel].map(q => ({...q, options: q.o, question: q.q}));
+            dom.levelScreen.classList.add("hidden"); dom.startScreen.classList.remove("hidden");
+            if (gameMode === '2p') { dom.username2Input.classList.remove("hidden"); dom.player2Box.classList.remove("hidden"); }
+            playSound('transition');
+        }
+        function startQuiz() {
+            initAudio();
+            p1Name = dom.username1Input.value.trim() || "Player 1";
+            dom.scoreDisplayP1.textContent = `${p1Name}: 0`;
+            if (gameMode === '2p') { p2Name = dom.username2Input.value.trim() || "Player 2"; dom.scoreDisplayP2.textContent = `${p2Name}: 0`; } 
+            else { dom.scoreDisplayP1.textContent = `Score: 0`; }
+            dom.startScreen.classList.add("hidden"); dom.quizScreen.classList.remove("hidden");
+            if (!isReviewMode) { mainTimerInterval = setInterval(updateMainTimer, 1000); }
+            displayQuestion();
+            playSound('transition');
+        }
+
+        function updateQuestionsRemainingDisplay() { dom.questionsRemainingDisplay.textContent = `Questions Left: ${gameQuestions.length - currentQuestionIndex}`; }
+        function displayQuestion() {
+            resetState();
+            const currentQ = gameQuestions[currentQuestionIndex];
+            currentShuffledOptions = shuffleArray([...currentQ.options.map((text, idx) => ({ text, isCorrect: idx === 0 }))]);
+            currentCorrectIndex = currentShuffledOptions.findIndex(option => option.isCorrect);
+            dom.questionArea.innerHTML = `<div class="fade-in">${currentQ.question}</div>`;
+            const createOptionsHTML = (player) => currentShuffledOptions.map((option, index) => `<div class="option p-3 border-2 border-gray-300 rounded-lg cursor-pointer transition-all duration-200 ${player === 1 ? 'hover:bg-blue-100' : 'hover:bg-purple-100'}" data-index="${index}" data-player="${player}">${option.text}</div>`).join('');
+            dom.p1OptionsContainer.innerHTML = createOptionsHTML(1);
+            if (gameMode === '2p') { dom.p2OptionsContainer.innerHTML = createOptionsHTML(2); }
+            document.querySelectorAll('.option').forEach(optionEl => optionEl.addEventListener('click', (e) => selectOption(e.currentTarget, parseInt(e.currentTarget.dataset.index), parseInt(e.currentTarget.dataset.player))));
+            dom.progressBar.style.width = `${((currentQuestionIndex + 1) / gameQuestions.length) * 100}%`;
+            updateQuestionsRemainingDisplay();
+            if (!isReviewMode) startQuestionTimer();
+        }
+
+        function selectOption(selectedEl, selectedIndex, player) {
+            if (questionAnswered) return;
+            questionAnswered = true;
+            if (!isReviewMode) clearInterval(questionTimerInterval);
+            document.querySelectorAll(".option").forEach(el => el.style.pointerEvents = 'none');
+            const isCorrect = selectedIndex === currentCorrectIndex;
+            if (isCorrect) {
+                playSound('correct');
+                if (!isReviewMode) {
+                    const winnerName = player === 1 ? p1Name : p2Name;
+                    showPraise(winnerName);
+                    if (player === 1) { p1Score += 2; p1Tokens++; dom.player1Box.classList.add('winner-glow'); } 
+                    else { p2Score += 2; p2Tokens++; dom.player2Box.classList.add('winner-glow'); }
+                }
+                document.querySelectorAll(`[data-index="${selectedIndex}"]`).forEach(el => el.classList.add("bg-green-500", "border-green-500", "text-white", "correct-animation"));
+            } else {
+                playSound('incorrect');
+                const correctText = currentShuffledOptions[currentCorrectIndex].text;
+                dom.feedbackDiv.innerHTML = `<span class="text-red-600"><strong>Incorrect!</strong> The answer was <strong>${correctText}</strong>.</span>`;
+                if (!isReviewMode) {
+                    incorrectAnswers[player].push({ question: gameQuestions[currentQuestionIndex].question, chosen: currentShuffledOptions[selectedIndex].text, correct: correctText, options: gameQuestions[currentQuestionIndex].options });
+                }
+                selectedEl.classList.add("bg-red-500", "border-red-500", "text-white", "incorrect-animation");
+                document.querySelectorAll(`[data-index="${currentCorrectIndex}"]`).forEach(el => el.classList.add("bg-green-500", "border-green-500", "text-white"));
+            }
+            if (!isReviewMode) updateScores();
+            setTimeout(nextQuestion, 2000);
+        }
+        
+        function updateScores() {
+            if (gameMode === '1p') { dom.scoreDisplayP1.textContent = `Score: ${p1Score}`; } 
+            else { dom.scoreDisplayP1.textContent = `${p1Name}: ${p1Score}`; dom.scoreDisplayP2.textContent = `${p2Name}: ${p2Score}`; }
+        }
+
+        function showPraise(winnerName) {
+            const randomPraise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+            dom.praiseText.textContent = randomPraise;
+            dom.feedbackDiv.innerHTML = `<span class="text-green-600 font-bold text-lg">${winnerName} gets the points!</span>`;
+            dom.praiseOverlay.classList.add('active');
+            setTimeout(() => dom.praiseOverlay.classList.remove('active'), 1500);
+        }
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+            if (currentQuestionIndex < gameQuestions.length) { displayQuestion(); } 
+            else { finishQuiz(); }
+        }
+
+        function resetState() {
+            questionAnswered = false;
+            if (!isReviewMode) clearInterval(questionTimerInterval);
+            dom.feedbackDiv.innerHTML = "";
+            dom.p1OptionsContainer.innerHTML = "";
+            dom.player1Box.classList.remove('winner-glow');
+            if (gameMode === '2p') { dom.p2OptionsContainer.innerHTML = ""; dom.player2Box.classList.remove('winner-glow'); }
+        }
+
+        function startQuestionTimer() {
+            questionTimeRemaining = TIME_PER_QUESTION;
+            dom.questionTimerDisplay.textContent = `Time: ${questionTimeRemaining}`;
+            questionTimerInterval = setInterval(() => {
+                questionTimeRemaining--;
+                dom.questionTimerDisplay.textContent = `Time: ${questionTimeRemaining}`;
+                if (questionTimeRemaining <= 0) { handleTimeUp(); }
+            }, 1000);
+        }
+
+        function handleTimeUp() {
+            if (questionAnswered) return;
+            questionAnswered = true;
+            clearInterval(questionTimerInterval);
+            playSound('incorrect');
+            const correctText = currentShuffledOptions[currentCorrectIndex].text;
+            dom.feedbackDiv.innerHTML = `<span class="text-yellow-600"><strong>Time's up!</strong> The correct answer was <strong>${correctText}</strong>.</span>`;
+            document.querySelectorAll(".option").forEach(el => el.style.pointerEvents = 'none');
+            document.querySelectorAll(`[data-index="${currentCorrectIndex}"]`).forEach(el => el.classList.add("bg-green-500", "border-green-500", "text-white"));
+            setTimeout(nextQuestion, 2000);
+        }
+
+        function updateMainTimer() {
+            totalTimeRemaining--;
+            const percent = Math.max(0, totalTimeRemaining / TOTAL_TEST_TIME);
+            const offset = 100 - (percent * 100);
+            dom.mainTimerProgress.style.strokeDashoffset = offset;
+            const minutes = Math.floor(totalTimeRemaining / 60);
+            const seconds = totalTimeRemaining % 60;
+            dom.mainTimerText.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+            if (totalTimeRemaining <= 0) { finishQuiz(); }
+        }
+
+        function finishQuiz() {
+            if (isReviewMode) {
+                dom.quizScreen.classList.add("hidden");
+                dom.resultScreen.classList.remove("hidden");
+                dom.reviewMistakesBtn.classList.add('hidden'); // Hide after review
+                dom.feedbackDiv.innerHTML = `<h4 class="text-xl font-bold text-green-600 text-center">Review Complete!</h4>`;
+                return;
+            }
+            playSound('finish');
+            clearInterval(mainTimerInterval);
+            clearInterval(questionTimerInterval);
+            dom.quizScreen.classList.add("hidden");
+            dom.resultScreen.classList.remove("hidden");
+            if (gameMode === '1p') {
+                dom.finalScoresDiv.innerHTML = `<strong>${p1Name}'s Score:</strong> ${p1Score} | <strong>Tokens:</strong> ${p1Tokens}`;
+                displayBadges(p1Score, incorrectAnswers[1].length, totalTimeRemaining);
+            } else {
+                dom.finalScoresDiv.innerHTML = `<strong>${p1Name}:</strong> ${p1Score} pts | <strong>${p2Name}:</strong> ${p2Score} pts`;
+                if (p1Score > p2Score) { dom.winnerDisplay.textContent = `${p1Name} wins!`; }
+                else if (p2Score > p1Score) { dom.winnerDisplay.textContent = `${p2Name} wins!`; }
+                else { dom.winnerDisplay.textContent = "It's a tie!"; }
+                dom.badgesContainer.classList.add('hidden');
+            }
+            displayErrorReport();
+        }
+
+        function displayBadges(score, mistakes, time) {
+            dom.badgesContainer.innerHTML = `<div class="badge opacity-30" id="badge-virtuoso"><svg class="w-20 h-20 sm:w-24 sm:h-24 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L9 9l-7 1 5 5-1 7 6-4 6 4-1-7 5-5-7-1z"></path></svg><p class="mt-2 font-bold text-blue-600">Virtuoso</p></div><div class="badge opacity-30" id="badge-perfect"><svg class="w-20 h-20 sm:w-24 sm:h-24 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg><p class="mt-2 font-bold text-blue-600">Perfectionist</p></div><div class="badge opacity-30" id="badge-speed"><svg class="w-20 h-20 sm:w-24 sm:h-24 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg><p class="mt-2 font-bold text-blue-600">Speed Demon</p></div>`;
+            if (score > 0) { document.getElementById('badge-virtuoso').classList.add('earned'); playSound('badge'); }
+            if (mistakes === 0) { document.getElementById('badge-perfect').classList.add('earned'); playSound('badge'); }
+            if ((TOTAL_TEST_TIME - totalTimeRemaining) < (gameQuestions.length * 5)) { document.getElementById('badge-speed').classList.add('earned'); playSound('badge'); }
+            document.querySelectorAll('.badge.earned').forEach(badge => { badge.classList.remove('opacity-30'); badge.style.transform = 'scale(1.1) rotate(-5deg)'; });
+        }
+
+        function displayErrorReport() {
+            const allMistakes = gameMode === '1p' ? incorrectAnswers[1] : [...incorrectAnswers[1], ...incorrectAnswers[2]];
+            if (allMistakes.length > 0) {
+                dom.reviewMistakesBtn.classList.remove('hidden');
+                let errorHtml = '<h4 class="text-xl font-bold text-gray-800 mb-4">Review your answers:</h4>';
+                if (incorrectAnswers[1].length > 0) {
+                    errorHtml += `<h5 class="font-bold mt-4 mb-2 text-blue-700">${p1Name}'s Mistakes:</h5>`;
+                    incorrectAnswers[1].forEach(item => { errorHtml += formatErrorItem(item); });
+                }
+                if (gameMode === '2p' && incorrectAnswers[2].length > 0) {
+                    errorHtml += `<h5 class="font-bold mt-4 mb-2 text-purple-700">${p2Name}'s Mistakes:</h5>`;
+                    incorrectAnswers[2].forEach(item => { errorHtml += formatErrorItem(item); });
+                }
+                dom.errorReportDiv.innerHTML = errorHtml;
+            } else {
+                dom.errorReportDiv.innerHTML = '<h4 class="text-xl font-bold text-green-600 text-center">Great job! No mistakes!</h4>';
+            }
+        }
+
+        function formatErrorItem(item) { return `<div class="error-item mb-4 p-3 bg-gray-100 rounded-lg border-l-4 border-red-500"><strong class="text-gray-700">Q:</strong> ${item.question}<br><strong>Your answer:</strong> <span class="text-red-600 font-semibold">${item.chosen}</span><br><strong>Correct answer:</strong> <span class="text-green-600 font-semibold">${item.correct}</span></div>`; }
+        
+        function startReviewMode() {
+            isReviewMode = true;
+            const mistakes = [...new Set([...incorrectAnswers[1], ...incorrectAnswers[2]])]; // Unique mistakes
+            gameQuestions = mistakes;
+            currentQuestionIndex = 0;
+            dom.resultScreen.classList.add('hidden');
+            dom.quizScreen.classList.remove('hidden');
+            dom.mainTimerContainer.classList.add('hidden');
+            dom.questionTimerDisplay.classList.add('hidden');
+            dom.scoreDisplayP1.textContent = "Review Mode";
+            if (gameMode === '2p') dom.scoreDisplayP2.classList.add('hidden');
+            displayQuestion();
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [array[i], array[j]] = [array[j], array[i]]; }
+            return array;
+        }
+    </script>
+</body>
+</html>

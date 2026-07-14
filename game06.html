@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Hobby Listen-Up Adventure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <style>
+        /* Base styles */
+        body {
+            font-family: 'Patrick Hand', cursive;
+            background: #f3f4f6;
+            user-select: none;
+            overflow: hidden; /* Prevent body scroll */
+            touch-action: manipulation;
+        }
+        h1, h2, h3 {
+            font-family: 'Fredoka One', cursive;
+        }
+        /* Screen layout: Use min-height for flexibility and overflow for content */
+        .screen {
+            display: none;
+            width: 100%;
+            min-height: 100vh; /* Use min-height instead of height */
+            height: 100%; /* Allow content to define height */
+            padding: 1rem;
+            box-sizing: border-box;
+            overflow-y: auto; /* Allow scrolling if content overflows */
+        }
+        .active-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        /* Interactive element styling */
+        .btn {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+        .card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card-container:hover .card {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .choice-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .choice-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* Feedback animations */
+        .correct {
+            animation: correct-pulse 0.6s ease-in-out;
+            background-color: #4ade80 !important;
+            border: 4px solid #facc15;
+        }
+        .incorrect {
+            animation: shake 0.5s;
+            background-color: #f87171 !important;
+        }
+        .name-input.invalid {
+             border-color: #ef4444;
+             animation: shake 0.5s;
+        }
+        @keyframes correct-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        /* Celebration and badge styles */
+        #celebration-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7); z-index: 100;
+        }
+        #fireworks-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 101; pointer-events: none;
+        }
+        .badge-popup {
+            font-size: 4rem; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            animation: badge-animation 2.5s ease-out forwards;
+            pointer-events: none; z-index: 10;
+        }
+        @keyframes badge-animation {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(-360deg); opacity: 0; }
+            25% { transform: translate(-50%, -50%) scale(1.2) rotate(10deg); opacity: 1; }
+            80% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0; }
+        }
+        #toast-container {
+            position: fixed; top: 20px; right: 20px; z-index: 10000;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .toast {
+            background-color: #8be9fd; color: #282a36; padding: 15px 25px;
+            border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            font-weight: bold; opacity: 0; transform: translateX(100%);
+            animation: slideIn-out 4s ease forwards;
+        }
+        @keyframes slideIn-out {
+            0%, 100% { opacity: 0; transform: translateX(100%); }
+            10%, 90% { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Responsive Design Media Queries */
+        @media (max-width: 768px) { /* Tablet */
+            h1 { font-size: 3rem !important; }
+            h2 { font-size: 2.25rem !important; }
+            h3 { font-size: 1.75rem !important; }
+            .card { padding: 1.5rem !important; }
+            .btn { font-size: 1.25rem !important; padding: 0.75rem 1.5rem !important; }
+            .choice-card { font-size: 1rem !important; padding: 0.75rem !important; }
+        }
+        @media (max-width: 480px) { /* Mobile */
+            .screen { padding: 0.5rem; }
+            h1 { font-size: 2.5rem !important; }
+            h2 { font-size: 1.75rem !important; }
+            h3 { font-size: 1.5rem !important; }
+            .card { padding: 1rem !important; }
+            .btn { font-size: 1rem !important; padding: 0.5rem 1rem !important; }
+            .choice-card { font-size: 0.9rem !important; padding: 0.5rem !important; }
+            #game-screen-2p .flex-col.md\:flex-row { flex-direction: column; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Mode Selection Screen -->
+    <div id="mode-screen" class="screen active-screen p-4">
+        <h1 class="text-5xl md:text-7xl text-indigo-600 mb-4 text-center">Hobby Listen-Up</h1>
+        <h2 class="text-3xl md:text-5xl text-emerald-500 mb-10 text-center">What's your passion?</h2>
+        <div class="flex flex-col md:flex-row gap-8 w-full max-w-5xl mx-auto">
+            <!-- 1 Player -->
+            <div class="card-container w-full md:w-1/2">
+                <div class="card p-8 rounded-lg bg-sky-500 text-white border-b-4 border-sky-700 flex flex-col items-center justify-center text-center h-full">
+                    <h3 class="text-4xl font-bold">1-Player Adventure</h3>
+                    <input id="player-name-1p" type="text" placeholder="Enter your name" class="name-input text-xl p-2 rounded-lg border-2 border-sky-300 w-full max-w-xs my-4 text-black text-center">
+                    <!-- FIX: Increased button font size -->
+                    <button id="1-player-mode-btn" class="btn text-3xl bg-sky-700 hover:bg-sky-800 text-white font-bold py-3 px-8 rounded-full">Start Adventure</button>
+                </div>
+            </div>
+            <!-- 2 Player -->
+            <div class="card-container w-full md:w-1/2">
+                <div class="card p-8 rounded-lg bg-amber-500 text-white border-b-4 border-amber-700 flex flex-col items-center justify-center text-center h-full">
+                    <h3 class="text-4xl font-bold">2-Player Race</h3>
+                    <div class="w-full max-w-xs my-4 space-y-2">
+                         <input id="player-name-p1" type="text" placeholder="Player 1 Name" class="name-input text-xl p-2 rounded-lg border-2 border-amber-300 w-full text-black text-center">
+                         <input id="player-name-p2" type="text" placeholder="Player 2 Name" class="name-input text-xl p-2 rounded-lg border-2 border-amber-300 w-full text-black text-center">
+                    </div>
+                    <!-- FIX: Increased button font size -->
+                    <button id="2-player-mode-btn" class="btn text-3xl bg-amber-700 hover:bg-amber-800 text-white font-bold py-3 px-8 rounded-full">Start Race</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1-Player Game Screen -->
+    <div id="game-screen-1p" class="screen p-4 justify-start">
+        <div class="w-full max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl relative">
+            <div class="flex flex-wrap justify-between items-center p-4 border-b gap-2">
+                <h2 id="level-title" class="text-2xl md:text-3xl">Level A1</h2>
+                <div class="flex items-center gap-2 md:gap-4 text-xl md:text-2xl">
+                    <div id="timer-1p" class="font-bold text-red-500 w-24 text-center"></div>
+                    <div id="question-counter-1p" class="text-gray-600"></div>
+                    <div>💰 <span id="tokens-1p">0</span></div>
+                    <div>Score: <span id="score-1p">0</span></div>
+                </div>
+                <button id="quit-game-btn-1p" class="text-3xl text-gray-400 hover:text-red-500">&times;</button>
+            </div>
+            <div id="progress-bar-container" class="w-full bg-gray-200 h-4"><div id="progress-bar" class="bg-emerald-500 h-4 rounded-r-full transition-all duration-500" style="width: 0%"></div></div>
+            <div id="game-area-1p" class="p-6 min-h-[60vh] flex flex-col justify-center items-center"></div>
+        </div>
+    </div>
+    
+    <!-- Level Transition Screen -->
+    <div id="level-transition-screen" class="screen p-4 bg-indigo-600 text-white">
+        <h1 id="transition-level-title" class="text-6xl mb-4"></h1>
+        <p class="text-3xl">Get Ready!</p>
+    </div>
+
+    <!-- 2-Player Game Screen -->
+    <div id="game-screen-2p" class="screen p-2 md:p-4 justify-center items-stretch">
+        <div class="w-full h-full flex flex-col bg-white rounded-2xl shadow-2xl relative">
+            <div class="flex justify-between items-center p-2 md:p-4 border-b gap-4">
+                <div id="p1-info-2p" class="text-lg md:text-2xl text-blue-600 font-bold text-left truncate"></div>
+                <!-- FIX: Added 2P level display -->
+                <div id="level-title-2p" class="text-xl md:text-2xl text-gray-600 flex-shrink-0"></div>
+                <div id="timer-2p" class="text-2xl md:text-3xl text-red-500 font-bold flex-shrink-0">10:00</div>
+                <div id="p2-info-2p" class="text-lg md:text-2xl text-red-600 font-bold text-right truncate"></div>
+                <button id="quit-game-btn-2p" class="text-3xl text-gray-400 hover:text-red-500 flex-shrink-0">&times;</button>
+            </div>
+            <div id="central-question-area" class="text-center p-4 flex-grow flex flex-col justify-center items-center">
+                <h2 class="text-4xl">Get Ready...</h2>
+            </div>
+            <div class="flex flex-col md:flex-row border-t">
+                <div id="player1-area" class="player-area w-full md:w-1/2 p-4 border-b md:border-b-0 md:border-r text-center">
+                    <h3 id="p1-name-display" class="text-2xl font-bold text-blue-600 truncate">Player 1</h3>
+                    <div id="choices-p1" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4"></div>
+                </div>
+                <div id="player2-area" class="player-area w-full md:w-1/2 p-4 text-center">
+                    <h3 id="p2-name-display" class="text-2xl font-bold text-red-600 truncate">Player 2</h3>
+                    <div id="choices-p2" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Celebration Overlay -->
+    <div id="celebration-overlay" class="screen items-center justify-center" style="display: none;">
+        <canvas id="fireworks-canvas"></canvas>
+        <div class="bg-white p-8 rounded-2xl shadow-2xl text-center flex flex-col items-center max-w-lg">
+            <h1 id="celebration-title" class="text-5xl text-yellow-500 mb-4">Level Complete!</h1>
+            <div id="celebration-badge" class="text-8xl mb-4">🏆</div>
+            <p id="celebration-message" class="text-2xl mb-6"></p>
+            <div id="badges-display" class="flex flex-wrap justify-center gap-4 mb-6"></div>
+            <button id="celebration-continue-btn" class="btn text-2xl bg-emerald-500 text-white py-3 px-8 rounded-full">Continue</button>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DATA AND STATE ---
+        const hobbyMasterList = {
+            "gardening": { verb: "go", emoji: "🪴" }, "reading": { verb: "read", emoji: "📚" }, "swimming": { verb: "go", emoji: "🏊" }, "cooking": { verb: "do", emoji: "🍳" }, "singing": { verb: "go", emoji: "🎤" }, "dancing": { verb: "go", emoji: "💃" }, "running": { verb: "go", emoji: "🏃" }, "hiking": { verb: "go", emoji: "🚶" }, "fishing": { verb: "go", emoji: "🎣" }, "painting": { verb: "do", emoji: "🎨" }, "drawing": { verb: "do", emoji: "✏️" }, "shopping": { verb: "go", emoji: "🛍️" }, "watching TV": { verb: "watch", emoji: "📺" }, "listening to music": { verb: "listen to", emoji: "🎧" }, "playing guitar": { verb: "play", emoji: "🎸" }, "playing piano": { verb: "play", emoji: "🎹" }, "cycling": { verb: "go", emoji: "🚴" }, "walking": { verb: "go", emoji: "🚶" }, "traveling": { verb: "go", emoji: "✈️" }, "camping": { verb: "go", emoji: "🏕️" }, "knitting": { verb: "do", emoji: "🧶" }, "sewing": { verb: "do", emoji: "🧵" }, "cleaning": { verb: "do", emoji: "🧼" }, "sleeping": { verb: "go", emoji: "😴" }, "eating out": { verb: "go", emoji: "🍽️" },
+            "photography": { verb: "do", emoji: "📷" }, "baking": { verb: "do", emoji: "🍰" }, "yoga": { verb: "do", emoji: "🧘" }, "martial arts": { verb: "do", emoji: "🥋" }, "playing video games": { verb: "play", emoji: "🎮" }, "learning a language": { verb: "learn", emoji: "🗣️" }, "blogging": { verb: "read", emoji: "💻" }, "volunteering": { verb: "do", emoji: "🤝" }, "pottery": { verb: "do", emoji: "🏺" }, "calligraphy": { verb: "do", emoji: "✍️" }, "bird watching": { verb: "go", emoji: "🐦" }, "skateboarding": { verb: "go", emoji: "🛹" }, "rollerblading": { verb: "go", emoji: "🛼" }, "collecting stamps": { verb: "collect", emoji: "💌" }, "playing chess": { verb: "play", emoji: "♟️" }, "doing puzzles": { verb: "do", emoji: "🧩" }, "going to concerts": { verb: "go to", emoji: "🎶" }, "visiting museums": { verb: "visit", emoji: "🏛️" }, "stargazing": { verb: "go", emoji: "🔭" }, "origami": { verb: "do", emoji: "🦢" }, "jewelry making": { verb: "do", emoji: "💍" }, "woodworking": { verb: "do", emoji: "🪵" }, "sculpting": { verb: "do", emoji: "🗿" }, "acting": { verb: "watch", emoji: "🎭" }, "magic tricks": { verb: "do", emoji: "🎩" },
+            "scuba diving": { verb: "go", emoji: "🤿" }, "rock climbing": { verb: "go", emoji: "🧗" }, "snowboarding": { verb: "go", emoji: "🏂" }, "surfing": { verb: "go", emoji: "🏄" }, "kayaking": { verb: "go", emoji: "🛶" }, "canoeing": { verb: "go", emoji: "🛶" }, "archery": { verb: "do", emoji: "🏹" }, "fencing": { verb: "do", emoji: "🤺" }, "creative writing": { verb: "read", emoji: "📝" }, "podcasting": { verb: "listen to", emoji: "🎙️" }, "coding": { verb: "learn", emoji: "💻" }, "graphic design": { verb: "learn", emoji: "🎨" }, "animation": { verb: "learn", emoji: "🎞️" }, "filmmaking": { verb: "watch", emoji: "🎬" }, "debating": { verb: "do", emoji: "🗣️" }, "public speaking": { verb: "do", emoji: "🎤" }, "wine tasting": { verb: "go", emoji: "🍷" }, "beer brewing": { verb: "do", emoji: "🍺" }, "mixology": { verb: "do", emoji: "🍹" }, "urban exploration": { verb: "go", emoji: "🏙️" }, "geocaching": { verb: "go", emoji: "🗺️" }, "metal detecting": { verb: "go", emoji: "🔍" }, "drone flying": { verb: "go", emoji: "🛸" }, "lock picking": { verb: "practice", emoji: "🔐" }, "meditation": { verb: "do", emoji: "🧘" },
+            "mountaineering": { verb: "go", emoji: "🏔️" }, "BASE jumping": { verb: "go", emoji: "🪂" }, "wingsuit flying": { verb: "go", emoji: "🪂" }, "freediving": { verb: "go", emoji: "🤿" }, "spelunking": { verb: "go", emoji: "🔦" }, "parkour": { verb: "do", emoji: "🤸" }, "historical reenactment": { verb: "do", emoji: "⚔️" }, "blacksmithing": { verb: "do", emoji: "🔨" }, "glassblowing": { verb: "do", emoji: "🔥" }, "cryptocurrency trading": { verb: "do", emoji: "📈" }, "ethical hacking": { verb: "do", emoji: "💻" }, "mycology": { verb: "do", emoji: "🍄" }, "robotics": { verb: "do", emoji: "🤖" }, "astrophotography": { verb: "do", emoji: "🌌" }, "competitive eating": { verb: "do", emoji: "🏆" }, "storm chasing": { verb: "go", emoji: "🌪️" }, "genealogy": { verb: "do", emoji: "🌳" }, "antique restoration": { verb: "do", emoji: "🏺" }, "lepidopterology": { verb: "do", emoji: "🦋" }, "bonsai cultivation": { verb: "do", emoji: "🌳" }, "horology": { verb: "do", emoji: "🕰️" }, "sous-vide cooking": { verb: "do", emoji: "🍳" }, "molecular gastronomy": { verb: "do", emoji: "🧪" }, "typeface design": { verb: "do", emoji: "✒️" }, "cryptology": { verb: "do", emoji: "🤫" }
+        };
+        const hobbyData = {};
+        const badgeData = {
+            'A1_COMPLETE': { name: 'A1 Hobbyist', icon: '🎨' }, 'A2_COMPLETE': { name: 'A2 Enthusiast', icon: '📷' },
+            'B1_COMPLETE': { name: 'B1 Specialist', icon: '🎯' }, 'B2_COMPLETE': { name: 'B2 Expert', icon: '🌟' },
+            'STREAK_5': { name: 'Good Form', icon: '👍'},
+            'STREAK_10': { name: 'Passionate', icon: '🔥' }, 
+            'PERFECT_LEVEL': { name: 'Masterpiece', icon: '🎯' },
+            'GAME_COMPLETE': { name: 'Renaissance Person', icon: '🧑‍⚖️' },
+            'QUICK_THINKER': { name: 'Quick Reflexes', icon: '⚡️' }
+        };
+        const gameState = { mode: null, playerName: '', playerNameP1: '', playerNameP2: '', currentScreen: 'mode-screen', score1P: 0, tokens1P: 0, streak1P: 0, levelErrors1P: 0, unlockedBadges1P: new Set(), currentLevel: 'A1', current1PQuestionIndex: 0, questionTimerInterval: null, timeLeft: 30, scoreP1: 0, scoreP2: 0, twoPlayerQuestionSet: [], current2PQuestionIndex: 0, currentLevel2P: 'A1', claimedMilestones: [], gameTimerInterval: null, totalTimeLeft: 600 };
+
+        // --- AUDIO & SPEECH ---
+        const synth = window.speechSynthesis;
+        let preferredVoices = [];
+        let voiceIndex = 0;
+        let correctSound, incorrectSound, celebrationSound, badgeSound, timerTickSound;
+        const correctFeedback = ["Great hobby!", "Sounds fun!", "You got it!", "Excellent choice!", "Perfect!", "You're on a roll!"];
+        const incorrectFeedback = ["Not quite!", "Think about the context!", "Keep trying!", "Don't give up!", "You'll get the next one!"];
+
+        function loadVoices() {
+            const setVoices = () => {
+                const allVoices = synth.getVoices();
+                preferredVoices = allVoices.filter(voice => (voice.lang === 'en-US' || voice.lang === 'en-GB' || voice.lang === 'en-AU') && /neural|natural/i.test(voice.name));
+                if (preferredVoices.length === 0) {
+                    preferredVoices = allVoices.filter(voice => voice.lang.startsWith('en'));
+                }
+            };
+            if (synth.onvoiceschanged !== undefined) {
+                synth.onvoiceschanged = setVoices;
+            }
+            setVoices();
+        }
+
+        function speak(text, rate = 0.85) {
+            if (Tone.context.state !== 'running') { Tone.start().catch(e => console.error("Could not start Tone.js AudioContext:", e)); }
+            if (synth.speaking) synth.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            if (preferredVoices.length > 0) {
+                utterance.voice = preferredVoices[voiceIndex];
+                voiceIndex = (voiceIndex + 1) % preferredVoices.length;
+            }
+            utterance.lang = 'en-US';
+            utterance.rate = rate;
+            synth.speak(utterance);
+        }
+
+        // --- GAME LOGIC ---
+        function generateHobbyData() {
+            const hobbies = {
+                A1: ["gardening", "reading", "swimming", "cooking", "singing", "dancing", "running", "hiking", "fishing", "painting", "drawing", "shopping", "watching TV", "listening to music", "playing guitar", "playing piano", "cycling", "walking", "traveling", "camping", "knitting", "sewing", "cleaning", "sleeping", "eating out"],
+                A2: ["photography", "baking", "yoga", "martial arts", "playing video games", "learning a language", "blogging", "volunteering", "pottery", "calligraphy", "bird watching", "skateboarding", "rollerblading", "collecting stamps", "playing chess", "doing puzzles", "going to concerts", "visiting museums", "stargazing", "origami", "jewelry making", "woodworking", "sculpting", "acting", "magic tricks"],
+                B1: ["scuba diving", "rock climbing", "snowboarding", "surfing", "kayaking", "canoeing", "archery", "fencing", "creative writing", "podcasting", "coding", "graphic design", "animation", "filmmaking", "debating", "public speaking", "wine tasting", "beer brewing", "mixology", "urban exploration", "geocaching", "metal detecting", "drone flying", "lock picking", "meditation"],
+                B2: ["mountaineering", "BASE jumping", "wingsuit flying", "freediving", "spelunking", "parkour", "historical reenactment", "blacksmithing", "glassblowing", "cryptocurrency trading", "ethical hacking", "mycology", "robotics", "astrophotography", "competitive eating", "storm chasing", "genealogy", "antique restoration", "lepidopterology", "bonsai cultivation", "horology", "sous-vide cooking", "molecular gastronomy", "typeface design", "cryptology"]
+            };
+
+            const A1_TEMPLATES = [ "I like [D1], but I really love [FAVORITE].", "I sometimes enjoy [D1]. I always enjoy [FAVORITE].", "My favorite hobby is [FAVORITE]. I also like to do [D1].", "My main hobby is [FAVORITE], even though I sometimes try [D1].", "While [D1] is fun, my true passion is [FAVORITE].", "[FAVORITE] is what I enjoy the most, more so than [D1].", "I'm not a big fan of [D1], I much prefer [FAVORITE].", "I spend a lot of time on [FAVORITE], and a little bit of time on [D1].", "Between [D1] and [FAVORITE], I'll always choose [FAVORITE].", "My friend likes [D1], but I think [FAVORITE] is better.", "I used to do [D1], but now my favorite is [FAVORITE].", "If I have to choose one hobby, it's [FAVORITE], not [D1].", "I find [D1] a bit boring; my favorite is [FAVORITE].", "I'm always excited for [FAVORITE], but not so much for [D1].", "The best hobby is [FAVORITE], although [D1] is okay too." ];
+            const A2_TEMPLATES = [ "On weekends, I enjoy being active. Sometimes that means [D1], but my main hobby is [FAVORITE].", "My family is sporty. My dad is into [D1], but personally, I prefer [FAVORITE].", "Lots of my friends are into [D1], which is cool. For me, though, my top choice is always [FAVORITE].", "I've tried [D1] and [D2], but neither is as enjoyable as [FAVORITE].", "My passion for [FAVORITE] is much stronger than my interest in [D1].", "I'd rather be doing [FAVORITE] than [D1] any day of the week.", "While some people enjoy [D1], I find my bliss in [FAVORITE].", "I'm known for my love of [FAVORITE], though I occasionally dabble in [D1].", "My schedule is packed with [FAVORITE], leaving little time for things like [D1] or [D2].", "If you ask me, [FAVORITE] is the most rewarding hobby, unlike [D1].", "I find [D1] to be a bit overrated; I'm all about [FAVORITE].", "I can't imagine my life without [FAVORITE], but I could easily give up [D1].", "My skills in [D1] are okay, but my real talent lies in [FAVORITE].", "Let's do [FAVORITE] this weekend! I'm not really in the mood for [D1].", "I'm saving up for new gear for [FAVORITE], so I've cut back on spending for [D1]." ];
+            const B1_TEMPLATES = [ "While I appreciate an activity like [D1], it doesn't captivate me as much as [FAVORITE].", "I used to be quite interested in [D1], but lately I've really gotten into [FAVORITE].", "After considering both [D1] and [D2], I've decided to dedicate my time to [FAVORITE].", "The complexities of [FAVORITE] are far more engaging to me than the straightforward nature of [D1].", "My commitment to [FAVORITE] means I have less time for other pursuits like [D1].", "Although [D1] has its merits, it simply can't compare to the fulfillment I get from [FAVORITE].", "I've explored various hobbies, including [D1] and [D2], but [FAVORITE] is the one that truly resonates with me.", "Some people might prefer the social aspect of [D1], but I'm drawn to the personal challenge of [FAVORITE].", "My focus has shifted from [D1] to [FAVORITE] because I find it more intellectually stimulating.", "I find that [FAVORITE] offers a unique blend of creativity and skill that is lacking in [D1].", "You could say I'm a specialist in [FAVORITE], whereas my knowledge of [D1] is only superficial.", "I've moved on from introductory hobbies like [D1] and am now fully invested in [FAVORITE].", "The community around [D1] is great, but the personal growth I've experienced through [FAVORITE] is unparalleled.", "I recommend [D1] for beginners, but for a real challenge, my favorite is [FAVORITE].", "I've achieved a certain level of mastery in [FAVORITE], which is something I never felt with [D1]." ];
+            const B2_TEMPLATES = [ "Despite the intellectual rigor of pursuits like [D1], the discipline that captivates me most is without a doubt [FAVORITE].", "While many find [D1] fascinating, the field I find most compelling is [FAVORITE].", "Debates about the merits of [D1] versus [D2] are common, but they often overlook the unique blend of skill and dedication found in [FAVORITE].", "The niche community around [FAVORITE] is something I value more than the mainstream appeal of [D1].", "My expertise in [FAVORITE] is something I'm proud of, whereas I consider my experience with [D1] to be purely recreational.", "While [D1] is an interesting diversion, [FAVORITE] is what I consider to be my true calling.", "The technical demands of [FAVORITE] are what set it apart from more accessible hobbies like [D1] and [D2].", "I've found that [FAVORITE] requires a long-term commitment that is not necessary for a casual hobby like [D1].", "My contribution to the field of [FAVORITE] is something I hope to be remembered for, unlike my fleeting interest in [D1].", "The philosophical underpinnings of [FAVORITE] are what truly engage me, something I never found in [D1].", "While [D1] can be learned in a weekend, [FAVORITE] is a lifelong pursuit for me.", "I've published articles about [FAVORITE], but I've only read a few blog posts about [D1].", "The equipment required for [FAVORITE] is highly specialized, unlike the common tools used for [D1].", "I find the historical context of [FAVORITE] to be richer and more complex than that of [D1].", "My ultimate goal is to become a world-renowned expert in [FAVORITE], which is why I've stopped pursuing [D1]." ];
+
+            const generateLevel = (hobbyList, scriptTemplates, count = 25) => {
+                let levelData = [];
+                let usedHobbies = new Set();
+                for (let i = 0; i < count; i++) {
+                    let favorite, d1, d2;
+                    let attempts = 0;
+                    do {
+                        favorite = hobbyList[Math.floor(Math.random() * hobbyList.length)];
+                        d1 = hobbyList[Math.floor(Math.random() * hobbyList.length)];
+                        d2 = hobbyList[Math.floor(Math.random() * hobbyList.length)];
+                        attempts++;
+                    } while ((usedHobbies.has(favorite) || favorite === d1 || favorite === d2 || d1 === d2) && attempts < 100);
+                    usedHobbies.add(favorite);
+                    
+                    let options = new Set([favorite, d1, d2]);
+                    while (options.size < 4) {
+                        const randomHobby = hobbyList[Math.floor(Math.random() * hobbyList.length)];
+                        if (!options.has(randomHobby)) options.add(randomHobby);
+                    }
+
+                    const template = scriptTemplates[Math.floor(Math.random() * scriptTemplates.length)];
+                    const script = template
+                        .replace(/\[FAVORITE\]/g, favorite)
+                        .replace(/\[D1\]/g, d1)
+                        .replace(/\[D2\]/g, d2);
+
+                    levelData.push({ script: script, favorite: favorite, options: Array.from(options) });
+                }
+                return levelData;
+            };
+
+            hobbyData['A1'] = generateLevel(hobbies.A1, A1_TEMPLATES);
+            hobbyData['A2'] = generateLevel(hobbies.A2, A2_TEMPLATES);
+            hobbyData['B1'] = generateLevel(hobbies.B1, B1_TEMPLATES);
+            hobbyData['B2'] = generateLevel(hobbies.B2, B2_TEMPLATES);
+        }
+
+        // --- UTILITY FUNCTIONS ---
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function showInvalidInput(inputElement) {
+            inputElement.classList.add('invalid');
+            const originalPlaceholder = inputElement.placeholder;
+            inputElement.placeholder = "Name is required!";
+            setTimeout(() => {
+                inputElement.classList.remove('invalid');
+                inputElement.placeholder = originalPlaceholder;
+            }, 2000);
+        }
+        
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active-screen'));
+            document.getElementById(screenId).classList.add('active-screen');
+            gameState.currentScreen = screenId;
+        }
+
+        // --- 1-PLAYER MODE ---
+        function start1PlayerMode() {
+            gameState.mode = '1P';
+            gameState.score1P = 0;
+            gameState.tokens1P = 0;
+            gameState.streak1P = 0;
+            gameState.levelErrors1P = 0;
+            gameState.unlockedBadges1P.clear();
+            gameState.current1PQuestionIndex = 0;
+            gameState.currentLevel = 'A1';
+            showScreen('game-screen-1p');
+            generate1PQuestion();
+        }
+
+        function generate1PQuestion() {
+            const totalQuestions = 100;
+            if (gameState.current1PQuestionIndex >= totalQuestions) {
+                end1PGame();
+                return;
+            }
+            
+            const questionIndexInLevel = gameState.current1PQuestionIndex % 25;
+            const question = hobbyData[gameState.currentLevel][questionIndexInLevel];
+            
+            update1PHUD(totalQuestions);
+            start1PTimer();
+
+            const gameArea = document.getElementById('game-area-1p');
+            gameArea.innerHTML = `
+                <h2 class="text-3xl mb-4 text-center">Listen and choose the favorite hobby!</h2>
+                <div id="feedback-area-1p" class="text-8xl h-24 flex items-center justify-center"></div>
+                <div id="choices-1p" class="grid grid-cols-2 gap-4 w-full max-w-2xl mt-8"></div>
+            `;
+            
+            speak(question.script, 0.85);
+            
+            setTimeout(() => {
+                const choicesContainer = document.getElementById('choices-1p');
+                if (choicesContainer) {
+                    // FIX: Increased choice card font size
+                    choicesContainer.innerHTML = shuffleArray(question.options).map(opt => 
+                        `<button class="choice-card bg-white text-2xl p-4 rounded-lg shadow-md" data-answer="${opt}">${opt.toLowerCase()}</button>`
+                    ).join('');
+                    choicesContainer.querySelectorAll('.choice-card').forEach(btn => {
+                        btn.onclick = (e) => handle1PAnswer(e.target.dataset.answer === question.favorite, e.target, question.favorite);
+                    });
+                }
+            }, 500);
+        }
+        
+        function handle1PAnswer(isCorrect, element, favorite) {
+            stop1PTimer();
+            document.querySelectorAll('#choices-1p .choice-card').forEach(btn => btn.disabled = true);
+            const feedbackEl = document.getElementById('feedback-area-1p');
+
+            if (isCorrect) {
+                gameState.score1P += 10 + gameState.streak1P; // Bonus for streaks
+                gameState.tokens1P++;
+                gameState.streak1P++;
+                element.classList.add('correct');
+                feedbackEl.innerHTML = hobbyMasterList[favorite].emoji;
+                correctSound?.triggerAttackRelease("C5", "8n");
+                check1PStreakBadges();
+            } else {
+                gameState.streak1P = 0;
+                gameState.levelErrors1P++;
+                element.classList.add('incorrect');
+                feedbackEl.innerHTML = `<span class="text-red-500 text-4xl text-center">It was ${favorite.toLowerCase()}!</span>`;
+                incorrectSound?.triggerAttackRelease("A2", "8n");
+            }
+            
+            setTimeout(() => {
+                gameState.current1PQuestionIndex++;
+                
+                // --- FIX: Level transition logic moved here ---
+                const levelOrder = ['A1', 'A2', 'B1', 'B2'];
+                const questionsInLevel = 25;
+                if (gameState.current1PQuestionIndex > 0 && gameState.current1PQuestionIndex % questionsInLevel === 0) {
+                    check1PLevelBadges();
+                    const currentLevelIndex = levelOrder.indexOf(gameState.currentLevel);
+                    const nextLevelIndex = currentLevelIndex + 1;
+                    if (nextLevelIndex < levelOrder.length) {
+                        gameState.currentLevel = levelOrder[nextLevelIndex];
+                        showLevelTransition(gameState.currentLevel, generate1PQuestion);
+                        return; // Stop execution to show transition
+                    }
+                }
+                // --- END OF FIX ---
+
+                generate1PQuestion();
+            }, 2000);
+        }
+        
+        function start1PTimer() {
+            stop1PTimer();
+            gameState.timeLeft = 30;
+            const timerEl = document.getElementById('timer-1p');
+            timerEl.textContent = `Time: ${gameState.timeLeft}`;
+            gameState.questionTimerInterval = setInterval(() => {
+                gameState.timeLeft--;
+                timerEl.textContent = `Time: ${gameState.timeLeft}`;
+                if (gameState.timeLeft <= 5 && gameState.timeLeft > 0) {
+                    timerTickSound?.triggerAttackRelease("E5", "16n");
+                }
+                if (gameState.timeLeft <= 0) {
+                    const questionIndexInLevel = gameState.current1PQuestionIndex % 25;
+                    const question = hobbyData[gameState.currentLevel][questionIndexInLevel];
+                    const choiceCard = document.querySelector('#choices-1p .choice-card');
+                    if (choiceCard) {
+                        handle1PAnswer(false, choiceCard, question.favorite);
+                    }
+                }
+            }, 1000);
+        }
+        
+        function stop1PTimer() {
+            clearInterval(gameState.questionTimerInterval);
+        }
+
+        function update1PHUD(totalQuestions) {
+            document.getElementById('level-title').textContent = `Level ${gameState.currentLevel}`;
+            document.getElementById('score-1p').textContent = gameState.score1P;
+            document.getElementById('tokens-1p').textContent = gameState.tokens1P;
+            document.getElementById('question-counter-1p').textContent = `Q: ${gameState.current1PQuestionIndex + 1}/${totalQuestions}`;
+            document.getElementById('progress-bar').style.width = `${((gameState.current1PQuestionIndex + 1) / totalQuestions) * 100}%`;
+        }
+        
+        function end1PGame() {
+            stop1PTimer();
+            check1PLevelBadges(); // Check for last level badges
+            gameState.unlockedBadges1P.add('GAME_COMPLETE');
+
+            document.getElementById('celebration-title').textContent = `Adventure Complete!`;
+            document.getElementById('celebration-badge').textContent = '🎉';
+            document.getElementById('celebration-message').textContent = `Great job, ${gameState.playerName}! You finished with ${gameState.score1P} points.`;
+            
+            const badgesDisplay = document.getElementById('badges-display');
+            badgesDisplay.innerHTML = '';
+            gameState.unlockedBadges1P.forEach(badgeId => {
+                const badge = badgeData[badgeId];
+                badgesDisplay.innerHTML += `<div class="text-center"><div class="text-4xl">${badge.icon}</div><div class="text-sm">${badge.name}</div></div>`;
+            });
+
+            document.getElementById('celebration-continue-btn').textContent = 'Play Again';
+            showScreen('celebration-overlay');
+            celebrationSound?.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n");
+            startFireworks();
+        }
+
+        function showLevelTransition(level, callback) {
+            stop1PTimer();
+            document.getElementById('transition-level-title').textContent = `Level ${level}`;
+            showScreen('level-transition-screen');
+            celebrationSound?.triggerAttackRelease(["C4", "G4"], "4n");
+            setTimeout(() => {
+                showScreen('game-screen-1p');
+                callback();
+            }, 2500);
+        }
+
+        function check1PStreakBadges() {
+            if (gameState.streak1P === 10) {
+                const badgeId = 'STREAK_10';
+                if (!gameState.unlockedBadges1P.has(badgeId)) {
+                    gameState.unlockedBadges1P.add(badgeId);
+                    showToast(badgeData[badgeId]);
+                }
+            } else if (gameState.streak1P === 5) {
+                const badgeId = 'STREAK_5';
+                if (!gameState.unlockedBadges1P.has(badgeId)) {
+                    gameState.unlockedBadges1P.add(badgeId);
+                    showToast(badgeData[badgeId]);
+                }
+            }
+        }
+
+        function check1PLevelBadges() {
+            const badgeId = `${gameState.currentLevel}_COMPLETE`;
+            if (badgeData[badgeId] && !gameState.unlockedBadges1P.has(badgeId)) {
+                gameState.unlockedBadges1P.add(badgeId);
+                showToast(badgeData[badgeId]);
+            }
+            if (gameState.levelErrors1P === 0) {
+                const perfectBadgeId = 'PERFECT_LEVEL';
+                if (!gameState.unlockedBadges1P.has(perfectBadgeId)) {
+                    gameState.unlockedBadges1P.add(perfectBadgeId);
+                    showToast(badgeData[perfectBadgeId]);
+                }
+            }
+            gameState.levelErrors1P = 0; // Reset for next level
+        }
+
+        // --- 2-PLAYER MODE ---
+        function start2PlayerMode() {
+            gameState.mode = '2P';
+            gameState.scoreP1 = 0;
+            gameState.scoreP2 = 0;
+            gameState.current2PQuestionIndex = 0;
+            gameState.claimedMilestones = [];
+            let allQuestions = [].concat(...Object.values(hobbyData));
+            gameState.twoPlayerQuestionSet = shuffleArray(allQuestions);
+            gameState.currentLevel2P = 'A1';
+            
+            document.getElementById('p1-name-display').textContent = gameState.playerNameP1;
+            document.getElementById('p2-name-display').textContent = gameState.playerNameP2;
+            update2PHUD();
+            showScreen('game-screen-2p');
+            startGameTimer2P();
+            generate2PQuestion();
+        }
+
+        function generate2PQuestion() {
+            if (gameState.current2PQuestionIndex >= gameState.twoPlayerQuestionSet.length) {
+                end2PGame();
+                return;
+            }
+            update2PHUD();
+            const question = gameState.twoPlayerQuestionSet[gameState.current2PQuestionIndex];
+            const centralArea = document.getElementById('central-question-area');
+            centralArea.innerHTML = `<h2 class="text-4xl animate-pulse">Listen...</h2>`;
+            
+            document.getElementById('choices-p1').innerHTML = '';
+            document.getElementById('choices-p2').innerHTML = '';
+
+            setTimeout(() => {
+                speak(question.script, 0.85);
+                const options = shuffleArray(question.options);
+                const choicesP1 = document.getElementById('choices-p1');
+                const choicesP2 = document.getElementById('choices-p2');
+                // FIX: Increased choice card font size
+                const choiceHTML = (player) => options.map(opt => `<button class="choice-card ${player === 1 ? 'bg-blue-200' : 'bg-red-200'} p-4 md:p-6 text-2xl md:text-3xl rounded-lg shadow-md" data-answer="${opt}" data-player="${player}">${opt.toLowerCase()}</button>`).join('');
+
+                choicesP1.innerHTML = choiceHTML(1);
+                choicesP2.innerHTML = choiceHTML(2);
+                
+                document.querySelectorAll('#choices-p1 .choice-card, #choices-p2 .choice-card').forEach(btn => {
+                    btn.onclick = (e) => handle2PAnswer(e.target.dataset.answer === question.favorite, e.target);
+                });
+            }, 1000);
+        }
+
+        // FIX: Added 2P level transition function
+        function showLevelTransition2P(level, callback) {
+            const centralArea = document.getElementById('central-question-area');
+            centralArea.innerHTML = `<h1 class="text-6xl text-indigo-500">Level ${level}</h1><p class="text-3xl">Get Ready!</p>`;
+            document.getElementById('choices-p1').innerHTML = '';
+            document.getElementById('choices-p2').innerHTML = '';
+            celebrationSound?.triggerAttackRelease(["C4", "G4"], "4n");
+            setTimeout(callback, 2500);
+        }
+
+        function handle2PAnswer(isCorrect, element) {
+            document.querySelectorAll('#choices-p1 .choice-card, #choices-p2 .choice-card').forEach(btn => btn.disabled = true);
+            const player = parseInt(element.dataset.player);
+            const question = gameState.twoPlayerQuestionSet[gameState.current2PQuestionIndex];
+            const centralArea = document.getElementById('central-question-area');
+
+            if (isCorrect) {
+                if (player === 1) gameState.scoreP1++;
+                else gameState.scoreP2++;
+                element.classList.add('correct');
+                centralArea.innerHTML = `<div class="text-9xl">${hobbyMasterList[question.favorite].emoji}</div>`;
+                correctSound?.triggerAttackRelease("G5", "16n");
+                speak(correctFeedback[Math.floor(Math.random() * correctFeedback.length)], 0.85);
+                check2PScoreMilestones(player);
+            } else {
+                if (player === 1) {
+                    gameState.scoreP1 = Math.max(0, gameState.scoreP1 - 1);
+                    gameState.scoreP2++;
+                    check2PScoreMilestones(2);
+                } else {
+                    gameState.scoreP2 = Math.max(0, gameState.scoreP2 - 1);
+                    gameState.scoreP1++;
+                    check2PScoreMilestones(1);
+                }
+                element.classList.add('incorrect');
+                centralArea.innerHTML = `<h2 class="text-5xl text-red-500">Incorrect!</h2><p class="text-2xl mt-2">It was ${question.favorite.toLowerCase()}</p>`;
+                incorrectSound?.triggerAttackRelease("A2", "8n");
+                speak(incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)], 0.85);
+            }
+            
+            update2PHUD();
+            setTimeout(() => {
+                gameState.current2PQuestionIndex++;
+
+                // --- FIX: 2P Level transition logic added here ---
+                const levelOrder = ['A1', 'A2', 'B1', 'B2'];
+                const questionsInLevel = 25;
+                if (gameState.current2PQuestionIndex > 0 && gameState.current2PQuestionIndex % questionsInLevel === 0) {
+                    const currentLevelIndex = levelOrder.indexOf(gameState.currentLevel2P);
+                    if (currentLevelIndex < levelOrder.length - 1) {
+                        gameState.currentLevel2P = levelOrder[currentLevelIndex + 1];
+                        showLevelTransition2P(gameState.currentLevel2P, generate2PQuestion);
+                        return; // Stop for transition
+                    }
+                }
+                // --- END OF FIX ---
+
+                generate2PQuestion();
+            }, 2000);
+        }
+        
+        function startGameTimer2P() {
+            stopGameTimer2P();
+            gameState.totalTimeLeft = 600; // 10 minutes
+            const timerEl = document.getElementById('timer-2p');
+            
+            gameState.gameTimerInterval = setInterval(() => {
+                gameState.totalTimeLeft--;
+                const minutes = Math.floor(gameState.totalTimeLeft / 60);
+                const seconds = gameState.totalTimeLeft % 60;
+                timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                if (gameState.totalTimeLeft <= 10 && gameState.totalTimeLeft > 0) {
+                    timerTickSound?.triggerAttackRelease("E5", "16n");
+                }
+                if (gameState.totalTimeLeft <= 0) {
+                    end2PGame();
+                }
+            }, 1000);
+        }
+
+        function stopGameTimer2P() {
+            clearInterval(gameState.gameTimerInterval);
+        }
+
+        function update2PHUD() {
+            document.getElementById('p1-info-2p').textContent = `${gameState.playerNameP1}: ${gameState.scoreP1}`;
+            document.getElementById('p2-info-2p').textContent = `${gameState.playerNameP2}: ${gameState.scoreP2}`;
+            // FIX: Update 2P level display
+            document.getElementById('level-title-2p').textContent = `Level ${gameState.currentLevel2P}`;
+        }
+
+        function check2PScoreMilestones(player) {
+            const playerScore = player === 1 ? gameState.scoreP1 : gameState.scoreP2;
+            const milestones = [
+                { score: 100, badge: '🏆', name: 'Master' }, // FIX: Corrected broken emoji
+                { score: 75, badge: '🥇', name: 'Gold' },
+                { score: 50, badge: '🥈', name: 'Silver' },
+                { score: 25, badge: '🥉', name: 'Bronze' }
+            ];
+            for (const milestone of milestones) {
+                const milestoneId = `${player}-${milestone.score}`;
+                if (playerScore >= milestone.score && !gameState.claimedMilestones.includes(milestoneId)) {
+                    gameState.claimedMilestones.push(milestoneId);
+                    showBadgeNotification(player, milestone.badge);
+                    badgeSound?.triggerAttackRelease("C6", "8n");
+                    break;
+                }
+            }
+        }
+
+        function showBadgeNotification(player, badge) {
+            const playerArea = document.getElementById(`player${player}-area`);
+            const badgeEl = document.createElement('div');
+            badgeEl.className = 'badge-popup';
+            badgeEl.innerHTML = badge;
+            playerArea.appendChild(badgeEl);
+            setTimeout(() => badgeEl.remove(), 2500);
+        }
+        
+        function end2PGame() {
+            stopGameTimer2P();
+            let winnerMessage;
+            if (gameState.scoreP1 > gameState.scoreP2) winnerMessage = `${gameState.playerNameP1} wins!`;
+            else if (gameState.scoreP2 > gameState.scoreP1) winnerMessage = `${gameState.playerNameP2} wins!`;
+            else winnerMessage = "It's a tie!";
+
+            document.getElementById('celebration-title').textContent = `Game Over!`;
+            document.getElementById('celebration-badge').textContent = '🏁';
+            document.getElementById('celebration-message').textContent = `${winnerMessage} (${gameState.scoreP1} to ${gameState.scoreP2})`;
+            document.getElementById('celebration-continue-btn').textContent = 'Play Again';
+            showScreen('celebration-overlay');
+            celebrationSound?.triggerAttackRelease(["C4", "G4", "C5", "E5"], "2n");
+            startFireworks();
+        }
+
+        function showToast(badge) {
+            const toastContainer = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `${badge.icon} Badge Unlocked: ${badge.name}`;
+            toastContainer.appendChild(toast);
+            setTimeout(() => toast.remove(), 3900);
+        }
+
+        // --- EVENT LISTENERS ---
+        document.getElementById('1-player-mode-btn').onclick = () => {
+            const name = document.getElementById('player-name-1p').value.trim();
+            if (name) {
+                gameState.playerName = name;
+                start1PlayerMode();
+            } else {
+                showInvalidInput(document.getElementById('player-name-1p'));
+            }
+        };
+
+        document.getElementById('2-player-mode-btn').onclick = () => {
+            const nameP1 = document.getElementById('player-name-p1').value.trim();
+            const nameP2 = document.getElementById('player-name-p2').value.trim();
+            let valid = true;
+            if (!nameP1) { showInvalidInput(document.getElementById('player-name-p1')); valid = false; }
+            if (!nameP2) { showInvalidInput(document.getElementById('player-name-p2')); valid = false; }
+            if (valid) {
+                gameState.playerNameP1 = nameP1;
+                gameState.playerNameP2 = nameP2;
+                start2PlayerMode();
+            }
+        };
+        
+        document.getElementById('quit-game-btn-1p').onclick = () => { stop1PTimer(); showScreen('mode-screen'); };
+        document.getElementById('quit-game-btn-2p').onclick = () => { stopGameTimer2P(); showScreen('mode-screen'); };
+        document.getElementById('celebration-continue-btn').onclick = () => {
+            stopFireworks();
+            showScreen('mode-screen');
+        };
+
+        // --- INITIALIZATION ---
+        if (typeof Tone !== 'undefined') {
+            document.body.addEventListener('click', () => Tone.start(), { once: true });
+            correctSound = new Tone.Synth().toDestination();
+            incorrectSound = new Tone.Synth({ oscillator: { type: 'square' } }).toDestination();
+            celebrationSound = new Tone.PolySynth(Tone.Synth).toDestination();
+            badgeSound = new Tone.Synth({ oscillator: { type: 'triangle' } }).toDestination();
+            timerTickSound = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0 } }).toDestination();
+            timerTickSound.volume.value = -12;
+        }
+        generateHobbyData();
+        showScreen('mode-screen');
+        loadVoices();
+    });
+
+    // --- FIREWORKS (for celebration) ---
+    const fireworksCanvas = document.getElementById('fireworks-canvas');
+    const ctx = fireworksCanvas.getContext('2d');
+    let fireworks = [];
+    let fireworksAnimationId;
+    function startFireworks() {
+        fireworksCanvas.width = window.innerWidth;
+        fireworksCanvas.height = window.innerHeight;
+        fireworks = [];
+        function loop() {
+            if (Math.random() < 0.05) fireworks.push(new Firework());
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+            ctx.globalCompositeOperation = 'lighter';
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+                if(fireworks[i].update()) fireworks.splice(i, 1);
+                else fireworks[i].draw();
+            }
+            fireworksAnimationId = requestAnimationFrame(loop);
+        }
+        loop();
+    }
+    function stopFireworks() { cancelAnimationFrame(fireworksAnimationId); fireworks = []; ctx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height); }
+    class Firework {
+        constructor() {
+            this.x = Math.random() * fireworksCanvas.width;
+            this.y = fireworksCanvas.height;
+            this.targetY = Math.random() * (fireworksCanvas.height / 2);
+            this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+            this.particles = [];
+            this.exploded = false;
+        }
+        update() {
+            if (!this.exploded) {
+                this.y -= 4;
+                if (this.y < this.targetY) {
+                    this.exploded = true;
+                    for (let i = 0; i < 50; i++) this.particles.push(new Particle(this.x, this.y, this.color));
+                }
+            } else {
+                for (let i = 0; i < this.particles.length; i++) {
+                    this.particles[i].update();
+                }
+            }
+            return this.exploded && this.particles.every(p => p.alpha <= 0);
+        }
+        draw() {
+            if (!this.exploded) {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                for (let i = 0; i < this.particles.length; i++) {
+                    this.particles[i].draw();
+                }
+            }
+        }
+    }
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y; this.color = color;
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 6 + 1;
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+            this.alpha = 1;
+            this.friction = 0.98;
+        }
+        update() { this.vx *= this.friction; this.vy *= this.friction; this.x += this.vx; this.y += this.vy; this.alpha -= 0.02; }
+        draw() {
+            ctx.globalAlpha = this.alpha;
+            ctx.fillStyle = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+        }
+    }
+    </script>
+</body>
+</html>

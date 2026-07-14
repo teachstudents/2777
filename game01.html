@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verb Tense Adventure</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Patrick Hand', cursive;
+            background: #f3f4f6; /* gray-100 */
+            user-select: none;
+        }
+        h1, h2, h3 {
+            font-family: 'Fredoka One', cursive;
+        }
+        .screen {
+            display: none;
+            width: 100%;
+            min-height: 100vh;
+            padding: 1rem;
+        }
+        .active-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 12px rgba(0,0,0,0.15);
+        }
+        .topic-card, .mode-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .topic-card:hover, .mode-card-container:hover .mode-card {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .topic-card.completed {
+            background-color: #fbbf24 !important; /* amber-400 */
+            border-color: #f59e0b; /* amber-500 */
+        }
+        .choice-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .choice-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .correct {
+            animation: correct-pulse 0.6s ease-in-out;
+            background-color: #4ade80 !important; /* green-400 */
+            border: 4px solid #facc15; /* yellow-400 */
+        }
+        .incorrect {
+            animation: shake 0.5s;
+            background-color: #f87171 !important; /* red-400 */
+        }
+        @keyframes correct-pulse {
+            0% { transform: scale(1); box-shadow: 0 0 5px #fbbf24; }
+            50% { transform: scale(1.15); box-shadow: 0 0 30px #fbbf24, 0 0 40px #a7f3d0; }
+            100% { transform: scale(1); box-shadow: 0 0 5px #fbbf24;}
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        #celebration-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 100;
+        }
+        #fireworks-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 101;
+            pointer-events: none;
+        }
+        .token-container {
+            position: relative;
+        }
+        .token-plus {
+            position: absolute;
+            top: -20px;
+            right: -20px;
+            font-size: 2rem;
+            color: #facc15;
+            animation: token-float 1s ease-out forwards;
+        }
+        @keyframes token-float {
+            0% { transform: translateY(0) scale(1.2); opacity: 1; }
+            100% { transform: translateY(-60px) scale(1.8); opacity: 0; }
+        }
+        .background-flash {
+            animation: bg-flash 0.5s ease-out;
+        }
+        @keyframes bg-flash {
+            0% { background-color: #d1fae5; } /* emerald-100 */
+            100% { background-color: #f3f4f6; } /* gray-100 */
+        }
+        .player-area {
+            transition: background-color 0.3s;
+            position: relative;
+        }
+        .player-area.locked {
+            background-color: #e5e7eb; /* gray-200 */
+        }
+        .name-input.invalid {
+             border-color: #ef4444; /* red-500 */
+             animation: shake 0.5s;
+        }
+        .badge-popup {
+            font-size: 4rem;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: badge-animation 2.5s ease-out forwards;
+            pointer-events: none;
+            z-index: 10;
+        }
+        @keyframes badge-animation {
+            0% { transform: translate(-50%, -50%) scale(0) rotate(-360deg); opacity: 0; }
+            25% { transform: translate(-50%, -50%) scale(1.2) rotate(10deg); opacity: 1; }
+            80% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Mode Selection Screen -->
+    <div id="mode-screen" class="screen active-screen p-4">
+        <h1 class="text-5xl md:text-7xl text-indigo-600 mb-4">Verb Tense Adventure</h1>
+        <h2 class="text-3xl md:text-5xl text-emerald-500 mb-10">How do you want to play?</h2>
+        <div class="flex flex-col md:flex-row gap-8 w-full max-w-5xl mx-auto">
+            <!-- 1 Player -->
+            <div class="mode-card-container w-full md:w-1/2">
+                <div class="mode-card p-8 rounded-lg bg-sky-500 text-white border-b-4 border-sky-700 flex flex-col items-center justify-center text-center h-full">
+                    <div class="text-8xl mb-4">👤</div>
+                    <div class="text-4xl font-bold">1-Player</div>
+                    <input id="player-name-1p" type="text" placeholder="Enter your name" class="name-input text-xl p-2 rounded-lg border-2 border-sky-300 focus:border-sky-100 focus:ring focus:ring-sky-200 focus:outline-none w-full max-w-xs my-4 text-black text-center">
+                    <button id="1-player-mode-btn" class="btn text-2xl bg-sky-700 hover:bg-sky-800 text-white font-bold py-3 px-8 rounded-full">
+                        Start Practice
+                    </button>
+                </div>
+            </div>
+            <!-- 2 Player -->
+            <div class="mode-card-container w-full md:w-1/2">
+                <div class="mode-card p-8 rounded-lg bg-amber-500 text-white border-b-4 border-amber-700 flex flex-col items-center justify-center text-center h-full">
+                    <div class="text-8xl mb-4">👥</div>
+                    <div class="text-4xl font-bold">2-Player</div>
+                    <div class="w-full max-w-xs my-4 space-y-2">
+                         <input id="player-name-p1" type="text" placeholder="Player 1 Name" class="name-input text-xl p-2 rounded-lg border-2 border-amber-300 focus:border-amber-100 focus:ring focus:ring-amber-200 focus:outline-none w-full text-black text-center">
+                         <input id="player-name-p2" type="text" placeholder="Player 2 Name" class="name-input text-xl p-2 rounded-lg border-2 border-amber-300 focus:border-amber-100 focus:ring focus:ring-amber-200 focus:outline-none w-full text-black text-center">
+                    </div>
+                    <button id="2-player-mode-btn" class="btn text-2xl bg-amber-700 hover:bg-amber-800 text-white font-bold py-3 px-8 rounded-full">
+                        Start Race
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1-Player Topic Selection Screen -->
+    <div id="topic-screen" class="screen p-4">
+        <h1 id="welcome-message" class="text-4xl text-center mb-6">Choose a Grammar Topic!</h1>
+        <div id="topic-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto">
+            <!-- Topic cards will be generated here -->
+        </div>
+         <button id="back-to-mode-select-btn" class="btn mt-8 bg-gray-500 text-white py-2 px-6 rounded-full">Back</button>
+    </div>
+
+    <!-- 1-Player Game Screen -->
+    <div id="game-screen" class="screen p-4 justify-start">
+        <div class="w-full max-w-5xl mx-auto bg-white rounded-2xl shadow-2xl relative">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 id="topic-title" class="text-2xl md:text-3xl">Topic</h2>
+                <div class="flex items-center gap-2 md:gap-4 text-xl md:text-2xl">
+                    <div id="timer" class="font-bold text-red-500 w-24 text-center"></div>
+                    <div id="question-counter" class="text-gray-600"></div>
+                    <div class="token-container">
+                        <span>💰</span> <span id="tokens">0</span>
+                    </div>
+                    <div>Score: <span id="score">0</span></div>
+                </div>
+                <button id="quit-game-btn" class="text-2xl text-gray-400 hover:text-red-500">&times;</button>
+            </div>
+            <div id="progress-bar-container" class="w-full bg-gray-200 h-4">
+                <div id="progress-bar" class="bg-emerald-500 h-4 rounded-r-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+            <div id="game-area" class="p-6 min-h-[60vh] flex flex-col justify-center items-center">
+                <!-- Game content goes here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 2-Player Game Screen -->
+    <div id="game-screen-2p" class="screen p-2 md:p-4 justify-center items-stretch">
+        <div class="w-full h-full flex flex-col bg-white rounded-2xl shadow-2xl relative">
+            <!-- Top Info Bar -->
+            <div class="flex justify-between items-center p-2 md:p-4 border-b gap-4">
+                <div id="p1-info-2p" class="text-lg md:text-2xl text-blue-600 font-bold text-left truncate"></div>
+                <div id="question-counter-2p" class="text-xl md:text-2xl text-gray-600 flex-shrink-0"></div>
+                <div id="p2-info-2p" class="text-lg md:text-2xl text-red-600 font-bold text-right truncate"></div>
+                <button id="quit-game-btn-2p" class="text-2xl text-gray-400 hover:text-red-500 flex-shrink-0">&times;</button>
+            </div>
+            <!-- Central Question Area -->
+            <div id="central-question-area" class="text-center p-4 flex-grow flex flex-col justify-center items-center">
+                  <!-- Question content will be injected here -->
+            </div>
+            <!-- Player Areas -->
+            <div class="flex flex-col md:flex-row border-t">
+                <!-- Player 1 -->
+                <div id="player1-area" class="player-area w-full md:w-1/2 p-4 border-b md:border-b-0 md:border-r text-center">
+                    <h3 id="p1-name-display" class="text-2xl font-bold text-blue-600 truncate">Player 1</h3>
+                    <div id="choices-p1" class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4"></div>
+                </div>
+                <!-- Player 2 -->
+                <div id="player2-area" class="player-area w-full md:w-1/2 p-4 text-center">
+                    <h3 id="p2-name-display" class="text-2xl font-bold text-red-600 truncate">Player 2</h3>
+                    <div id="choices-p2" class="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Celebration Overlay -->
+    <div id="celebration-overlay" class="screen items-center justify-center" style="display: none;">
+        <canvas id="fireworks-canvas"></canvas>
+        <div class="bg-white p-8 rounded-2xl shadow-2xl text-center flex flex-col items-center">
+            <h1 id="celebration-title" class="text-5xl text-yellow-500 mb-4">Topic Mastered!</h1>
+            <div id="celebration-badge" class="text-8xl mb-4">🏆</div>
+            <p id="celebration-message" class="text-2xl mb-6"></p>
+            <button id="celebration-continue-btn" class="btn text-2xl bg-emerald-500 text-white py-3 px-8 rounded-full">Back to Modes</button>
+        </div>
+    </div>
+
+
+<script>
+// --- CORE GAME LOGIC ---
+
+const gameData = {
+    topics: {
+        "Simple Present": {
+            badge: "🚶",
+            questions: [
+                { verb: "walk", base: "walks", sentence: "Every day, the dog ___ in the park.", img: "🐶", options: ["walks", "is walking", "walked"] },
+                { verb: "eat", base: "eats", sentence: "The cat ___ fish for dinner.", img: "🐱", options: ["eats", "is eating", "ate"] },
+                { verb: "drive", base: "drives", sentence: "My dad ___ a bus to work.", img: "🚌", options: ["drives", "is driving", "drove"] },
+                { verb: "fly", base: "fly", sentence: "Birds ___ south for the winter.", img: "🐦", options: ["fly", "are flying", "flew"] },
+                { verb: "like", base: "likes", sentence: "Maria ___ pizza.", img: "🍕", options: ["likes", "is liking", "liked"] },
+                { verb: "wear", base: "wears", sentence: "He always ___ a hat.", img: "👒", options: ["wears", "is wearing", "wore"] },
+                { verb: "shine", base: "shines", sentence: "The sun ___ brightly in the summer.", img: "☀️", options: ["shines", "is shining", "shone"] },
+                { verb: "read", base: "reads", sentence: "The teacher ___ a book to the class.", img: "🧑‍🏫", options: ["reads", "is reading", "read"] },
+                { verb: "eat", base: "eat", sentence: "Cows ___ grass on the farm.", img: "🐄", options: ["eat", "are eating", "ate"] },
+                { verb: "grow", base: "grow", sentence: "Apples ___ on trees.", img: "🍎", options: ["grow", "are growing", "grew"] },
+                { verb: "work", base: "works", sentence: "A firefighter ___ in a fire station.", img: "👨‍🚒", options: ["works", "is working", "worked"] },
+                { verb: "sleep", base: "sleeps", sentence: "A koala ___ for many hours a day.", img: "🐨", options: ["sleeps", "is sleeping", "slept"] },
+                { verb: "run", base: "run", sentence: "Tigers ___ very fast.", img: "🐯", options: ["run", "are running", "ran"] },
+                { verb: "need", base: "needs", sentence: "A plant ___ water and sun to grow.", img: "🌱", options: ["needs", "is needing", "needed"] },
+                { verb: "play", base: "play", sentence: "We ___ soccer on Saturdays.", img: "⚽", options: ["play", "are playing", "played"] },
+                { verb: "live", base: "live", sentence: "Fish ___ in the water.", img: "🐠", options: ["live", "are living", "lived"] },
+                { verb: "help", base: "helps", sentence: "A doctor ___ sick people.", img: "🧑‍⚕️", options: ["helps", "is helping", "helped"] },
+                { verb: "bake", base: "bakes", sentence: "A baker ___ bread and cakes.", img: "🧑‍🍳", options: ["bakes", "is baking", "baked"] },
+                { verb: "cut", base: "cuts", sentence: "A barber ___ hair.", img: "✂️", options: ["cuts", "is cutting", "cut"] },
+                { verb: "go", base: "go", sentence: "I ___ to school by bus.", img: "🏫", options: ["go", "am going", "went"] },
+                { verb: "love", base: "love", sentence: "Pandas ___ bamboo.", img: "🐼", options: ["love", "are loving", "loved"] },
+                { verb: "build", base: "build", sentence: "Beavers ___ dams.", img: "🦫", options: ["build", "are building", "built"] },
+                { verb: "sing", base: "sings", sentence: "The bird ___ a song every morning.", img: "🐦", options: ["sings", "is singing", "sang"] },
+                { verb: "hop", base: "hop", sentence: "Kangaroos ___ on their strong legs.", img: "🦘", options: ["hop", "are hopping", "hopped"] },
+                { verb: "climb", base: "climbs", sentence: "A monkey ___ trees easily.", img: "🐒", options: ["climbs", "is climbing", "climbed"] }
+            ]
+        },
+        "Present Continuous": {
+            badge: "🏃",
+            questions: [
+                { verb: "run", base: "is running", sentence: "Look! The cheetah ___ right now.", img: "🐆", options: ["is running", "runs", "ran"] },
+                { verb: "play", base: "are playing", sentence: "The monkeys ___ in the trees at the moment.", img: "🐒", options: ["are playing", "play", "played"] },
+                { verb: "ride", base: "is riding", sentence: "He ___ his bicycle now.", img: "🚲", options: ["is riding", "rides", "rode"] },
+                { verb: "eat", base: "is eating", sentence: "She ___ an ice cream cone right now.", img: "🍦", options: ["is eating", "eats", "ate"] },
+                { verb: "build", base: "is building", sentence: "They ___ a sandcastle at the beach now.", img: "🏰", options: ["is building", "build", "built"] },
+                { verb: "rain", base: "is raining", sentence: "It ___ outside at the moment.", img: "🌧️", options: ["is raining", "rains", "rained"] },
+                { verb: "swim", base: "is swimming", sentence: "He ___ in the pool right now.", img: "🏊", options: ["is swimming", "swims", "swam"] },
+                { verb: "crawl", base: "is crawling", sentence: "The caterpillar ___ on a leaf now.", img: "🐛", options: ["is crawling", "crawls", "crawled"] },
+                { verb: "watch", base: "are watching", sentence: "The dolphins ___ the boat now.", img: "🐬", options: ["are watching", "watch", "watched"] },
+                { verb: "kick", base: "is kicking", sentence: "The boy ___ the soccer ball right now.", img: "⚽", options: ["is kicking", "kicks", "kicked"] },
+                { verb: "crying", base: "is crying", sentence: "Listen! The baby ___.", img: "👶", options: ["is crying", "cries", "cried"] },
+                { verb: "flying", base: "is flying", sentence: "The helicopter ___ over the buildings now.", img: "🚁", options: ["is flying", "flies", "flew"] },
+                { verb: "making", base: "am making", sentence: "I ___ a sandwich for lunch right now.", img: "🥪", options: ["am making", "make", "made"] },
+                { verb: "drinking", base: "are drinking", sentence: "You ___ too much soda at the moment.", img: "🥤", options: ["are drinking", "drink", "drank"] },
+                { verb: "wearing", base: "is wearing", sentence: "She ___ a beautiful dress today.", img: "👗", options: ["is wearing", "wears", "wore"] },
+                { verb: "shining", base: "is shining", sentence: "The sun ___ brightly at the moment.", img: "☀️", options: ["is shining", "shines", "shone"] },
+                { verb: "painting", base: "are painting", sentence: "The students ___ a picture in art class now.", img: "🎨", options: ["are painting", "paint", "painted"] },
+                { verb: "cooking", base: "is cooking", sentence: "My mother ___ dinner in the kitchen now.", img: "🍳", options: ["is cooking", "cooks", "cooked"] },
+                { verb: "waiting", base: "are waiting", sentence: "We ___ for the bus right now.", img: "🚏", options: ["are waiting", "wait", "waited"] },
+                { verb: "reading", base: "is reading", sentence: "He ___ a book in the library at the moment.", img: "📖", options: ["is reading", "reads", "read"] },
+                { verb: "sleeping", base: "is sleeping", sentence: "Shh! The cat ___ on the sofa.", img: "�", options: ["is sleeping", "sleeps", "slept"] },
+                { verb: "taking", base: "is taking", sentence: "The photographer ___ a photo of the lion.", img: "📸", options: ["is taking", "takes", "took"] },
+                { verb: "delivering", base: "is delivering", sentence: "The truck ___ a package now.", img: "🚚", options: ["is delivering", "delivers", "delivered"] },
+                { verb: "growing", base: "are growing", sentence: "My tomato plants ___ quickly this year.", img: "🍅", options: ["are growing", "grow", "grew"] },
+                { verb: "climbing", base: "is climbing", sentence: "Look! The spider ___ up the wall.", img: "🕷️", options: ["is climbing", "climbs", "climbed"] }
+            ]
+        },
+        "Simple Past": {
+            badge: "🕰️",
+            questions: [
+                { verb: "hunt", base: "hunted", sentence: "Yesterday, the wolf ___ in the forest.", img: "🐺", options: ["hunted", "hunts", "was hunting"] },
+                { verb: "arrive", base: "arrived", sentence: "The train ___ five minutes ago.", img: "🚆", options: ["arrived", "arrives", "was arriving"] },
+                { verb: "eat", base: "ate", sentence: "Last night, we ___ tacos for dinner.", img: "🌮", options: ["ate", "eat", "were eating"] },
+                { verb: "buy", base: "bought", sentence: "She ___ a new dress yesterday.", img: "👗", options: ["bought", "buys", "was buying"] },
+                { verb: "find", base: "found", sentence: "I ___ a beautiful seashell last summer.", img: "🐚", options: ["found", "find", "was finding"] },
+                { verb: "see", base: "saw", sentence: "We ___ a rainbow after the rain yesterday.", img: "🌈", options: ["saw", "see", "were seeing"] },
+                { verb: "use", base: "used", sentence: "The student ___ scissors in art class last week.", img: "✂️", options: ["used", "uses", "was using"] },
+                { verb: "visit", base: "visited", sentence: "They ___ the farm last year.", img: "🚜", options: ["visited", "visit", "were visiting"] },
+                { verb: "make", base: "made", sentence: "My mom ___ a strawberry cake last weekend.", img: "🍓", options: ["made", "makes", "was making"] },
+                { verb: "lose", base: "lost", sentence: "He ___ his baseball in the park yesterday.", img: "⚾", options: ["lost", "loses", "was losing"] },
+                { verb: "fly", base: "flew", sentence: "The airplane ___ to Paris last month.", img: "✈️", options: ["flew", "flown", "was flying"] },
+                { verb: "give", base: "gave", sentence: "She ___ him a present for his birthday.", img: "🎁", options: ["gave", "given", "was giving"] },
+                { verb: "go", base: "went", sentence: "We ___ to the beach last Sunday.", img: "🏖️", options: ["went", "gone", "were going"] },
+                { verb: "take", base: "took", sentence: "The tourist ___ a lot of photos yesterday.", img: "📷", options: ["took", "taken", "was taking"] },
+                { verb: "write", base: "wrote", sentence: "I ___ a letter to my grandmother last week.", img: "✉️", options: ["wrote", "written", "was writing"] },
+                { verb: "swim", base: "swam", sentence: "The children ___ in the lake two days ago.", img: "🏊", options: ["swam", "swum", "were swimming"] },
+                { verb: "drive", base: "drove", sentence: "My uncle ___ his new car yesterday.", img: "🚗", options: ["drove", "driven", "was driving"] },
+                { verb: "fall", base: "fell", sentence: "An apple ___ from the tree.", img: "🍎", options: ["fell", "fallen", "was falling"] },
+                { verb: "break", base: "broke", sentence: "He ___ his leg during the game.", img: "🦵", options: ["broke", "broken", "was breaking"] },
+                { verb: "begin", base: "began", sentence: "The movie ___ at 8 PM last night.", img: "🎬", options: ["began", "begun", "was beginning"] },
+                { verb: "come", base: "came", sentence: "The cat ___ home late last night.", img: "🐱", options: ["came", "come", "was coming"] },
+                { verb: "drink", base: "drank", sentence: "I ___ a glass of orange juice this morning.", img: "🍊", options: ["drank", "drunk", "was drinking"] },
+                { verb: "run", base: "ran", sentence: "The dog ___ after the ball in the park.", img: "🐶", options: ["ran", "run", "was running"] },
+                { verb: "sit", base: "sat", sentence: "We ___ on the bench and talked.", img: "🗣️", options: ["sat", "sitten", "were sitting"] },
+                { verb: "win", base: "won", sentence: "Our team ___ the championship last year.", img: "🏆", options: ["won", "win", "was winning"] }
+            ]
+        },
+        "Past Continuous": {
+            badge: "⏳",
+            questions: [
+                { verb: "sleep", base: "was sleeping", sentence: "The lion ___ when the tourists arrived.", img: "🦁", options: ["was sleeping", "slept", "sleeps"] },
+                { verb: "fly", base: "was flying", sentence: "The airplane ___ over the city when the storm started.", img: "✈️", options: ["was flying", "flew", "flies"] },
+                { verb: "shop", base: "were shopping", sentence: "They ___ for clothes while it was raining.", img: "👕", options: ["were shopping", "shopped", "shop"] },
+                { verb: "sunbathe", base: "was sunbathing", sentence: "She ___ on the towel when a crab walked by.", img: "🦀", options: ["was sunbathing", "sunbathed", "sunbathes"] },
+                { verb: "snow", base: "was snowing", sentence: "It ___ when I woke up this morning.", img: "❄️", options: ["was snowing", "snowed", "snows"] },
+                { verb: "drive", base: "was driving", sentence: "He ___ his car while listening to music.", img: "🚗", options: ["was driving", "drove", "drives"] },
+                { verb: "eat", base: "was eating", sentence: "The horse ___ an apple when the farmer came.", img: "🐎", options: ["was eating", "ate", "eats"] },
+                { verb: "climb", base: "was climbing", sentence: "The snail ___ the wall when I saw it.", img: "🐌", options: ["was climbing", "climbed", "climbs"] },
+                { verb: "swim", base: "was swimming", sentence: "The whale ___ in the ocean when the boat passed.", img: "🐋", options: ["was swimming", "swam", "swims"] },
+                { verb: "cook", base: "were cooking", sentence: "We ___ vegetables when the phone rang.", img: "🥕", options: ["were cooking", "cooked", "cook"] },
+                { verb: "read", base: "was reading", sentence: "I ___ a book when you called me.", img: "📖", options: ["was reading", "read", "reads"] },
+                { verb: "play", base: "were playing", sentence: "The children ___ outside when it started to rain.", img: "👧👦", options: ["were playing", "played", "play"] },
+                { verb: "work", base: "was working", sentence: "She ___ on her computer when the power went out.", img: "💻", options: ["was working", "worked", "works"] },
+                { verb: "watch", base: "was watching", sentence: "He ___ TV when I arrived.", img: "📺", options: ["was watching", "watched", "watches"] },
+                { verb: "talk", base: "were talking", sentence: "They ___ on the phone for an hour.", img: "📱", options: ["were talking", "talked", "talk"] },
+                { verb: "listen", base: "was listening", sentence: "I ___ to music, so I didn't hear the doorbell.", img: "🎧", options: ["was listening", "listened", "listen"] },
+                { verb: "rain", base: "was raining", sentence: "It ___ heavily when I left the house.", img: "🌧️", options: ["was raining", "rained", "rains"] },
+                { verb: "study", base: "were studying", sentence: "The students ___ when the teacher walked in.", img: "🧑‍🏫", options: ["were studying", "studied", "study"] },
+                { verb: "make", base: "was making", sentence: "He ___ breakfast when the toast burned.", img: "🍳", options: ["was making", "made", "makes"] },
+                { verb: "paint", base: "was painting", sentence: "She ___ a picture while her cat was sleeping.", img: "🎨", options: ["was painting", "painted", "paints"] },
+                { verb: "run", base: "was running", sentence: "The dog ___ in the park when it saw a squirrel.", img: "🐶", options: ["was running", "ran", "runs"] },
+                { verb: "have", base: "were having", sentence: "We ___ a picnic when a swarm of bees appeared.", img: "🐝", options: ["were having", "had", "have"] },
+                { verb: "fix", base: "was fixing", sentence: "The mechanic ___ the car when I called.", img: "👨‍🔧", options: ["was fixing", "fixed", "fixes"] },
+                { verb: "wait", base: "was waiting", sentence: "I ___ for the bus when I saw my friend.", img: "🚏", options: ["was waiting", "waited", "waits"] },
+                { verb: "dream", base: "was dreaming", sentence: "He ___ about flying when the alarm clock rang.", img: "⏰", options: ["was dreaming", "dreamed", "dreams"] }
+            ]
+        }
+    }
+};
+
+const gameState = {
+    playerName: '',
+    playerNameP1: '',
+    playerNameP2: '',
+    currentScreen: 'mode-screen',
+    score: 0,
+    tokens: 0,
+    completedTopics: [],
+    currentTopic: null,
+    currentQuestionSet: [],
+    currentQuestionIndex: 0,
+    questionTimerInterval: null,
+    timeLeft: 20,
+    // 2-Player State
+    scoreP1: 0,
+    scoreP2: 0,
+    p1Locked: false,
+    p2Locked: false,
+    twoPlayerQuestionSet: [],
+    current2PQuestionIndex: 0,
+    claimedMilestones: []
+};
+
+// --- AUDIO & SPEECH ---
+const synth = window.speechSynthesis;
+let correctSound, incorrectSound, celebrationSound;
+
+try {
+    correctSound = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+    incorrectSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.2 } }).toDestination();
+    celebrationSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle8' }, envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+} catch (e) { console.error("Could not initialize Tone.js synths:", e); }
+
+const praiseWords = ["Awesome!", "Great job!", "Superstar!", "You got it!", "Well done!", "Fantastic!", "Excellent!"];
+const encouragementWords = ["Almost!", "So close!", "Give it another shot!", "Don't give up!", "Nice try!"];
+
+let voices = [];
+let voiceIndex = 0;
+
+function loadVoices() {
+    if (!('speechSynthesis' in window)) return;
+    voices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en'));
+}
+
+if ('speechSynthesis' in window) {
+    speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices(); // Initial attempt
+}
+
+function getNextVoice() {
+    if (voices.length === 0) {
+        loadVoices(); 
+        if (voices.length === 0) return null;
+    }
+    const preferredVoices = voices.filter(v => v.name.includes('Natural') || v.name.includes('Google'));
+    const voicePool = preferredVoices.length > 0 ? preferredVoices : voices;
+    if (voicePool.length === 0) return null;
+    voiceIndex = (voiceIndex + 1) % voicePool.length;
+    return voicePool[voiceIndex];
+}
+
+function speak(text, rate = 0.85, callback) {
+    if (Tone.context.state !== 'running') {
+        Tone.start().catch(e => console.error("Could not start Tone.js AudioContext:", e));
+    }
+    if (!('speechSynthesis' in window)) {
+        if (callback) callback();
+        return;
+    }
+    if (synth.speaking) {
+        synth.cancel();
+    }
+    const utter = new SpeechSynthesisUtterance(text);
+    const voice = getNextVoice();
+    if (voice) {
+        utter.voice = voice;
+    }
+    utter.lang = 'en-US';
+    utter.rate = rate;
+    if (callback) {
+        utter.onend = callback;
+    }
+    synth.speak(utter);
+}
+
+// --- UTILITY & HELPER FUNCTIONS ---
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+function showInvalidInput(inputElement) {
+    inputElement.classList.add('invalid');
+    inputElement.placeholder = "Name is required!";
+    setTimeout(() => {
+        inputElement.classList.remove('invalid');
+        inputElement.placeholder = inputElement.id.includes('p1') ? "Player 1 Name" : inputElement.id.includes('p2') ? "Player 2 Name" : "Enter your name";
+    }, 2000);
+}
+
+// --- SCREEN MANAGEMENT ---
+function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active-screen'));
+    document.getElementById(screenId).classList.add('active-screen');
+    gameState.currentScreen = screenId;
+}
+
+// --- UI INITIALIZATION ---
+function initTopicScreen() {
+    const topicGrid = document.getElementById('topic-grid');
+    topicGrid.innerHTML = '';
+    for (const topic in gameData.topics) {
+        const card = document.createElement('div');
+        card.className = 'topic-card cursor-pointer p-4 rounded-lg bg-sky-400 text-white border-b-4 border-sky-600 relative flex flex-col items-center justify-center';
+        if (gameState.completedTopics.includes(topic)) {
+            card.classList.add('completed');
+        }
+        card.innerHTML = `<div class="text-6xl mb-2">${gameData.topics[topic].badge}</div><div class="text-2xl font-bold text-center">${topic}</div>`;
+        card.onclick = () => start1PlayerGame(topic);
+        topicGrid.appendChild(card);
+    }
+    document.getElementById('welcome-message').textContent = `Welcome, ${gameState.playerName}! Choose a topic!`;
+}
+
+// --- 1-PLAYER GAME ---
+function start1PlayerGame(topic) {
+    gameState.currentTopic = topic;
+    gameState.score = 0;
+    gameState.tokens = 0;
+    gameState.currentQuestionIndex = 0;
+    gameState.currentQuestionSet = shuffleArray([...gameData.topics[topic].questions]);
+    
+    updateScore();
+    document.getElementById('topic-title').textContent = topic;
+    showScreen('game-screen');
+    generate1PQuestion();
+}
+
+function stopQuestionTimer() {
+    if (gameState.questionTimerInterval) {
+        clearInterval(gameState.questionTimerInterval);
+        gameState.questionTimerInterval = null;
+    }
+}
+
+function startQuestionTimer() {
+    stopQuestionTimer(); 
+    gameState.timeLeft = 20;
+    const timerDisplay = document.getElementById('timer');
+    timerDisplay.textContent = `Time: ${gameState.timeLeft}`;
+    timerDisplay.classList.remove('animate-pulse');
+
+    gameState.questionTimerInterval = setInterval(() => {
+        gameState.timeLeft--;
+        timerDisplay.textContent = `Time: ${gameState.timeLeft}`;
+        if (gameState.timeLeft <= 5) {
+             timerDisplay.classList.add('animate-pulse');
+        }
+
+        if (gameState.timeLeft <= 0) {
+            stopQuestionTimer();
+            speak("Time's up!");
+            const gameArea = document.getElementById('game-area');
+            handle1PAnswer(false, gameArea.querySelector('.choice-card') || gameArea);
+        }
+    }, 1000);
+}
+
+function generate1PQuestion() {
+    if (gameState.currentQuestionIndex >= gameState.currentQuestionSet.length) {
+        end1PGame();
+        return;
+    }
+    
+    startQuestionTimer();
+    updateProgressBar();
+
+    const questionCounter = document.getElementById('question-counter');
+    questionCounter.textContent = `Q: ${gameState.currentQuestionIndex + 1}/${gameState.currentQuestionSet.length}`;
+
+    const gameArea = document.getElementById('game-area');
+    gameArea.className = 'p-6 min-h-[60vh] flex flex-col justify-center items-center bg-blue-100 rounded-lg';
+    
+    const question = gameState.currentQuestionSet[gameState.currentQuestionIndex];
+    const sentenceParts = question.sentence.split('___');
+    const shuffledOptions = shuffleArray([...question.options]);
+
+    const questionText = question.sentence.replace('___', `(blank)`);
+    speak(questionText, 0.85);
+
+    gameArea.innerHTML = `
+        <div class="text-center w-full">
+            <div class="text-8xl mb-4">${question.img}</div>
+            <p class="text-2xl md:text-3xl mb-2 text-gray-700">${sentenceParts[0]}<span class="inline-block bg-gray-300 rounded-md w-32 h-8 mx-2 align-middle"></span>${sentenceParts[1]}</p>
+            <p class="text-lg text-gray-500 mb-6">(Fill in the blank)</p>
+             <button id="play-sentence-btn" class="btn bg-sky-500 hover:bg-sky-600 text-white p-3 rounded-full mb-6"><i class="fas fa-volume-up text-2xl"></i></button>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-2xl mx-auto">
+                ${shuffledOptions.map(option => `
+                    <button class="choice-card bg-white hover:bg-sky-100 text-xl sm:text-2xl p-4 rounded-lg shadow-md" data-answer="${option}">
+                        ${option}
+                    </button>
+                `).join('')}
+            </div>
+        </div>
+    `;
+
+    document.getElementById('play-sentence-btn').onclick = () => speak(questionText, 0.85);
+    gameArea.querySelectorAll('.choice-card').forEach(button => {
+        button.onclick = (e) => handle1PAnswer(e.target.dataset.answer === question.base, e.target);
+    });
+}
+
+function handle1PAnswer(isCorrect, element) {
+    stopQuestionTimer();
+    document.querySelectorAll('.choice-card').forEach(el => el.disabled = true);
+
+    if (isCorrect) {
+        gameState.score += 10;
+        gameState.tokens += 1;
+        element.classList.add('correct');
+        if (correctSound) correctSound.triggerAttackRelease("G5", "16n", Tone.now());
+        
+        document.body.classList.add('background-flash');
+        setTimeout(() => document.body.classList.remove('background-flash'), 500);
+        
+        const tokenContainer = document.querySelector('.token-container');
+        const plusOne = document.createElement('div');
+        plusOne.textContent = `+1💰`;
+        plusOne.className = 'token-plus';
+        tokenContainer.appendChild(plusOne);
+        setTimeout(() => plusOne.remove(), 1000);
+        
+        speak(praiseWords[Math.floor(Math.random() * praiseWords.length)], 0.85);
+    } else {
+        element.classList.add('incorrect');
+        if (incorrectSound) incorrectSound.triggerAttackRelease("A2", "8n", Tone.now());
+        speak(encouragementWords[Math.floor(Math.random() * encouragementWords.length)], 0.85);
+    }
+
+    updateScore();
+    
+    setTimeout(() => {
+        if (isCorrect) {
+            gameState.currentQuestionIndex++;
+            generate1PQuestion();
+        } else {
+            const question = gameState.currentQuestionSet[gameState.currentQuestionIndex];
+            const questionText = question.sentence.replace('___', `(blank)`);
+            speak(`Let's try that one again. ${questionText}`, 0.85);
+            element.classList.remove('incorrect');
+            document.querySelectorAll('.choice-card').forEach(el => el.disabled = false);
+            startQuestionTimer();
+        }
+    }, 2000);
+}
+
+function updateScore() {
+    document.getElementById('score').textContent = gameState.score;
+    document.getElementById('tokens').textContent = gameState.tokens;
+}
+
+function updateProgressBar() {
+    const progress = (gameState.currentQuestionIndex / gameState.currentQuestionSet.length) * 100;
+    document.getElementById('progress-bar').style.width = `${progress}%`;
+}
+
+function end1PGame() {
+    stopQuestionTimer();
+    if (!gameState.completedTopics.includes(gameState.currentTopic)) {
+        gameState.completedTopics.push(gameState.currentTopic);
+    }
+    
+    const celebrationOverlay = document.getElementById('celebration-overlay');
+    document.getElementById('celebration-title').textContent = `Topic Complete!`;
+    document.getElementById('celebration-badge').textContent = gameData.topics[gameState.currentTopic].badge;
+    document.getElementById('celebration-message').textContent = `Great work on ${gameState.currentTopic}, ${gameState.playerName}!`;
+    document.getElementById('celebration-continue-btn').textContent = 'Choose New Topic';
+    
+    celebrationOverlay.style.display = 'flex';
+    startFireworks();
+    if (celebrationSound) {
+        const now = Tone.now();
+        celebrationSound.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n", now);
+    }
+    speak(`Wow! You completed the ${gameState.currentTopic} topic!`, 0.85);
+}
+
+// --- 2-PLAYER GAME ---
+function start2PlayerGame() {
+    gameState.scoreP1 = 0;
+    gameState.scoreP2 = 0;
+    gameState.current2PQuestionIndex = 0;
+    gameState.claimedMilestones = [];
+    
+    let allQuestions = [];
+    for(const topic in gameData.topics) {
+        allQuestions.push(...gameData.topics[topic].questions);
+    }
+    gameState.twoPlayerQuestionSet = shuffleArray(allQuestions);
+
+    document.getElementById('p1-info-2p').textContent = `${gameState.playerNameP1}: 0`;
+    document.getElementById('p2-info-2p').textContent = `${gameState.playerNameP2}: 0`;
+    document.getElementById('p1-name-display').textContent = gameState.playerNameP1;
+    document.getElementById('p2-name-display').textContent = gameState.playerNameP2;
+
+    showScreen('game-screen-2p');
+    generate2PQuestion();
+}
+
+function generate2PQuestion() {
+    if (gameState.current2PQuestionIndex >= gameState.twoPlayerQuestionSet.length) {
+        end2PGame();
+        return;
+    }
+    
+    gameState.p1Locked = false;
+    gameState.p2Locked = false;
+    document.getElementById('player1-area').classList.remove('locked');
+    document.getElementById('player2-area').classList.remove('locked');
+
+    const questionCounter = document.getElementById('question-counter-2p');
+    questionCounter.textContent = `Q: ${gameState.current2PQuestionIndex + 1}/${gameState.twoPlayerQuestionSet.length}`;
+
+    const question = gameState.twoPlayerQuestionSet[gameState.current2PQuestionIndex];
+    const sentenceParts = question.sentence.split('___');
+    const shuffledOptions = shuffleArray([...question.options]);
+    
+    const centralArea = document.getElementById('central-question-area');
+    centralArea.innerHTML = `
+        <div class="text-8xl md:text-9xl mb-4">${question.img}</div>
+        <p class="text-xl md:text-3xl mb-2 text-gray-700">${sentenceParts[0]}<span class="inline-block bg-gray-300 rounded-md w-24 md:w-32 h-8 mx-2 align-middle"></span>${sentenceParts[1]}</p>
+    `;
+    
+    const choicesP1 = document.getElementById('choices-p1');
+    const choicesP2 = document.getElementById('choices-p2');
+    choicesP1.innerHTML = '';
+    choicesP2.innerHTML = '';
+
+    shuffledOptions.forEach((option) => {
+        choicesP1.innerHTML += `<button class="choice-card bg-blue-200 hover:bg-blue-300 p-3 rounded-lg text-sm md:text-lg" data-answer="${option}" data-player="1">${option}</button>`;
+        choicesP2.innerHTML += `<button class="choice-card bg-red-200 hover:bg-red-300 p-3 rounded-lg text-sm md:text-lg" data-answer="${option}" data-player="2">${option}</button>`;
+    });
+
+    document.querySelectorAll('#choices-p1 .choice-card').forEach(b => b.onclick = (e) => handle2PAnswer(e.target.closest('.choice-card')));
+    document.querySelectorAll('#choices-p2 .choice-card').forEach(b => b.onclick = (e) => handle2PAnswer(e.target.closest('.choice-card')));
+
+    const questionText = question.sentence.replace('___', `(blank)`);
+    speak(questionText, 0.85);
+}
+
+function handle2PAnswer(buttonElement) {
+    const player = parseInt(buttonElement.dataset.player);
+    
+    if ((player === 1 && gameState.p1Locked) || (player === 2 && gameState.p2Locked)) {
+        return; // Player is locked, do nothing
+    }
+
+    const answer = buttonElement.dataset.answer;
+    const question = gameState.twoPlayerQuestionSet[gameState.current2PQuestionIndex];
+    const isCorrect = answer === question.base;
+    
+    // Lock both players to prevent multiple answers
+    gameState.p1Locked = true;
+    gameState.p2Locked = true;
+
+    if (isCorrect) {
+        if (player === 1) gameState.scoreP1++;
+        if (player === 2) gameState.scoreP2++;
+        
+        document.getElementById(`p${player}-info-2p`).textContent = `${gameState[`playerNameP${player}`]}: ${gameState.scoreP1}`;
+        document.getElementById(`p2-info-2p`).textContent = `${gameState.playerNameP2}: ${gameState.scoreP2}`;
+
+        buttonElement.classList.add('correct');
+        if (correctSound) correctSound.triggerAttackRelease("G5", "16n", Tone.now());
+        
+        const randomPraise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+        speak(randomPraise, 0.85);
+        check2PScoreMilestones(player);
+
+        setTimeout(() => {
+            gameState.current2PQuestionIndex++;
+            generate2PQuestion();
+        }, 1500);
+
+    } else {
+        if (player === 1) {
+            gameState.scoreP1 = Math.max(0, gameState.scoreP1 - 1);
+            gameState.scoreP2++;
+            check2PScoreMilestones(2);
+        }
+        if (player === 2) {
+            gameState.scoreP2 = Math.max(0, gameState.scoreP2 - 1);
+            gameState.scoreP1++;
+            check2PScoreMilestones(1);
+        }
+
+        document.getElementById('p1-info-2p').textContent = `${gameState.playerNameP1}: ${gameState.scoreP1}`;
+        document.getElementById('p2-info-2p').textContent = `${gameState.playerNameP2}: ${gameState.scoreP2}`;
+        
+        buttonElement.classList.add('incorrect');
+        if (incorrectSound) incorrectSound.triggerAttackRelease("A2", "8n", Tone.now());
+        speak(`Incorrect.`, 0.85);
+        
+        const correctButton = document.querySelector(`.choice-card[data-answer="${question.base}"]`);
+        if(correctButton) {
+            correctButton.classList.add('correct');
+        }
+
+        setTimeout(() => {
+            gameState.current2PQuestionIndex++;
+            generate2PQuestion();
+        }, 2500);
+    }
+}
+
+function check2PScoreMilestones(player) {
+    const playerScore = player === 1 ? gameState.scoreP1 : gameState.scoreP2;
+    const milestones = [
+        { score: 100, badge: '🏆', name: 'Master' },
+        { score: 75, badge: '🥇', name: 'Gold' },
+        { score: 50, badge: '🥈', name: 'Silver' },
+        { score: 25, badge: '🥉', name: 'Bronze' }
+    ];
+
+    for (const milestone of milestones) {
+        const milestoneId = `${player}-${milestone.score}`;
+        if (playerScore >= milestone.score && !gameState.claimedMilestones.includes(milestoneId)) {
+            gameState.claimedMilestones.push(milestoneId);
+            showBadgeNotification(player, milestone.badge);
+            const playerName = player === 1 ? gameState.playerNameP1 : gameState.playerNameP2;
+            speak(`${playerName} has earned the ${milestone.name} badge!`, 0.85);
+            break; // Only award one badge per turn
+        }
+    }
+}
+
+function showBadgeNotification(player, badge) {
+    const playerArea = document.getElementById(`player${player}-area`);
+    const badgeEl = document.createElement('div');
+    badgeEl.className = 'badge-popup';
+    badgeEl.innerHTML = badge;
+    playerArea.appendChild(badgeEl);
+    setTimeout(() => {
+        badgeEl.remove();
+    }, 2500);
+}
+
+function end2PGame() {
+    let winnerMessage;
+    if (gameState.scoreP1 > gameState.scoreP2) {
+        winnerMessage = `${gameState.playerNameP1} wins with ${gameState.scoreP1} points!`;
+    } else if (gameState.scoreP2 > gameState.scoreP1) {
+        winnerMessage = `${gameState.playerNameP2} wins with ${gameState.scoreP2} points!`;
+    } else {
+        winnerMessage = `It's a tie with ${gameState.scoreP1} points each!`;
+    }
+
+    const celebrationOverlay = document.getElementById('celebration-overlay');
+    document.getElementById('celebration-title').textContent = `Game Over!`;
+    document.getElementById('celebration-badge').textContent = '🏁';
+    document.getElementById('celebration-message').textContent = winnerMessage;
+    document.getElementById('celebration-continue-btn').textContent = 'Play Again';
+    
+    celebrationOverlay.style.display = 'flex';
+    startFireworks();
+    speak(winnerMessage, 0.85);
+}
+
+// --- EVENT LISTENERS ---
+document.getElementById('1-player-mode-btn').onclick = () => {
+    const nameInput = document.getElementById('player-name-1p');
+    const name = nameInput.value.trim();
+    if (name) {
+        gameState.playerName = name;
+        initTopicScreen();
+        showScreen('topic-screen');
+    } else {
+        showInvalidInput(nameInput);
+    }
+};
+
+document.getElementById('2-player-mode-btn').onclick = () => {
+    const nameInputP1 = document.getElementById('player-name-p1');
+    const nameInputP2 = document.getElementById('player-name-p2');
+    const nameP1 = nameInputP1.value.trim();
+    const nameP2 = nameInputP2.value.trim();
+
+    let valid = true;
+    if (!nameP1) {
+        showInvalidInput(nameInputP1);
+        valid = false;
+    }
+    if (!nameP2) {
+        showInvalidInput(nameInputP2);
+        valid = false;
+    }
+
+    if (valid) {
+        gameState.playerNameP1 = nameP1;
+        gameState.playerNameP2 = nameP2;
+        start2PlayerGame();
+    }
+};
+
+document.getElementById('back-to-mode-select-btn').onclick = () => {
+    showScreen('mode-screen');
+};
+
+document.getElementById('quit-game-btn').onclick = () => {
+    stopQuestionTimer();
+    showScreen('topic-screen');
+};
+
+document.getElementById('quit-game-btn-2p').onclick = () => {
+    showScreen('mode-screen');
+};
+
+
+document.getElementById('celebration-continue-btn').onclick = () => {
+    stopFireworks();
+    document.getElementById('celebration-overlay').style.display = 'none';
+    showScreen('mode-screen');
+};
+
+window.addEventListener('keydown', (e) => {
+    if (gameState.currentScreen !== 'game-screen-2p') return;
+    
+    const key = e.key.toUpperCase();
+    let player, choiceIndex;
+
+    if (['A', 'S', 'D'].includes(key)) {
+        player = 1;
+        choiceIndex = ['A', 'S', 'D'].indexOf(key);
+    } else if (['J', 'K', 'L'].includes(key)) {
+        player = 2;
+        choiceIndex = ['J', 'K', 'L'].indexOf(key);
+    } else {
+        return;
+    }
+    
+    const button = document.querySelector(`#choices-p${player} .choice-card:nth-child(${choiceIndex + 1})`);
+    if (button) {
+        button.click();
+    }
+});
+
+
+// --- FIREWORKS ---
+const fireworksCanvas = document.getElementById('fireworks-canvas');
+const ctx = fireworksCanvas.getContext('2d');
+let fireworks = [];
+let particles = [];
+let fireworksAnimationId;
+
+function startFireworks() {
+    fireworksCanvas.width = window.innerWidth;
+    fireworksCanvas.height = window.innerHeight;
+    function loop() {
+        if (Math.random() < 0.05) fireworks.push(new Firework());
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.fillRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+        ctx.globalCompositeOperation = 'lighter';
+        
+        for (let i = fireworks.length - 1; i >= 0; i--) {
+            fireworks[i].update();
+            fireworks[i].draw();
+            if (fireworks[i].done()) fireworks.splice(i, 1);
+        }
+        for (let i = particles.length - 1; i >= 0; i--) {
+            particles[i].update();
+            particles[i].draw();
+            if (particles[i].done()) particles.splice(i, 1);
+        }
+        fireworksAnimationId = requestAnimationFrame(loop);
+    }
+    loop();
+}
+
+function stopFireworks() {
+    cancelAnimationFrame(fireworksAnimationId);
+    fireworks = [];
+    particles = [];
+    ctx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x; this.y = y; this.color = color;
+        this.size = Math.random() * 2 + 1;
+        this.alpha = 1; this.decay = Math.random() * 0.015 + 0.015;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+    }
+    update() { this.x += this.vx; this.y += this.vy; this.alpha -= this.decay; }
+    done() { return this.alpha <= this.decay; }
+    draw() {
+        ctx.save();
+        ctx.globalAlpha = this.alpha;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+        ctx.fillStyle = this.color;
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+class Firework {
+    constructor() {
+        this.x = Math.random() * fireworksCanvas.width;
+        this.y = fireworksCanvas.height;
+        this.targetY = Math.random() * (fireworksCanvas.height / 2);
+        this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+        this.exploded = false;
+    }
+    update() {
+        if (!this.exploded) {
+            this.y -= 3;
+            if (this.y < this.targetY) {
+                this.exploded = true;
+                for (let i = 0; i < 30; i++) particles.push(new Particle(this.x, this.y, this.color));
+            }
+        }
+    }
+    done() { return this.exploded; }
+    draw() {
+        if (!this.exploded) {
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, 2, 0, Math.PI * 2, false);
+            ctx.fillStyle = this.color;
+            ctx.fill();
+        }
+    }
+}
+
+
+// --- INITIALIZATION ---
+window.onload = () => {
+    showScreen('mode-screen');
+    if (Tone.context.state !== 'running') {
+        Tone.start().catch(e => console.error("Could not start Tone.js AudioContext:", e));
+    }
+    loadVoices();
+};
+
+</script>
+</body>
+</html>

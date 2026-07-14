@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="color-scheme" content="light" />
+<title>Emoji Fun — Learning Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f8fb; --surface:#ffffff; --ink:#222; --muted:#667085;
+  --primary:#ff6f61; --primary-ink:#fff; --secondary:#4f9da6;
+  --ok:#2e7d32; --no:#c62828; --card:#f9fbff;
+  --radius:14px; --gap:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family: 'Baloo 2', cursive;
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  overflow: hidden; /* Prevent scrollbars from rain effect */
+}
+
+/* Layout */
+#app{max-width:1100px; margin:0 auto; min-height:100vh; background:var(--surface); display:flex; flex-direction:column; position: relative; z-index: 1;}
+
+/* Header (persistent) */
+#game-header{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:10px 14px; border-bottom:1px solid #eaeef3; position:sticky; top:0;
+  background:var(--surface); z-index:5;
+}
+#stats{display:flex; gap:10px; flex-wrap:wrap; align-items:center; font-weight:800; color:#344054; font-size:.95rem}
+.stat-pill{background:#eef5ff; color:#24416b; border-radius:999px; padding:.35rem .7rem; display:inline-flex; align-items:center; gap:6px}
+#powerups{display:flex; gap:8px; align-items:center}
+
+/* Screens */
+.screen{padding:20px; display:flex; flex-direction:column; align-items:center; gap:14px}
+.hidden{display:none !important}
+
+/* Buttons */
+.btn{border:0; border-radius:999px; padding:.9rem 1.4rem; font-weight:900; cursor:pointer; font-size:1rem; font-family: inherit;}
+.btn-primary{background:var(--primary); color:var(--primary-ink)}
+.btn-secondary{background:var(--secondary); color:#fff}
+.btn-ghost{background:#fff; color:var(--secondary); border:2px solid var(--secondary); border-radius:12px}
+.btn-block{width:100%} .btn-lg{font-size:1.1rem; padding:1rem 1.6rem}
+@media (hover:hover){ .btn:hover{filter:brightness(.95)} }
+
+/* Inputs */
+input[type="text"]{
+  width:100%; max-width:420px; font-size:1.1rem; padding:0.9rem 1rem; border-radius:12px; border:2px solid #e5e7eb; outline:none; font-family: inherit;
+}
+input[type="text"]:focus{border-color:#9ac1f8; box-shadow:0 0 0 3px rgba(65,134,255,.15)}
+
+/* Cards and grids */
+.card{
+  width:100%; background:var(--card); border:1px solid #edf1f7; border-radius:var(--radius);
+  padding:1rem; display:flex; flex-direction:column; gap:6px; align-items:center; text-align:center;
+}
+.grid{width:100%; display:grid; gap:var(--gap); grid-template-columns:repeat(auto-fit, minmax(140px,1fr))}
+.category-emoji{font-size:3rem} .category-title{font-weight:900} .category-btn{cursor:pointer}
+
+/* Game content */
+#game-content{width:100%; display:flex; flex-direction:column; align-items:center; gap:16px}
+.emoji-big{font-size:9rem; line-height:1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;}
+.word-big{font-size:2rem; font-weight:900}
+.options{display:grid; gap:12px; width:100%; max-width:820px; grid-template-columns:repeat(2,1fr)}
+.option-btn{padding:1rem; border-radius:12px; background:#fff; border:2px solid #e5e7eb; font-weight:900; cursor:pointer; font-family: inherit;}
+.option-btn.correct{border-color:var(--ok); background:#e8f5e9}
+.option-btn.incorrect{border-color:var(--no); background:#ffebee}
+
+/* Memory */
+#memory-grid{display:grid; gap:12px; width:100%; max-width:820px; grid-template-columns:repeat(4,1fr)}
+.memory-card{
+  position:relative; height:110px; border-radius:14px; border:2px solid #e5e7eb; background:#fff; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; font-weight:900; font-size:1.4rem;
+  font-family: inherit;
+}
+.memory-card .back div:first-child { font-size: 2.85rem; }
+@media (max-width:560px){ #memory-grid{grid-template-columns:repeat(3,1fr)} }
+
+/* Progress bars */
+.progress-wrap{width:100%; background:#eef2f7; border-radius:999px; overflow:hidden; height:10px}
+.progress{height:100%; width:0%; transition:width .4s ease; background:linear-gradient(90deg,#ff6f61,#ffb199)}
+.progress.alt{background:linear-gradient(90deg,#4f9da6,#8fd3c8)}
+
+/* Toast */
+#phrase-display{
+  position:fixed; left:50%; bottom:22px; transform:translate(-50%,130%);
+  color:#fff; padding:.9rem 1.2rem; border-radius:999px; font-weight:900; transition:transform .35s ease;
+  z-index:10; white-space:nowrap; max-width:90%; overflow:hidden; text-overflow:ellipsis;
+}
+#phrase-display.show{transform:translate(-50%,0)}
+#phrase-display.correct{background:var(--ok)} #phrase-display.incorrect{background:var(--no)}
+
+/* Helpers */
+.subtle{color:var(--muted); font-weight:700} .error{color:var(--no); font-weight:800; min-height:1.2rem}
+.hr{width:100%; height:1px; background:#edf1f7; margin:2px 0 10px} .center{text-align:center}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+button,.memory-card,.option-btn{min-height:44px}
+
+/* Stage transitions */
+.fade-in{animation:fadeIn .28s ease-out}
+.fade-out{animation:fadeOut .22s ease-in forwards}
+.slide-up{animation:slideUp .28s ease-out}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes fadeOut{to{opacity:0;transform:translateY(-8px)}}
+@keyframes slideUp{from{transform:translateY(14px);opacity:.01}to{transform:none;opacity:1}}
+
+/* Badges */
+.badge{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  background:#fff;border:2px dashed #e5e7eb;border-radius:14px;padding:12px;min-height:120px
+}
+.badge .emoji{font-size:3rem}
+.badge.earned{border-style:solid;border-color:#ffd166;background:#fff8e6}
+.badge.earned .emoji{animation:pop .35s ease}
+@keyframes pop{0%{transform:scale(.7)}70%{transform:scale(1.15)}100%{transform:scale(1)}}
+
+/* Shop */
+.shop-item{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  background:#fff;border:2px solid #e5e7eb;border-radius:14px;padding:12px
+}
+.price{background:#fff3cd;color:#8b6b00;border-radius:999px;padding:.2rem .6rem;font-weight:900}
+
+/* Confetti (minimal) */
+.confetti{position:fixed;left:0;top:0;width:100%;height:0;pointer-events:none;overflow:visible;z-index:11}
+
+/* Score Token Animation */
+.score-token {
+  position: fixed;
+  z-index: 100;
+  font-size: 2rem;
+  transition: transform 0.8s cubic-bezier(0.5, 0, 1, 1), opacity 0.8s ease-out;
+  pointer-events: none;
+}
+
+/* Emoji Rain background */
+#emoji-rain-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.raining-emoji {
+  position: absolute;
+  top: -10vh; /* Start off-screen */
+  animation-name: emoji-rain;
+  animation-timing-function: linear;
+  opacity: 0.7;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", sans-serif;
+}
+@keyframes emoji-rain {
+  to {
+    transform: translateY(110vh) rotate(360deg);
+  }
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="emoji-rain-container"></div>
+
+  <!-- Header: always visible during learning/gameplay -->
+  <header id="game-header" class="hidden">
+    <div id="stats">
+      <div class="stat-pill">⭐ <span id="game-score">0</span></div>
+      <div class="stat-pill">❓ <span id="question-counter">0/0</span></div>
+    </div>
+    <nav id="powerups">
+      <button id="main-menu-btn" class="btn btn-ghost">🏠 Menu</button>
+      <button id="sticker-book-btn" class="btn btn-ghost">📚 Stickers</button>
+      <button id="certificate-btn" class="btn btn-ghost">🎓 Certificate</button>
+    </nav>
+  </header>
+
+  <!-- Start -->
+  <section id="start-screen" class="screen">
+    <div class="card" style="max-width:780px">
+      <div style="font-size:3rem; font-weight:900">Emoji Fun!</div>
+      <div class="subtle">Learn words, play games, and earn points.</div>
+      <div class="hr"></div>
+      <input id="player-name" type="text" placeholder="Enter your name" inputmode="text" autocomplete="name" />
+      <div id="name-error" class="error"></div>
+      <button id="start-button" class="btn btn-primary btn-lg">Start Game</button>
+    </div>
+  </section>
+
+  <!-- Category select -->
+  <section id="category-select-screen" class="screen hidden">
+    <h2 style="margin:0">Choose a category</h2>
+    <div class="subtle center">Tap a card to begin. Complete the mini‑games to score points.</div>
+    <div id="category-grid" class="grid"></div>
+    <button id="back-to-start-btn" class="btn btn-secondary">Back to Start</button>
+  </section>
+
+  <!-- Game -->
+  <section id="game-screen" class="screen hidden">
+    <div style="width:100%; display:flex; flex-direction:column; gap:10px; max-width:980px">
+      <div class="progress-wrap"><div id="round-progress" class="progress"></div></div>
+      <div class="progress-wrap"><div id="stage-progress" class="progress alt"></div></div>
+      <div id="question-timer-display" class="stat-pill" style="align-self: center; display: none;"></div>
+    </div>
+    <div id="game-content"></div>
+  </section>
+
+  <!-- Sticker Book -->
+  <section id="sticker-book-screen" class="screen hidden">
+    <h2 style="margin:0">Sticker Book</h2>
+    <div class="subtle center">Earn badges as you play. Spend ⭐ in the shop.</div>
+    <div id="sticker-tabs" style="display:flex;gap:10px;flex-wrap:wrap">
+      <button id="tab-badges" class="btn btn-secondary">My Badges</button>
+      <button id="tab-shop" class="btn btn-ghost">Rewards Shop</button>
+      <button id="sticker-close-btn" class="btn btn-ghost" style="margin-left:auto">✖ Close</button>
+    </div>
+
+    <div id="badges-panel" class="card" style="width:100%">
+      <div id="badge-grid" class="grid"></div>
+    </div>
+
+    <div id="shop-panel" class="card hidden" style="width:100%">
+      <div id="shop-grid" class="grid"></div>
+    </div>
+  </section>
+
+  <!-- Certificate -->
+  <section id="certificate-screen" class="screen hidden">
+    <div id="certificate-card" class="card" style="max-width:820px">
+      <div style="font-size:2.4rem;font-weight:900">Certificate of Completion</div>
+      <div class="hr"></div>
+      <div class="center" style="font-size:1.1rem">
+        This certificate is awarded to
+      </div>
+      <div id="cert-player-name" style="font-size:2.2rem;font-weight:900"></div>
+      <div class="center subtle">for completing Emoji Fun challenges.</div>
+      <div class="hr"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        <button id="print-cert-btn" class="btn btn-secondary">🖨️ Print</button>
+        <button id="share-cert-btn" class="btn btn-ghost">📤 Share</button>
+        <button id="cert-close-btn" class="btn btn-primary">Done</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Toast -->
+  <div id="phrase-display"></div>
+</div>
+
+<script>
+/* ===== Utils ===== */
+const U = {
+  byId: id => document.getElementById(id),
+  show: id => U.byId(id).classList.remove('hidden'),
+  hide: id => U.byId(id).classList.add('hidden'),
+  swap: (hideId, showId) => { U.hide(hideId); U.show(showId); },
+  fmtTime: secs => `${String(Math.floor(secs/60)).padStart(2,'0')}:${String(Math.floor(secs%60)).padStart(2,'0')}`,
+  shuffle: arr => arr.map(v=>[Math.random(),v]).sort((a,b)=>a[0]-b[0]).map(v=>v[1]),
+  pickN: (arr, n) => U.shuffle([...arr]).slice(0, n),
+  articleFor: w => /^[aeiou]/i.test(w) ? 'an' : 'a'
+};
+
+/* ===== Audio & TTS ===== */
+let audioCtx;
+let availableVoices = [];
+let voiceIndex = 0;
+const preferredVoices = ['Microsoft Ava Multilingual', 'Microsoft Brian Multilingual', 'Microsoft Andrew Multilingual', 'Microsoft Emma Multilingual', 'Microsoft William Multilingual'];
+
+function loadVoices() {
+    availableVoices = speechSynthesis.getVoices().filter(voice => preferredVoices.includes(voice.name));
+    if (availableVoices.length === 0) {
+        // Fallback to any english voice if the preferred ones are not found
+        availableVoices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en'));
+    }
+}
+// This is crucial for browsers that load voices asynchronously
+speechSynthesis.onvoiceschanged = loadVoices;
+
+
+const AudioFX = {
+  init(){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} },
+  resume(){ if(audioCtx && audioCtx.state==='suspended') audioCtx.resume(); },
+  play(seq){
+    if(!audioCtx || !seq) return;
+    let t = audioCtx.currentTime;
+    for(const n of seq){
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.type = n.type || 'sine'; osc.frequency.setValueAtTime(n.freq, t);
+      gain.gain.setValueAtTime(n.vol ?? 0.35, t);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + (n.dur ?? 0.16));
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(t); osc.stop(t + (n.dur ?? 0.16));
+      t += (n.gap ?? (n.dur ?? 0.16)) + 0.01;
+    }
+  }
+};
+function speak(text){
+  if(!('speechSynthesis' in window) || !text) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  
+  // Voice rotation logic
+  if (availableVoices.length > 0) {
+      u.voice = availableVoices[voiceIndex];
+      voiceIndex = (voiceIndex + 1) % availableVoices.length;
+  }
+  
+  u.rate = 0.85; // Slow down speech as per user preference
+  u.lang = 'en-US';
+  window.speechSynthesis.speak(u);
+}
+
+/* ===== Phrases & sounds ===== */
+const victorySound = { seq:[
+  {freq:523, dur:0.11}, {freq:659, dur:0.11}, {freq:784, dur:0.12},
+  {freq:1046, dur:0.36}, {freq:784, dur:0.2}, {freq:1046, dur:0.4}
+]};
+const correctSounds = [
+  { seq:[{freq:880, dur:0.12},{freq:1175, dur:0.16}] },
+  { seq:[{freq:740, dur:0.10},{freq:988, dur:0.12}] },
+];
+const incorrectSounds = [
+  { seq:[{freq:330, dur:0.18},{freq:247, dur:0.14}] },
+  { seq:[{freq:220, dur:0.16}] },
+];
+const correctPhrases = [
+  "Stellar work!","You've got it!","Absolutely brilliant!","That's the one!","Incredible!","You're a genius!",
+  "Keep it up!","Outstanding!","Perfectly done!","You're on fire!","Spot on!","You nailed it!","Brilliant thinking!",
+  "Exactly right!","Sharp as a tack!","Bullseye!","Flawless!","You crushed it!","Right on target!","Exceptional!"
+];
+const incorrectPhrases = [
+  "That was a great attempt! Let's try another.","Not this time, but you're getting warmer!",
+  "Every try is a step forward. Keep going!","Mistakes are proof that you are trying. Don't stop!",
+  "That's not the answer, but I believe in you!","Close one! Give it another shot.","Almost there — try again!",
+  "Good thinking, but not quite.","You're on the right track!","Keep pushing, you'll get it!",
+  "Nice try — let's see what happens next time.","Don't give up, you're improving!",
+  "That was creative! Let's refine it.","So close! One more go.","You're learning with every attempt."
+];
+function toastPhrase(type, msg){
+  const el = U.byId('phrase-display');
+  if (msg) {
+    el.textContent = msg;
+  } else {
+    const list = type==='correct'?correctPhrases:incorrectPhrases;
+    el.textContent = list[Math.floor(Math.random()*list.length)];
+  }
+  el.className = ''; el.classList.add('show', type);
+  speak(el.textContent);
+  setTimeout(()=>el.classList.remove('show'),2000);
+}
+
+/* ===== Categories ===== */
+const CATEGORIES = {
+  "Flags (famous 12)": ["🇺🇸","🇬🇧","🇨🇳","🇯🇵","🇫🇷","🇩🇪","🇮🇹","🇧🇷","🇨🇦","🇮🇳","🇦🇺","🇿🇦"],
+  "Fruits": ["🍎","🍏","🍐","🍊","🍋","🍌","🍉","🍇","🍓","🫐","🍒","🍑","🥭","🍍","🥝","🍅","🥥","🥑"],
+  "Vegetables": ["🥕","🌽","🥔","🥦","🥬","🧄","🧅","🥒","🫑","🫛","🫘","🍄"],
+  "Breads & Bakery": ["🍞","🥐","🥖","🥨","🥯","🥞","🧇","🥧","🎂","🍰","🧁","🍪","🍩"],
+  "Western Dishes": ["🍔","🍟","🍕","🌭","🥪","🌮","🌯","🍳","🥙","🥗","🍿","🥓","🥩","🍗","🍖","🍝"],
+  "Asian Dishes": ["🍛","🍜","🍣","🍤","🍱","🍚","🍙","🍘","🥟","🥠","🍢","🍡","🍥","🍲"],
+  "Sweets": ["🍦","🍧","🍨","🍫","🍬","🍭","🍮","🍯"],
+  "Beverages": ["🥛","☕","🍵","🧃","🧋","🥤","🍷","🍺","🍻","🍹","🍾","🍶"],
+  "Team Sports": ["⚽","🏀","🏐","🏈","🏉","⚾","🥎","🏏","🏑","🏒","🥍","🥅","🤽‍♂️","🤾‍♂️","🤼‍♂️"],
+  "Individual Sports": ["🎾","🥏","🎳","🥊","🥋","⛳","⛸️","🎣","🤿","🎿","🛷","🥌","🎯","🎱","🛹","🛼","🏃‍♂️","🏃‍♀️","🤺","🏇","⛷️","🏂","🏌️‍♂️","🏄‍♂️","🚣‍♂️","🏊‍♂️","⛹️‍♂️","🏋️‍♂️","🚴‍♂️","🚵‍♂️","🤸‍♂️","🤹‍♂️","🏓","🏸"],
+  "Personal transport": ["🚲","🛴","🛵","🏍️","🛹","🛼"],
+  "Indoor games & hobbies": ["🎯","🎳","🎲","🧩","♟️","🎮","🕹️","👾","🃏","🀄","🎴","🎱"],
+  "Arts & crafts": ["🎨","🖌️","🖍️","✏️","🖊️","🖋️","🖼️","🧵","🪡","🧶","✂️","🪆","🪵","🪚","🪛","🪜"],
+  "Musical instruments": ["🎸","🎻","🪕","🎹","🪗","🎷","🎺","🥁","🪘","🪇","🪈","🪉","🎤","🎙️","🎚️","🎛️"],
+  "Photography & media": ["📷","📸","📹","🎥","📽️","📼","📺","📻"]
+};
+
+/* ===== Item properties ===== */
+const ITEM_PROPERTIES = {
+  // Flags
+  "🇺🇸":{name:"United States", plural:"United States", type:"countable"}, "🇬🇧":{name:"United Kingdom", plural:"United Kingdom", type:"countable"},
+  "🇨🇳":{name:"China", plural:"China", type:"countable"}, "🇯🇵":{name:"Japan", plural:"Japan", type:"countable"},
+  "🇫🇷":{name:"France", plural:"France", type:"countable"}, "🇩🇪":{name:"Germany", plural:"Germany", type:"countable"},
+  "🇮🇹":{name:"Italy", plural:"Italy", type:"countable"}, "🇧🇷":{name:"Brazil", plural:"Brazil", type:"countable"},
+  "🇨🇦":{name:"Canada", plural:"Canada", type:"countable"}, "🇮🇳":{name:"India", plural:"India", type:"countable"},
+  "🇦🇺":{name:"Australia", plural:"Australia", type:"countable"}, "🇿🇦":{name:"South Africa", plural:"South Africa", type:"countable"},
+  // Fruits
+  "🍎":{name:"apple", plural:"apples", type:"countable"}, "🍏":{name:"green apple", plural:"green apples", type:"countable"},
+  "🍐":{name:"pear", plural:"pears", type:"countable"}, "🍊":{name:"orange", plural:"oranges", type:"countable"},
+  "🍋":{name:"lemon", plural:"lemons", type:"countable"}, "🍌":{name:"banana", plural:"bananas", type:"countable"},
+  "🍉":{name:"watermelon", plural:"watermelons", type:"countable"}, "🍇":{name:"grapes", plural:"grapes", type:"countable", isCollective:true},
+  "🍓":{name:"strawberry", plural:"strawberries", type:"countable"}, "🫐":{name:"blueberries", plural:"blueberries", type:"countable", isCollective:true},
+  "🍒":{name:"cherries", plural:"cherries", type:"countable", isCollective:true}, "🍑":{name:"peach", plural:"peaches", type:"countable"},
+  "🥭":{name:"mango", plural:"mangoes", type:"countable"}, "🍍":{name:"pineapple", plural:"pineapples", type:"countable"},
+  "🥝":{name:"kiwi", plural:"kiwis", type:"countable"}, "🍅":{name:"tomato", plural:"tomatoes", type:"countable"},
+  "🥥":{name:"coconut", plural:"coconuts", type:"countable"}, "🥑":{name:"avocado", plural:"avocados", type:"countable"},
+  // Vegetables
+  "🥕":{name:"carrot", plural:"carrots", type:"countable"}, "🌽":{name:"corn", plural:"corn", type:"uncountable"},
+  "🥔":{name:"potato", plural:"potatoes", type:"countable"}, "🥦":{name:"broccoli", plural:"broccoli", type:"uncountable"},
+  "🥬":{name:"lettuce", plural:"lettuce", type:"uncountable"}, "🧄":{name:"garlic", plural:"garlic", type:"uncountable"},
+  "🧅":{name:"onion", plural:"onions", type:"countable"}, "🥒":{name:"cucumber", plural:"cumbers", type:"countable"},
+  "🫑":{name:"bell pepper", plural:"bell peppers", type:"countable"}, "🫛":{name:"pea pod", plural:"pea pods", type:"countable"},
+  "🫘":{name:"beans", plural:"beans", type:"countable", isCollective:true}, "🍄":{name:"mushroom", plural:"mushrooms", type:"countable"},
+  // Bakery & sweets
+  "🍞":{name:"bread", plural:"bread", type:"uncountable"}, "🥐":{name:"croissant", plural:"croissants", type:"countable"},
+  "🥖":{name:"baguette", plural:"baguettes", type:"countable"}, "🥨":{name:"pretzel", plural:"pretzels", type:"countable"},
+  "🥯":{name:"bagel", plural:"bagels", type:"countable"}, "🥞":{name:"pancakes", plural:"pancakes", type:"countable", isCollective:true},
+  "🧇":{name:"waffle", plural:"waffles", type:"countable"}, "🥧":{name:"pie", plural:"pies", type:"countable"},
+  "🎂":{name:"cake", plural:"cakes", type:"countable"}, "🍰":{name:"slice of cake", plural:"slices of cake", type:"countable"},
+  "🧁":{name:"cupcake", plural:"cupcakes", type:"countable"}, "🍪":{name:"cookie", plural:"cookies", type:"countable"},
+  "🍩":{name:"doughnut", plural:"doughnuts", type:"countable"},
+  // Western Dishes
+  "🍔":{name:"burger", plural:"burgers", type:"countable"}, "🍟":{name:"fries", plural:"fries", type:"countable", isCollective:true},
+  "🍕":{name:"pizza", plural:"pizzas", type:"countable"}, "🌭":{name:"hot dog", plural:"hot dogs", type:"countable"},
+  "🥪":{name:"sandwich", plural:"sandwiches", type:"countable"}, "🌮":{name:"taco", plural:"tacos", type:"countable"},
+  "🌯":{name:"burrito", plural:"burritos", type:"countable"}, "🍳":{name:"fried egg", plural:"fried eggs", type:"countable"},
+  "🥙":{name:"stuffed flatbread", plural:"stuffed flatbreads", type:"countable"}, "🥗":{name:"salad", plural:"salads", type:"countable"},
+  "🍿":{name:"popcorn", plural:"popcorn", type:"uncountable"}, "🥓":{name:"bacon", plural:"bacon", type:"uncountable"},
+  "🥩":{name:"steak", plural:"steaks", type:"countable"}, "🍗":{name:"chicken leg", plural:"chicken legs", type:"countable"},
+  "🍖":{name:"meat on bone", plural:"meats on bone", type:"countable"}, "🍝":{name:"pasta", plural:"pasta", type:"uncountable"},
+  // Asian Dishes
+  "🍛":{name:"curry rice", plural:"curry rice", type:"uncountable"}, "🍜":{name:"noodles", plural:"noodles", type:"countable", isCollective:true},
+  "🍣":{name:"sushi", plural:"sushi", type:"uncountable"}, "🍤":{name:"fried shrimp", plural:"fried shrimp", type:"uncountable"},
+  "🍱":{name:"bento box", plural:"bento boxes", type:"countable"}, "🍚":{name:"cooked rice", plural:"cooked rice", type:"uncountable"},
+  "🍙":{name:"rice ball", plural:"rice balls", type:"countable"}, "🍘":{name:"rice cracker", plural:"rice crackers", type:"countable"},
+  "🥟":{name:"dumpling", plural:"dumplings", type:"countable"}, "🥠":{name:"fortune cookie", plural:"fortune cookies", type:"countable"},
+  "🍢":{name:"oden", plural:"oden", type:"uncountable"}, "🍡":{name:"dango", plural:"dango", type:"uncountable"},
+  "🍥":{name:"fish cake", plural:"fish cakes", type:"countable"}, "🍲":{name:"stew", plural:"stews", type:"countable"},
+  // Sweets
+  "🍦":{name:"ice cream", plural:"ice creams", type:"countable"}, "🍧":{name:"shaved ice", plural:"shaved ice", type:"uncountable"},
+  "🍨":{name:"ice cream bowl", plural:"ice cream bowls", type:"countable"}, "🍫":{name:"chocolate", plural:"chocolates", type:"countable"},
+  "🍬":{name:"candy", plural:"candies", type:"countable"}, "🍭":{name:"lollipop", plural:"lollipops", type:"countable"},
+  "🍮":{name:"custard", plural:"custards", type:"countable"}, "🍯":{name:"honey", plural:"honey", type:"uncountable"},
+  // Beverages
+  "🥛":{name:"milk", plural:"milk", type:"uncountable"}, "☕":{name:"coffee", plural:"coffee", type:"uncountable"},
+  "🍵":{name:"tea", plural:"tea", type:"uncountable"}, "🧃":{name:"juice", plural:"juice", type:"uncountable"},
+  "🧋":{name:"bubble tea", plural:"bubble tea", type:"uncountable"}, "🥤":{name:"soft drink", plural:"soft drinks", type:"countable"},
+  "🍷":{name:"wine", plural:"wine", type:"uncountable"}, "🍺":{name:"beer", plural:"beer", type:"uncountable"},
+  "🍻":{name:"beer mugs", plural:"beer mugs", type:"countable"}, "🍹":{name:"tropical drink", plural:"tropical drinks", type:"countable"},
+  "🍾":{name:"bottle of champagne", plural:"bottles of champagne", type:"countable"}, "🍶":{name:"sake", plural:"sake", type:"uncountable"},
+  // Sports
+  "⚽":{name:"soccer ball", plural:"soccer balls", type:"countable"}, "⚾":{name:"baseball", plural:"baseballs", type:"countable"},
+  "🥎":{name:"softball", plural:"softballs", type:"countable"}, "🏀":{name:"basketball", plural:"basketballs", type:"countable"},
+  "🏐":{name:"volleyball", plural:"volleyballs", type:"countable"}, "🏈":{name:"american football", plural:"footballs", type:"countable"},
+  "🏉":{name:"rugby ball", plural:"rugby balls", type:"countable"}, "🎾":{name:"tennis", plural:"tennis", type:"uncountable"},
+  "🥏":{name:"flying disc", plural:"flying discs", type:"countable"}, "🎳":{name:"bowling", plural:"bowling", type:"uncountable"},
+  "🏏":{name:"cricket", plural:"cricket", type:"uncountable"}, "🏑":{name:"field hockey", plural:"field hockey", type:"uncountable"},
+  "🏒":{name:"ice hockey", plural:"ice hockey", type:"uncountable"}, "🥍":{name:"lacrosse", plural:"lacrosse", type:"uncountable"},
+  "🏓":{name:"table tennis", plural:"table tennis", type:"uncountable"}, "🏸":{name:"badminton", plural:"badminton", type:"uncountable"},
+  "🥊":{name:"boxing gloves", plural:"boxing gloves", type:"countable", isCollective:true}, "🥋":{name:"martial arts uniform", plural:"martial arts uniforms", type:"countable"},
+  "🥅":{name:"goal net", plural:"goal nets", type:"countable"}, "⛳":{name:"golf", plural:"golf", type:"uncountable"},
+  "⛸️":{name:"ice skates", plural:"ice skates", type:"countable", isCollective:true}, "🎣":{name:"fishing rod", plural:"fishing rods", type:"countable"},
+  "🤿":{name:"diving mask", plural:"diving masks", type:"countable"}, "🎿":{name:"skis", plural:"skis", type:"countable", isCollective:true},
+  "🛷":{name:"sled", plural:"sleds", type:"countable"}, "🥌":{name:"curling stone", plural:"curling stones", type:"countable"},
+  "🎯":{name:"dartboard", plural:"dartboards", type:"countable"}, "🎱":{name:"billiards", plural:"billiards", type:"uncountable"}, "🛹":{name:"skateboard", plural:"skateboards", type:"countable", sport:"skateboarding", collocation:"go"},
+  "🛼":{name:"roller skate", plural:"roller skates", type:"countable", sport:"roller skating", collocation:"go"},
+  "🏃‍♂️":{name:"runner", plural:"runners", type:"countable"}, "🏃‍♀️":{name:"runner", plural:"runners", type:"countable"},
+  "🤺":{name:"fencer", plural:"fencers", type:"countable"}, "🏇":{name:"horse racing", plural:"horse racing", type:"uncountable"},
+  "⛷️":{name:"skier", plural:"skiers", type:"countable"}, "🏂":{name:"snowboarder", plural:"snowboarders", type:"countable"},
+  "🏌️‍♂️":{name:"golfer", plural:"golfers", type:"countable"}, "🏄‍♂️":{name:"surfer", plural:"surfers", type:"countable"},
+  "🚣‍♂️":{name:"rower", plural:"rowers", type:"countable"}, "🏊‍♂️":{name:"swimmer", plural:"swimmers", type:"countable"},
+  "⛹️‍♂️":{name:"basketball player", plural:"basketball players", type:"countable"}, "🏋️‍♂️":{name:"weightlifter", plural:"weightlifters", type:"countable"},
+  "🚴‍♂️":{name:"cyclist", plural:"cyclists", type:"countable"}, "🚵‍♂️":{name:"mountain biker", plural:"mountain bikers", type:"countable"},
+  "🤸‍♂️":{name:"gymnast", plural:"gymnasts", type:"countable"}, "🤼‍♂️":{name:"wrestlers", plural:"wrestlers", type:"countable", isCollective: true},
+  "🤽‍♂️":{name:"water polo player", plural:"water polo players", type:"countable"}, "🤾‍♂️":{name:"handball player", plural:"handball players", type:"countable"},
+  "🤹‍♂️":{name:"juggler", plural:"jugglers", type:"countable"},
+  // Personal transport
+  "🚲":{name:"bicycle", plural:"bicycles", type:"countable", preposition:"on", travel_method_preposition:"by"},
+  "🛴":{name:"kick scooter", plural:"kick scooters", type:"countable", preposition:"on", travel_method_preposition:"by"},
+  "🛵":{name:"motor scooter", plural:"motor scooters", type:"countable", preposition:"on", travel_method_preposition:"by"},
+  "🏍️":{name:"motorcycle", plural:"motorcycles", type:"countable", preposition:"on", travel_method_preposition:"by"},
+  // Indoor games & hobbies
+  "🎲":{name:"dice", plural:"dice", type:"countable", isCollective:true}, "🧩":{name:"puzzle piece", plural:"puzzle pieces", type:"countable"},
+  "♟️":{name:"chess pawn", plural:"chess pawns", type:"countable"}, "🎮":{name:"video game controller", plural:"video game controllers", type:"countable"},
+  "🕹️":{name:"joystick", plural:"joysticks", type:"countable"}, "👾":{name:"alien monster", plural:"alien monsters", type:"countable"},
+  "🃏":{name:"playing card", plural:"playing cards", type:"countable"}, "🀄":{name:"mahjong tile", plural:"mahjong tiles", type:"countable"},
+  "🎴":{name:"flower playing cards", plural:"flower playing cards", type:"countable"},
+  // Arts & crafts
+  "🎨":{name:"artist palette", plural:"artist palettes", type:"countable"}, "🖌️":{name:"paintbrush", plural:"paintbrushes", type:"countable"},
+  "🖍️":{name:"crayon", plural:"crayons", type:"countable"}, "✏️":{name:"pencil", plural:"pencils", type:"countable"},
+  "🖊️":{name:"pen", plural:"pens", type:"countable"}, "🖋️":{name:"fountain pen", plural:"fountain pens", type:"countable"},
+  "🖼️":{name:"framed picture", plural:"framed pictures", type:"countable"}, "🧵":{name:"thread", plural:"threads", type:"uncountable"},
+  "🪡":{name:"sewing needle", plural:"sewing needles", type:"countable"}, "🧶":{name:"yarn", plural:"yarn", type:"uncountable"},
+  "✂️":{name:"scissors", plural:"scissors", type:"countable", isCollective:true}, "🪆":{name:"nesting dolls", plural:"nesting dolls", type:"countable", isCollective:true},
+  "🪵":{name:"wood", plural:"wood", type:"uncountable"}, "🪚":{name:"saw", plural:"saws", type:"countable"},
+  "🪛":{name:"screwdriver", plural:"screwdrivers", type:"countable"}, "🪜":{name:"ladder", plural:"ladders", type:"countable"},
+  // Musical instruments
+  "🎸":{name:"guitar", plural:"guitars", type:"countable"}, "🎻":{name:"violin", plural:"violins", type:"countable"},
+  "🪕":{name:"banjo", plural:"banjos", type:"countable"}, "🎹":{name:"keyboard", plural:"keyboards", type:"countable"},
+  "🪗":{name:"accordion", plural:"accordions", type:"countable"}, "🎷":{name:"saxophone", plural:"saxophones", type:"countable"},
+  "🎺":{name:"trumpet", plural:"trumpets", type:"countable"}, "🥁":{name:"drum", plural:"drums", type:"countable"},
+  "🪘":{name:"long drum", plural:"long drums", type:"countable"}, "🪇":{name:"maracas", plural:"maracas", type:"countable", isCollective:true},
+  "🪈":{name:"flute", plural:"flutes", type:"countable"}, "🪉":{name:"castanets", plural:"castanets", type:"countable", isCollective:true},
+  "🎤":{name:"microphone", plural:"microphones", type:"countable"}, "🎙️":{name:"studio microphone", plural:"studio microphones", type:"countable"},
+  "🎚️":{name:"level slider", plural:"level sliders", type:"countable"}, "🎛️":{name:"control knobs", plural:"control knobs", type:"countable", isCollective:true},
+  // Photography & media
+  "📷":{name:"camera", plural:"cameras", type:"countable"}, "📸":{name:"camera with flash", plural:"cameras with flash", type:"countable"},
+  "📹":{name:"video camera", plural:"video cameras", type:"countable"}, "🎥":{name:"movie camera", plural:"movie cameras", type:"countable"},
+  "📽️":{name:"film projector", plural:"film projectors", type:"countable"}, "📼":{name:"videotape", plural:"videotapes", type:"countable"},
+  "📺":{name:"television", plural:"televisions", type:"countable"}, "📻":{name:"radio", plural:"radios", type:"countable"}
+};
+
+/* ===== Grammar sentence banks ===== */
+const GRAMMAR = {
+  FOOD_COUNTABLE: [ 'I would like to eat {a} {word}.','My favorite food is {word}.','Can you please pass the {word}?','For breakfast, I sometimes have {a} {word}.','Let’s add {a} {word} to the recipe.' ],
+  FOOD_UNCOUNTABLE: [ 'I would like to eat some {word}.','My favorite food is {word}.','Can you please pass the {word}?','For breakfast, I sometimes have some {word}.' ],
+  BEVERAGE_COUNTABLE: [ 'I would like to drink {a} {word}.','This {word} is refreshing.','Could I have another {word}?','{a} {word} is perfect on a hot day.' ],
+  BEVERAGE_UNCOUNTABLE: [ 'I would like to drink some {word}.','This {word} is refreshing.','Can I have some more {word}?','Some cold {word} is perfect on a hot day.' ],
+  SWEETS: [ 'This {word} is very sweet.','I love eating {word} for dessert.','Let’s share this {word}.','Do you have any more {word}?' ],
+  BAKERY: [ 'The smell of fresh {word} is amazing.','I’m going to the bakery to buy {a} {word}.','This {word} goes well with coffee.' ],
+  DISHES: [ 'Let’s order {a} {word} tonight.','The {word} smells delicious.','I have never tried {a} {word} before.','This is my favorite {word}.' ],
+  FLAGS: [ 'The {word} is beautiful.','Many people are proud of the {word}.','I recognize the {word}.','What are the colors of the {word}?' ],
+  TRANSPORT: [ 'I see a big {word}.','Look at that fast {word}!','Can we ride on the {word}?','The {word} is leaving soon.','Let’s take the {word} on our trip.' ],
+  PERSONAL_TRANSPORT: [ 'I like to ride my {word}.','How fast can that {word} go?','She uses her {word} to get to school.' ],
+  INDOOR_GAMES: [ 'Do you want to play {word}?','My family likes to play {word} together.','I am very good at {word}.' ],
+  SPORTS_UNCOUNTABLE: [ 'I like to play {word}.', 'Let\'s play some {word}.', '{word} is a fun sport.'],
+  OUTDOOR_ACTIVITIES: [ 'Let’s go {word} this weekend.','I enjoy {word} in the mountains.','Are you good at {word}?' ],
+  TOOLS: [ 'I need {a} {word} for my homework.','Can you please pass me the {word}?','This {word} is very useful for school.' ],
+  DEFAULT: [ 'Can you hand me the {word}?','I need {a} {word}.','Where is the {word}?','This is a nice {word}.' ]
+};
+
+/* ===== Prompt Generator ===== */
+function getPrompt(item) {
+    if (item.isCollective) return 'What are they?';
+    if (item.name.toLowerCase() !== item.plural.toLowerCase()) return 'What are they?';
+    return 'What is it?';
+}
+
+/* ===== Sentence generator ===== */
+function makeSentenceFor(item, category) {
+  const w = item.name;
+  const a = U.articleFor(w);
+  const replace = str => str.replace('{word}', w).replace('{a}', a);
+  const uncountable = item.type === 'uncountable';
+  
+  if (uncountable && (category === "Team Sports" || category === "Individual Sports")) {
+    return replace(U.pickN(GRAMMAR.SPORTS_UNCOUNTABLE,1)[0]);
+  }
+
+  const isFood = ['Fruits','Sweets','Asian Dishes','Western Dishes','Breads & Bakery','Vegetables'].includes(category);
+  const isBeverage = category === 'Beverages';
+
+  if (isBeverage) {
+    const bank = uncountable ? GRAMMAR.BEVERAGE_UNCOUNTABLE : GRAMMAR.BEVERAGE_COUNTABLE;
+    return replace(U.pickN(bank, 1)[0]);
+  }
+  if (isFood) {
+    if (['Sweets'].includes(category)) return replace(U.pickN(GRAMMAR.SWEETS,1)[0]);
+    if (['Breads & Bakery'].includes(category)) return replace(U.pickN(GRAMMAR.BAKERY,1)[0]);
+    if (['Asian Dishes','Western Dishes','Vegetables'].includes(category)) return replace(U.pickN(GRAMMAR.DISHES,1)[0]);
+    const bank = uncountable ? GRAMMAR.FOOD_UNCOUNTABLE : GRAMMAR.FOOD_COUNTABLE;
+    return replace(U.pickN(bank,1)[0]);
+  }
+  if (category.startsWith('Flags')) return replace(U.pickN(GRAMMAR.FLAGS,1)[0]);
+  if (category.includes('Transport')) return replace(U.pickN(GRAMMAR.TRANSPORT,1)[0]);
+  if (category === 'Personal transport') return replace(U.pickN(GRAMMAR.PERSONAL_TRANSPORT,1)[0]);
+  if (category === 'Indoor games & hobbies') return replace(U.pickN(GRAMMAR.INDOOR_GAMES,1)[0]);
+  if (category === 'Arts & crafts') return replace(U.pickN(GRAMMAR.TOOLS,1)[0]);
+
+  return replace(U.pickN(GRAMMAR.DEFAULT,1)[0]);
+}
+
+/* ===== Persistent state ===== */
+let state = {
+  playerName: "",
+  score: 0,
+  stars: 0,
+  currentCategory: "",
+  roundSet: [],
+  currentIndex: 0,
+  startTime: 0,
+  stageIndex: 0,
+  earnedBadges: {},
+  inventory: {},
+  questionTimer: null,
+  emojiRainInterval: null,
+};
+
+const STORAGE_KEY = 'emojiFunSaveV1';
+
+function saveState(){
+  try {
+    const data = {
+      playerName: state.playerName,
+      stars: state.stars,
+      earnedBadges: state.earnedBadges,
+      inventory: state.inventory
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch(_) {}
+}
+
+function loadState(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return;
+    const data = JSON.parse(raw);
+    state.playerName = data.playerName || "";
+    state.stars = data.stars || 0;
+    state.earnedBadges = data.earnedBadges || {};
+    state.inventory = data.inventory || {};
+    if (state.playerName) {
+        U.byId('player-name').value = state.playerName;
+    }
+  } catch(_) {}
+}
+
+/* ===== Transitions ===== */
+function renderInto(html){
+  const box = U.byId('game-content');
+  box.classList.remove('slide-up','fade-in');
+  box.innerHTML = html;
+  box.classList.add('slide-up');
+}
+
+/* ===== Scoring & stars ===== */
+function showScoreAnimation(originElement) {
+    const scorePill = U.byId('game-score');
+    if (!scorePill) return;
+    const originRect = originElement ? originElement.getBoundingClientRect() : { top: window.innerHeight / 2, left: window.innerWidth / 2, width: 0, height: 0 };
+    const scoreRect = scorePill.getBoundingClientRect();
+
+    const startX = originRect.left + originRect.width / 2;
+    const startY = originRect.top + originRect.height / 2;
+
+    const endX = scoreRect.left + scoreRect.width / 2;
+    const endY = scoreRect.top + scoreRect.height / 2;
+
+    for (let i = 0; i < 3; i++) {
+        const token = document.createElement('div');
+        token.innerHTML = '⭐';
+        token.className = 'score-token';
+        token.style.left = `${startX}px`;
+        token.style.top = `${startY}px`;
+        document.body.appendChild(token);
+
+        setTimeout(() => {
+            token.style.transform = `translate(${endX - startX}px, ${endY - startY}px) scale(0.5)`;
+            token.style.opacity = '0';
+        }, i * 100);
+
+        setTimeout(() => {
+            token.remove();
+        }, 900 + i * 100);
+    }
+}
+
+function addScore(points, originElement){
+  state.score += points;
+  U.byId('game-score').textContent = state.score;
+  showScoreAnimation(originElement);
+}
+function addStars(n){
+  state.stars += n;
+  toastPhrase('correct');
+  saveState();
+}
+
+/* ===== Timers ===== */
+const questionTimerDisplay = U.byId('question-timer-display');
+
+function clearQuestionTimer() {
+    if (state.questionTimer) {
+        clearInterval(state.questionTimer);
+        state.questionTimer = null;
+    }
+    questionTimerDisplay.style.display = 'none';
+}
+
+function startQuestionTimer(duration, onTimeout) {
+    clearQuestionTimer();
+    let timeLeft = duration;
+    
+    questionTimerDisplay.textContent = `⏱️ ${timeLeft}`;
+    questionTimerDisplay.style.display = 'inline-flex';
+
+    state.questionTimer = setInterval(() => {
+        timeLeft--;
+        questionTimerDisplay.textContent = `⏱️ ${timeLeft}`;
+        if (timeLeft <= 0) {
+            clearQuestionTimer();
+            onTimeout();
+        }
+    }, 1000);
+}
+
+
+/* ===== Background Effects ===== */
+function startEmojiRain(emojis) {
+    stopEmojiRain(); // Clear any previous rain
+    const container = U.byId('emoji-rain-container');
+    if (!container || !emojis || emojis.length === 0) return;
+
+    state.emojiRainInterval = setInterval(() => {
+        const emoji = document.createElement('div');
+        emoji.className = 'raining-emoji';
+        emoji.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+
+        // Randomize properties for a natural look
+        const duration = Math.random() * 8 + 6; // 6 to 14 seconds
+        emoji.style.left = `${Math.random() * 100}vw`;
+        emoji.style.fontSize = `${Math.random() * 1.5 + 1}rem`; // 1rem to 2.5rem
+        emoji.style.animationDuration = `${duration}s`;
+        
+        container.appendChild(emoji);
+
+        // Clean up the DOM after animation finishes
+        setTimeout(() => {
+            emoji.remove();
+        }, duration * 1000);
+
+    }, 350);
+}
+
+function stopEmojiRain() {
+    if (state.emojiRainInterval) {
+        clearInterval(state.emojiRainInterval);
+        state.emojiRainInterval = null;
+    }
+    const container = U.byId('emoji-rain-container');
+    if (container) {
+        container.innerHTML = '';
+    }
+}
+
+
+/* ===== Stage pipeline ===== */
+const STAGES = ['TEACH','MEMORY','MCQ','SPELL','GRAMMAR','PLURALS','SENT_CORR'];
+
+function nextStage(){
+  if(state.stageIndex >= STAGES.length){
+    return endRound();
+  }
+  const stage = STAGES[state.stageIndex];
+  U.byId('stage-progress').style.width = `${(state.stageIndex/(STAGES.length))*100}%`;
+  switch(stage){
+    case 'TEACH': return stageTeach();
+    case 'MEMORY': return stageMemory();
+    case 'MCQ': return stageMCQ();
+    case 'SPELL': return stageSpell();
+    case 'GRAMMAR': return stageGrammar();
+    case 'PLURALS': return stagePlurals();
+    case 'SENT_CORR': return stageSentenceCorrection();
+  }
+}
+
+/* ===== Stage 0: Teaching cards ===== */
+function stageTeach(){
+  let i = 0;
+  function tick(){
+    if(i >= state.roundSet.length){
+      state.stageIndex++;
+      return nextStage();
+    }
+    const it = state.roundSet[i++];
+    renderInto(`
+      <div class="card fade-in" style="max-width:680px">
+        <div class="emoji-big">${it.emoji}</div>
+        <div class="word-big">${it.name}</div>
+      </div>
+    `);
+    speak(it.name);
+    U.byId('question-counter').textContent = `${i}/${state.roundSet.length}`;
+    U.byId('round-progress').style.width = `${(i/state.roundSet.length)*100}%`;
+    setTimeout(tick, 5000);
+  }
+  tick();
+}
+
+/* ===== Stage 1: Memory match (6 pairs) ===== */
+function stageMemory(){
+  const pool = U.shuffle(state.roundSet).slice(0,6);
+  const deck = U.shuffle([...pool, ...pool]);
+  let flipped = [], matched = 0;
+
+  renderInto(`
+    <div class="card fade-in" style="width:100%">
+      <div class="subtle">Match the pairs</div>
+      <div id="memory-grid">
+        ${deck.map((it,idx)=>`
+          <button class="memory-card" data-i="${idx}" data-name="${it.name}">
+            <span class="front">?</span>
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `);
+  
+  startQuestionTimer(60, () => {
+    toastPhrase('incorrect', "Time's up!");
+    AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);
+    state.stageIndex++;
+    nextStage();
+  });
+
+  const grid = U.byId('memory-grid');
+  grid.addEventListener('click', e=>{
+    const card = e.target.closest('.memory-card'); if(!card) return;
+    if(card.dataset.revealed === '1' || flipped.length === 2) return;
+    const idx = +card.dataset.i; const it = deck[idx];
+    card.innerHTML = `<div class="back"><div style="font-size:1.9rem">${it.emoji}</div><div style="font-weight:900">${it.name}</div></div>`;
+    card.dataset.revealed = '1';
+    flipped.push({card, it});
+    if(flipped.length === 2){
+      const [a,b] = flipped;
+      if(a.it.name === b.it.name){
+        addScore(50, a.card); addStars(1);
+        toastPhrase('correct'); AudioFX.play(U.pickN(correctSounds,1)[0].seq);
+        matched++;
+        flipped = [];
+        if(matched === 6){
+          clearQuestionTimer();
+          state.stageIndex++;
+          setTimeout(nextStage, 600);
+        }
+      } else {
+        toastPhrase('incorrect'); AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);
+        setTimeout(()=>{
+          a.card.innerHTML = `<span class="front">?</span>`; a.card.dataset.revealed='0';
+          b.card.innerHTML = `<span class="front">?</span>`; b.card.dataset.revealed='0';
+          flipped = [];
+        }, 700);
+      }
+    }
+  });
+}
+
+/* ===== Stage 2: Multiple choice (your existing mode) ===== */
+function stageMCQ(){
+  state.currentIndex = 0;
+  askMCQ();
+}
+function askMCQ(){
+  const item = state.roundSet[state.currentIndex];
+
+  const handleTimeout = () => {
+    toastPhrase('incorrect', "Time's up!");
+    AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);
+    document.querySelectorAll('.option-btn').forEach(x=>x.disabled=true);
+    setTimeout(()=>{
+        state.currentIndex++;
+        if(state.currentIndex < state.roundSet.length) askMCQ();
+        else { state.stageIndex++; nextStage(); }
+    }, 700);
+  };
+
+  startQuestionTimer(15, handleTimeout);
+  
+  U.byId('question-counter').textContent = `${state.currentIndex+1}/${state.roundSet.length}`;
+  U.byId('round-progress').style.width = `${(state.currentIndex/state.roundSet.length)*100}%`;
+  renderInto(`
+    <div class="emoji-big">${item.emoji}</div>
+    <div class="word-big subtle">Which word matches?</div>
+    <div class="options" id="options"></div>
+  `);
+  const all = U.shuffle(state.roundSet.map(x=>x.name));
+  const opts = all.slice(0,4).includes(item.name) ? all.slice(0,4) : [item.name, ...all.slice(0,3)];
+  U.shuffle(opts).forEach(opt=>{
+    const b = document.createElement('button');
+    b.className = 'option-btn'; b.textContent = opt;
+    b.addEventListener('click', ()=> {
+      clearQuestionTimer();
+      document.querySelectorAll('.option-btn').forEach(x=>x.disabled=true);
+      if(opt === item.name){
+        b.classList.add('correct'); addScore(10, b); addStars(1);
+        toastPhrase('correct'); AudioFX.play(U.pickN(correctSounds,1)[0].seq);
+      }else{
+        b.classList.add('incorrect'); toastPhrase('incorrect'); AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);
+      }
+      setTimeout(()=>{
+        state.currentIndex++;
+        if(state.currentIndex < state.roundSet.length) askMCQ();
+        else { state.stageIndex++; nextStage(); }
+      }, 700);
+    });
+    U.byId('options').appendChild(b);
+  });
+}
+
+/* ===== Stage 3: Spelling (choose correct spelling) ===== */
+function stageSpell(){
+  state.currentIndex = 0;
+  askSpell();
+}
+function distort(word){
+  if(word.length < 3) return [word];
+  const idx = Math.max(1, Math.floor(word.length/2)-1);
+  const miss = word.slice(0,idx) + word[idx+1] + word[idx] + word.slice(idx+2);
+  const drop = word.slice(0,idx) + word.slice(idx+1);
+  const swap = word[0] + word.slice(2,3) + word.slice(1,2) + word.slice(3);
+  return U.shuffle([word, miss, drop, swap].filter(Boolean));
+}
+function askSpell(){
+  const item = state.roundSet[state.currentIndex];
+  
+  const handleTimeout = () => {
+    toastPhrase('incorrect', "Time's up!");
+    AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);
+    document.querySelectorAll('.option-btn').forEach(x=>x.disabled=true);
+    setTimeout(()=>{
+        state.currentIndex++;
+        if(state.currentIndex < state.roundSet.length) askSpell();
+        else { state.stageIndex++; nextStage(); }
+    }, 700);
+  };
+  
+  startQuestionTimer(15, handleTimeout);
+
+  const options = U.pickN(U.shuffle(Array.from(new Set(distort(item.name)))), 4);
+  if(!options.includes(item.name)) options[0] = item.name;
+  U.byId('question-counter').textContent = `${state.currentIndex+1}/${state.roundSet.length}`;
+  renderInto(`
+    <div class="emoji-big">${item.emoji}</div>
+    <div class="word-big subtle">Pick the correct spelling</div>
+    <div class="options" id="options"></div>
+  `);
+  U.shuffle(options).forEach(opt=>{
+    const b = document.createElement('button');
+    b.className = 'option-btn'; b.textContent = opt;
+    b.addEventListener('click', ()=>{
+      clearQuestionTimer();
+      document.querySelectorAll('.option-btn').forEach(x=>x.disabled=true);
+      if(opt === item.name){ b.classList.add('correct'); addScore(10, b); addStars(1); toastPhrase('correct'); AudioFX.play(U.pickN(correctSounds,1)[0].seq);}
+      else{ b.classList.add('incorrect'); toastPhrase('incorrect'); AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);}
+      setTimeout(()=>{
+        state.currentIndex++;
+        if(state.currentIndex < state.roundSet.length) askSpell();
+        else { state.stageIndex++; nextStage(); }
+      }, 700);
+    });
+    U.byId('options').appendChild(b);
+  });
+}
+
+/* ===== Stage 4: Grammar (choose best sentence) ===== */
+function stageGrammar(){
+  state.currentIndex = 0;
+  askGrammar();
+}
+function askGrammar(){
+  const item = state.roundSet[state.currentIndex];
+  
+  const handleTimeout = () => {
+    toastPhrase('incorrect', "Time's up!");
+    AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);
+    document.querySelectorAll('.option-btn').forEach(x=>x.disabled=true);
+    setTimeout(()=>{
+        state.currentIndex++;
+        if(state.currentIndex < state.roundSet.length) askGrammar();
+        else { state.stageIndex++; nextStage(); }
+    }, 700);
+  };
+  
+  startQuestionTimer(15, handleTimeout);
+
+  const correct = makeSentenceFor(item, state.currentCategory);
+  const distractors = U.pickN(state.roundSet.filter(x=>x!==item).map(x=>makeSentenceFor(x, state.currentCategory)), 3);
+  const choices = U.shuffle([correct, ...distractors]);
+  U.byId('question-counter').textContent = `${state.currentIndex+1}/${state.roundSet.length}`;
+  renderInto(`
+    <div class="emoji-big">${item.emoji}</div>
+    <div class="word-big subtle">Choose the best sentence</div>
+    <div class="options" id="options"></div>
+  `);
+  choices.forEach(opt=>{
+    const b = document.createElement('button');
+    b.className = 'option-btn'; b.textContent = opt;
+    b.addEventListener('click', ()=>{
+      clearQuestionTimer();
+      document.querySelectorAll('.option-btn').forEach(x=>x.disabled=true);
+      if(opt === correct){ b.classList.add('correct'); addScore(10, b); addStars(1); toastPhrase('correct'); AudioFX.play(U.pickN(correctSounds,1)[0].seq);}
+      else{ b.classList.add('incorrect'); toastPhrase('incorrect'); AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);}
+      setTimeout(()=>{
+        state.currentIndex++;
+        if(state.currentIndex < state.roundSet.length) askGrammar();
+        else { state.stageIndex++; nextStage(); }
+      }, 700);
+    });
+    U.byId('options').appendChild(b);
+  });
+}
+
+/* ===== Stage 5: Plurals (choose correct form) ===== */
+function stagePlurals(){
+  state.currentIndex = 0;
+  askPlurals();
+}
+function pluralOf(item){
+  if(item.plural) return item.plural;
+  const w = item.name;
+  if(/(s|x|z|ch|sh)$/i.test(w)) return w + 'es';
+  if(/[^aeiou]y$/i.test(w)) return w.slice(0,-1) + 'ies';
+  return w + 's';
+}
+function askPlurals(){
+  const item = state.roundSet[state.currentIndex];
+
+  const handleTimeout = () => {
+    toastPhrase('incorrect', "Time's up!");
+    AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);
+    document.querySelectorAll('.option-btn').forEach(x=>x.disabled=true);
+    setTimeout(()=>{
+        state.currentIndex++;
+        if(state.currentIndex < state.roundSet.length) askPlurals();
+        else { state.stageIndex++; nextStage(); }
+    }, 700);
+  };
+  
+  startQuestionTimer(15, handleTimeout);
+  
+  const singular = item.name;
+  const plural = pluralOf(item);
+  const target = Math.random()<0.5 ? singular : plural;
+  const options = U.shuffle([singular, plural, ...U.pickN(state.roundSet.map(x=>x.name), 2)]).slice(0,4);
+  U.byId('question-counter').textContent = `${state.currentIndex+1}/${state.roundSet.length}`;
+  renderInto(`
+    <div class="word-big subtle">For ${item.emoji}, select the: <strong>${target}</strong></div>
+    <div class="options" id="options"></div>
+  `);
+  options.forEach(opt=>{
+    const b = document.createElement('button');
+    b.className = 'option-btn'; b.textContent = opt;
+    b.addEventListener('click', ()=>{
+      clearQuestionTimer();
+      document.querySelectorAll('.option-btn').forEach(x=>x.disabled=true);
+      const ok = (target===singular && opt===singular) || (target===plural && opt===plural);
+      if(ok){ b.classList.add('correct'); addScore(10, b); addStars(1); toastPhrase('correct'); AudioFX.play(U.pickN(correctSounds,1)[0].seq);}
+      else{ b.classList.add('incorrect'); toastPhrase('incorrect'); AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);}
+      setTimeout(()=>{
+        state.currentIndex++;
+        if(state.currentIndex < state.roundSet.length) askPlurals();
+        else { state.stageIndex++; nextStage(); }
+      }, 700);
+    });
+    U.byId('options').appendChild(b);
+  });
+}
+
+/* ===== Stage 6: Sentence correction (free response, simple check) ===== */
+function stageSentenceCorrection(){
+  const item = U.shuffle(state.roundSet)[0];
+  const bad = `I are ${item.name}.`;
+
+  const handleTimeout = () => {
+    toastPhrase('incorrect', "Time's up!");
+    AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);
+    setTimeout(()=>{ state.stageIndex++; nextStage(); }, 700);
+  };
+  
+  startQuestionTimer(30, handleTimeout);
+
+  renderInto(`
+    <div class="emoji-big">${item.emoji}</div>
+    <div class="word-big subtle">Fix the sentence</div>
+    <div class="card" style="max-width:680px">
+      <div style="font-weight:900">${bad}</div>
+      <input id="answer-input" placeholder="Type the correct sentence" />
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button id="submit-free" class="btn btn-primary">Submit</button>
+      </div>
+    </div>
+  `);
+  const submitBtn = U.byId('submit-free');
+  submitBtn.addEventListener('click', ()=>{
+    clearQuestionTimer();
+    const val = (U.byId('answer-input').value||'').trim().toLowerCase();
+    const acceptable = [
+      `i am ${item.name}.`,
+      `i'm ${item.name}.`,
+      `i like ${item.name}.`,
+      `i want ${item.name}.`,
+    ];
+    if(acceptable.includes(val)){
+      addScore(20, submitBtn); addStars(2); toastPhrase('correct'); AudioFX.play(U.pickN(correctSounds,1)[0].seq);
+    } else {
+      toastPhrase('incorrect'); AudioFX.play(U.pickN(incorrectSounds,1)[0].seq);
+    }
+    setTimeout(()=>{ state.stageIndex++; nextStage(); }, 700);
+  });
+}
+
+/* ===== Badges & Sticker Book ===== */
+const BADGE_DEFS = [
+  {id:'first_round', name:'First Round!', emoji:'🎉', rule:s=>s.score>=10},
+  {id:'memory_master', name:'Memory Master', emoji:'🧠', rule:()=>true}, // Simplified for demo
+  {id:'speller', name:'Super Speller', emoji:'🔤', rule:()=>true},
+  {id:'grammar_guru', name:'Grammar Guru', emoji:'📚', rule:()=>true},
+  {id:'plural_pro', name:'Plural Pro', emoji:'➕', rule:()=>true},
+  {id:'sentence_star', name:'Sentence Star', emoji:'⭐', rule:()=>true},
+];
+
+function awardBadgesOnRoundEnd(){
+  BADGE_DEFS.forEach(b=>{
+    if(!state.earnedBadges[b.id] && b.rule(state)){
+      state.earnedBadges[b.id] = true;
+    }
+  });
+  saveState();
+}
+
+function openStickerBook(){
+  stopEmojiRain();
+  renderBadges();
+  renderShop();
+  U.swap('game-screen','sticker-book-screen');
+  U.swap('category-select-screen', 'sticker-book-screen');
+}
+
+function renderBadges(){
+  const grid = U.byId('badge-grid');
+  grid.innerHTML = '';
+  BADGE_DEFS.forEach(b=>{
+    const earned = !!state.earnedBadges[b.id];
+    const div = document.createElement('div');
+    div.className = `badge ${earned?'earned':''}`;
+    div.innerHTML = `
+      <div class="emoji">${b.emoji}</div>
+      <div style="font-weight:900">${b.name}</div>
+      <div class="subtle">${earned?'Earned':'Locked'}</div>
+    `;
+    grid.appendChild(div);
+  });
+}
+
+/* ===== Rewards Shop ===== */
+const SHOP_ITEMS = [
+  {id:'confetti', name:'Confetti Blast', emoji:'🎊', price:5, onUse: confettiBlast},
+  {id:'sparkles', name:'Sparkles', emoji:'✨', price:3, onUse: sparkleToast},
+  {id:'party', name:'Party Horn', emoji:'🥳', price:4, onUse: ()=>toastPhrase('correct')}
+];
+
+function renderShop(){
+  const grid = U.byId('shop-grid');
+  grid.innerHTML = '';
+  SHOP_ITEMS.forEach(item=>{
+    const div = document.createElement('div');
+    div.className = 'shop-item';
+    div.innerHTML = `
+      <div style="font-size:2rem">${item.emoji}</div>
+      <div style="font-weight:900">${item.name}</div>
+      <div class="price">⭐ ${item.price}</div>
+      <button class="btn btn-primary">Buy</button>
+    `;
+    const btn = div.querySelector('button');
+    btn.addEventListener('click', ()=>{
+      if(state.stars < item.price) return toastPhrase('incorrect');
+      state.stars -= item.price;
+      state.inventory[item.id] = (state.inventory[item.id]||0)+1;
+      saveState();
+      item.onUse && item.onUse();
+    });
+    grid.appendChild(div);
+  });
+}
+
+function confettiBlast(){
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.classList.add('confetti');
+  svg.setAttribute('height','0'); svg.setAttribute('width','100%');
+  document.body.appendChild(svg);
+  const colors = ['#ff6f61','#ffd166','#4f9da6','#9b5de5','#00bbf0'];
+  for(let i=0;i<80;i++){
+    const c = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    c.setAttribute('x', (Math.random()*100)+'%');
+    c.setAttribute('y', '0');
+    c.setAttribute('width', 4+Math.random()*6);
+    c.setAttribute('height', 8+Math.random()*10);
+    c.setAttribute('fill', colors[Math.floor(Math.random()*colors.length)]);
+    c.style.transition = 'transform 0.9s ease, opacity 0.9s ease';
+    svg.appendChild(c);
+    requestAnimationFrame(()=>{
+      const dx = (Math.random()*200-100);
+      const dy = (Math.random()*600+300);
+      c.style.transform = `translate(${dx}px, ${dy}px) rotate(${Math.random()*360}deg)`;
+      c.style.opacity = '0';
+    });
+  }
+  setTimeout(()=>svg.remove(), 1000);
+}
+
+function sparkleToast(){
+  const el = U.byId('phrase-display');
+  el.textContent = '✨ Sparkles! ✨';
+  el.className=''; el.classList.add('show','correct');
+  setTimeout(()=>el.classList.remove('show'), 1200);
+}
+
+/* ===== Certificate ===== */
+function openCertificate(){
+  stopEmojiRain();
+  U.byId('cert-player-name').textContent = state.playerName || 'Player';
+  U.swap('game-screen','certificate-screen');
+  U.swap('category-select-screen', 'certificate-screen');
+}
+
+/* ===== Round end (awards + return) ===== */
+function endRound(){
+  clearQuestionTimer();
+  stopEmojiRain();
+  awardBadgesOnRoundEnd();
+  AudioFX.play(victorySound.seq);
+  toastPhrase('correct');
+  U.byId('round-progress').style.width = '100%';
+  setTimeout(()=>{
+    U.swap('game-screen','category-select-screen');
+    U.hide('game-header');
+  }, 900);
+}
+
+/* ===== Game Setup Functions ===== */
+function startGame(){
+  const name = U.byId('player-name').value.trim();
+  if(!name){
+    const err = U.byId('name-error');
+    err.textContent = "Please enter your name!";
+    setTimeout(()=>err.textContent="",2000);
+    return;
+  }
+  state.playerName = name;
+  saveState();
+  U.swap('start-screen','category-select-screen');
+  renderCategories();
+}
+
+function renderCategories(){
+  const grid = U.byId('category-grid');
+  grid.innerHTML = '';
+  Object.keys(CATEGORIES).forEach(cat=>{
+    const btn = document.createElement('div');
+    btn.className = 'card category-btn';
+    btn.innerHTML = `<div class="category-emoji">${CATEGORIES[cat][0]}</div>
+                     <div class="category-title">${cat}</div>`;
+    btn.addEventListener('click', ()=>startRound(cat));
+    grid.appendChild(btn);
+  });
+}
+
+function startRound(cat){
+  state.currentCategory = cat;
+  state.roundSet = U.shuffle(CATEGORIES[cat].map(e=>({emoji:e, ...ITEM_PROPERTIES[e]})));
+  state.currentIndex = 0;
+  state.score = 0;
+  state.startTime = Date.now();
+  state.stageIndex = 0;
+  
+  startEmojiRain(CATEGORIES[cat]);
+
+  U.swap('category-select-screen','game-screen');
+  U.show('game-header');
+  U.byId('game-score').textContent = state.score;
+  U.byId('question-counter').textContent = `0/${state.roundSet.length}`;
+  U.byId('round-progress').style.width = '0%';
+  nextStage();
+}
+
+
+/* ===== Event listeners ===== */
+document.addEventListener('DOMContentLoaded', ()=>{
+  AudioFX.init();
+  loadState(); 
+  loadVoices();
+  
+  // Main Navigation
+  U.byId('start-button').addEventListener('click', startGame);
+  U.byId('back-to-start-btn').addEventListener('click', ()=>{
+      stopEmojiRain();
+      U.swap('category-select-screen','start-screen');
+  });
+  U.byId('main-menu-btn').addEventListener('click', ()=>{
+    clearQuestionTimer();
+    stopEmojiRain();
+    U.swap('game-screen','category-select-screen');
+    U.hide('game-header');
+  });
+
+  // Sticker Book
+  U.byId('sticker-book-btn').addEventListener('click', openStickerBook);
+  U.byId('sticker-close-btn').addEventListener('click', ()=>U.swap('sticker-book-screen','category-select-screen'));
+  U.byId('tab-badges').addEventListener('click', ()=>{
+      U.byId('badges-panel').classList.remove('hidden');
+      U.byId('shop-panel').classList.add('hidden');
+      U.byId('tab-badges').classList.replace('btn-ghost', 'btn-secondary');
+      U.byId('tab-shop').classList.replace('btn-secondary', 'btn-ghost');
+  });
+  U.byId('tab-shop').addEventListener('click', ()=>{
+      U.byId('shop-panel').classList.remove('hidden');
+      U.byId('badges-panel').classList.add('hidden');
+      U.byId('tab-shop').classList.replace('btn-ghost', 'btn-secondary');
+      U.byId('tab-badges').classList.replace('btn-secondary', 'btn-ghost');
+  });
+
+  // Certificate
+  U.byId('certificate-btn').addEventListener('click', openCertificate);
+  U.byId('cert-close-btn').addEventListener('click', ()=>U.swap('certificate-screen','category-select-screen'));
+  U.byId('print-cert-btn')?.addEventListener('click', ()=>window.print());
+  U.byId('share-cert-btn')?.addEventListener('click', async ()=>{
+    const text = `I completed Emoji Fun! Score: ${state.score} ⭐: ${state.stars}`;
+    try{
+      if(navigator.share){
+        await navigator.share({title:'Emoji Fun', text});
+      } else {
+        // Fallback for desktop
+        await navigator.clipboard.writeText(text);
+        alert('Copied to clipboard!');
+      }
+    }catch(_){
+        try {
+            await navigator.clipboard.writeText(text);
+            alert('Copied to clipboard!');
+        } catch(e) {
+            console.error("Share and clipboard failed", e)
+        }
+    }
+  });
+});
+</script>
+</body>
+</html>

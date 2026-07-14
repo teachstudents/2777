@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Connect - A Fast-Paced Collocation Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            touch-action: none; /* Prevents scrolling on touch devices during gameplay */
+        }
+        
+        #background-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .word-card {
+            transition: transform 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55), box-shadow 0.2s ease, opacity 0.3s ease;
+            opacity: 0;
+            transform: scale(0.5) translateY(50px);
+            -webkit-transform: scale(0.5) translateY(50px);
+        }
+        
+        .word-card.dealt {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            -webkit-transform: scale(1) translateY(0);
+        }
+
+        .word-card.selected {
+            transform: scale(1.1) !important;
+            -webkit-transform: scale(1.1) !important;
+            box-shadow: 0 0 25px rgba(251, 191, 36, 0.9);
+            z-index: 10;
+        }
+
+        .word-card.correct {
+            animation: correct-pulse 0.6s ease-out forwards;
+            -webkit-animation: correct-pulse 0.6s ease-out forwards;
+        }
+
+        .word-card.incorrect {
+            animation: incorrect-shake 0.5s ease;
+            -webkit-animation: incorrect-shake 0.5s ease;
+        }
+
+        @keyframes correct-pulse {
+            0% { transform: scale(1.1); -webkit-transform: scale(1.1); }
+            50% { transform: scale(1.2); -webkit-transform: scale(1.2); }
+            100% { transform: scale(0); opacity: 0; -webkit-transform: scale(0); }
+        }
+
+        @keyframes incorrect-shake {
+            0%, 100% { transform: translateX(0); -webkit-transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); -webkit-transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); -webkit-transform: translateX(8px); }
+        }
+
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+        
+        .pop-in {
+            animation: pop-in-animation 0.7s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+            -webkit-animation: pop-in-animation 0.7s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+        }
+
+        @keyframes pop-in-animation {
+            0% { transform: scale(0.5) rotate(-15deg); opacity: 0; -webkit-transform: scale(0.5) rotate(-15deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; -webkit-transform: scale(1) rotate(0deg); }
+        }
+        
+        .combo-display {
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            transform: scale(0);
+            -webkit-transform: scale(0);
+            opacity: 0;
+        }
+        
+        .combo-display.active {
+            transform: scale(1);
+            -webkit-transform: scale(1);
+            opacity: 1;
+        }
+        .leaderboard-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s;
+        }
+        .leaderboard-entry:nth-child(odd) {
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .leaderboard-entry.current-player {
+            background-color: #f59e0b;
+            color: #1e293b;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body class="bg-slate-900 text-white flex items-center justify-center h-screen overflow-hidden">
+    <canvas id="background-canvas"></canvas>
+
+    <div id="start-screen" class="text-center p-8 z-10">
+        <h1 class="text-5xl md:text-6xl font-bold text-amber-400 mb-4 drop-shadow-lg">Word Connect</h1>
+        <p class="text-lg md:text-xl text-slate-300 mb-6">Enter your name to play!</p>
+        <div class="mb-6">
+             <input type="text" id="player-name-input" placeholder="Your Name" class="text-center bg-slate-800 border-2 border-slate-600 rounded-full py-3 px-6 text-xl text-white focus:outline-none focus:ring-2 focus:ring-amber-500 w-full max-w-xs" maxlength="15">
+             <p id="name-error" class="text-red-500 mt-2 h-4"></p>
+        </div>
+        <button id="start-button" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-3 px-8 rounded-full text-xl shadow-lg transition-transform transform hover:scale-105 active:scale-95">
+            Start 10-Min Game
+        </button>
+    </div>
+
+    <div id="game-container" class="w-full max-w-5xl mx-auto p-2 sm:p-4 flex flex-col h-screen hidden z-10">
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-4 p-2 md:p-4 bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700">
+            <div class="text-center md:text-left">
+                <span class="text-base md:text-lg text-slate-400">Score</span>
+                <p id="score" class="text-2xl md:text-4xl font-bold text-amber-400">0</p>
+            </div>
+             <div class="text-center">
+                 <span class="text-base md:text-lg text-slate-400">Level</span>
+                 <p id="level" class="text-2xl md:text-4xl font-bold">1</p>
+            </div>
+            <div class="text-center">
+                 <div id="countdown-timer" class="text-2xl md:text-4xl font-bold text-sky-400">10:00</div>
+            </div>
+            <div class="text-center">
+                <div id="combo-display" class="combo-display">
+                    <span id="combo-text" class="text-xl md:text-3xl font-bold text-orange-400">x1.5</span>
+                    <span class="block text-xs md:text-sm text-slate-400">COMBO</span>
+                </div>
+            </div>
+            <div class="text-center">
+                <span class="text-base md:text-lg text-slate-400">Round</span>
+                <p id="round" class="text-2xl md:text-4xl font-bold">1/5</p>
+            </div>
+        </header>
+
+        <!-- Game Board -->
+        <main id="game-board-container" class="relative flex-grow">
+            <div id="word-grid" class="grid grid-cols-3 sm:grid-cols-4 gap-2 md:gap-4 p-2 md:p-4 h-full">
+                <!-- Word cards will be injected here -->
+            </div>
+            <canvas id="game-canvas"></canvas>
+        </main>
+
+        <!-- Footer for Badges -->
+        <footer class="mt-4 p-2 text-center">
+            <h3 class="text-slate-400 mb-2">Badges Unlocked</h3>
+            <div id="badges-container" class="flex justify-center items-center space-x-2 h-12">
+                <!-- Badges will appear here -->
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-black/70 flex items-center justify-center hidden z-50 p-4 backdrop-blur-sm">
+        <!-- Game Over Modal -->
+        <div id="game-over-modal" class="bg-slate-800 rounded-2xl p-6 md:p-8 shadow-2xl hidden transform transition-all max-w-lg w-full border border-slate-700">
+            <h2 class="text-4xl md:text-5xl font-bold text-red-500 mb-2 text-center">Time's Up!</h2>
+            <p class="text-lg md:text-xl mb-2 text-center">Your final score is:</p>
+            <p id="final-score" class="text-5xl md:text-6xl font-bold text-amber-400 mb-6 text-center">0</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Leaderboard Section -->
+                <div>
+                    <h3 class="text-xl md:text-2xl font-bold text-sky-400 mb-3 text-center">Leaderboard</h3>
+                    <div id="leaderboard-container" class="bg-slate-700/50 rounded-lg p-3 text-slate-200 list-none max-h-48 overflow-y-auto">
+                        <!-- Scores will be populated here -->
+                    </div>
+                </div>
+                <!-- Missed Answers Section -->
+                <div id="answers-container" class="text-left hidden">
+                    <h3 class="text-xl md:text-2xl font-bold text-sky-400 mb-3 text-center">Missed Pairs</h3>
+                    <ul id="missed-answers-list" class="bg-slate-700/50 rounded-lg p-3 text-slate-200 text-center list-none max-h-48 overflow-y-auto">
+                        <!-- Missed answers will be populated here -->
+                    </ul>
+                </div>
+            </div>
+
+            <div class="flex space-x-4 justify-center mt-8">
+                <button id="restart-button" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold py-2 px-6 rounded-full text-lg shadow-lg transition-transform transform hover:scale-105 active:scale-95">
+                    Play Again
+                </button>
+                 <button id="home-button" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-2 px-6 rounded-full text-lg shadow-lg transition-transform transform hover:scale-105 active:scale-95">
+                    Main Menu
+                </button>
+            </div>
+        </div>
+        <!-- Badge Unlocked Modal -->
+        <div id="badge-modal" class="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-8 text-center shadow-2xl hidden transform transition-all text-slate-900 pop-in border-2 border-amber-200">
+             <div id="badge-icon" class="text-7xl mb-4"></div>
+             <h2 id="badge-name" class="text-4xl font-bold mb-2"></h2>
+             <p id="badge-description" class="text-lg"></p>
+        </div>
+        <!-- Level Up Modal -->
+        <div id="level-up-modal" class="bg-gradient-to-br from-green-400 to-cyan-500 rounded-2xl p-8 text-center shadow-2xl hidden transform transition-all text-slate-900 pop-in border-2 border-green-200">
+             <div class="text-7xl mb-4">🎉</div>
+             <h2 class="text-4xl font-bold mb-2">Level Up!</h2>
+             <p id="level-up-description" class="text-lg"></p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        document.addEventListener('DOMContentLoaded', () => {
+            class WordConnectGame {
+                constructor() {
+                    // --- DOM Elements ---
+                    this.dom = {
+                        startScreen: document.getElementById('start-screen'),
+                        gameContainer: document.getElementById('game-container'),
+                        playerNameInput: document.getElementById('player-name-input'),
+                        nameError: document.getElementById('name-error'),
+                        startButton: document.getElementById('start-button'),
+                        restartButton: document.getElementById('restart-button'),
+                        homeButton: document.getElementById('home-button'),
+                        wordGrid: document.getElementById('word-grid'),
+                        scoreEl: document.getElementById('score'),
+                        levelEl: document.getElementById('level'),
+                        roundEl: document.getElementById('round'),
+                        difficultyLevelEl: document.getElementById('difficulty-level'),
+                        countdownTimerEl: document.getElementById('countdown-timer'),
+                        badgesContainer: document.getElementById('badges-container'),
+                        modalBackdrop: document.getElementById('modal-backdrop'),
+                        gameOverModal: document.getElementById('game-over-modal'),
+                        finalScoreEl: document.getElementById('final-score'),
+                        answersContainer: document.getElementById('answers-container'),
+                        missedAnswersList: document.getElementById('missed-answers-list'),
+                        leaderboardContainer: document.getElementById('leaderboard-container'),
+                        badgeModal: document.getElementById('badge-modal'),
+                        badgeIconEl: document.getElementById('badge-icon'),
+                        badgeNameEl: document.getElementById('badge-name'),
+                        badgeDescriptionEl: document.getElementById('badge-description'),
+                        levelUpModal: document.getElementById('level-up-modal'),
+                        levelUpDescriptionEl: document.getElementById('level-up-description'),
+                        gameCanvas: document.getElementById('game-canvas'),
+                        backgroundCanvas: document.getElementById('background-canvas'),
+                        gameBoardContainer: document.getElementById('game-board-container'),
+                        comboDisplay: document.getElementById('combo-display'),
+                        comboText: document.getElementById('combo-text'),
+                    };
+                    
+                    this.ctx = this.dom.gameCanvas.getContext('2d');
+                    this.bgCtx = this.dom.backgroundCanvas.getContext('2d');
+                    this.particles = [];
+                    this.bgParticles = [];
+                    
+                    // --- Game Configuration ---
+                    this.config = {
+                        ROUNDS_PER_LEVEL: 5,
+                        GAME_DURATION: 600, // 10 minutes
+                        TIME_BONUS_PER_CORRECT: 2, // seconds
+                        COLLOCATIONS: {
+                            'A1': [
+                                ['good', 'morning'], ['thank', 'you'], ['blue', 'sky'], ['big', 'house'],
+                                ['red', 'car'], ['have', 'time'], ['nice', 'day'], ['see', 'you'],
+                                ['black', 'coffee'], ['ice', 'cream'], ['bus', 'stop'],
+                                ['good', 'night'], ['sweet', 'dreams'], ['hot', 'water'], ['cold', 'drink'],
+                                ['good', 'luck'], ['time', 'flies'], ['day', 'off']
+                            ],
+                            'A2': [
+                                ['get', 'ready'], ['make', 'friends'], ['tell', 'a story'], ['heavy', 'rain'],
+                                ['do', 'homework'], ['take', 'a photo'], ['go', 'shopping'], ['feel', 'good'],
+                                ['fast', 'food'], ['public', 'transport'], ['fall', 'in love'], ['make', 'a mistake'],
+                                ['take', 'a break'], ['have', 'fun'], ['get', 'a job'], ['go', 'on holiday'],
+                                ['get', 'lost'], ['come', 'early'], ['tell', 'the truth']
+                            ],
+                            'B1': [
+                                ['make', 'a decision'], ['take', 'a chance'], ['break', 'a promise'], ['strong', 'coffee'],
+                                ['pay', 'attention'], ['save', 'time'], ['keep', 'a secret'], ['lose', 'track'],
+                                ['deeply', 'sorry'], ['fully', 'aware'], ['break', 'the ice'], ['come', 'true'],
+                                ['go', 'bankrupt'], ['make', 'progress'], ['take', 'responsibility'], ['give', 'advice'],
+                                ['break', 'the rules'], ['catch', 'a bus'], ['save', 'money']
+                            ],
+                            'B2': [
+                                ['deep', 'thought'], ['make', 'sense'], ['catch', 'a cold'], ['break', 'a record'],
+                                ['crystal', 'clear'], ['pitch', 'dark'], ['high', 'priority'], ['take', 'advantage'],
+                                ['bitterly', 'disappointed'], ['painfully', 'obvious'], ['draw', 'a conclusion'], ['gain', 'access'],
+                                ['heavy', 'traffic'], ['keep', 'in mind'], ['run', 'a business'], ['face', 'the consequences'],
+                                ['face', 'a challenge'], ['make', 'an effort'], ['run', 'the risk']
+                            ],
+                            'C1': [
+                                ['common', 'knowledge'], ['joint', 'venture'], ['raise', 'a question'], ['utter', 'chaos'],
+                                ['vital', 'role'], ['zero', 'tolerance'], ['foregone', 'conclusion'], ['vested', 'interest'],
+                                ['heated', 'argument'], ['adverse', 'effect'], ['ulterior', 'motive'], ['working', 'hypothesis'],
+                                ['conflicting', 'reports'], ['direct', 'quote'], ['come', 'to terms with'], ['shed', 'light on'],
+                                ['cast', 'a vote'], ['draw', 'a blank'], ['meet', 'a deadline']
+                            ]
+                        },
+                        BADGES: {
+                            'streak3': { name: 'Combo!', icon: '🔥', description: '3 correct pairs in a row!', unlocked: false },
+                            'streak5': { name: 'On Fire!', icon: '🚀', description: '5 correct pairs in a row!', unlocked: false },
+                            'score100': { name: 'Centurion', icon: '💯', description: 'Reach 100 points!', unlocked: false },
+                            'score1000': { name: 'Millennium', icon: '🏆', description: 'Reach 1000 points!', unlocked: false },
+                            'level5': { name: 'Word Scholar', icon: '🎓', description: 'Reach level 5!', unlocked: false },
+                            'level10': { name: 'Lexicographer', icon: '👑', description: 'Reach level 10!', unlocked: false },
+                        },
+                        PRAISE: ["Excellent!", "Amazing!", "Word Master!", "Incredible!", "Genius!"]
+                    };
+                    
+                    // --- Game State ---
+                    this.resetState();
+
+                    // --- Sound Engine (Tone.js) ---
+                    this.synth = new Tone.Synth().toDestination();
+                    this.polySynth = new Tone.PolySynth(Tone.Synth).toDestination();
+                    this.sounds = {
+                        start: () => this.synth.triggerAttackRelease("C4", "8n"),
+                        select: () => this.synth.triggerAttackRelease("C5", "16n", Tone.now()),
+                        correct: () => this.polySynth.triggerAttackRelease(["C5", "E5", "G5"], "8n"),
+                        incorrect: () => this.polySynth.triggerAttackRelease(["C3", "C#3"], "8n"),
+                        timeTick: () => this.synth.triggerAttackRelease("C6", "32n"),
+                        gameOver: () => this.polySynth.triggerAttackRelease(["G2", "F#2", "F2", "E2"], "4n"),
+                        badge: () => this.polySynth.triggerAttackRelease(["C5", "G5", "C6", "E6"], "8n"),
+                        levelUp: () => this.polySynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n"),
+                    };
+                    
+                    this.init();
+                }
+
+                init() {
+                    this.initFirebase();
+                    this.addEventListeners();
+                    this.resizeCanvas();
+                    this.createBgParticles();
+                    requestAnimationFrame(this.animationLoop.bind(this));
+                }
+
+                async initFirebase() {
+                    try {
+                        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : undefined;
+                        if (!firebaseConfig) {
+                            console.error("Firebase config is not available.");
+                            return;
+                        }
+                        this.app = initializeApp(firebaseConfig);
+                        this.db = getFirestore(this.app);
+                        this.auth = getAuth(this.app);
+                        this.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(this.auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(this.auth);
+                        }
+                        
+                        onAuthStateChanged(this.auth, (user) => {
+                            if (user) {
+                                this.userId = user.uid;
+                            }
+                        });
+
+                    } catch (error) {
+                        console.error("Firebase initialization failed:", error);
+                    }
+                }
+                
+                resetState() {
+                    this.score = 0;
+                    this.level = 1;
+                    this.round = 1;
+                    this.timer = this.config.GAME_DURATION;
+                    this.playerName = '';
+                    this.currentScoreId = null;
+                    if (this.timerInterval) clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                    this.firstTappedCard = null;
+                    this.cardBeingPressed = null;
+                    this.isDragging = false;
+                    this.startX = 0;
+                    this.startY = 0;
+                    this.lineStartX = 0;
+                    this.lineStartY = 0;
+                    this.lineEndX = 0;
+                    this.lineEndY = 0;
+                    this.correctStreak = 0;
+                    this.comboMultiplier = 1;
+                    this.unlockedBadges = new Set();
+                    this.currentDifficulty = 'A1';
+                    this.currentLevelPairs = {};
+                    this.updateCountdownTimer();
+                }
+                
+                addEventListeners() {
+                    this.dom.startButton.addEventListener('click', this.startGame.bind(this));
+                    this.dom.restartButton.addEventListener('click', () => {
+                        this.hideAllModals();
+                        this.dom.gameContainer.classList.add('hidden');
+                        this.dom.startScreen.classList.remove('hidden');
+                    });
+                    this.dom.homeButton.addEventListener('click', () => {
+                        this.hideAllModals();
+                        this.dom.gameContainer.classList.add('hidden');
+                        this.dom.startScreen.classList.remove('hidden');
+                    });
+                    this.dom.gameBoardContainer.addEventListener('pointerdown', this.onPointerDown.bind(this));
+                    window.addEventListener('pointermove', this.onPointerMove.bind(this));
+                    window.addEventListener('pointerup', this.onPointerUp.bind(this));
+                    window.addEventListener('resize', this.resizeCanvas.bind(this));
+                }
+
+                // --- Game Flow ---
+                startGame() {
+                    const name = this.dom.playerNameInput.value.trim();
+                    if (!name) {
+                        this.dom.nameError.textContent = "Please enter a name.";
+                        this.dom.playerNameInput.focus();
+                        return;
+                    }
+                    
+                    this.dom.startScreen.classList.add('hidden');
+                    this.dom.gameContainer.classList.remove('hidden');
+                    this.resetState();
+                    this.playerName = name; // Keep the name after reset
+                    this.dom.nameError.textContent = "";
+
+                    this.timerInterval = setInterval(() => {
+                        this.timer -= 1;
+                        this.updateCountdownTimer();
+                        if (this.timer <= 10 && this.timer > 0) {
+                            this.sounds.timeTick();
+                        }
+                        if (this.timer <= 0) {
+                            this.endGame();
+                        }
+                    }, 1000);
+
+                    this.startRound();
+                    this.sounds.start();
+                }
+
+                startRound() {
+                    this.setDifficulty();
+                    this.updateLevelAndRound();
+                    this.dom.wordGrid.innerHTML = '';
+                    this.generateWords();
+                    this.checkBadgeUnlock('level' + this.level);
+                }
+                
+                async endGame() {
+                    if (!this.timerInterval) return; // Prevent multiple calls
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                    this.sounds.gameOver();
+                    
+                    this.dom.finalScoreEl.textContent = this.score;
+
+                    this.dom.missedAnswersList.innerHTML = '';
+                    if (Object.keys(this.currentLevelPairs).length > 0) {
+                        for (const key in this.currentLevelPairs) {
+                            const li = document.createElement('li');
+                            li.textContent = `${key} - ${this.currentLevelPairs[key]}`;
+                            this.dom.missedAnswersList.appendChild(li);
+                        }
+                        this.dom.answersContainer.classList.remove('hidden');
+                    } else {
+                        this.dom.answersContainer.classList.add('hidden');
+                    }
+                    
+                    this.showModal('gameOver');
+                    await this.saveAndShowLeaderboard();
+                }
+                
+                handleRoundCompletion() {
+                    if (this.round < this.config.ROUNDS_PER_LEVEL) {
+                        this.round++;
+                        setTimeout(() => this.startRound(), 500);
+                    } else {
+                        this.level++;
+                        this.round = 1;
+                        this.showModal('levelUp');
+                    }
+                }
+
+                // --- UI & Updates ---
+                updateScore(points) {
+                    this.score += Math.floor(points * this.comboMultiplier);
+                    this.dom.scoreEl.textContent = this.score;
+                    this.checkBadgeUnlock('score100');
+                    this.checkBadgeUnlock('score1000');
+                }
+
+                updateLevelAndRound() {
+                    this.dom.levelEl.textContent = this.level;
+                    this.dom.roundEl.textContent = `${this.round}/${this.config.ROUNDS_PER_LEVEL}`;
+                }
+                
+                setDifficulty() {
+                    if (this.level <= 2) { this.currentDifficulty = 'A1'; }
+                    else if (this.level <= 5) { this.currentDifficulty = 'A2'; }
+                    else if (this.level <= 8) { this.currentDifficulty = 'B1'; }
+                    else if (this.level <= 12) { this.currentDifficulty = 'B2'; }
+                    else { this.currentDifficulty = 'C1'; }
+                }
+
+                generateWords() {
+                    const pairCount = 2 + Math.floor(this.level / 2);
+                    const availableCollocations = [...this.config.COLLOCATIONS[this.currentDifficulty]];
+                    const wordsForLevel = [];
+                    this.currentLevelPairs = {};
+                    const usedFirstWords = new Set();
+
+                    // Shuffle the available collocations to get more variety
+                    for (let i = availableCollocations.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [availableCollocations[i], availableCollocations[j]] = [availableCollocations[j], availableCollocations[i]];
+                    }
+
+                    for (const pair of availableCollocations) {
+                        if (Object.keys(this.currentLevelPairs).length >= pairCount) {
+                            break;
+                        }
+                        const word1 = pair[0];
+                        const word2 = pair[1];
+                        if (!usedFirstWords.has(word1)) {
+                            this.currentLevelPairs[word1] = word2;
+                            wordsForLevel.push(word1, word2);
+                            usedFirstWords.add(word1);
+                        }
+                    }
+
+                    wordsForLevel.sort(() => Math.random() - 0.5); // Shuffle the final words for display
+
+                    wordsForLevel.forEach((word, index) => {
+                        const wordEl = document.createElement('div');
+                        wordEl.textContent = word;
+                        wordEl.dataset.word = word;
+                        wordEl.className = 'word-card bg-sky-100 text-slate-800 flex items-center justify-center text-base md:text-2xl font-semibold rounded-lg shadow-md cursor-pointer select-none p-2';
+                        this.dom.wordGrid.appendChild(wordEl);
+                        
+                        setTimeout(() => {
+                            wordEl.classList.add('dealt');
+                        }, index * 75);
+                    });
+                }
+                
+                updateComboDisplay() {
+                    if (this.correctStreak > 1) {
+                        this.comboMultiplier = 1 + (this.correctStreak - 1) * 0.5;
+                        this.dom.comboText.textContent = `x${this.comboMultiplier.toFixed(1)}`;
+                        this.dom.comboDisplay.classList.add('active');
+                    } else {
+                        this.comboMultiplier = 1;
+                        this.dom.comboDisplay.classList.remove('active');
+                    }
+                }
+
+                updateCountdownTimer() {
+                    const minutes = Math.floor(this.timer / 60);
+                    const seconds = this.timer % 60;
+                    this.dom.countdownTimerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                }
+
+                // --- Pair Matching Logic ---
+                handleCorrectPair(el1, el2) {
+                    this.sounds.correct();
+                    this.correctStreak++;
+                    this.updateComboDisplay();
+                    this.updateScore(10);
+                    
+                    const center1 = this.getElementCenter(el1);
+                    const center2 = this.getElementCenter(el2);
+                    this.createExplosion((center1.x + center2.x) / 2, (center1.y + center2.y) / 2);
+
+                    const word1 = el1.dataset.word;
+                    delete this.currentLevelPairs[word1];
+
+                    this.timer = Math.min(this.config.GAME_DURATION, this.timer + this.config.TIME_BONUS_PER_CORRECT);
+                    this.updateCountdownTimer();
+
+                    el1.classList.add('correct');
+                    el2.classList.add('correct');
+
+                    if (this.correctStreak === 3) {
+                        this.say(this.config.PRAISE[Math.floor(Math.random() * this.config.PRAISE.length)]);
+                        this.checkBadgeUnlock('streak3');
+                    }
+                    if (this.correctStreak === 5) {
+                        this.say("Unstoppable!");
+                        this.checkBadgeUnlock('streak5');
+                    }
+
+                    setTimeout(() => {
+                        if (el1.parentElement) el1.remove();
+                        if (el2.parentElement) el2.remove();
+                        if (this.dom.wordGrid.children.length === 0 && this.timer > 0) {
+                            this.handleRoundCompletion();
+                        }
+                    }, 600);
+                }
+
+                handleIncorrectPair(el1, el2) {
+                    this.sounds.incorrect();
+                    this.correctStreak = 0;
+                    this.updateComboDisplay();
+                    el1.classList.add('incorrect');
+                    if (el2) el2.classList.add('incorrect');
+                    setTimeout(() => {
+                        el1.classList.remove('incorrect');
+                        if (el2) el2.classList.remove('incorrect');
+                    }, 500);
+                }
+
+                // --- Badges & Modals ---
+                checkBadgeUnlock(badgeId) {
+                    if (this.config.BADGES[badgeId] && !this.unlockedBadges.has(badgeId)) {
+                        if ((badgeId === 'score100' && this.score < 100) ||
+                            (badgeId === 'score1000' && this.score < 1000) ||
+                            (badgeId === 'level5' && this.level < 5) ||
+                            (badgeId === 'level10' && this.level < 10)) {
+                            return;
+                        }
+                        
+                        this.unlockedBadges.add(badgeId);
+                        this.config.BADGES[badgeId].unlocked = true;
+                        this.sounds.badge();
+                        this.displayBadgeInFooter(badgeId);
+                        this.showModal('badge', badgeId);
+                    }
+                }
+                
+                displayBadgeInFooter(badgeId) {
+                    const badge = this.config.BADGES[badgeId];
+                    const badgeEl = document.createElement('div');
+                    badgeEl.className = 'text-3xl transform transition-transform hover:scale-125 pop-in';
+                    badgeEl.textContent = badge.icon;
+                    badgeEl.title = `${badge.name}: ${badge.description}`;
+                    this.dom.badgesContainer.appendChild(badgeEl);
+                }
+                
+                resetBadges() {
+                    this.dom.badgesContainer.innerHTML = '';
+                    for (const key in this.config.BADGES) {
+                        this.config.BADGES[key].unlocked = false;
+                    }
+                }
+
+                showModal(type, data) {
+                    this.dom.modalBackdrop.classList.remove('hidden');
+                    if (type === 'gameOver') {
+                        this.dom.gameOverModal.classList.remove('hidden');
+                    } else if (type === 'badge') {
+                        const badge = this.config.BADGES[data];
+                        this.dom.badgeIconEl.textContent = badge.icon;
+                        this.dom.badgeNameEl.textContent = badge.name;
+                        this.dom.badgeDescriptionEl.textContent = badge.description;
+                        this.dom.badgeModal.classList.remove('hidden');
+                        setTimeout(() => {
+                           if (!this.dom.levelUpModal.classList.contains('hidden')) return;
+                           this.hideAllModals();
+                        }, 2500);
+                    } else if (type === 'levelUp') {
+                        this.sounds.levelUp();
+                        this.setDifficulty();
+                        this.dom.levelUpDescriptionEl.textContent = `Get ready for the next level!`;
+                        this.dom.levelUpModal.classList.remove('hidden');
+                        setTimeout(() => {
+                            this.hideAllModals();
+                            this.startRound();
+                        }, 3000);
+                    }
+                }
+                
+                hideAllModals() {
+                    this.dom.modalBackdrop.classList.add('hidden');
+                    this.dom.gameOverModal.classList.add('hidden');
+                    this.dom.badgeModal.classList.add('hidden');
+                    this.dom.levelUpModal.classList.add('hidden');
+                }
+
+                // --- Firestore Leaderboard ---
+                async saveAndShowLeaderboard() {
+                    if (!this.db) {
+                        this.dom.leaderboardContainer.innerHTML = '<p class="text-red-400">Could not connect to leaderboard.</p>';
+                        return;
+                    }
+                    
+                    this.dom.leaderboardContainer.innerHTML = '<p>Loading scores...</p>';
+
+                    try {
+                        const scoreData = {
+                            name: this.playerName,
+                            score: this.score,
+                            timestamp: new Date(),
+                            userId: this.userId,
+                        };
+                        const docRef = await addDoc(collection(this.db, 'artifacts', this.appId, 'public', 'data', 'scores'), scoreData);
+                        this.currentScoreId = docRef.id;
+
+                        const q = query(collection(this.db, 'artifacts', this.appId, 'public', 'data', 'scores'), orderBy("score", "desc"), limit(10));
+                        const querySnapshot = await getDocs(q);
+                        
+                        const scores = [];
+                        querySnapshot.forEach((doc) => {
+                            scores.push({ id: doc.id, ...doc.data() });
+                        });
+
+                        this.dom.leaderboardContainer.innerHTML = ''; // Clear loading message
+                        if (scores.length === 0) {
+                            this.dom.leaderboardContainer.innerHTML = '<p>No scores yet. Be the first!</p>';
+                        } else {
+                            scores.forEach((score, index) => {
+                                const entry = document.createElement('div');
+                                entry.className = 'leaderboard-entry';
+                                if (score.id === this.currentScoreId) {
+                                    entry.classList.add('current-player');
+                                }
+                                entry.innerHTML = `
+                                    <span>${index + 1}. ${this.sanitizeHTML(score.name)}</span>
+                                    <span>${score.score}</span>
+                                `;
+                                this.dom.leaderboardContainer.appendChild(entry);
+                            });
+                        }
+
+                    } catch (error) {
+                        this.dom.leaderboardContainer.innerHTML = '<p class="text-red-400">Error loading scores.</p>';
+                    }
+                }
+
+                // --- Canvas & Animations ---
+                resizeCanvas() {
+                    const dpr = window.devicePixelRatio || 1;
+                    
+                    this.dom.gameCanvas.width = this.dom.gameBoardContainer.clientWidth * dpr;
+                    this.dom.gameCanvas.height = this.dom.gameBoardContainer.clientHeight * dpr;
+                    this.ctx.scale(dpr, dpr);
+                    this.dom.gameCanvas.style.width = `${this.dom.gameBoardContainer.clientWidth}px`;
+                    this.dom.gameCanvas.style.height = `${this.dom.gameBoardContainer.clientHeight}px`;
+
+                    this.dom.backgroundCanvas.width = window.innerWidth * dpr;
+                    this.dom.backgroundCanvas.height = window.innerHeight * dpr;
+                    this.bgCtx.scale(dpr, dpr);
+                    this.dom.backgroundCanvas.style.width = `${window.innerWidth}px`;
+                    this.dom.backgroundCanvas.style.height = `${window.innerHeight}px`;
+                }
+                
+                animationLoop() {
+                    this.ctx.clearRect(0, 0, this.dom.gameCanvas.width, this.dom.gameCanvas.height);
+                    this.drawConnectionLine();
+                    this.updateAndDrawParticles(this.ctx, this.particles);
+                    
+                    this.bgCtx.clearRect(0, 0, this.dom.backgroundCanvas.width, this.dom.backgroundCanvas.height);
+                    this.updateAndDrawParticles(this.bgCtx, this.bgParticles, true);
+
+                    requestAnimationFrame(this.animationLoop.bind(this));
+                }
+
+                drawConnectionLine() {
+                    if (!this.isDragging || !this.cardBeingPressed) return;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(this.lineStartX, this.lineStartY);
+                    this.ctx.lineTo(this.lineEndX, this.lineEndY);
+                    this.ctx.strokeStyle = 'rgba(251, 191, 36, 0.8)';
+                    this.ctx.lineWidth = 8;
+                    this.ctx.lineCap = 'round';
+                    this.ctx.stroke();
+                }
+                
+                createExplosion(x, y) {
+                    const particleCount = 30;
+                    const colors = ['#fbbF24', '#fb923c', '#f87171', '#ffffff'];
+                    for (let i = 0; i < particleCount; i++) {
+                        this.particles.push(new Particle(x, y, colors));
+                    }
+                }
+                
+                createBgParticles() {
+                    const particleCount = 50;
+                    for (let i = 0; i < particleCount; i++) {
+                        const x = Math.random() * window.innerWidth;
+                        const y = Math.random() * window.innerHeight;
+                        this.bgParticles.push(new Particle(x, y, ['rgba(148, 163, 184, 0.1)'], true));
+                    }
+                }
+                
+                updateAndDrawParticles(ctx, particleArray, isBg = false) {
+                    for (let i = particleArray.length - 1; i >= 0; i--) {
+                        const p = particleArray[i];
+                        p.update();
+                        p.draw(ctx);
+                        if (p.life <= 0) {
+                            particleArray.splice(i, 1);
+                            if(isBg) {
+                                const x = Math.random() * window.innerWidth;
+                                particleArray.push(new Particle(x, -10, ['rgba(148, 163, 184, 0.1)'], true));
+                            }
+                        }
+                    }
+                }
+
+                // --- Input Handling ---
+                onPointerDown(e) {
+                    if (e.button && e.button !== 0) return;
+                    const target = e.target.closest('.word-card');
+                    if (!target) return;
+                    
+                    e.preventDefault();
+                    this.isDragging = false;
+                    this.cardBeingPressed = target;
+
+                    const clientPos = e.touches ? e.touches[0] : e;
+                    this.startX = clientPos.clientX;
+                    this.startY = clientPos.clientY;
+
+                    const center = this.getElementCenter(this.cardBeingPressed);
+                    this.lineStartX = center.x;
+                    this.lineStartY = center.y;
+                    const containerRect = this.dom.gameBoardContainer.getBoundingClientRect();
+                    this.lineEndX = clientPos.clientX - containerRect.left;
+                    this.lineEndY = clientPos.clientY - containerRect.top;
+                }
+
+                onPointerMove(e) {
+                    if (!this.cardBeingPressed) return;
+                    e.preventDefault();
+                    
+                    const clientPos = e.touches ? e.touches[0] : e;
+
+                    if (!this.isDragging) {
+                        const dx = clientPos.clientX - this.startX;
+                        const dy = clientPos.clientY - this.startY;
+                        if (Math.sqrt(dx * dx + dy * dy) > 10) { // Drag threshold
+                            this.isDragging = true;
+                        }
+                    }
+
+                    if (this.isDragging) {
+                        if (!this.cardBeingPressed.classList.contains('selected')) {
+                            if (this.firstTappedCard) {
+                                this.firstTappedCard.classList.remove('selected');
+                                this.firstTappedCard = null;
+                            }
+                            this.cardBeingPressed.classList.add('selected');
+                            this.sounds.select();
+                        }
+                        
+                        const containerRect = this.dom.gameBoardContainer.getBoundingClientRect();
+                        this.lineEndX = clientPos.clientX - containerRect.left;
+                        this.lineEndY = clientPos.clientY - containerRect.top;
+                    }
+                }
+
+                onPointerUp(e) {
+                    if (!this.cardBeingPressed) return;
+                    
+                    if (this.isDragging) {
+                        const dropTarget = document.elementFromPoint(
+                            e.changedTouches ? e.changedTouches[0].clientX : e.clientX,
+                            e.changedTouches ? e.changedTouches[0].clientY : e.clientY
+                        )?.closest('.word-card');
+                        
+                        if (dropTarget && this.cardBeingPressed !== dropTarget) {
+                            const word1 = this.cardBeingPressed.dataset.word;
+                            const word2 = dropTarget.dataset.word;
+                            if (this.currentLevelPairs[word1] === word2) {
+                                this.handleCorrectPair(this.cardBeingPressed, dropTarget);
+                            } else {
+                                this.handleIncorrectPair(this.cardBeingPressed, dropTarget);
+                            }
+                        } else {
+                            this.handleIncorrectPair(this.cardBeingPressed, null);
+                        }
+                        this.cardBeingPressed.classList.remove('selected');
+                    } else { // Handle tap
+                        const tappedCard = this.cardBeingPressed;
+                        if (!this.firstTappedCard) {
+                            this.firstTappedCard = tappedCard;
+                            this.firstTappedCard.classList.add('selected');
+                            this.sounds.select();
+                        } else {
+                            if (this.firstTappedCard === tappedCard) {
+                                this.firstTappedCard.classList.remove('selected');
+                                this.firstTappedCard = null;
+                            } else {
+                                const word1 = this.firstTappedCard.dataset.word;
+                                const word2 = tappedCard.dataset.word;
+                                if (this.currentLevelPairs[word1] === word2) {
+                                    this.handleCorrectPair(this.firstTappedCard, tappedCard);
+                                } else {
+                                    this.handleIncorrectPair(this.firstTappedCard, tappedCard);
+                                }
+                                this.firstTappedCard.classList.remove('selected');
+                                this.firstTappedCard = null;
+                            }
+                        }
+                    }
+
+                    this.cardBeingPressed = null;
+                    this.isDragging = false;
+                }
+
+                // --- Helpers ---
+                getElementCenter(el) {
+                    const rect = el.getBoundingClientRect();
+                    const containerRect = this.dom.gameBoardContainer.getBoundingClientRect();
+                    return {
+                        x: rect.left + rect.width / 2 - containerRect.left,
+                        y: rect.top + rect.height / 2 - containerRect.top
+                    };
+                }
+                
+                say(text) {
+                    if ('speechSynthesis' in window) {
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.rate = 0.85; 
+                        utterance.pitch = 1.2;
+                        window.speechSynthesis.speak(utterance);
+                    }
+                }
+
+                sanitizeHTML(str) {
+                    const temp = document.createElement('div');
+                    temp.textContent = str;
+                    return temp.innerHTML;
+                }
+            }
+            
+            class Particle {
+                constructor(x, y, colors, isBg = false) {
+                    this.x = x;
+                    this.y = y;
+                    this.isBg = isBg;
+                    if (this.isBg) {
+                        this.vx = (Math.random() - 0.5) * 0.2;
+                        this.vy = Math.random() * 0.5 + 0.1;
+                        this.life = Math.random() * 200 + 100;
+                        this.radius = Math.random() * 2 + 1;
+                        this.color = colors[0];
+                    } else {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = Math.random() * 4 + 1;
+                        this.vx = Math.cos(angle) * speed;
+                        this.vy = Math.sin(angle) * speed;
+                        this.life = Math.random() * 50 + 20;
+                        this.radius = Math.random() * 3 + 1;
+                        this.color = colors[Math.floor(Math.random() * colors.length)];
+                        this.gravity = 0.05;
+                    }
+                    this.initialLife = this.life;
+                }
+
+                update() {
+                    if (!this.isBg) {
+                        this.vy += this.gravity;
+                    }
+                    this.x += this.vx;
+                    this.y += this.vy;
+                    this.life--;
+                }
+
+                draw(ctx) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = this.color;
+                    ctx.globalAlpha = this.life / this.initialLife;
+                    ctx.fill();
+                    ctx.globalAlpha = 1.0;
+                }
+            }
+
+            // --- Initialize Game ---
+            const game = new WordConnectGame();
+        });
+    </script>
+</body>
+</html>

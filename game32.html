@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listening Challenge: 1 & 2 Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        :root {
+            --primary-color: #7c3aed; /* purple-600 */
+            --secondary-color: #db2777; /* pink-600 */
+            --correct-color: #10b981;  /* emerald-500 */
+            --incorrect-color: #f43f5e;/* rose-500 */
+            --warn-color: #f59e0b;   /* amber-500 */
+            --super-color1: #3b82f6;
+            --super-color2: #14b8a6;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(270deg, #e0e7ff, #f3e8ff, #fce7f3, #d1fae5);
+            background-size: 800% 800%;
+            animation: gradient-shift 30s ease infinite;
+            color: #374151;
+            padding: 1rem;
+            overflow: hidden;
+        }
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .hidden { display: none !important; }
+        .game-container {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 900px;
+            margin: 1rem auto;
+            border: 1px solid #e5e7eb;
+            position: relative;
+            transition: box-shadow 0.3s ease;
+            z-index: 10;
+        }
+        .game-container.flash-correct {
+            animation: flash-correct-anim 0.7s ease;
+        }
+        .game-container.flash-super {
+            animation: flash-super-anim 1.5s ease-out;
+        }
+        @keyframes flash-correct-anim {
+            0%, 100% { box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15); }
+            50% { box-shadow: 0 0 30px 5px var(--correct-color); }
+        }
+        @keyframes flash-super-anim {
+            0%, 100% { box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15); }
+            25% { box-shadow: 0 0 40px 10px var(--super-color1); }
+            75% { box-shadow: 0 0 40px 10px var(--super-color2); }
+        }
+
+        @media (min-width: 640px) {
+            .game-container {
+                padding: 1.5rem 2rem;
+            }
+        }
+        .game-button, .choice-button, .action-button, .level-button, .mode-button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1f2937;
+            background-color: white;
+            border: 2px solid #d1d5db;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .game-button:hover:not(:disabled), .action-button:hover:not(:disabled), .level-button:hover:not(:disabled), .mode-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px -4px rgba(0,0,0,0.1);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+        .game-button:disabled {
+            background-color: #f3f4f6;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .choice-button {
+            width: 100%;
+            text-align: center;
+        }
+        .choice-button.correct { background-color: var(--correct-color); color: white; border-color: var(--correct-color); }
+        .choice-button.incorrect { background-color: var(--incorrect-color); color: white; border-color: var(--incorrect-color); }
+        .choice-button:disabled { opacity: 0.7; cursor: not-allowed; }
+        .choice-button.correct:disabled, .choice-button.incorrect:disabled { opacity: 1; }
+
+        #feedback { font-weight: 700; margin-top: 1rem; min-height: 2rem; font-size: 1.25rem; }
+        .streak-badge {
+            background-color: #facc15;
+            color: #78350f;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin: 0 0.25rem;
+            display: inline-block;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            animation: badge-pop 0.5s ease forwards;
+        }
+        .streak-badge.super-streak {
+            background: linear-gradient(45deg, var(--super-color1), var(--super-color2));
+            color: white;
+            font-size: 1rem;
+            padding: 0.5rem 1rem;
+            animation: badge-pop 0.5s ease, pulse 1.5s infinite;
+        }
+        @keyframes badge-pop {
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .player-score.active {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(124, 58, 237, 0.3);
+            transform: scale(1.05);
+        }
+        .player-score.p2.active {
+             border-color: var(--secondary-color);
+             box-shadow: 0 0 15px rgba(219, 39, 119, 0.3);
+        }
+        .coin {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            background-color: #facc15;
+            border-radius: 50%;
+            z-index: 2000;
+            border: 3px solid #f59e0b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: #92400e;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            opacity: 0;
+            pointer-events: none;
+        }
+        @keyframes fly-to-score {
+            0% { transform: translate(0, 0) scale(1.5); opacity: 1; }
+            100% { transform: var(--end-transform, translate(-200px, -200px)) scale(0); opacity: 0; }
+        }
+        .coin.animate {
+            animation: fly-to-score 1s ease-in forwards;
+        }
+        @keyframes pulse {
+            50% { opacity: 0.6; }
+        }
+        #confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 9999;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: var(--primary-color);
+            opacity: 0;
+            animation: fall 5s linear forwards;
+        }
+        @keyframes fall {
+            0% {
+                transform: translateY(-10vh) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(110vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+        .player-button-container {
+            border: 4px solid transparent;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            transition: all 0.3s ease-in-out;
+        }
+        .player-button-container.winner-p1 {
+            animation: winner-flash-p1 0.8s ease;
+        }
+        .player-button-container.winner-p2 {
+            animation: winner-flash-p2 0.8s ease;
+        }
+        @keyframes winner-flash-p1 {
+            50% {
+                background-color: rgba(124, 58, 237, 0.1);
+                border-color: var(--primary-color);
+            }
+        }
+        @keyframes winner-flash-p2 {
+            50% {
+                background-color: rgba(219, 39, 119, 0.1);
+                border-color: var(--secondary-color);
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+    <div id="confetti-container"></div>
+
+    <div id="mode-selection-screen" class="game-container text-center">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-2 text-slate-800">Welcome to the Listening Challenge!</h1>
+        <p class="mb-6 text-slate-500 text-lg">Choose your game mode.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button class="mode-button text-lg" data-mode="1">1-Player Challenge</button>
+            <button class="mode-button text-lg" data-mode="2">2-Player Race</button>
+        </div>
+         <button id="show-leaderboard-button" class="game-button mt-4">View High Scores</button>
+    </div>
+    
+    <div id="leaderboard-screen" class="game-container text-center hidden">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-4 text-purple-700">High Scores</h1>
+        <ol id="leaderboard-list" class="list-decimal list-inside text-left max-w-sm mx-auto text-lg space-y-2"></ol>
+        <button id="back-to-menu-button" class="game-button mt-6">Back to Menu</button>
+    </div>
+
+    <div id="start-screen" class="game-container text-center hidden">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-4 text-purple-700">Listening Challenge</h1>
+        <div id="player-inputs">
+             <p class="mb-4 text-slate-600 text-lg">Enter player names to begin!</p>
+             <input type="text" id="username1" placeholder="Player 1 Name" class="text-center w-full mb-3 border-2 border-slate-300 p-3 rounded-lg focus:border-purple-500 focus:ring-purple-500">
+             <input type="text" id="username2" placeholder="Player 2 Name" class="text-center w-full mb-3 border-2 border-slate-300 p-3 rounded-lg focus:border-pink-500 focus:ring-pink-500 hidden">
+        </div>
+        <button id="start-button" class="game-button mt-3 w-full sm:w-auto !bg-purple-600 !text-white !border-purple-600 hover:!bg-purple-700">Start Game</button>
+    </div>
+
+    <div id="game-screen" class="game-container hidden">
+        <div class="coin"></div>
+        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+            <h2 class="text-xl md:text-2xl font-bold"><span id="turn-indicator"></span></h2>
+            <div id="main-timer-display" class="text-xl md:text-2xl font-bold text-purple-700">10:00</div>
+        </div>
+        
+        <div id="game-stats" class="grid grid-cols-2 gap-4 mb-4 text-slate-700 p-4 bg-slate-50 rounded-lg">
+            <div id="player1-score" class="player-score p-2 rounded-lg border-2 border-transparent transition-all duration-300">
+                <div class="text-center font-semibold text-purple-700" id="p1-name">Player 1</div>
+                <div class="text-center">Score: <span id="score1" class="font-bold text-xl block">0</span></div>
+            </div>
+            <div id="player2-score" class="player-score p2 p-2 rounded-lg border-2 border-transparent transition-all duration-300 hidden">
+                <div class="text-center font-semibold text-pink-700" id="p2-name">Player 2</div>
+                <div class="text-center">Score: <span id="score2" class="font-bold text-xl block">0</span></div>
+            </div>
+        </div>
+
+        <div id="current-activity-display" class="text-lg text-center font-medium my-6 p-4 bg-slate-100 rounded-lg min-h-[60px]">
+            The game will start automatically...
+        </div>
+
+        <div id="question-area" class="hidden mt-4 p-4 border-t-2 border-slate-200">
+            <div class="text-center mb-4">
+                 <p class="text-sm text-slate-500">Time left: <span id="modal-timer" class="font-bold text-lg">10</span>s</p>
+            </div>
+            
+            <div id="answer-options-container" class="grid gap-3">
+                <!-- Buttons will be injected here by JS -->
+            </div>
+
+            <div id="feedback" class="mt-4 text-center"></div>
+            <div id="example-sentence-feedback" class="hidden mt-2 p-3 bg-slate-50 rounded-md text-slate-600 text-sm"></div>
+        </div>
+    </div>
+    
+    <div id="game-over-screen" class="game-container hidden text-center">
+        <h2 class="text-3xl font-bold text-purple-700 mb-4">Game Over!</h2>
+        <div id="final-results"></div>
+        <button id="play-again-button" class="game-button mt-6">Play Again!</button>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM Elements ---
+        const modeSelectionScreen = document.getElementById('mode-selection-screen');
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const leaderboardScreen = document.getElementById('leaderboard-screen');
+        const confettiContainer = document.getElementById('confetti-container');
+        
+        const modeButtons = document.querySelectorAll('.mode-button');
+        const username1Input = document.getElementById('username1');
+        const username2Input = document.getElementById('username2');
+        const startButton = document.getElementById('start-button');
+        const showLeaderboardButton = document.getElementById('show-leaderboard-button');
+        const backToMenuButton = document.getElementById('back-to-menu-button');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        
+        const turnIndicator = document.getElementById('turn-indicator');
+        const mainTimerDisplay = document.getElementById('main-timer-display');
+        const p1NameDisplay = document.getElementById('p1-name');
+        const p2NameDisplay = document.getElementById('p2-name');
+        const score1Display = document.getElementById('score1');
+        const score2Display = document.getElementById('score2');
+        const player1ScoreContainer = document.getElementById('player1-score');
+        const player2ScoreContainer = document.getElementById('player2-score');
+        
+        const currentActivityDisplay = document.getElementById('current-activity-display');
+        const questionArea = document.getElementById('question-area');
+        const modalTimer = document.getElementById('modal-timer');
+        
+        const answerOptionsContainer = document.getElementById('answer-options-container');
+
+        const feedbackDisplay = document.getElementById('feedback');
+        const exampleSentenceFeedbackDisplay = document.getElementById('example-sentence-feedback');
+        
+        const finalResultsDisplay = document.getElementById('final-results');
+        const playAgainButton = document.getElementById('play-again-button');
+
+        // --- Game Data & Config ---
+        const TOTAL_QUESTIONS_PER_GAME = 50;
+        const POINTS_PER_CORRECT_ANSWER = 10;
+        const TIME_PER_QUESTION = 10;
+        const TOTAL_GAME_TIME = 600; // 10 minutes
+        const AUTO_ADVANCE_DELAY = 2500;
+        const LEADERBOARD_KEY = 'listeningChallengeLeaderboard';
+
+        let gameState = {};
+        let currentQuestionData = {};
+        let questionTimerInterval = null;
+        let mainTimerInterval = null;
+        let isAnswered = false;
+        let allQuestions = [];
+        let preferredVoice = null;
+        let correctSynth, incorrectSynth, rewardSynth, superStreakSynth;
+
+        const praiseWords = ["Excellent!", "Fantastic!", "You've got a great ear!", "Superb listening!", "Nailed it!", "Awesome!", "Perfect!", "Brilliant!"];
+        const encouragementWords = ["Not quite.", "Almost there.", "Good try.", "Close!", "Not this time."];
+
+        // --- Question Data Generation ---
+        const getUniqueItems = (arr, count) => {
+            const shuffled = [...arr].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, count);
+        };
+
+        const templates = [
+            (i, c, d1) => `I need a ${c} ${i}, not a ${d1} one.`,
+            (i, c, d1) => `Between the ${d1} ${i} and the ${c} ${i}, I'll take the ${c} one.`,
+            (i, c, d1) => `I thought I wanted the ${d1} ${i}, but I've changed my mind. I'll get the ${c} one.`,
+            (i, c, d1, d2) => `The ${d1} ${i} is okay, and the ${d2} ${i} is fine, but the ${c} ${i} is perfect.`,
+            (i, c, d1, d2) => `My friend has the ${d1} ${i}. I don't want to copy them, so I'll get the ${c} ${i}.`,
+            (i, c, d1) => `They were out of the ${d1} ${i}, so I had to settle for the ${c} one.`,
+            (i, c, d1, d2) => `I was considering the ${d1} ${i}, but the ${c} one is on sale. The ${d2} one was never an option.`,
+            (i, c, d1) => `The ${c} ${i} has much better reviews online than the ${d1} ${i}.`,
+            (i, c, d1) => `I saw a ${c} ${i} in a movie and I've wanted one ever since. I'm not interested in the ${d1} model.`,
+            (i, c, d1, d2) => `Let's see... there's a ${d1}, a ${d2}, and a ${c} ${i}. I think the ${c} one is the most stylish.`,
+            (i, c, d1) => `My old ${i} was ${d1}, so I want a change. I'm choosing the ${c} one this time.`,
+            (i, c, d1) => `The instructions say to use the ${c} ${i}. The ${d1} ${i} is for a different model.`,
+            (i, c, d1, d2) => `I can't decide between the ${d1} and the ${d2} ${i}. Oh wait, there's a ${c} one! I'll take that.`,
+            (i, c, d1) => `The ${c} ${i} is a classic. The ${d1} version is just a temporary trend.`,
+            (i, c, d1) => `Although the ${d1} ${i} is cheaper, the ${c} one is much higher quality. I'll invest in that one.`,
+            (i, c, d1) => `The salesperson recommended the ${c} ${i} over the ${d1} one.`,
+            (i, c, d1, d2) => `I ordered a ${d1} ${i}, but they sent a ${c} one by mistake. I actually like it more. I'll keep it.`,
+            (i, c, d1) => `The ${c} ${i} will match my other accessories perfectly. The ${d1} one would clash.`,
+            (i, c, d1) => `For this project, the ${c} ${i} is the only one that will work. The ${d1} one is incompatible.`,
+            (i, c, d1) => `I'm buying a gift. The recipient's favorite color is ${c}, so I'll get that ${i}, not the ${d1} one.`,
+            (i, c, d1, d2) => `The ${d1} ${i} is too big and the ${d2} is too small. The ${c} one is just the right size.`,
+            (i, c, d1) => `I had a bad experience with a ${d1} ${i} before, so I'm going with the ${c} model this time.`,
+            (i, c, d1) => `The ${c} ${i} is a limited edition, unlike the common ${d1} one. I have to get it.`,
+            (i, c, d1) => `My gut feeling tells me to go for the ${c} ${i}. The ${d1} one just doesn't feel right.`,
+            (i, c, d1) => `I read an article that praised the ${c} ${i} for its durability, while the ${d1} one was criticized. Easy choice.`
+        ];
+        
+        const levelData = {
+            A1: { colors: ["red", "blue", "green", "yellow", "black", "white", "pink", "orange", "purple", "brown"], items: ["shirt", "hat", "car", "book", "pen", "bag", "cup", "box"] },
+            A2: { colors: ["silver", "gold", "beige", "gray", "navy", "maroon", "olive", "cyan", "lime"], items: ["jacket", "skirt", "sweater", "boots", "scarf", "dress", "phone", "laptop"] },
+            B1: { colors: ["light blue", "dark green", "bright yellow", "royal blue", "burnt orange", "seafoam green"], items: ["blouse", "trousers", "handbag", "watch", "tie", "briefcase", "sunglasses"] },
+            B2: { colors: ["crimson", "turquoise", "ivory", "teal", "magenta", "charcoal", "fuchsia", "lavender"], items: ["trench coat", "blazer", "pair of loafers", "portfolio", "fountain pen", "cufflinks"] }
+        };
+
+        function generateAllQuestions() {
+            const questions = [];
+            const questionsPerLevel = Math.ceil(TOTAL_QUESTIONS_PER_GAME / 4);
+            
+            for (const level of ['A1', 'A2', 'B1', 'B2']) {
+                const { colors, items } = levelData[level];
+                for (let i = 0; i < questionsPerLevel; i++) {
+                    if (questions.length >= TOTAL_QUESTIONS_PER_GAME) break;
+
+                    const colorPool = [...colors];
+                    const chosenColors = getUniqueItems(colorPool, 4);
+                    const correctColor = chosenColors[0];
+                    const distractors = chosenColors.slice(1);
+                    
+                    const item = getUniqueItems(items, 1)[0];
+                    const template = getUniqueItems(templates, 1)[0];
+
+                    const scenario = template(item, correctColor, ...distractors);
+                    
+                    questions.push({
+                        level,
+                        scenario,
+                        options: [correctColor, ...distractors],
+                        correctOption: correctColor
+                    });
+                }
+            }
+            return questions;
+        }
+
+        // --- Audio & TTS Functions ---
+        function initAudio() {
+            if (typeof Tone === 'undefined') return;
+            Tone.start();
+            correctSynth = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            incorrectSynth = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.5 } }).toDestination();
+            rewardSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.2 } }).toDestination();
+            superStreakSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "fatsawtooth" }, envelope: { attack: 0.1, decay: 0.5, sustain: 0.4, release: 0.8 } }).toDestination();
+        }
+
+        function initSpeechSynthesis() {
+            if (!('speechSynthesis' in window)) {
+                console.warn("Speech Synthesis not supported");
+                return;
+            }
+            const setVoice = () => {
+                const voices = speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    // Prefer high-quality, natural-sounding voices if available
+                    let highQualityVoices = voices.filter(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('neural') || v.name.toLowerCase().includes('natural') || v.name.toLowerCase().includes('google')));
+                    if (highQualityVoices.length > 0) {
+                         preferredVoice = getUniqueItems(highQualityVoices, 1)[0];
+                    } else {
+                        // Fallback to any available US English voice
+                        preferredVoice = voices.find(v => v.lang === 'en-US');
+                    }
+                     // If no en-US voice, take the first available English voice
+                    if (!preferredVoice) {
+                        preferredVoice = voices.find(v => v.lang.startsWith('en'));
+                    }
+                }
+            };
+            
+            setVoice();
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = setVoice;
+            }
+        }
+
+        function speak(text, callback) {
+            if (!('speechSynthesis' in window) || !preferredVoice) {
+                console.warn("Speech synthesis not ready or no voice available.");
+                if (callback) setTimeout(callback, 50); // Ensure game continues
+                return;
+            }
+
+            speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.voice = preferredVoice;
+            
+            utterance.onend = () => {
+                 if(callback) setTimeout(callback, 100);
+            };
+            utterance.onerror = (e) => {
+                console.error("SpeechSynthesisUtterance.onerror:", e);
+                if (callback) callback();
+            };
+            speechSynthesis.speak(utterance);
+        }
+
+        // --- Game Logic Functions ---
+        function selectMode(mode) {
+            gameState.mode = parseInt(mode);
+            modeSelectionScreen.classList.add('hidden');
+            leaderboardScreen.classList.add('hidden');
+            startScreen.classList.remove('hidden');
+            if (gameState.mode === 1) {
+                username2Input.classList.add('hidden');
+                player2ScoreContainer.classList.add('hidden');
+            } else {
+                username2Input.classList.remove('hidden');
+                player2ScoreContainer.classList.remove('hidden');
+            }
+        }
+
+        function startGame() {
+            const p1Name = username1Input.value.trim();
+            const p2Name = gameState.mode === 2 ? username2Input.value.trim() : null;
+
+            let hasError = false;
+            if (!p1Name) {
+                username1Input.classList.add('!border-red-500');
+                hasError = true;
+            } else {
+                username1Input.classList.remove('!border-red-500');
+            }
+
+            if (gameState.mode === 2) {
+                if (!p2Name) {
+                    username2Input.classList.add('!border-red-500');
+                    hasError = true;
+                } else {
+                    username2Input.classList.remove('!border-red-500');
+                }
+            }
+
+            if (hasError) return;
+            
+            allQuestions = getUniqueItems(generateAllQuestions(), TOTAL_QUESTIONS_PER_GAME);
+            resetGameState(); 
+            gameState.player1.name = p1Name;
+            if (gameState.mode === 2) {
+                gameState.player2.name = p2Name;
+            }
+            
+            startScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            updateGameStatsDisplay();
+            startMainTimer();
+            startNewQuestionRound();
+        }
+
+        function resetGameState() {
+            gameState = {
+                ...gameState,
+                player1: { name: "Player 1", score: 0 },
+                player2: { name: "Player 2", score: 0 },
+                currentQuestionIndex: 0,
+                timeLeft: TOTAL_GAME_TIME,
+            };
+        }
+        
+        function startMainTimer() {
+            clearInterval(mainTimerInterval);
+            mainTimerDisplay.textContent = "10:00";
+            gameState.timeLeft = TOTAL_GAME_TIME;
+            mainTimerInterval = setInterval(() => {
+                gameState.timeLeft--;
+                const minutes = Math.floor(gameState.timeLeft / 60);
+                const seconds = gameState.timeLeft % 60;
+                mainTimerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                if (gameState.timeLeft <= 0) {
+                    endGame("Time's up!");
+                }
+            }, 1000);
+        }
+
+        function updateGameStatsDisplay() {
+            p1NameDisplay.textContent = gameState.player1.name;
+            score1Display.textContent = gameState.player1.score;
+            
+            const questionsRemaining = TOTAL_QUESTIONS_PER_GAME - gameState.currentQuestionIndex;
+            turnIndicator.textContent = `${questionsRemaining} Questions Remaining`;
+
+            if (gameState.mode === 2) {
+                p2NameDisplay.textContent = gameState.player2.name;
+                score2Display.textContent = gameState.player2.score;
+            }
+        }
+
+        function startNewQuestionRound() {
+            if (gameState.currentQuestionIndex >= TOTAL_QUESTIONS_PER_GAME) {
+                endGame("Congratulations! You've finished all questions!");
+                return;
+            }
+            isAnswered = false;
+            currentActivityDisplay.classList.remove('hidden');
+            questionArea.classList.add('hidden');
+            
+            currentQuestionData = allQuestions[gameState.currentQuestionIndex];
+            
+            const turnText = gameState.mode === 1 ? `Listen carefully...` : `Get ready to race!`;
+            currentActivityDisplay.textContent = turnText;
+            updateGameStatsDisplay();
+            speak(currentQuestionData.scenario, () => {
+                displayQuestionWithOptions();
+                startQuestionTimer();
+            });
+        }
+        
+        function displayQuestionWithOptions() {
+            currentActivityDisplay.classList.add('hidden');
+            questionArea.classList.remove('hidden');
+            
+            const shuffledOptions = [...currentQuestionData.options].sort(() => Math.random() - 0.5);
+
+            answerOptionsContainer.innerHTML = '';
+            answerOptionsContainer.className = 'grid gap-3 ' + (gameState.mode === 1 ? 'sm:grid-cols-2' : 'grid-cols-2');
+
+            if (gameState.mode === 1) {
+                shuffledOptions.forEach(optionText => {
+                    const btn = createButton(optionText, 1);
+                    answerOptionsContainer.appendChild(btn);
+                });
+            } else {
+                const p1Container = document.createElement('div');
+                p1Container.id = 'p1-button-container';
+                p1Container.className = 'player-button-container grid grid-cols-1 sm:grid-cols-2 gap-3';
+                const p2Container = document.createElement('div');
+                p2Container.id = 'p2-button-container';
+                p2Container.className = 'player-button-container grid grid-cols-1 sm:grid-cols-2 gap-3';
+
+                shuffledOptions.forEach(optionText => {
+                    p1Container.appendChild(createButton(optionText, 1));
+                    p2Container.appendChild(createButton(optionText, 2));
+                });
+                answerOptionsContainer.appendChild(p1Container);
+                answerOptionsContainer.appendChild(p2Container);
+            }
+            
+            feedbackDisplay.textContent = '';
+            exampleSentenceFeedbackDisplay.classList.add('hidden');
+        }
+        
+        function createButton(text, playerNum) {
+            const btn = document.createElement('button');
+            btn.classList.add('choice-button');
+            btn.textContent = text;
+            btn.addEventListener('click', () => checkAnswer(text, btn, playerNum));
+            return btn;
+        }
+        
+        function startQuestionTimer() {
+            clearInterval(questionTimerInterval);
+            let timeLeft = TIME_PER_QUESTION;
+            modalTimer.textContent = timeLeft;
+            modalTimer.parentElement.classList.remove('text-red-500');
+
+            questionTimerInterval = setInterval(() => {
+                timeLeft--;
+                modalTimer.textContent = timeLeft;
+                 if (timeLeft <= 3) {
+                    modalTimer.parentElement.classList.add('text-red-500');
+                }
+                if (timeLeft <= 0) {
+                     clearInterval(questionTimerInterval);
+                     if (!isAnswered) checkAnswer(null, null, 0); // Times up
+                }
+            }, 1000);
+        }
+
+        function checkAnswer(selectedAnswerText, buttonElement, playerNum) {
+            if (isAnswered) return;
+            isAnswered = true;
+
+            clearInterval(questionTimerInterval);
+            const correctAnswer = currentQuestionData.correctOption;
+            
+            document.querySelectorAll('.choice-button').forEach(btn => {
+                btn.disabled = true;
+                if(btn.textContent === correctAnswer) {
+                    btn.classList.add('correct');
+                }
+            });
+
+            const currentPlayer = playerNum === 1 ? gameState.player1 : (playerNum === 2 ? gameState.player2 : null);
+            
+            if (currentPlayer && selectedAnswerText === correctAnswer) {
+                const points = POINTS_PER_CORRECT_ANSWER;
+                currentPlayer.score += points;
+                const praise = praiseWords[Math.floor(Math.random()*praiseWords.length)];
+                const feedbackText = `${gameState.mode === 2 ? currentPlayer.name + ' wins the round! ' : ''}${praise} +${points} points!`;
+                feedbackDisplay.textContent = feedbackText;
+                speak(praise); // Speak the praise word
+                feedbackDisplay.style.color = 'var(--correct-color)';
+                
+                if (gameState.mode === 2) {
+                    const winnerContainer = document.getElementById(`p${playerNum}-button-container`);
+                    winnerContainer.classList.add(`winner-p${playerNum}`);
+                }
+
+                if (correctSynth) correctSynth.triggerAttackRelease("C5", "8n", Tone.now());
+                triggerCoinAnimation(points, playerNum);
+            } else {
+                const feedbackText = selectedAnswerText === null ? "Time's up!" : encouragementWords[Math.floor(Math.random() * encouragementWords.length)];
+                let playerName = currentPlayer ? `${currentPlayer.name} answered. ` : '';
+                feedbackDisplay.textContent = `${gameState.mode === 2 ? playerName : ''}${feedbackText}`;
+                feedbackDisplay.style.color = 'var(--incorrect-color)';
+                if (buttonElement) buttonElement.classList.add('incorrect');
+                if (incorrectSynth) incorrectSynth.triggerAttackRelease("A2", "8n", Tone.now());
+            }
+            
+            exampleSentenceFeedbackDisplay.textContent = `Full text: "${currentQuestionData.scenario}"`;
+            exampleSentenceFeedbackDisplay.classList.remove('hidden');
+            
+            updateGameStatsDisplay();
+            setTimeout(moveToNextQuestion, AUTO_ADVANCE_DELAY);
+        }
+        
+        function moveToNextQuestion() {
+            gameState.currentQuestionIndex++;
+            startNewQuestionRound();
+        }
+
+        function triggerCoinAnimation(points = 10, playerNum) {
+            const scoreRect = (playerNum === 1 ? score1Display : score2Display).getBoundingClientRect();
+            const gameScreenRect = gameScreen.getBoundingClientRect();
+            const startRect = feedbackDisplay.getBoundingClientRect();
+
+            const endX = scoreRect.left + (scoreRect.width / 2) - (startRect.left + (startRect.width / 2));
+            const endY = scoreRect.top + (scoreRect.height / 2) - (startRect.top + (startRect.height / 2));
+            
+            const coin = document.createElement('div');
+            coin.classList.add('coin');
+            coin.textContent = `+${points}`;
+            gameScreen.appendChild(coin);
+
+            coin.style.setProperty('--end-transform', `translate(${endX}px, ${endY}px)`);
+            coin.style.left = `${startRect.left - gameScreenRect.left + (startRect.width / 2) - 15}px`;
+            coin.style.top = `${startRect.top - gameScreenRect.top - 30}px`;
+            
+            coin.classList.add('animate');
+            setTimeout(() => coin.remove(), 1000);
+        }
+
+        function triggerConfetti() {
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = `${Math.random() * 100}vw`;
+                confetti.style.animationDelay = `${Math.random() * 3}s`;
+                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                confettiContainer.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 5000);
+            }
+        }
+
+        function endGame(reason = "") {
+            clearInterval(mainTimerInterval);
+            clearInterval(questionTimerInterval);
+            speechSynthesis.cancel();
+            
+            gameScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            
+            let resultsHTML = '';
+            if (gameState.mode === 1) {
+                const score = gameState.player1.score;
+                resultsHTML = `
+                    <p class="text-2xl text-slate-700 mb-2">Well done, <span class="font-bold text-purple-600">${gameState.player1.name}</span>!</p>
+                    <p class="text-2xl text-slate-700 mb-2">Final Score: <span class="font-bold text-purple-600">${score}</span></p>
+                `;
+                checkAndSaveLeaderboard(score);
+                triggerConfetti();
+            } else {
+                const p1s = gameState.player1.score;
+                const p2s = gameState.player2.score;
+                let winnerText = '';
+                if (p1s > p2s) {
+                    winnerText = `<p class="text-2xl font-bold text-purple-600 mb-4">${gameState.player1.name} wins!</p>`;
+                    triggerConfetti();
+                } else if (p2s > p1s) {
+                    winnerText = `<p class="text-2xl font-bold text-pink-600 mb-4">${gameState.player2.name} wins!</p>`;
+                     triggerConfetti();
+                } else {
+                    winnerText = `<p class="text-2xl font-bold text-emerald-600 mb-4">It's a tie!</p>`;
+                }
+                resultsHTML = `
+                    ${winnerText}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xl text-slate-700 mb-2"><span class="font-bold text-purple-600">${gameState.player1.name}</span></p>
+                            <p>Score: <span class="font-bold">${p1s}</span></p>
+                        </div>
+                        <div>
+                            <p class="text-xl text-slate-700 mb-2"><span class="font-bold text-pink-600">${gameState.player2.name}</span></p>
+                            <p>Score: <span class="font-bold">${p2s}</span></p>
+                        </div>
+                    </div>
+                `;
+            }
+            if(reason) {
+                finalResultsDisplay.innerHTML = `<p class="text-2xl font-bold text-rose-500 mb-4">${reason}</p>` + resultsHTML;
+            } else {
+                 finalResultsDisplay.innerHTML = resultsHTML;
+            }
+        }
+        
+        // --- Leaderboard Functions ---
+        function getLeaderboard() {
+            return JSON.parse(localStorage.getItem(LEADERBOARD_KEY)) || [];
+        }
+
+        function saveLeaderboard(board) {
+            localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(board));
+        }
+
+        function checkAndSaveLeaderboard(score) {
+            const board = getLeaderboard();
+            const lowestScore = board.length < 5 ? 0 : board[4].score;
+            if (score > lowestScore) {
+                const name = gameState.player1.name || "Anonymous";
+                board.push({ name, score });
+                board.sort((a, b) => b.score - a.score);
+                saveLeaderboard(board.slice(0, 5));
+            }
+        }
+
+        function displayLeaderboard() {
+            const board = getLeaderboard();
+            leaderboardList.innerHTML = '';
+            if (board.length === 0) {
+                leaderboardList.innerHTML = '<li class="text-slate-500">No scores yet. Be the first!</li>';
+            } else {
+                board.forEach(entry => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span class="font-semibold">${entry.name}</span> - ${entry.score}`;
+                    leaderboardList.appendChild(li);
+                });
+            }
+        }
+
+        function resetAndGoHome() {
+            clearInterval(mainTimerInterval);
+            clearInterval(questionTimerInterval);
+            speechSynthesis.cancel();
+            gameScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            leaderboardScreen.classList.add('hidden');
+            modeSelectionScreen.classList.remove('hidden');
+        }
+
+        // --- Event Listeners ---
+        modeButtons.forEach(button => {
+            button.addEventListener('click', () => selectMode(button.dataset.mode));
+        });
+        startButton.addEventListener('click', startGame);
+        playAgainButton.addEventListener('click', resetAndGoHome);
+        showLeaderboardButton.addEventListener('click', () => {
+            modeSelectionScreen.classList.add('hidden');
+            leaderboardScreen.classList.remove('hidden');
+            displayLeaderboard();
+        });
+        backToMenuButton.addEventListener('click', () => {
+             leaderboardScreen.classList.add('hidden');
+             modeSelectionScreen.classList.remove('hidden');
+        });
+
+        // --- Initial Setup ---
+        initAudio();
+        initSpeechSynthesis();
+    });
+    </script>
+</body>
+</html>

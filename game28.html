@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synonym Galaxy Challenge</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-start: #0f172a; /* slate-900 */
+            --bg-end: #1e293b;   /* slate-800 */
+            --text-light: #f1f5f9; /* slate-100 */
+            --text-dark: #94a3b8;  /* slate-400 */
+            --primary: #22d3ee;   /* cyan-400 */
+            --primary-glow: #67e8f9; /* cyan-300 */
+            --secondary: #a78bfa; /* violet-400 */
+            --secondary-glow: #c4b5fd; /* violet-300 */
+            
+            /* Themed Feedback Colors */
+            --correct: #2dd4bf;   /* teal-400 */
+            --incorrect: #fb923c; /* orange-400 */
+        }
+
+        @keyframes background-pan {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        html, body {
+            overscroll-behavior: none;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(270deg, var(--bg-start), var(--bg-end), #334155);
+            background-size: 600% 600%;
+            animation: background-pan 30s ease infinite;
+            color: var(--text-light);
+            margin: 0;
+            min-height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .main-container {
+            width: 100%;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 800px;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .screen.active { display: flex; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        h1, h2 {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 10px var(--primary-glow);
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        h1 { color: var(--primary); font-size: clamp(2rem, 8vw, 3.5rem); margin-bottom: 1rem; }
+        h2 { color: var(--secondary); margin: 1.5rem 0 1rem; }
+
+        .game-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            padding: clamp(1.5rem, 5vw, 2.5rem);
+            border-radius: 16px;
+            width: 100%;
+        }
+
+        .level-selection button, .game-button, .choice-button, .action-button {
+            font-family: 'Orbitron', sans-serif;
+            border: 1px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            padding: 0.8em 1.5em;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px var(--primary), inset 0 0 5px var(--primary);
+            text-transform: uppercase;
+            font-size: clamp(1rem, 2.5vw, 1.2rem); /* Enlarged and responsive font size */
+        }
+        .level-selection button:hover, .game-button:hover:not(:disabled), .action-button:hover {
+            background: var(--primary);
+            color: var(--bg-start);
+            box-shadow: 0 0 20px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+        
+        .choice-button {
+            width: 100%;
+            margin: 0.5rem 0;
+            font-family: 'Roboto', sans-serif;
+            font-weight: 500;
+            border-color: var(--secondary);
+            color: var(--secondary);
+            box-shadow: 0 0 5px var(--secondary), inset 0 0 5px var(--secondary);
+            text-transform: none;
+            padding: 1em 1.5em; /* Increased padding for better touch targets */
+        }
+        .choice-button:hover:not(:disabled) {
+            background: var(--secondary);
+            color: var(--bg-start);
+            box-shadow: 0 0 20px var(--secondary-glow);
+        }
+        .choice-button.correct { background-color: var(--correct) !important; border-color: var(--correct) !important; color: #000 !important; box-shadow: 0 0 15px var(--correct) !important; transform: scale(1.05); }
+        .choice-button.incorrect { background-color: var(--incorrect) !important; border-color: var(--incorrect) !important; color: #fff !important; box-shadow: 0 0 15px var(--incorrect) !important; }
+        .choice-button:disabled { cursor: not-allowed; opacity: 0.7; }
+
+        .hud {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1em;
+            margin-bottom: 2rem;
+            font-size: 1em;
+            text-align: center;
+        }
+        .hud-item {
+            background: rgba(0,0,0,0.2);
+            padding: 0.75em 0.5em;
+            border-radius: 8px;
+            border: 1px solid var(--text-dark);
+        }
+        .hud-item span { color: var(--text-light); font-weight: bold; font-size: 1.2em; }
+        #hud-score.flash-correct { color: var(--correct); transform: scale(1.2); transition: all 0.2s ease; }
+        #hud-score.flash-incorrect { color: var(--incorrect); transform: scale(0.9); transition: all 0.2s ease; }
+
+        .feedback-display {
+            font-size: 1.5em;
+            min-height: 2em;
+            margin: 1em 0;
+            font-weight: bold;
+            color: var(--primary-glow);
+            text-align: center;
+            transition: color 0.3s ease;
+        }
+        #main-word {
+            font-size: clamp(2.5rem, 10vw, 4rem);
+            font-weight: bold;
+            color: var(--text-light);
+            margin-bottom: 1rem;
+            text-transform: none;
+        }
+
+        #badge-alert {
+            position: fixed;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 2000;
+            font-weight: 600;
+            font-family: 'Orbitron', sans-serif;
+            transition: top 0.5s ease-out;
+        }
+        #badge-alert.show {
+            top: 20px;
+        }
+        
+        input[type="text"] {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--text-dark);
+            border-radius: 8px;
+            padding: 0.8em;
+            color: var(--text-light);
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- LEVEL SELECTION SCREEN -->
+        <div id="level-selection-screen" class="screen active">
+            <div class="game-card text-center">
+                <h1>Synonym Galaxy</h1>
+                <p class="text-lg text-slate-300 mb-8">Choose your difficulty level to begin your mission.</p>
+                <div id="level-selection-container" class="level-selection flex flex-col sm:flex-row justify-center gap-4">
+                    <button data-level="A1-A2">Beginner</button>
+                    <button data-level="B1-B2">Intermediate</button>
+                    <button data-level="C1-C2">Advanced</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- START SCREEN -->
+        <form id="start-form" class="screen" autocomplete="off">
+            <div class="game-card text-center">
+                <h1 id="start-title">Level: A1-A2</h1>
+                <p class="text-lg text-slate-300 mb-6">Enter your name to start the mission, Commander.</p>
+                <input type="text" id="player-name-input" placeholder="Commander Name" maxlength="20" autocomplete="off" aria-label="Player Name" class="text-center w-full max-w-xs mx-auto mb-6">
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <button type="submit" id="start-game-btn" class="game-button">Start Mission</button>
+                    <button type="button" id="back-to-levels-btn" class="game-button !border-slate-400 !text-slate-300 hover:!bg-slate-500 hover:!text-white">Change Level</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- GAME SCREEN -->
+        <div id="game-screen" class="screen" role="main" aria-live="polite">
+            <div class="hud" id="hud">
+                <div class="hud-item">Player: <span id="hud-player">?</span></div>
+                <div class="hud-item">Score: <span id="hud-score">0</span></div>
+                <div class="hud-item">Q-Time: <span id="hud-q-time">10</span></div>
+                <div class="hud-item">Question: <span id="hud-question">1 / 50</span></div>
+            </div>
+            <div id="main-word-container" class="w-full text-center">
+                 <div id="game-timer-display" class="text-primary text-2xl font-orbitron mb-2">10:00</div>
+                 <h2 id="main-word" class="my-4">...</h2>
+            </div>
+            <div id="options-container" class="w-full max-w-md grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+            <div class="feedback-display" id="feedback"></div>
+        </div>
+
+        <!-- END SCREEN -->
+        <div id="end-screen" class="screen" role="main">
+             <div class="game-card text-center w-full">
+                <h1 id="end-title">Mission Complete!</h1>
+                <div class="results-container bg-transparent border-none p-0">
+                    <h2 id="final-name" class="!text-primary">Player</h2>
+                    <div class="grid grid-cols-2 gap-4 my-6 text-lg">
+                        <div class="bg-slate-800/50 p-3 rounded-lg"><strong>Final Score:</strong> <span id="final-score" class="text-teal-400 font-bold">0</span></div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg"><strong>Correct Answers:</strong> <span id="final-correct" class="text-teal-400 font-bold">0</span></div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg"><strong>Time Left:</strong> <span id="final-time" class="text-cyan-400 font-bold">00:00</span></div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg"><strong>Accuracy:</strong> <span id="final-accuracy" class="text-cyan-400 font-bold">0%</span></div>
+                    </div>
+                </div>
+                <div id="high-scores-container" class="mt-6 mb-6">
+                    <h2 class="!text-secondary">High Scores</h2>
+                    <ol id="high-scores-list" class="list-decimal list-inside text-left text-slate-300 w-fit mx-auto">
+                        <li>Loading...</li>
+                    </ol>
+                </div>
+                <button id="play-again-btn" class="game-button action-button">Play Again</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="badge-alert" class="">Badge Unlocked!</div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM ELEMENTS ---
+        const screens = {
+            levelSelection: document.getElementById('level-selection-screen'),
+            start: document.getElementById('start-form'),
+            game: document.getElementById('game-screen'),
+            end: document.getElementById('end-screen'),
+        };
+        const levelSelectionContainer = document.getElementById('level-selection-container');
+        const startForm = document.getElementById('start-form');
+        const playerNameInput = document.getElementById('player-name-input');
+        const startTitle = document.getElementById('start-title');
+        const backToLevelsBtn = document.getElementById('back-to-levels-btn');
+        
+        const hud = {
+            player: document.getElementById('hud-player'),
+            score: document.getElementById('hud-score'),
+            qTime: document.getElementById('hud-q-time'),
+            question: document.getElementById('hud-question'),
+        };
+        const mainWordEl = document.getElementById('main-word');
+        const optionsContainer = document.getElementById('options-container');
+        const feedbackEl = document.getElementById('feedback');
+        const gameTimerDisplay = document.getElementById('game-timer-display');
+
+        const endScreen = {
+            title: document.getElementById('end-title'),
+            name: document.getElementById('final-name'),
+            score: document.getElementById('final-score'),
+            correct: document.getElementById('final-correct'),
+            time: document.getElementById('final-time'),
+            accuracy: document.getElementById('final-accuracy'),
+            badges: document.getElementById('final-badges'),
+            highScoresList: document.getElementById('high-scores-list'),
+            playAgainBtn: document.getElementById('play-again-btn'),
+        };
+        
+        const badgeAlert = document.getElementById('badge-alert');
+
+        // --- GAME DATA ---
+        const wordData = {
+          'A1-A2': [
+            { word: 'big', synonym: 'large', options: ['small', 'fast', 'cold'] },
+            { word: 'small', synonym: 'tiny', options: ['huge', 'wide', 'tall'] },
+            { word: 'happy', synonym: 'joyful', options: ['sad', 'angry', 'tired'] },
+            { word: 'sad', synonym: 'unhappy', options: ['glad', 'pleased', 'lucky'] },
+            { word: 'fast', synonym: 'quick', options: ['slow', 'heavy', 'light'] },
+            { word: 'slow', synonym: 'leisurely', options: ['rapid', 'swift', 'sharp'] },
+            { word: 'good', synonym: 'fine', options: ['bad', 'awful', 'terrible'] },
+            { word: 'bad', synonym: 'evil', options: ['great', 'nice', 'superb'] },
+            { word: 'pretty', synonym: 'beautiful', options: ['ugly', 'plain', 'dull'] },
+            { word: 'start', synonym: 'begin', options: ['end', 'finish', 'stop'] },
+            { word: 'end', synonym: 'finish', options: ['commence', 'launch', 'open'] },
+            { word: 'true', synonym: 'correct', options: ['false', 'wrong', 'fake'] },
+            { word: 'false', synonym: 'untrue', options: ['right', 'accurate', 'real'] },
+            { word: 'old', synonym: 'ancient', options: ['new', 'young', 'modern'] },
+            { word: 'new', synonym: 'fresh', options: ['stale', 'aged', 'worn'] },
+            { word: 'rich', synonym: 'wealthy', options: ['poor', 'broke', 'needy'] },
+            { word: 'hard', synonym: 'difficult', options: ['easy', 'simple', 'soft'] },
+            { word: 'easy', synonym: 'simple', options: ['tough', 'complex', 'hard'] },
+            { word: 'speak', synonym: 'talk', options: ['listen', 'hear', 'quiet'] },
+            { word: 'look', synonym: 'see', options: ['ignore', 'hide', 'blind'] },
+            { word: 'angry', synonym: 'mad', options: ['calm', 'happy', 'pleased'] },
+            { word: 'scared', synonym: 'afraid', options: ['brave', 'bold', 'calm'] },
+            { word: 'bright', synonym: 'shining', options: ['dark', 'dull', 'dim'] },
+            { word: 'dark', synonym: 'gloomy', options: ['light', 'bright', 'clear'] },
+            { word: 'dirty', synonym: 'unclean', options: ['clean', 'pure', 'fresh'] },
+            { word: 'clean', synonym: 'tidy', options: ['messy', 'dirty', 'foul'] },
+            { word: 'quiet', synonym: 'silent', options: ['loud', 'noisy', 'rowdy'] },
+            { word: 'loud', synonym: 'noisy', options: ['soft', 'quiet', 'faint'] },
+            { word: 'strong', synonym: 'powerful', options: ['weak', 'frail', 'feeble'] },
+            { word: 'weak', synonym: 'frail', options: ['strong', 'mighty', 'tough'] },
+            { word: 'right', synonym: 'correct', options: ['wrong', 'incorrect', 'false'] },
+            { word: 'wrong', synonym: 'incorrect', options: ['right', 'true', 'proper'] },
+            { word: 'same', synonym: 'alike', options: ['different', 'unlike', 'varied'] },
+            { word: 'different', synonym: 'unlike', options: ['same', 'identical', 'similar'] },
+            { word: 'love', synonym: 'adore', options: ['hate', 'dislike', 'despise'] },
+            { word: 'hate', synonym: 'detest', options: ['love', 'like', 'admire'] },
+            { word: 'laugh', synonym: 'giggle', options: ['cry', 'weep', 'sob'] },
+            { word: 'cry', synonym: 'weep', options: ['laugh', 'smile', 'chuckle'] },
+            { word: 'friend', synonym: 'pal', options: ['enemy', 'foe', 'rival'] },
+            { word: 'enemy', synonym: 'foe', options: ['friend', 'ally', 'buddy'] },
+            { word: 'give', synonym: 'provide', options: ['take', 'receive', 'get'] },
+            { word: 'take', synonym: 'grab', options: ['give', 'offer', 'hand'] },
+            { word: 'ask', synonym: 'inquire', options: ['answer', 'reply', 'tell'] },
+            { word: 'tell', synonym: 'inform', options: ['ask', 'question', 'hide'] },
+            { word: 'work', synonym: 'labor', options: ['play', 'rest', 'relax'] },
+            { word: 'play', synonym: 'recreation', options: ['work', 'toil', 'strive'] },
+            { word: 'rest', synonym: 'relax', options: ['work', 'strain', 'exert'] },
+            { word: 'help', synonym: 'assist', options: ['hinder', 'harm', 'hurt'] },
+            { word: 'hurt', synonym: 'harm', options: ['help', 'heal', 'soothe'] },
+            { word: 'make', synonym: 'create', options: ['break', 'destroy', 'ruin'] },
+          ],
+          'B1-B2': [
+            { word: 'intelligent', synonym: 'clever', options: ['stupid', 'unaware', 'dense'] },
+            { word: 'sufficient', synonym: 'enough', options: ['lacking', 'scarce', 'inadequate'] },
+            { word: 'create', synonym: 'produce', options: ['destroy', 'ruin', 'demolish'] },
+            { word: 'important', synonym: 'significant', options: ['trivial', 'minor', 'petty'] },
+            { word: 'delicious', synonym: 'tasty', options: ['bland', 'distasteful', 'gross'] },
+            { word: 'assist', synonym: 'help', options: ['hinder', 'obstruct', 'prevent'] },
+            { word: 'complete', synonym: 'finish', options: ['start', 'abandon', 'pause'] },
+            { word: 'accurate', synonym: 'correct', options: ['inaccurate', 'wrong', 'flawed'] },
+            { word: 'beautiful', synonym: 'gorgeous', options: ['hideous', 'unattractive', 'plain'] },
+            { word: 'brave', synonym: 'courageous', options: ['cowardly', 'fearful', 'timid'] },
+            { word: 'calm', synonym: 'peaceful', options: ['agitated', 'excited', 'turbulent'] },
+            { word: 'eager', synonym: 'keen', options: ['apathetic', 'indifferent', 'reluctant'] },
+            { word: 'famous', synonym: 'renowned', options: ['unknown', 'obscure', 'anonymous'] },
+            { word: 'generous', synonym: 'giving', options: ['selfish', 'stingy', 'miserly'] },
+            { word: 'honest', synonym: 'truthful', options: ['deceitful', 'dishonest', 'lying'] },
+            { word: 'polite', synonym: 'courteous', options: ['rude', 'impolite', 'disrespectful'] },
+            { word: 'powerful', synonym: 'strong', options: ['weak', 'feeble', 'powerless'] },
+            { word: 'unusual', synonym: 'strange', options: ['common', 'ordinary', 'typical'] },
+            { word: 'valuable', synonym: 'precious', options: ['worthless', 'cheap', 'useless'] },
+            { word: 'exhausted', synonym: 'fatigued', options: ['energetic', 'rested', 'lively'] },
+            { word: 'ancient', synonym: 'archaic', options: ['modern', 'new', 'current'] },
+            { word: 'difficult', synonym: 'challenging', options: ['simple', 'easy', 'effortless'] },
+            { word: 'enormous', synonym: 'immense', options: ['tiny', 'small', 'minuscule'] },
+            { word: 'interesting', synonym: 'fascinating', options: ['boring', 'dull', 'uninteresting'] },
+            { word: 'reliable', synonym: 'dependable', options: ['unreliable', 'untrustworthy', 'fickle'] },
+            { word: 'sensible', synonym: 'practical', options: ['foolish', 'absurd', 'silly'] },
+            { word: 'terrible', synonym: 'awful', options: ['wonderful', 'great', 'excellent'] },
+            { word: 'understand', synonym: 'comprehend', options: ['misunderstand', 'confuse', 'mistake'] },
+            { word: 'wonderful', synonym: 'magnificent', options: ['terrible', 'dreadful', 'horrible'] },
+            { word: 'opportunity', synonym: 'chance', options: ['disadvantage', 'obstacle', 'hindrance'] },
+            { word: 'necessary', synonym: 'essential', options: ['unnecessary', 'optional', 'trivial'] },
+            { word: 'prohibit', synonym: 'forbid', options: ['allow', 'permit', 'authorize'] },
+            { word: 'allow', synonym: 'permit', options: ['prohibit', 'ban', 'deny'] },
+            { word: 'achieve', synonym: 'accomplish', options: ['fail', 'lose', 'forfeit'] },
+            { word: 'acquire', synonym: 'obtain', options: ['lose', 'surrender', 'give'] },
+            { word: 'apparent', synonym: 'obvious', options: ['hidden', 'unclear', 'obscure'] },
+            { word: 'bizarre', synonym: 'weird', options: ['normal', 'ordinary', 'common'] },
+            { word: 'crucial', synonym: 'vital', options: ['unimportant', 'minor', 'trivial'] },
+            { word: 'decrease', synonym: 'reduce', options: ['increase', 'expand', 'grow'] },
+            { word: 'demonstrate', synonym: 'show', options: ['hide', 'conceal', 'disprove'] },
+            { word: 'enormous', synonym: 'huge', options: ['tiny', 'small', 'little'] },
+            { word: 'frequently', synonym: 'often', options: ['rarely', 'seldom', 'infrequently'] },
+            { word: 'gather', synonym: 'collect', options: ['scatter', 'disperse', 'separate'] },
+            { word: 'gradually', synonym: 'slowly', options: ['suddenly', 'rapidly', 'quickly'] },
+            { word: 'identical', synonym: 'same', options: ['different', 'unlike', 'distinct'] },
+            { word: 'ignore', synonym: 'disregard', options: ['notice', 'acknowledge', 'attend'] },
+            { word: 'illustrate', synonym: 'explain', options: ['confuse', 'obscure', 'complicate'] },
+            { word: 'immediately', synonym: 'instantly', options: ['later', 'eventually', 'slowly'] },
+            { word: 'increase', synonym: 'expand', options: ['decrease', 'reduce', 'shrink'] },
+            { word: 'indicate', synonym: 'suggest', options: ['deny', 'contradict', 'hide'] },
+          ],
+          'C1-C2': [
+            { word: 'ubiquitous', synonym: 'omnipresent', options: ['rare', 'scarce', 'infrequent'] },
+            { word: 'ephemeral', synonym: 'transient', options: ['permanent', 'eternal', 'lasting'] },
+            { word: 'gregarious', synonym: 'sociable', options: ['reclusive', 'introverted', 'shy'] },
+            { word: 'mitigate', synonym: 'alleviate', options: ['aggravate', 'worsen', 'intensify'] },
+            { word: 'ambiguous', synonym: 'equivocal', options: ['clear', 'explicit', 'unambiguous'] },
+            { word: 'auspicious', synonym: 'propitious', options: ['ominous', 'unfavorable', 'inauspicious'] },
+            { word: 'benevolent', synonym: 'magnanimous', options: ['malevolent', 'malicious', 'spiteful'] },
+            { word: 'cacophony', synonym: 'dissonance', options: ['harmony', 'euphony', 'melody'] },
+            { word: 'eloquent', synonym: 'articulate', options: ['inarticulate', 'mumbling', 'unclear'] },
+            { word: 'fastidious', synonym: 'meticulous', options: ['careless', 'sloppy', 'lax'] },
+            { word: 'idiosyncrasy', synonym: 'peculiarity', options: ['normality', 'commonality', 'regularity'] },
+            { word: 'juxtaposition', synonym: 'proximity', options: ['separation', 'distance', 'remoteness'] },
+            { word: 'loquacious', synonym: 'garrulous', options: ['taciturn', 'reticent', 'silent'] },
+            { word: 'nefarious', synonym: 'iniquitous', options: ['virtuous', 'righteous', 'noble'] },
+            { word: 'obfuscate', synonym: 'obscure', options: ['clarify', 'elucidate', 'explain'] },
+            { word: 'plethora', synonym: 'surfeit', options: ['dearth', 'scarcity', 'paucity'] },
+            { word: 'quixotic', synonym: 'idealistic', options: ['pragmatic', 'realistic', 'practical'] },
+            { word: 'recalcitrant', synonym: 'obstinate', options: ['compliant', 'amenable', 'docile'] },
+            { word: 'sycophant', synonym: 'toady', options: ['leader', 'critic', 'rebel'] },
+            { word: 'veracity', synonym: 'truthfulness', options: ['falsehood', 'deceit', 'mendacity'] },
+            { word: 'abate', synonym: 'subside', options: ['increase', 'intensify', 'amplify'] },
+            { word: 'aberration', synonym: 'anomaly', options: ['normality', 'regularity', 'standard'] },
+            { word: 'acerbic', synonym: 'caustic', options: ['kind', 'mild', 'sweet'] },
+            { word: 'alacrity', synonym: 'eagerness', options: ['apathy', 'reluctance', 'lethargy'] },
+            { word: 'anachronistic', synonym: 'obsolete', options: ['modern', 'contemporary', 'current'] },
+            { word: 'assuage', synonym: 'soothe', options: ['exacerbate', 'aggravate', 'intensify'] },
+            { word: 'audacious', synonym: 'daring', options: ['timid', 'cautious', 'cowardly'] },
+            { word: 'capricious', synonym: 'fickle', options: ['stable', 'consistent', 'predictable'] },
+            { word: 'chicanery', synonym: 'deception', options: ['honesty', 'truthfulness', 'candor'] },
+            { word: 'conundrum', synonym: 'enigma', options: ['solution', 'answer', 'clarification'] },
+            { word: 'didactic', synonym: 'instructive', options: ['uninformative', 'misleading', 'confusing'] },
+            { word: 'disparate', synonym: 'dissimilar', options: ['similar', 'alike', 'homogeneous'] },
+            { word: 'dogmatic', synonym: 'doctrinaire', options: ['flexible', 'open-minded', 'latitudinarian'] },
+            { word: 'eclectic', synonym: 'diverse', options: ['uniform', 'narrow', 'monolithic'] },
+            { word: 'enervate', synonym: 'weaken', options: ['strengthen', 'invigorate', 'energize'] },
+            { word: 'erudite', synonym: 'scholarly', options: ['ignorant', 'uneducated', 'illiterate'] },
+            { word: 'esoteric', synonym: 'abstruse', options: ['simple', 'common', 'well-known'] },
+            { word: 'eulogy', synonym: 'tribute', options: ['criticism', 'condemnation', 'diatribe'] },
+            { word: 'exacerbate', synonym: 'worsen', options: ['alleviate', 'mitigate', 'improve'] },
+            { word: 'exculpate', synonym: 'absolve', options: ['incriminate', 'accuse', 'blame'] },
+            { word: 'exigent', synonym: 'urgent', options: ['trivial', 'noncritical', 'ordinary'] },
+            { word: 'fallacious', synonym: 'deceptive', options: ['valid', 'truthful', 'sound'] },
+            { word: 'gainsay', synonym: 'dispute', options: ['confirm', 'affirm', 'agree'] },
+            { word: 'harangue', synonym: 'tirade', options: ['praise', 'accolade', 'eulogy'] },
+            { word: 'iconoclast', synonym: 'maverick', options: ['conformist', 'believer', 'traditionalist'] },
+            { word: 'impecunious', synonym: 'destitute', options: ['wealthy', 'affluent', 'rich'] },
+            { word: 'imperturbable', synonym: 'unflappable', options: ['anxious', 'agitated', 'restless'] },
+            { word: 'implacable', synonym: 'unrelenting', options: ['lenient', 'merciful', 'forgiving'] },
+            { word: 'inchoate', synonym: 'nascent', options: ['developed', 'mature', 'complete'] },
+            { word: 'ingenuous', synonym: 'naive', options: ['sophisticated', 'artful', 'cunning'] },
+          ]
+        };
+        const TOTAL_QUESTIONS = 50;
+
+        // --- GAME STATE ---
+        let state = {};
+
+        // --- SOUND & VOICE ENGINE ---
+        const sfxEnabled = true;
+        const ttsEnabled = true;
+        let preferredVoice = null;
+
+        const sounds = {
+            correct: () => new Tone.PolySynth(Tone.Synth, { volume: -10 }).toDestination().triggerAttackRelease(["C5", "G5"], "8n", Tone.now()),
+            incorrect: () => new Tone.PolySynth(Tone.FMSynth, { volume: -10, harmonicity: 1.2, modulationIndex: 5 }).toDestination().triggerAttackRelease(["C3", "C#3"], "8n", Tone.now()),
+            click: () => new Tone.MembraneSynth({ octaves: 4, pitchDecay: 0.1, volume: -15 }).toDestination().triggerAttackRelease("C2", "8n", Tone.now()),
+            start: () => {
+                const synth = new Tone.FMSynth({ volume: -12 }).toDestination();
+                const now = Tone.now();
+                synth.triggerAttackRelease("C4", "8n", now);
+                synth.triggerAttackRelease("E4", "8n", now + 0.1);
+                synth.triggerAttackRelease("G4", "8n", now + 0.2);
+            },
+            end: () => new Tone.FMSynth({ volume: -10 }).toDestination().triggerAttackRelease("C3", "2n", Tone.now()),
+        };
+
+        function playSound(sound) {
+            if (sfxEnabled && Tone.context.state !== 'running') {
+                Tone.start().catch(e => console.error("Tone.js start failed", e));
+            }
+            if (sfxEnabled && sounds[sound]) {
+                sounds[sound]();
+            }
+        }
+        
+        function setupVoice() {
+            const setVoice = () => {
+                const voices = window.speechSynthesis.getVoices();
+                // Find "Ava" first, then fall back to other US female voices.
+                preferredVoice = voices.find(voice => voice.lang === 'en-US' && voice.name.includes('Ava')) || 
+                                voices.find(voice => voice.lang === 'en-US' && (voice.name.includes('Female') || voice.gender === 'female')) ||
+                                voices.find(voice => voice.lang === 'en-US' && voice.name.includes('Zira')) ||
+                                voices.find(voice => voice.lang === 'en-US' && voice.name.includes('Samantha')) ||
+                                voices.find(voice => voice.lang === 'en-US');
+                if (!preferredVoice) {
+                    console.warn("Preferred US female voice not found, will use browser default.");
+                }
+            };
+            setVoice();
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = setVoice;
+            }
+        }
+
+        function speak(text) {
+            if (ttsEnabled) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                if (preferredVoice) {
+                    utterance.voice = preferredVoice;
+                }
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // --- GAME LOGIC ---
+        function switchScreen(screenName) {
+            Object.values(screens).forEach(s => s.classList.remove('active'));
+            if (screens[screenName]) {
+                screens[screenName].classList.add('active');
+            }
+        }
+
+        function resetState() {
+            state = {
+                playerName: 'Commander',
+                level: 'A1-A2',
+                score: 0,
+                correctAnswers: 0,
+                questionIndex: 0,
+                questionTimeLeft: 10,
+                gameTimeLeft: 10 * 60, // 10 minutes
+                questionTimerInterval: null,
+                gameTimerInterval: null,
+                currentQuestions: [],
+                unlockedBadges: [],
+            };
+        }
+
+        function selectLevel(level) {
+            state.level = level;
+            startTitle.textContent = `Level: ${level}`;
+            switchScreen('start');
+            playSound('click');
+        }
+
+        function startGame() {
+            const playerName = playerNameInput.value.trim();
+            if (playerName) {
+                state.playerName = playerName;
+            }
+            
+            state.currentQuestions = shuffleArray([...wordData[state.level]]).slice(0, TOTAL_QUESTIONS);
+            
+            hud.player.textContent = state.playerName;
+            hud.score.textContent = state.score;
+            
+            switchScreen('game');
+            playSound('start');
+            
+            state.gameTimerInterval = setInterval(updateGameTimer, 1000);
+            displayQuestion();
+        }
+
+        function updateGameTimer() {
+            state.gameTimeLeft--;
+            const minutes = Math.floor(state.gameTimeLeft / 60);
+            const seconds = state.gameTimeLeft % 60;
+            gameTimerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+            if (state.gameTimeLeft <= 0) {
+                endGame(false); // Game over, time's up
+            }
+        }
+
+        function displayQuestion() {
+            if (state.questionIndex >= state.currentQuestions.length) {
+                endGame(true); // Game won
+                return;
+            }
+
+            feedbackEl.textContent = '';
+            hud.question.textContent = `${state.questionIndex + 1} / ${TOTAL_QUESTIONS}`;
+            
+            const question = state.currentQuestions[state.questionIndex];
+            mainWordEl.textContent = question.word;
+            speak(question.word);
+
+            const choices = shuffleArray([question.synonym, ...question.options]);
+            optionsContainer.innerHTML = '';
+            choices.forEach(choice => {
+                const button = document.createElement('button');
+                button.textContent = choice;
+                button.classList.add('choice-button');
+                button.addEventListener('click', () => handleAnswer(choice, question.synonym, button));
+                optionsContainer.appendChild(button);
+            });
+            
+            clearInterval(state.questionTimerInterval);
+            state.questionTimeLeft = 10;
+            hud.qTime.textContent = state.questionTimeLeft;
+            state.questionTimerInterval = setInterval(() => {
+                state.questionTimeLeft--;
+                hud.qTime.textContent = state.questionTimeLeft;
+                if (state.questionTimeLeft <= 0) {
+                    handleAnswer(null, question.synonym, null);
+                }
+            }, 1000);
+        }
+
+        function handleAnswer(selected, correct, button) {
+            clearInterval(state.questionTimerInterval);
+            optionsContainer.querySelectorAll('.choice-button').forEach(btn => btn.disabled = true);
+
+            if (selected === null) {
+                 feedbackEl.textContent = `Time's up! The answer was "${correct}".`;
+                 feedbackEl.style.color = 'var(--incorrect)';
+                 playSound('incorrect');
+                 flashScore('incorrect');
+            } else if (selected === correct) {
+                state.score += 4;
+                state.correctAnswers++;
+                feedbackEl.textContent = 'Correct!';
+                feedbackEl.style.color = 'var(--correct)';
+                button.classList.add('correct');
+                playSound('correct');
+                flashScore('correct');
+                checkBadges();
+            } else {
+                feedbackEl.textContent = `Incorrect. The answer was "${correct}".`;
+                feedbackEl.style.color = 'var(--incorrect)';
+                button.classList.add('incorrect');
+                playSound('incorrect');
+                flashScore('incorrect');
+            }
+            
+            if (selected !== correct) {
+                 optionsContainer.querySelectorAll('.choice-button').forEach(btn => {
+                    if (btn.textContent === correct) {
+                        btn.classList.add('correct');
+                    }
+                });
+            }
+            
+            state.questionIndex++;
+            hud.score.textContent = state.score;
+
+            setTimeout(displayQuestion, 2500);
+        }
+        
+        function flashScore(type) {
+            const scoreEl = hud.score;
+            scoreEl.classList.remove('flash-correct', 'flash-incorrect');
+            void scoreEl.offsetWidth; 
+            scoreEl.classList.add(type === 'correct' ? 'flash-correct' : 'flash-incorrect');
+        }
+
+        function endGame(completed) {
+            clearInterval(state.questionTimerInterval);
+            clearInterval(state.gameTimerInterval);
+            playSound('end');
+            
+            endScreen.title.textContent = completed ? "Mission Accomplished!" : "Mission Over";
+            endScreen.name.textContent = state.playerName;
+            endScreen.score.textContent = state.score;
+            endScreen.correct.textContent = `${state.correctAnswers} / ${state.questionIndex}`;
+            
+            const minutes = Math.floor(state.gameTimeLeft / 60);
+            const seconds = state.gameTimeLeft % 60;
+            endScreen.time.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            const accuracy = state.questionIndex > 0 ? ((state.correctAnswers / state.questionIndex) * 100).toFixed(1) : 0;
+            endScreen.accuracy.textContent = `${accuracy}%`;
+            
+            endScreen.badges.textContent = state.unlockedBadges.length > 0 ? state.unlockedBadges.join(', ') : 'None';
+
+            saveHighScore();
+            displayHighScores();
+            switchScreen('end');
+        }
+        
+        // --- HIGH SCORES & BADGES ---
+        function getHighScores() {
+            const scoresJSON = localStorage.getItem(`synonymGalaxyScores_${state.level}`);
+            return scoresJSON ? JSON.parse(scoresJSON) : [];
+        }
+
+        function saveHighScore() {
+            const scores = getHighScores();
+            const newScore = { name: state.playerName, score: state.score };
+            scores.push(newScore);
+            scores.sort((a, b) => b.score - a.score);
+            const topScores = scores.slice(0, 5);
+            localStorage.setItem(`synonymGalaxyScores_${state.level}`, JSON.stringify(topScores));
+        }
+
+        function displayHighScores() {
+            const scores = getHighScores();
+            endScreen.highScoresList.innerHTML = '';
+            if (scores.length === 0) {
+                endScreen.highScoresList.innerHTML = '<li class="text-slate-400">No scores yet. Be the first!</li>';
+                return;
+            }
+            scores.forEach(score => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span class="font-bold text-white">${score.name}:</span> <span class="text-primary">${score.score} pts</span>`;
+                endScreen.highScoresList.appendChild(li);
+            });
+        }
+        
+        function checkBadges() {
+            if (state.correctAnswers === 10 && !state.unlockedBadges.includes('10-Streak')) {
+                unlockBadge('10-Streak');
+            }
+            if (state.correctAnswers === TOTAL_QUESTIONS && !state.unlockedBadges.includes('Perfectionist')) {
+                unlockBadge('Perfectionist');
+            }
+        }
+        
+        function unlockBadge(badgeName) {
+            state.unlockedBadges.push(badgeName);
+            badgeAlert.textContent = `Badge Unlocked: ${badgeName}!`;
+            badgeAlert.classList.add('show');
+            setTimeout(() => {
+                badgeAlert.classList.remove('show');
+            }, 3000);
+        }
+
+        // --- UTILITY ---
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        
+        // --- EVENT LISTENERS ---
+        levelSelectionContainer.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                const level = e.target.dataset.level;
+                if (level) {
+                    selectLevel(level);
+                }
+            }
+        });
+        
+        startForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            startGame();
+        });
+        
+        backToLevelsBtn.addEventListener('click', () => {
+            resetState();
+            switchScreen('levelSelection');
+            playSound('click');
+        });
+
+        endScreen.playAgainBtn.addEventListener('click', () => {
+            resetState();
+            switchScreen('levelSelection');
+            playSound('click');
+        });
+
+        // --- INITIALIZATION ---
+        resetState();
+        setupVoice();
+    });
+    </script>
+</body>
+</html>

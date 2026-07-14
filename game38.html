@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversation Listening Challenge (CEFR Edition)</title>
+    <!-- Using China-friendly CDNs for accessibility -->
+    <link href="https://fonts.google.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.staticfile.org/tailwindcss/3.4.1/tailwind.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-image: linear-gradient(to bottom right, #ccfbf1, #a5f3fc); /* teal-100 to cyan-200 */
+            color: #1e293b; /* slate-800 */
+            padding: 20px;
+            text-align: center;
+            animation: gradientBG 20s ease infinite;
+            background-size: 400% 400%;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .hidden { display: none !important; }
+        .game-container {
+            background-color: white;
+            padding: 25px 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1); 
+            width: 100%;
+            max-width: 750px; 
+            margin-top: 20px;
+        }
+        #start-screen input[type="text"] {
+            border: 2px solid #e0f2fe; 
+            padding: 12px 15px; 
+            border-radius: 8px;
+            margin-right: 10px;
+            width: calc(100% - 140px); 
+            max-width: 320px;
+            transition: border-color 0.3s ease;
+            color: #1e293b;
+        }
+        #start-screen input[type="text"]:focus {
+            border-color: #0369a1; /* sky-700 */
+            outline: none;
+        }
+        .game-button, .choice-button, .action-button, .modal-button { 
+            padding: 12px 24px; 
+            font-size: 1.05rem; 
+            font-weight: 600; 
+            color: white;
+            background-color: #0891b2; /* cyan-600 */
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .game-button:hover:not(:disabled), .modal-button:hover { 
+            background-color: #0e7490; /* cyan-700 */
+            transform: translateY(-1px); 
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15); 
+        }
+        .game-button:disabled {
+            background-color: #94a3b8; 
+            color: #e5e7eb;
+            cursor: not-allowed;
+            opacity: 0.8;
+        }
+        
+        .choice-button {
+            background-color: #f8fafc; 
+            color: #1e293b;
+            border: 1px solid #e2e8f0;
+            margin: 6px 0;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start; /* Align text to the left */
+            width: 100%;
+            text-align: left;
+            font-size: 1.1rem; 
+            font-weight: 500;
+            padding: 1rem;
+            line-height: 1.4; 
+        }
+        .choice-button:hover:not(:disabled) { 
+            background-color: #f1f5f9; 
+            border-color: #94a3b8;
+            transform: translateY(-1px); 
+        }
+        .choice-button.correct { background-color: #10b981; color: white; border-color: #059669;}
+        .choice-button.incorrect { background-color: #f43f5e; color: white; border-color: #e11d48;}
+        .choice-button:disabled { 
+            opacity: 0.7;
+        }
+        .choice-button.correct:disabled, .choice-button.incorrect:disabled {
+            opacity: 1; 
+        }
+
+        @keyframes flash-correct-animation {
+            0% { background-color: #10b981; } /* emerald-500 */
+            25% { background-color: #6ee7b7; } /* emerald-300 */
+            50% { background-color: #10b981; }
+            75% { background-color: #6ee7b7; }
+            100% { background-color: #10b981; }
+        }
+        .choice-button.flash-correct {
+            animation: flash-correct-animation 0.8s ease-in-out;
+        }
+
+        .action-button { 
+            background-color: #0284c7; /* sky-600 */
+            font-size: 0.9rem;
+            padding: 8px 16px;
+        }
+        .action-button:hover {
+            background-color: #0369a1; /* sky-700 */
+        }
+        
+        #game-stats {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        #game-stats div { 
+            font-size: 0.9rem; 
+            color: #334155; 
+            background-color: #f0f9ff;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        #game-stats span.font-bold { color: #0f766e; } /* cyan-700 */
+
+        .modal-overlay {
+            background-color: rgba(30, 41, 59, 0.7); 
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 15px;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 30px; 
+            border-radius: 16px; 
+            box-shadow: 0 15px 30px rgba(0,0,0,0.1); 
+            width: 100%;
+            max-width: 750px; 
+            position: relative; 
+        }
+        #feedback { font-weight: 600; margin-top: 15px; min-height: 28px; font-size: 1.1rem; }
+        
+        #badge-alert {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background-color: #0891b2; color: white; padding: 10px 20px;
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 2000; font-weight: 600;
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+        #badges-display span {
+            background-color: #fde047; color: #713f12; padding: 4px 10px; 
+            border-radius: 12px; font-size: 0.85rem; font-weight: 500;
+            margin: 0 4px; display: inline-block; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        }
+        
+        #question-stimulus-display { 
+            font-size: 1.2rem; font-weight: 600; color: #0e7490; 
+            margin-bottom: 10px; text-align: left; background: #f8fafc;
+            padding: 1rem; border-radius: 8px; border-left: 4px solid #0891b2;
+        }
+
+        #level-up-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.85);
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+        @keyframes level-up-flash {
+            0%, 100% { background-color: rgba(8, 145, 178, 0.8); } /* cyan-600 */
+            50% { background-color: rgba(22, 163, 74, 0.8); } /* emerald-500 */
+        }
+        #level-up-modal .flash {
+            animation: level-up-flash 1s infinite;
+        }
+        #level-up-modal h2 {
+            font-size: 4rem;
+            font-weight: 800;
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+        }
+         #level-up-modal .trophy {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (max-width: 768px) { 
+            #game-stats {
+                gap: 0.5rem;
+            }
+             #game-stats div {
+                font-size: 0.8rem;
+                padding: 0.2rem 0.5rem;
+            }
+        }
+        @media (max-width: 640px) { 
+            #start-screen input[type="text"] {
+                width: 100%; max-width: none; margin-bottom:10px; margin-right:0;
+            }
+            .game-button, .choice-button, .action-button, .modal-button { padding: 10px 18px; font-size: 0.95rem;}
+            .game-container, .modal-content { padding: 20px 15px; }
+            #game-stats { flex-direction: column; align-items: stretch; }
+        }
+    </style>
+</head>
+<body>
+    <div id="start-screen" class="game-container">
+        <h1 class="text-4xl font-bold mb-4 text-cyan-800">Conversation Listening Challenge</h1>
+        <p class="mb-6 text-slate-600 text-lg">Listen to the dialogue and choose the best response!</p>
+        <div class="flex flex-col sm:flex-row items-center justify-center">
+            <input type="text" id="username" placeholder="Your Gamer Name">
+            <button id="start-button" class="game-button mt-3 sm:mt-0">Start Game</button>
+        </div>
+    </div>
+
+    <div id="question-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <!-- Game Header and Stats now inside the modal -->
+            <h2 class="text-2xl font-bold text-cyan-800 mb-4">Go, <span id="display-username"></span>!</h2>
+            
+            <div id="game-stats" class="mb-4 p-3 bg-cyan-50 rounded-lg">
+                <div>Score: <span id="score" class="font-bold text-xl">0</span>/<span id="total-possible-score" class="font-bold text-xl">0</span></div> 
+                <div>Question: <span id="question-count" class="font-bold text-xl">0</span>/<span id="total-question-count" class="font-bold text-xl">0</span></div>
+                <div>Level: <span id="difficulty-level" class="font-bold text-xl">A1</span></div>
+                <div id="game-timer-display">Time Left: <span class="font-bold text-xl">10:00</span></div>
+                <div>Badges: <span id="badges-display">None</span></div>
+            </div>
+
+            <!-- Question Area -->
+            <div class="flex justify-between items-center mb-2">
+                <div>Question Timer: <span id="modal-timer" class="font-bold text-lg text-rose-500">--</span>s</div>
+                <button id="repeat-button" class="action-button">Repeat Audio</button>
+            </div>
+            <div id="question-stimulus-display" class="mb-4 p-4 bg-slate-100 rounded-lg min-h-[60px] flex flex-col justify-center items-start">
+                Listen to the dialogue...
+            </div>
+            <p id="question-text" class="mb-5 text-xl font-semibold text-slate-800"></p>
+            <div id="answer-options" class="grid grid-cols-1 gap-3"></div>
+            <div id="feedback" class="mt-5 min-h-[56px]"></div>
+        </div>
+    </div>
+
+    <div id="level-up-modal" class="hidden">
+        <div class="w-full h-full flex flex-col justify-center items-center flash">
+            <svg class="trophy" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="gold"><path d="M19.92,4.6C17.79,2.47,15.05,1.5,12,1.5S6.21,2.47,4.08,4.6A11.9,11.9,0,0,0,1.5,12a12,12,0,0,0,10.5,11.95A12,12,0,0,0,22.5,12,11.9,11.9,0,0,0,19.92,4.6ZM12,21.5A9.5,9.5,0,1,1,21.5,12,9.51,9.51,0,0,1,12,21.5Z"/><path d="M12,6.5A1.5,1.5,0,1,0,13.5,8,1.5,1.5,0,0,0,12,6.5Z"/><path d="M15.5,11h-7A1.5,1.5,0,0,0,7,12.5v1A1.5,1.5,0,0,0,8.5,15h2V17.5a1.5,1.5,0,0,0,3,0V15h2a1.5,1.5,0,0,0,1.5-1.5v-1A1.5,1.5,0,0,0,15.5,11Z"/></svg>
+            <h2 id="level-up-text">LEVEL UP!</h2>
+        </div>
+    </div>
+    
+    <div id="game-over-screen" class="game-container hidden text-center">
+        <h2 id="game-over-title" class="text-3xl font-bold text-cyan-800 mb-5">Game Over, <span id="final-username"></span>!</h2>
+        <div class="mb-4">
+            <p class="text-2xl text-slate-700 mb-1">Final Score: <span id="final-score" class="font-bold text-cyan-600">0</span> / <span id="final-total-possible-score" class="font-bold text-cyan-600">0</span></p>
+            <p class="text-xl text-slate-600">Badges Earned: <span id="final-badges-display">None</span></p>
+        </div>
+        <div id="high-scores-container" class="mt-6 mb-6 p-4 border border-cyan-300 rounded-lg">
+            <h4 class="text-xl font-semibold text-cyan-700 mb-3">High Scores</h4>
+            <ol id="high-scores-list" class="list-decimal list-inside text-left text-slate-600"></ol>
+        </div>
+        <button id="play-again-button" class="game-button">Play Again!</button>
+    </div>
+    
+    <div id="badge-alert" class="hidden">Badge Unlocked!</div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const dom = {
+                startScreen: document.getElementById('start-screen'),
+                gameOverScreen: document.getElementById('game-over-screen'),
+                usernameInput: document.getElementById('username'),
+                startButton: document.getElementById('start-button'),
+                displayUsername: document.getElementById('display-username'),
+                scoreDisplay: document.getElementById('score'),
+                totalPossibleScoreDisplay: document.getElementById('total-possible-score'),
+                questionCountDisplay: document.getElementById('question-count'),
+                totalQuestionCountDisplay: document.getElementById('total-question-count'),
+                difficultyLevelDisplay: document.getElementById('difficulty-level'),
+                gameTimerDisplay: document.querySelector('#game-timer-display span'),
+                badgesDisplay: document.querySelector('#game-stats #badges-display'),
+                badgeAlert: document.getElementById('badge-alert'),
+                questionModal: document.getElementById('question-modal'),
+                modalTimerDisplay: document.getElementById('modal-timer'),
+                questionStimulusDisplay: document.getElementById('question-stimulus-display'),
+                questionTextDisplay: document.getElementById('question-text'),
+                answerOptionsContainer: document.getElementById('answer-options'),
+                feedbackDisplay: document.getElementById('feedback'),
+                repeatButton: document.getElementById('repeat-button'),
+                gameOverTitle: document.getElementById('game-over-title'),
+                finalUsernameDisplay: document.getElementById('final-username'),
+                finalScoreDisplay: document.getElementById('final-score'),
+                finalTotalPossibleScoreDisplay: document.getElementById('final-total-possible-score'),
+                finalBadgesDisplay: document.getElementById('final-badges-display'),
+                playAgainButton: document.getElementById('play-again-button'),
+                highScoresList: document.getElementById('high-scores-list'),
+                levelUpModal: document.getElementById('level-up-modal'),
+                levelUpText: document.getElementById('level-up-text'),
+            };
+
+            // --- Game Data & Config ---
+            const TIME_PER_QUESTION_SECONDS = 10; 
+            let gameData = {};
+            let currentQuestionData = {}; 
+            let questionTimerInterval = null;
+            let overallGameTimerInterval = null;
+            let voices = [];
+            let preferredVoices = [];
+            let currentVoiceForQuestion;
+            let questionsByLevel = {};
+            let allQuestionsInOrder = [];
+            let settings = { isTtsEnabled: true };
+            let audioSynth;
+            
+            const positivePraises = ["Excellent!", "Great job!", "You got it!", "That's right!", "Awesome!", "Perfect!", "Well done!", "You're a star!", "Incredible!", "Superb!", "Fantastic!", "Nailed it!", "Outstanding!", "Magnificent!", "You're a genius!", "Top-notch!", "First-class!", "Impressive!"];
+            
+            const conversationQuestions = [
+                // A1 Level (25 Questions)
+                { id: 1, cefr_level: 'A1', speaker: "Maria", dialogue: "Hello.", options: ["Goodbye.", "I am a student.", "Hi there."], correctOptionIndex: 2 },
+                { id: 2, cefr_level: 'A1', speaker: "John", dialogue: "What is your name?", options: ["I am 10.", "My name is Sarah.", "I am from Canada."], correctOptionIndex: 1 },
+                { id: 3, cefr_level: 'A1', speaker: "Sarah", dialogue: "How are you?", options: ["I'm fine, thank you.", "It is blue.", "I have a cat."], correctOptionIndex: 0 },
+                { id: 4, cefr_level: 'A1', speaker: "Tom", dialogue: "Where are you from?", options: ["I like apples.", "I'm from Germany.", "My favorite color is green."], correctOptionIndex: 1 },
+                { id: 5, cefr_level: 'A1', speaker: "Li", dialogue: "Do you speak English?", options: ["Yes, a little.", "I am a doctor.", "I am happy."], correctOptionIndex: 0 },
+                { id: 6, cefr_level: 'A1', speaker: "Anna", dialogue: "What is this?", options: ["It is a book.", "It is red.", "I can run fast."], correctOptionIndex: 0 },
+                { id: 7, cefr_level: 'A1', speaker: "David", dialogue: "Is this your bag?", options: ["Yes, it is.", "He is my brother.", "I am thirsty."], correctOptionIndex: 0 },
+                { id: 8, cefr_level: 'A1', speaker: "Yuki", dialogue: "How old are you?", options: ["I am from Japan.", "I am 25 years old.", "I like to play football."], correctOptionIndex: 1 },
+                { id: 9, cefr_level: 'A1', speaker: "Omar", dialogue: "What color is the sky?", options: ["It's a big car.", "The sky is blue.", "I have two sisters."], correctOptionIndex: 1 },
+                { id: 10, cefr_level: 'A1', speaker: "Fatima", dialogue: "Do you have a pet?", options: ["Yes, I have a dog.", "I like reading.", "My house is small."], correctOptionIndex: 0 },
+                { id: 11, cefr_level: 'A1', speaker: "Marco", dialogue: "What time is it?", options: ["It's sunny today.", "It's three o'clock.", "I'm hungry."], correctOptionIndex: 1 },
+                { id: 12, cefr_level: 'A1', speaker: "Chloe", dialogue: "Can you swim?", options: ["Yes, I can.", "I am a teacher.", "That is a tree."], correctOptionIndex: 0 },
+                { id: 13, cefr_level: 'A1', speaker: "Ahmed", dialogue: "What do you do?", options: ["I am a student.", "I feel sad.", "The ball is round."], correctOptionIndex: 0 },
+                { id: 14, cefr_level: 'A1', speaker: "Isabella", dialogue: "Do you like ice cream?", options: ["It is cold.", "Yes, I love it!", "I can see a bird."], correctOptionIndex: 1 },
+                { id: 15, cefr_level: 'A1', speaker: "Kenji", dialogue: "What is your favorite food?", options: ["I am tired.", "My favorite food is pizza.", "I have a new phone."], correctOptionIndex: 1 },
+                { id: 16, cefr_level: 'A1', speaker: "Luis", dialogue: "Where do you live?", options: ["I live in Mexico City.", "He is tall.", "I am wearing a red shirt."], correctOptionIndex: 0 },
+                { id: 17, cefr_level: 'A1', speaker: "Olga", dialogue: "Are you married?", options: ["No, I'm single.", "I play the guitar.", "The movie was good."], correctOptionIndex: 0 },
+                { id: 18, cefr_level: 'A1', speaker: "Raj", dialogue: "What day is it today?", options: ["It is Monday.", "I am from India.", "My father is a doctor."], correctOptionIndex: 0 },
+                { id: 19, cefr_level: 'A1', speaker: "Sofia", dialogue: "Can I help you?", options: ["I like yellow.", "No, thank you. I'm just looking.", "This is my friend, Maria."], correctOptionIndex: 1 },
+                { id: 20, cefr_level: 'A1', speaker: "Ben", dialogue: "How much is this T-shirt?", options: ["It's 15 dollars.", "The weather is nice.", "I want to go home."], correctOptionIndex: 0 },
+                { id: 21, cefr_level: 'A1', speaker: "Eva", dialogue: "Are you thirsty?", options: ["The book is interesting.", "Yes, can I have some water?", "My birthday is in June."], correctOptionIndex: 1 },
+                { id: 22, cefr_level: 'A1', speaker: "Leo", dialogue: "Where is the bathroom?", options: ["It is on the right.", "I need a pen.", "She is my sister."], correctOptionIndex: 0 },
+                { id: 23, cefr_level: 'A1', speaker: "Mia", dialogue: "What is the weather like?", options: ["I am at the library.", "It's sunny and warm.", "My favorite sport is tennis."], correctOptionIndex: 1 },
+                { id: 24, cefr_level: 'A1', speaker: "Noah", dialogue: "Can you spell your name?", options: ["N-O-A-H.", "I write with a pencil.", "I have brown eyes."], correctOptionIndex: 0 },
+                { id: 25, cefr_level: 'A1', speaker: "Zoe", dialogue: "Thank you.", options: ["Hello.", "I am sorry.", "You're welcome."], correctOptionIndex: 2 },
+                
+                // A2 Level (25 Questions)
+                { id: 26, cefr_level: 'A2', speaker: "Carlos", dialogue: "What did you do last weekend?", options: ["I will go to the cinema.", "I visited my grandparents.", "I like to watch TV."], correctOptionIndex: 1 },
+                { id: 27, cefr_level: 'A2', speaker: "Jasmine", dialogue: "What are you doing tomorrow?", options: ["I'm meeting a friend for lunch.", "I went to the park yesterday.", "I was at home."], correctOptionIndex: 0 },
+                { id: 28, cefr_level: 'A2', speaker: "Alex", dialogue: "Can you describe your best friend?", options: ["He is tall with black hair.", "My friend lives in London.", "We met last year."], correctOptionIndex: 0 },
+                { id: 29, cefr_level: 'A2', speaker: "Chen", dialogue: "Why were you late for the meeting?", options: ["The meeting is at 10 AM.", "Because the traffic was terrible.", "I will be on time tomorrow."], correctOptionIndex: 1 },
+                { id: 30, cefr_level: 'A2', speaker: "Elif", dialogue: "Have you ever been to Paris?", options: ["I am going to Paris next month.", "Paris is a beautiful city.", "No, but I would love to go."], correctOptionIndex: 2 },
+                { id: 31, cefr_level: 'A2', speaker: "Dan", dialogue: "What kind of music do you listen to?", options: ["I am listening to the radio.", "I usually listen to rock and pop.", "I bought a new CD yesterday."], correctOptionIndex: 1 },
+                { id: 32, cefr_level: 'A2', speaker: "Hana", dialogue: "What do you usually have for breakfast?", options: ["I had a big lunch.", "I often have cereal and a cup of coffee.", "I'm not hungry right now."], correctOptionIndex: 1 },
+                { id: 33, cefr_level: 'A2', speaker: "Igor", dialogue: "How do you get to work?", options: ["I start work at nine.", "I am working on a new project.", "I take the bus every morning."], correctOptionIndex: 2 },
+                { id: 34, cefr_level: 'A2', speaker: "Kate", dialogue: "What's your favorite season?", options: ["I love autumn because of the colors.", "It's very hot this summer.", "Winter is usually very cold here."], correctOptionIndex: 0 },
+                { id: 35, cefr_level: 'A2', speaker: "Liam", dialogue: "Could you tell me the way to the station?", options: ["The train leaves at five.", "Yes, go straight on and turn left.", "I bought a ticket yesterday."], correctOptionIndex: 1 },
+                { id: 36, cefr_level: 'A2', speaker: "Nora", dialogue: "What are your plans for the summer holiday?", options: ["I had a great time last summer.", "We are planning to go camping.", "Summer is my favorite season."], correctOptionIndex: 1 },
+                { id: 37, cefr_level: 'A2', speaker: "Oscar", dialogue: "Did you enjoy the film last night?", options: ["The film starts at 8 PM.", "Yes, it was really exciting.", "I don't like watching horror movies."], correctOptionIndex: 1 },
+                { id: 38, cefr_level: 'A2', speaker: "Priya", dialogue: "What do you like doing in your free time?", options: ["I work from 9 to 5.", "I'm quite busy at the moment.", "I enjoy hiking and reading books."], correctOptionIndex: 2 },
+                { id: 39, cefr_level: 'A2', speaker: "Quinn", dialogue: "Would you like something to drink?", options: ["I am drinking tea.", "I am not thirsty.", "Yes, a glass of water, please."], correctOptionIndex: 2 },
+                { id: 40, cefr_level: 'A2', speaker: "Rosa", dialogue: "How long have you been learning English?", options: ["I am from Spain.", "For about two years now.", "English is an important language."], correctOptionIndex: 1 },
+                { id: 41, cefr_level: 'A2', speaker: "Sam", dialogue: "What does your father do for a living?", options: ["My father is very kind.", "He works as an engineer.", "He lives in a big house."], correctOptionIndex: 1 },
+                { id: 42, cefr_level: 'A2', speaker: "Tina", dialogue: "Did you have a good trip?", options: ["The flight was a bit delayed, but it was fine.", "I am planning a trip to Italy.", "I like traveling by train."], correctOptionIndex: 0 },
+                { id: 43, cefr_level: 'A2', speaker: "Umar", dialogue: "What should I wear to the party?", options: ["The party is on Saturday.", "You should probably wear something smart-casual.", "I bought a new dress for the party."], correctOptionIndex: 1 },
+                { id: 44, cefr_level: 'A2', speaker: "Vera", dialogue: "I passed my driving test!", options: ["Driving is difficult.", "Congratulations! That's great news.", "You need to be careful when driving."], correctOptionIndex: 1 },
+                { id: 45, cefr_level: 'A2', speaker: "Will", dialogue: "What’s the matter? You look worried.", options: ["I’m a bit nervous about my exam tomorrow.", "I was worried about you.", "Don't worry, be happy."], correctOptionIndex: 0 },
+                { id: 46, cefr_level: 'A2', speaker: "Xin", dialogue: "Could you lend me your pen for a moment?", options: ["I need to write something down.", "Of course, here you are.", "This pen writes very smoothly."], correctOptionIndex: 1 },
+                { id: 47, cefr_level: 'A2', speaker: "Zara", dialogue: "I'm going to the supermarket. Do you need anything?", options: ["Could you get some milk, please?", "The supermarket is closed.", "I went there this morning."], correctOptionIndex: 0 },
+                { id: 48, cefr_level: 'A2', speaker: "Yuri", dialogue: "Let's eat out tonight. Where should we go?", options: ["I'm not hungry.", "How about that new Italian restaurant?", "I ate a lot for lunch."], correctOptionIndex: 1 },
+                { id: 49, cefr_level: 'A2', speaker: "Henry", dialogue: "I'm sorry, I forgot your book at home.", options: ["That book is very interesting.", "This is not my book.", "No problem, you can bring it tomorrow."], correctOptionIndex: 2 },
+                { id: 50, cefr_level: 'A2', speaker: "Grace", dialogue: "Do you prefer tea or coffee?", options: ["I definitely prefer coffee in the morning.", "I am making some tea.", "I don't drink either."], correctOptionIndex: 0 },
+
+                // B1 Level (25 Questions)
+                { id: 51, cefr_level: 'B1', speaker: "Arthur", dialogue: "If you could have any superpower, what would it be?", options: ["I think flying would be incredible.", "Superheroes are not real.", "I saw a movie about that."], correctOptionIndex: 0 },
+                { id: 52, cefr_level: 'B1', speaker: "Brenda", dialogue: "What are the advantages and disadvantages of living in a big city?", options: ["Big cities are often crowded.", "I live in a small town.", "Well, you have more opportunities, but the cost of living is higher."], correctOptionIndex: 2 },
+                { id: 53, cefr_level: 'B1', speaker: "Clara", dialogue: "I've been feeling a bit stressed lately.", options: ["Stress is bad for your health.", "You should try to get more sleep.", "Perhaps you should take up yoga or meditation."], correctOptionIndex: 2 },
+                { id: 54, cefr_level: 'B1', speaker: "Derek", dialogue: "What do you think is the most important invention of the 20th century?", options: ["The internet changed everything.", "That's a tough question, but I'd probably say the computer.", "I have a new smartphone."], correctOptionIndex: 1 },
+                { id: 55, cefr_level: 'B1', speaker: "Evelyn", dialogue: "Have you made up your mind about which university to go to?", options: ["I'm still weighing my options, it's a big decision.", "University is very expensive.", "I graduated two years ago."], correctOptionIndex: 0 },
+                { id: 56, cefr_level: 'B1', speaker: "Frank", dialogue: "How do you feel about the rise of artificial intelligence?", options: ["I'm both excited and concerned about its potential impact.", "My computer is quite old.", "Robots are a common theme in science fiction."], correctOptionIndex: 0 },
+                { id: 57, cefr_level: 'B1', speaker: "Gina", dialogue: "What's the best piece of advice you've ever received?", options: ["My father gave me some advice.", "Someone once told me to never stop learning, and it stuck with me.", "It's important to listen to others."], correctOptionIndex: 1 },
+                { id: 58, cefr_level: 'B1', speaker: "Harry", dialogue: "I can't seem to get motivated to exercise.", options: ["There is a gym near my house.", "Exercise is good for you.", "Why don't we try working out together? It might be more fun."], correctOptionIndex: 2 },
+                { id: 59, cefr_level: 'B1', speaker: "Iris", dialogue: "In your opinion, what makes a good leader?", options: ["A good leader needs to be a great listener and be decisive.", "My boss is the leader of our team.", "Leadership skills are hard to develop."], correctOptionIndex: 0 },
+                { id: 60, cefr_level: 'B1', speaker: "Jack", dialogue: "The concert was cancelled at the last minute. I'm so disappointed.", options: ["Oh no, that's a real shame. I know you were looking forward to it.", "I don't like concerts.", "Maybe you can get a refund for the ticket."], correctOptionIndex: 0 },
+                { id: 61, cefr_level: 'B1', speaker: "Lana", dialogue: "I'm thinking of starting my own business. Do you think it's a good idea?", options: ["It's certainly risky, but it could be very rewarding if you succeed.", "Starting a business requires a lot of capital.", "My friend owns a small cafe."], correctOptionIndex: 0 },
+                { id: 62, cefr_level: 'B1', speaker: "Milo", dialogue: "What's something you've always wanted to learn but haven't had the chance to?", options: ["I learned to play the piano as a child.", "I've always been interested in learning how to code.", "Learning new things is important for personal growth."], correctOptionIndex: 1 },
+                { id: 63, cefr_level: 'B1', speaker: "Nina", dialogue: "How important do you think it is to travel and experience other cultures?", options: ["I think it's essential for broadening one's perspective.", "Traveling can be quite expensive and time-consuming.", "My last vacation was to the mountains."], correctOptionIndex: 0 },
+                { id: 64, cefr_level: 'B1', speaker: "Owen", dialogue: "I'm not sure if I should accept the job offer. The salary is good, but the commute is long.", options: ["You should definitely take the job.", "That's a difficult choice. You need to weigh the pros and cons carefully.", "A long commute can be very tiring."], correctOptionIndex: 1 },
+                { id: 65, cefr_level: 'B1', speaker: "Penny", dialogue: "What's a book that has had a significant impact on you?", options: ["I don't read very often these days.", "There are many great books out there.", "'To Kill a Mockingbird' really made me think about justice and morality."], correctOptionIndex: 2 },
+                { id: 66, cefr_level: 'B1', speaker: "Rick", dialogue: "The government has announced a new environmental policy.", options: ["It's about time they took action to protect the planet.", "I'm not very interested in politics.", "The environment is a very complex issue."], correctOptionIndex: 0 },
+                { id: 67, cefr_level: 'B1', speaker: "Stella", dialogue: "My flight has been delayed by four hours. It's so frustrating.", options: ["I hate flying.", "That's really annoying. At least you can grab a coffee and a book.", "You should have checked the flight status before leaving."], correctOptionIndex: 1 },
+                { id: 68, cefr_level: 'B1', speaker: "Theo", dialogue: "If you could live in any historical period, which one would you choose?", options: ["History is a fascinating subject.", "I'm happy living in the present.", "I'd be curious to experience the Renaissance in Florence."], correctOptionIndex: 2 },
+                { id: 69, cefr_level: 'B1', speaker: "Uma", dialogue: "I'm trying to cut down on sugar. It's harder than I thought.", options: ["I know what you mean. It's in almost everything.", "Sugar is unhealthy if you eat too much of it.", "You could try using natural sweeteners instead."], correctOptionIndex: 0 },
+                { id: 70, cefr_level: 'B1', speaker: "Victor", dialogue: "What's the most challenging thing you've ever had to do?", options: ["Learning to forgive someone who hurt me was incredibly difficult.", "Life is full of challenges.", "I once climbed a very high mountain."], correctOptionIndex: 0 },
+                { id: 71, cefr_level: 'B1', speaker: "Wendy", dialogue: "I've been offered a promotion, but it would mean moving to another city.", options: ["Moving is always a lot of work.", "That's a tough decision. You'll need to think about your career and personal life.", "Congratulations on the promotion offer!"], correctOptionIndex: 1 },
+                { id: 72, cefr_level: 'B1', speaker: "Xavier", dialogue: "Do you think social media has a more positive or negative effect on society?", options: ["It's a double-edged sword; it connects people but can also spread misinformation.", "I spend a lot of time on social media.", "My parents don't use social media at all."], correctOptionIndex: 0 },
+                { id: 73, cefr_level: 'B1', speaker: "Yara", dialogue: "I'm running a marathon next month and I'm feeling unprepared.", options: ["You should have started training earlier.", "Don't be so hard on yourself. Just focus on doing your best.", "A marathon is a very long race."], correctOptionIndex: 1 },
+                { id: 74, cefr_level: 'B1', speaker: "Zane", dialogue: "What are your thoughts on the four-day work week?", options: ["I think it would improve work-life balance and productivity for many people.", "I currently work five days a week.", "Some companies have already implemented it successfully."], correctOptionIndex: 0 },
+                { id: 75, cefr_level: 'B1', speaker: "Alice", dialogue: "I heard they're closing the local library. It's such a loss for the community.", options: ["I never really used the library anyway.", "I agree, it's a vital resource. We should sign the petition to keep it open.", "E-books are becoming more popular than physical books."], correctOptionIndex: 1 },
+
+                // B2 Level (25 Questions)
+                { id: 76, cefr_level: 'B2', speaker: "Dr. Evans", dialogue: "Considering the recent data, what are the long-term implications for our strategy?", options: ["The data seems complicated.", "The implications are significant; we'll need to pivot our approach.", "We collected the data last month."], correctOptionIndex: 1 },
+                { id: 77, cefr_level: 'B2', speaker: "Isabelle", dialogue: "To what extent do you believe that formal education is a prerequisite for success?", options: ["Success is subjective.", "It's undoubtedly beneficial, but I've seen many successful entrepreneurs who were self-taught.", "I have a university degree."], correctOptionIndex: 1 },
+                { id: 78, cefr_level: 'B2', speaker: "Julian", dialogue: "The proposed legislation is contentious, to say the least. What's your take on it?", options: ["I can see the arguments from both sides, but I lean towards opposing it.", "Politics can be very divisive.", "The government will vote on it next week."], correctOptionIndex: 0 },
+                { id: 79, cefr_level: 'B2', speaker: "Laura", dialogue: "How can we effectively address the socioeconomic disparities within our community?", options: ["It's a multifaceted problem that requires a comprehensive, long-term solution.", "Some people are richer than others.", "We should organize a community meeting."], correctOptionIndex: 0 },
+                { id: 80, cefr_level: 'B2', speaker: "Marcus", dialogue: "His argument, while eloquent, seems to be built on a rather tenuous premise.", options: ["He speaks very well.", "I agree. His core assumptions are questionable and lack empirical support.", "I found his presentation to be quite persuasive."], correctOptionIndex: 1 },
+                { id: 81, cefr_level: 'B2', speaker: "Naomi", dialogue: "Do the potential benefits of genetic engineering outweigh the ethical concerns?", options: ["Genetic engineering is a very advanced field of science.", "That's the crux of the debate. It's a fine line to walk.", "There have been many movies about this topic."], correctOptionIndex: 1 },
+                { id: 82, cefr_level: 'B2', speaker: "Oliver", dialogue: "The CEO's apology struck me as disingenuous. It felt like a calculated PR move.", options: ["The company's stock price fell yesterday.", "I had the same impression. It lacked any real sense of accountability.", "A public apology was necessary under the circumstances."], correctOptionIndex: 1 },
+                { id: 83, cefr_level: 'B2', speaker: "Paula", dialogue: "Given the pace of technological change, how can individuals remain professionally relevant?", options: ["Technology is always changing.", "I believe a commitment to lifelong learning and adaptability is paramount.", "Many jobs will be automated in the future."], correctOptionIndex: 1 },
+                { id: 84, cefr_level: 'B2', speaker: "Raymond", dialogue: "The author's use of symbolism throughout the novel is masterful.", options: ["The book is quite long and difficult to read.", "I completely agree. The recurring motif of the broken clock, for instance, is brilliant.", "I didn't notice any symbolism when I read it."], correctOptionIndex: 1 },
+                { id: 85, cefr_level: 'B2', speaker: "Simone", dialogue: "From a philosophical standpoint, do you believe in determinism or free will?", options: ["That's one of the age-old questions. I tend to think we're a product of both.", "Philosophy is a challenging subject.", "I have not determined my beliefs on that topic."], correctOptionIndex: 0 },
+                { id: 86, cefr_level: 'B2', speaker: "Tristan", dialogue: "The team's morale seems to have plummeted since the restructuring.", options: ["We need to implement measures to boost their confidence and clarify their roles.", "Many people lost their jobs during the restructuring.", "The office environment has been very quiet lately."], correctOptionIndex: 0 },
+                { id: 87, cefr_level: 'B2', speaker: "Valerie", dialogue: "The cultural appropriation debate is incredibly nuanced. Where do you stand?", options: ["It's crucial to distinguish between appreciation and appropriation, which is often easier said than done.", "I find different cultures fascinating.", "Some people are overly sensitive about these things."], correctOptionIndex: 0 },
+                { id: 88, cefr_level: 'B2', speaker: "Winston", dialogue: "The prosecution's case seems to be largely circumstantial.", options: ["The trial has been going on for several weeks.", "Indeed. They lack a smoking gun, which could create reasonable doubt for the jury.", "Circumstantial evidence can sometimes be very strong."], correctOptionIndex: 1 },
+                { id: 89, cefr_level: 'B2', speaker: "Yasmin", dialogue: "His management style is very laissez-faire, which has its pros and cons.", options: ["He's a very hands-off manager.", "It empowers senior staff, but junior members seem to lack direction.", "I prefer a manager who provides clear instructions."], correctOptionIndex: 1 },
+                { id: 90, cefr_level: 'B2', speaker: "Adrian", dialogue: "The initial public offering was oversubscribed, indicating strong investor confidence.", options: ["The company's valuation has increased significantly as a result.", "I wish I had bought some shares when I had the chance.", "An IPO is when a private company first sells shares to the public."], correctOptionIndex: 0 },
+                { id: 91, cefr_level: 'B2', speaker: "Beatrice", dialogue: "There's a fundamental dichotomy between their stated values and their actions.", options: ["Their actions are indeed incongruous with their professed principles.", "A dichotomy is a division into two contrasting parts.", "I've always found them to be very trustworthy people."], correctOptionIndex: 0 },
+                { id: 92, cefr_level: 'B2', speaker: "Caleb", dialogue: "The geopolitical landscape is in a constant state of flux.", options: ["International relations are certainly unpredictable at the moment.", "The world is changing.", "It's difficult to keep up with all the news."], correctOptionIndex: 0 },
+                { id: 93, cefr_level: 'B2', speaker: "Diana", dialogue: "This quarter's disappointing figures can be attributed to several extraneous variables.", options: ["We didn't meet our sales targets this quarter.", "That's a valid point, but we can't ignore our own operational shortcomings.", "Next quarter will hopefully be better."], correctOptionIndex: 1 },
+                { id: 94, cefr_level: 'B2', speaker: "Elijah", dialogue: "The film's non-linear narrative structure was initially disorienting, but ultimately rewarding.", options: ["I found the plot confusing and hard to follow.", "I agree. It forced the viewer to actively piece together the story.", "The cinematography in the film was stunning."], correctOptionIndex: 1 },
+                { id: 95, cefr_level: 'B2', speaker: "Faye", dialogue: "Her critique of the novel was insightful, though some found it unnecessarily acerbic.", options: ["She can be very direct, but her points were well-founded and thought-provoking.", "I thought her review was just mean and overly critical.", "She is a well-respected literary critic."], correctOptionIndex: 0 },
+                { id: 96, cefr_level: 'B2', speaker: "Gideon", dialogue: "The new system is supposed to streamline our workflow, but the implementation has been shambolic.", options: ["It's been chaotic. The lack of proper training is the main culprit.", "I'm sure things will improve once we get used to it.", "I preferred the old system we were using."], correctOptionIndex: 0 },
+                { id: 97, cefr_level: 'B2', speaker: "Heidi", dialogue: "He has a tendency to prevaricate when asked a direct question.", options: ["He never seems to give a straight answer.", "He is a very articulate and persuasive speaker.", "I find him to be a very honest and trustworthy person."], correctOptionIndex: 0 },
+                { id: 98, cefr_level: 'B2', speaker: "Ivan", dialogue: "The sheer serendipity of our meeting was remarkable.", options: ["It was a complete coincidence that we were both there.", "I don't believe in coincidences; everything happens for a reason.", "We had arranged to meet at that cafe beforehand."], correctOptionIndex: 0 },
+                { id: 99, cefr_level: 'B2', speaker: "Jocelyn", dialogue: "His ubiquitous presence in the media is starting to wear thin.", options: ["He seems to be everywhere you look these days.", "He is very famous and popular with the public.", "I think he does a lot of good work for charity."], correctOptionIndex: 0 },
+                { id: 100, cefr_level: 'B2', speaker: "Ken", dialogue: "The board remains sanguine about the company's future prospects, despite recent setbacks.", options: ["They are publicly optimistic, but I suspect they have private concerns.", "The company's share price has fallen recently.", "It's important to remain positive during difficult times."], correctOptionIndex: 0 },
+            ];
+
+            const TOTAL_QUESTIONS_PER_GAME = conversationQuestions.length;
+
+            // --- Settings & High Score Functions ---
+            function loadSettings() {
+                const savedSettings = localStorage.getItem('convoGameSettings');
+                if (savedSettings) {
+                    settings = JSON.parse(savedSettings);
+                }
+                // No settings UI, so we just load TTS preference
+            }
+            function saveSettings() {
+                localStorage.setItem('convoGameSettings', JSON.stringify(settings));
+            }
+            
+            const MAX_HIGH_SCORES = 5;
+            function getHighScores() { return JSON.parse(localStorage.getItem('convoGameHighScores') || '[]'); }
+            function saveHighScore(score, username) {
+                const highScores = getHighScores();
+                highScores.push({ score, username, date: new Date().toLocaleDateString() });
+                highScores.sort((a, b) => b.score - a.score).splice(MAX_HIGH_SCORES);
+                localStorage.setItem('convoGameHighScores', JSON.stringify(highScores));
+            }
+            function displayHighScores() {
+                const highScores = getHighScores();
+                dom.highScoresList.innerHTML = highScores.length === 0 
+                    ? '<li class="text-slate-500">No high scores yet!</li>'
+                    : highScores.map(s => `<li>${s.username}: ${s.score} (on ${s.date})</li>`).join('');
+            }
+
+            // --- Audio & TTS Functions ---
+            function initAudio() {
+                if (typeof Tone !== 'undefined') {
+                    audioSynth = new Tone.Synth().toDestination();
+                }
+            }
+
+            function populateVoiceList() {
+                if (!('speechSynthesis' in window)) return;
+                voices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en'));
+                
+                const naturalKeywords = ["natural", "neural", "studio", "premium", "google", "zira", "david", "jenny", "aria"];
+                preferredVoices = voices.filter(v => naturalKeywords.some(kw => v.name.toLowerCase().includes(kw)));
+
+                if (preferredVoices.length === 0) {
+                    preferredVoices = voices; 
+                }
+            }
+            
+            function initSpeechSynthesis() {
+                if ('speechSynthesis' in window) {
+                    speechSynthesis.onvoiceschanged = populateVoiceList;
+                    populateVoiceList();
+                } else {
+                    settings.isTtsEnabled = false;
+                }
+            }
+                    
+            function speak(text, voice, callback) {
+                if (!settings.isTtsEnabled || !('speechSynthesis' in window) || !text || !voice) {
+                    if (callback) setTimeout(callback, 2500); // Still need delay even if TTS off
+                    return;
+                }
+                const onceCallback = callback ? (() => {
+                    let called = false;
+                    return () => { if (!called) { called = true; callback(); } };
+                })() : () => {};
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.voice = voice;
+                utterance.onend = onceCallback;
+                utterance.onerror = (event) => {
+                    if (event.error !== 'interrupted' && event.error !== 'canceled') {
+                        console.error("Speech Synthesis Error:", event.error);
+                    }
+                    onceCallback(); // Still fire callback on error
+                };
+                speechSynthesis.cancel();
+                setTimeout(() => speechSynthesis.speak(utterance), 50);
+            }
+
+            // --- Game Logic ---
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+            
+            function setupQuestionOrder() {
+                questionsByLevel = {
+                    'A1': conversationQuestions.filter(q => q.cefr_level === 'A1'),
+                    'A2': conversationQuestions.filter(q => q.cefr_level === 'A2'),
+                    'B1': conversationQuestions.filter(q => q.cefr_level === 'B1'),
+                    'B2': conversationQuestions.filter(q => q.cefr_level === 'B2'),
+                };
+
+                // Shuffle within each level
+                for (const level in questionsByLevel) {
+                    shuffleArray(questionsByLevel[level]);
+                }
+
+                // Create the final, ordered list
+                allQuestionsInOrder = [
+                    ...questionsByLevel['A1'],
+                    ...questionsByLevel['A2'],
+                    ...questionsByLevel['B1'],
+                    ...questionsByLevel['B2'],
+                ];
+            }
+
+
+            function resetGameData() {
+                gameData = {
+                    username: dom.usernameInput.value.trim() || "Player",
+                    score: 0,
+                    questionsAnswered: 0,
+                    totalQuestions: TOTAL_QUESTIONS_PER_GAME,
+                    level: 'A1',
+                    badges: [],
+                    correctStreak: 0,
+                    gameEndTime: 0
+                };
+                setupQuestionOrder();
+                updateGameStatsDisplay();
+            }
+
+            function updateGameStatsDisplay() {
+                dom.displayUsername.textContent = gameData.username;
+                dom.scoreDisplay.textContent = gameData.score;
+                dom.totalPossibleScoreDisplay.textContent = gameData.totalQuestions * 2;
+                dom.questionCountDisplay.textContent = gameData.questionsAnswered;
+                dom.totalQuestionCountDisplay.textContent = gameData.totalQuestions;
+                dom.difficultyLevelDisplay.textContent = gameData.level;
+                dom.badgesDisplay.innerHTML = gameData.badges.length > 0 
+                    ? gameData.badges.map(b => `<span>${b}</span>`).join(' ') 
+                    : 'None';
+            }
+            
+            async function startGame() {
+                if (!dom.usernameInput.value.trim()) {
+                    dom.usernameInput.classList.add('border-red-500');
+                    return;
+                }
+                if(typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+                resetGameData();
+                gameData.gameEndTime = Date.now() + 10 * 60 * 1000;
+                startOverallGameTimer();
+                dom.startScreen.classList.add('hidden');
+                dom.gameOverScreen.classList.add('hidden');
+                
+                startNewQuestionRound();
+            }
+
+            function startOverallGameTimer() {
+                clearInterval(overallGameTimerInterval);
+                overallGameTimerInterval = setInterval(() => {
+                    const timeLeft = Math.max(0, Math.floor((gameData.gameEndTime - Date.now()) / 1000));
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    dom.gameTimerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    if (timeLeft <= 0) {
+                        endGame(true); // Pass true to indicate timeout
+                    }
+                }, 1000);
+            }
+            
+            function startNewQuestionRound() {
+                if (gameData.questionsAnswered >= TOTAL_QUESTIONS_PER_GAME) {
+                    endGame();
+                    return;
+                }
+
+                currentQuestionData = allQuestionsInOrder[gameData.questionsAnswered];
+                const newLevel = currentQuestionData.cefr_level;
+                const isLevelingUp = newLevel !== gameData.level;
+                gameData.level = newLevel;
+                updateGameStatsDisplay();
+
+                const proceedToQuestion = () => {
+                    const textToSpeak = `${currentQuestionData.speaker} says: ${currentQuestionData.dialogue}`;
+                    dom.questionStimulusDisplay.innerHTML = `<strong>${currentQuestionData.speaker}:</strong> "${currentQuestionData.dialogue}"`;
+                    
+                    const voiceIndex = gameData.questionsAnswered % preferredVoices.length;
+                    currentVoiceForQuestion = preferredVoices.length > 0 ? preferredVoices[voiceIndex] : voices[0];
+
+                    speak(textToSpeak, currentVoiceForQuestion, displayQuestionModalWithOptions);
+                };
+
+                if (isLevelingUp && gameData.questionsAnswered > 0) {
+                    showLevelUp(newLevel, proceedToQuestion);
+                } else {
+                    proceedToQuestion();
+                }
+            }
+            
+            function showLevelUp(level, callback) {
+                dom.levelUpText.textContent = `LEVEL ${level}!`;
+                dom.levelUpModal.classList.remove('hidden');
+                setTimeout(() => {
+                    dom.levelUpModal.classList.add('hidden');
+                    if (callback) callback();
+                }, 2500);
+            }
+
+            function displayQuestionModalWithOptions() {
+                const { options, correctOptionIndex } = currentQuestionData;
+                const correctAnswer = options[correctOptionIndex];
+                let displayOptions = shuffleArray([...options]);
+
+                dom.answerOptionsContainer.innerHTML = '';
+                dom.questionTextDisplay.textContent = "Choose the best response:";
+                dom.feedbackDisplay.textContent = '';
+
+
+                displayOptions.forEach(optionText => {
+                    const btn = document.createElement('button');
+                    btn.className = 'choice-button';
+                    btn.textContent = optionText;
+                    btn.addEventListener('click', () => checkAnswer(optionText, correctAnswer, btn));
+                    dom.answerOptionsContainer.appendChild(btn);
+                });
+                
+                dom.questionModal.classList.remove('hidden');
+                startQuestionTimer();
+            }
+            
+            function startQuestionTimer() {
+                clearInterval(questionTimerInterval);
+                let timeLeft = TIME_PER_QUESTION_SECONDS;
+                dom.modalTimerDisplay.textContent = timeLeft;
+                questionTimerInterval = setInterval(() => {
+                    timeLeft--;
+                    dom.modalTimerDisplay.textContent = timeLeft;
+                    if (timeLeft <= 0) {
+                        clearInterval(questionTimerInterval);
+                        if (audioSynth) audioSynth.triggerAttackRelease("C3", "8n");
+                        gameData.correctStreak = 0;
+                        const correctAnswer = currentQuestionData.options[currentQuestionData.correctOptionIndex];
+                        const feedbackText = `Time's up! Correct was: "${correctAnswer}".`;
+                        dom.feedbackDisplay.textContent = feedbackText;
+                        dom.feedbackDisplay.style.color = '#f59e0b';
+                        disableAnswerOptions(correctAnswer);
+                        
+                        gameData.questionsAnswered++;
+                        updateGameStatsDisplay();
+                        
+                        speak(feedbackText, currentVoiceForQuestion, () => {
+                            setTimeout(startNewQuestionRound, 0); // Proceed immediately after speech
+                        });
+                    }
+                }, 1000);
+            }
+
+            function disableAnswerOptions(correctAnswerText = null) {
+                Array.from(dom.answerOptionsContainer.children).forEach(btn => {
+                    btn.disabled = true;
+                    if (correctAnswerText && btn.textContent === correctAnswerText && !btn.classList.contains('correct')) {
+                        btn.classList.add('correct');
+                    }
+                });
+            }
+
+            function checkAnswer(selectedAnswerText, correctAnswerText, buttonElement) {
+                clearInterval(questionTimerInterval);
+                disableAnswerOptions(correctAnswerText); 
+                
+                let feedbackText = '';
+
+                if (selectedAnswerText === correctAnswerText) {
+                    if (audioSynth) audioSynth.triggerAttackRelease("C5", "8n");
+                    gameData.score += 2; // 2 points per correct answer
+                    gameData.correctStreak++;
+                    buttonElement.classList.add('correct', 'flash-correct');
+                    setTimeout(() => buttonElement.classList.remove('flash-correct'), 800);
+
+                    feedbackText = positivePraises[Math.floor(Math.random() * positivePraises.length)];
+                    dom.feedbackDisplay.textContent = feedbackText;
+                    dom.feedbackDisplay.style.color = '#10b981';
+                    checkBadges();
+
+                } else {
+                    if (audioSynth) audioSynth.triggerAttackRelease("C3", "8n");
+                    gameData.score = Math.max(0, gameData.score - 1);
+                    gameData.correctStreak = 0;
+                    buttonElement.classList.add('incorrect');
+                    feedbackText = `Not quite. The correct response was "${correctAnswerText}".`;
+                    dom.feedbackDisplay.textContent = feedbackText;
+                    dom.feedbackDisplay.style.color = '#f43f5e';
+                }
+                
+                gameData.questionsAnswered++;
+                updateGameStatsDisplay();
+                
+                // Automatically proceed to the next question after feedback
+                speak(feedbackText, currentVoiceForQuestion, () => {
+                    setTimeout(startNewQuestionRound, 0); // Proceed immediately after speech
+                });
+            }
+
+            function checkBadges() {
+                // Award level badges just as the level is completed
+                if (gameData.questionsAnswered === 25 && !gameData.badges.includes("A2 Ready")) awardBadge("A2 Ready");
+                if (gameData.questionsAnswered === 50 && !gameData.badges.includes("B1 Bound")) awardBadge("B1 Bound");
+                if (gameData.questionsAnswered === 75 && !gameData.badges.includes("B2 Proficient")) awardBadge("B2 Proficient");
+                if (gameData.questionsAnswered === 100 && !gameData.badges.includes("C1 Challenger")) awardBadge("C1 Challenger");
+                if (gameData.correctStreak >= 10 && !gameData.badges.includes("On Fire!")) awardBadge("On Fire!");
+                if (gameData.correctStreak >= 20 && !gameData.badges.includes("Unstoppable!")) awardBadge("Unstoppable!");
+            }
+            
+            function endGame(timedOut = false) {
+                clearInterval(overallGameTimerInterval);
+                clearInterval(questionTimerInterval);
+                saveHighScore(gameData.score, gameData.username);
+                displayHighScores();
+                dom.questionModal.classList.add('hidden');
+                dom.gameOverScreen.classList.remove('hidden');
+
+                if (timedOut) {
+                    dom.gameOverTitle.innerHTML = `Time's Up, <span id="final-username"></span>!`;
+                } else {
+                    dom.gameOverTitle.innerHTML = `Game Over, <span id="final-username"></span>!`;
+                }
+                document.getElementById('final-username').textContent = gameData.username;
+                dom.finalScoreDisplay.textContent = gameData.score;
+                dom.finalTotalPossibleScoreDisplay.textContent = gameData.totalQuestions * 2;
+                dom.finalBadgesDisplay.innerHTML = dom.badgesDisplay.innerHTML;
+            }
+
+            function awardBadge(badgeName) {
+                if (!gameData.badges.includes(badgeName)) {
+                    gameData.badges.push(badgeName);
+                    updateGameStatsDisplay();
+                    dom.badgeAlert.textContent = `Badge Unlocked: ${badgeName}!`;
+                    dom.badgeAlert.classList.remove('hidden');
+                    setTimeout(() => dom.badgeAlert.classList.add('hidden'), 2500);
+                }
+            }
+            
+            // --- Event Listeners ---
+            dom.startButton.addEventListener('click', startGame);
+            dom.usernameInput.addEventListener('keyup', (e) => { if(e.key === 'Enter') startGame(); });
+            dom.playAgainButton.addEventListener('click', () => {
+                dom.gameOverScreen.classList.add('hidden');
+                dom.startScreen.classList.remove('hidden');
+            });
+            dom.repeatButton.addEventListener('click', () => {
+                if (currentQuestionData?.dialogue) {
+                    speak(`${currentQuestionData.speaker} says: ${currentQuestionData.dialogue}`, currentVoiceForQuestion, null);
+                }
+            });
+
+            // --- Initial Load ---
+            initAudio();
+            initSpeechSynthesis();
+            loadSettings(); 
+            dom.totalQuestionCountDisplay.textContent = TOTAL_QUESTIONS_PER_GAME;
+        });
+    </script>
+</body>
+</html>

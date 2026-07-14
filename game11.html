@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alibi Recall Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+            transition: background-color 5s ease-in-out;
+        }
+        .card {
+            background-color: white;
+            border-radius: 1.5rem;
+            padding: 1.5rem sm:p-8; /* Responsive padding */
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+        }
+        .timer-bar-container {
+            height: 10px;
+            background-color: #e5e7eb;
+            border-radius: 5px;
+            overflow: hidden;
+            width: 100%;
+        }
+        .timer-bar {
+            height: 100%;
+            background-color: #4ade80; /* green-400 */
+            border-radius: 5px;
+            transition: width 0.1s linear;
+        }
+        .btn-primary {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+            transition: background-color 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #2563eb; /* blue-600 */
+        }
+        .icon {
+            width: 1.5rem;
+            height: 1.5rem;
+            stroke-width: 2;
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto text-center">
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="card">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">Alibi Recall</h1>
+            <p class="text-gray-600 mb-6">Listen to the question and read the alibi. A new alibi will appear every 20 seconds. Complete all 4 levels!</p>
+            <p id="voice-status" class="text-sm text-gray-500 mb-8">Loading voices...</p>
+            <button id="start-button" class="w-full py-3 px-6 rounded-lg font-semibold text-lg btn-primary shadow-lg" disabled>
+                Loading...
+            </button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="hidden">
+            <div class="flex justify-between items-center mb-2 text-gray-700 text-base sm:text-lg">
+                <div class="font-semibold flex items-center gap-2">
+                    <svg class="icon text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Level <span id="level-display" class="font-bold">1</span>
+                </div>
+                <div>Question: <span id="question-count" class="font-bold">0</span> / 25</div>
+            </div>
+            <div class="flex items-center gap-4 mb-4">
+                <div id="countdown-display" class="text-3xl sm:text-4xl font-bold text-gray-800 w-16 flex items-center justify-center gap-2">
+                    <svg class="icon text-gray-500 h-7 w-7 sm:h-8 sm:w-8" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span id="countdown-text">20</span>
+                </div>
+                <div class="timer-bar-container flex-grow">
+                    <div id="timer-bar" class="timer-bar"></div>
+                </div>
+            </div>
+            <div id="qa-card" class="card">
+                <p id="question-text" class="text-lg sm:text-xl md:text-2xl text-gray-600 mb-4"></p>
+                <!-- Changed to justify-start for left alignment -->
+                <p id="answer-text" class="text-left text-xl sm:text-2xl md:text-4xl font-bold text-gray-900 mb-6 min-h-[150px] flex items-center justify-start"></p>
+                <div id="status-text" class="text-lg font-semibold text-blue-500 h-8">Get ready...</div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden card">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-2">Session Complete!</h1>
+            <p class="text-xl sm:text-2xl text-gray-600 mb-8">You've finished all 100 alibis. Well done!</p>
+            <button id="restart-button" class="w-full py-3 px-6 rounded-lg font-semibold text-lg btn-primary shadow-lg">
+                Play Again
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const endScreen = document.getElementById('end-screen');
+        
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const voiceStatusEl = document.getElementById('voice-status');
+
+        const levelDisplayEl = document.getElementById('level-display');
+        const questionCountEl = document.getElementById('question-count');
+        const timerBar = document.getElementById('timer-bar');
+        const countdownTextEl = document.getElementById('countdown-text');
+        const qaCard = document.getElementById('qa-card');
+        const questionTextEl = document.getElementById('question-text');
+        const answerTextEl = document.getElementById('answer-text');
+        const statusTextEl = document.getElementById('status-text');
+
+        // --- Speech Synthesis & Sound Setup ---
+        const synth = window.speechSynthesis;
+        let microsoftVoices = [];
+        let timeUpSound;
+
+        function setupSound() {
+             if (window.Tone) {
+                timeUpSound = new Tone.Synth({
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.5 }
+                }).toDestination();
+            }
+        }
+
+        function getOrdinal(n) {
+            const s = ["th", "st", "nd", "rd"];
+            const v = n % 100;
+            return n + (s[(v - 20) % 10] || s[v] || s[0]);
+        }
+
+        function loadVoices() {
+            try {
+                const allVoices = synth.getVoices();
+                if (allVoices.length === 0) return;
+                
+                microsoftVoices = allVoices.filter(voice => 
+                    voice.lang.startsWith('en') && 
+                    voice.name.toLowerCase().includes('microsoft') &&
+                    !voice.localService
+                );
+
+                if (microsoftVoices.length === 0) {
+                    microsoftVoices = allVoices.filter(voice => voice.lang.startsWith('en'));
+                }
+
+                if (microsoftVoices.length > 0) {
+                     voiceStatusEl.textContent = `Using ${microsoftVoices.length > 0 && microsoftVoices[0].name.toLowerCase().includes('microsoft') ? 'Microsoft online' : 'default'} voices.`;
+                    startButton.disabled = false;
+                    startButton.textContent = 'Start Game';
+                } else {
+                    voiceStatusEl.textContent = "Could not find any English voices.";
+                    startButton.textContent = 'Voice Error';
+                }
+            } catch (error) {
+                console.error("Error loading voices:", error);
+                voiceStatusEl.textContent = "Could not load voices due to an error.";
+                startButton.disabled = true;
+                startButton.textContent = 'Voice Error';
+            }
+        }
+
+        // --- Game State ---
+        let questionIndex = 0;
+        let questions = [];
+        let timerInterval;
+        let bgInterval;
+        const GAME_DURATION = 20;
+        const QUESTIONS_PER_LEVEL = 25;
+        const TOTAL_QUESTIONS = 100;
+
+        const bgColors = ['#f3f4f6', '#eef2ff', '#f0fdf4', '#fdf2f8', '#faf5ff', '#fffbeb'];
+        let bgColorIndex = 0;
+
+        function changeBackgroundColor() {
+            bgColorIndex = (bgColorIndex + 1) % bgColors.length;
+            document.body.style.backgroundColor = bgColors[bgColorIndex];
+        }
+
+        // --- Question Data Generation ---
+        function generateQuestions() {
+            const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+            
+            // New function to generate more varied, conversational times
+            const generateTime = () => {
+                const hour = Math.floor(Math.random() * 12) + 1;
+                const numberWords = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"];
+                const hourWord = numberWords[hour - 1];
+                // Handle the wrap-around for 'quarter to'. e.g., quarter to 1 (from 12:45)
+                const nextHourWord = numberWords[hour % 12]; 
+
+                const type = Math.floor(Math.random() * 10); // Increased variety
+                switch(type) {
+                    case 0: return `at ${hour} o'clock sharp`;
+                    case 1: return `half past ${hourWord}`;
+                    case 2: return `a quarter past ${hourWord}`;
+                    case 3: return `a quarter to ${nextHourWord}`;
+                    case 4: return `around ${hour}:${['05', '10', '20', '25', '35', '40', '50', '55'][Math.floor(Math.random()*8)]}`;
+                    case 5: return `just after ${hourWord} o'clock`;
+                    case 6: return `late in the evening`;
+                    case 7: return `early in the morning`;
+                    case 8: return `around sunset`;
+                    case 9: return `during lunchtime`;
+                    default: return `at ${hour} PM`;
+                }
+            };
+
+            const locations = [
+                "at the city hall", "at the police station", "at the fire station", "at the public library", "at the community center",
+                "at the post office", "in the park", "at the playground", "in the town square", "at the convention center",
+                "at the grocery store", "at the pharmacy", "at a clothing boutique", "at the shoe store", "at the hardware store",
+                "at the supermarket", "at the barber shop", "at the beauty salon", "at the bakery", "at the flower shop",
+                "at a coffee shop", "at a fast food restaurant", "at a fine dining restaurant", "at an ice cream parlor", "at a pub",
+                "at a juice bar", "at the deli", "near a food truck", "at the farmers’ market", "at an ethnic cuisine restaurant",
+                "at the elementary school", "at the high school", "at the kindergarten", "at the daycare center", "at a language school",
+                "at the hospital", "at a clinic", "at the dentist office", "at the veterinary clinic", "at the fitness center",
+                "at the movie theater", "at an art gallery", "at the museum", "at the music hall", "at a dance studio",
+                "at the bus stop", "at the train station", "at a subway entrance", "in the parking garage", "at the gas station",
+                "attending a city council meeting", "filing a report", "attending a workshop", "researching local history", "volunteering for an event",
+                "mailing a package", "having a picnic", "watching my kids play", "attending a protest", "presenting at a conference",
+                "getting my car inspected", "waiting for a flight", "browsing the bookstore", "taking a yoga class", "donating blood"
+            ];
+            
+            const generated = new Set();
+            const qList = [];
+
+            while (qList.length < TOTAL_QUESTIONS) {
+                const month = months[Math.floor(Math.random() * months.length)];
+                const dayOfMonth = Math.floor(Math.random() * 28) + 1;
+                const dayOfWeek = days[Math.floor(Math.random() * days.length)];
+                const time = generateTime();
+                const location = locations[Math.floor(Math.random() * locations.length)];
+                const key = `${month}-${dayOfMonth}-${time}-${location}`;
+
+                if (!generated.has(key)) {
+                    generated.add(key);
+                    qList.push({
+                        question: `Where were you on ${dayOfWeek}, ${month} ${getOrdinal(dayOfMonth)}, ${time}?`,
+                        answer: `On ${dayOfWeek} around that time, I was ${location}.`
+                    });
+                }
+            }
+            return qList;
+        }
+
+        // --- Game Logic ---
+        function startGame() {
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+            setupSound();
+
+            questionIndex = 0;
+            questions = generateQuestions();
+            
+            clearInterval(timerInterval);
+            clearInterval(bgInterval);
+
+            startScreen.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+
+            bgInterval = setInterval(changeBackgroundColor, 8000);
+            
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            clearTimeout(timerInterval);
+            synth.cancel();
+
+            if (questionIndex >= TOTAL_QUESTIONS) {
+                endGame();
+                return;
+            }
+            
+            const currentLevel = Math.floor(questionIndex / QUESTIONS_PER_LEVEL) + 1;
+            const questionInLevel = (questionIndex % QUESTIONS_PER_LEVEL) + 1;
+            
+            levelDisplayEl.textContent = currentLevel;
+            questionCountEl.textContent = `${questionInLevel} / ${QUESTIONS_PER_LEVEL}`;
+            
+            const q = questions[questionIndex];
+            
+            questionTextEl.textContent = q.question;
+            answerTextEl.textContent = q.answer;
+            statusTextEl.textContent = 'Get ready...';
+
+            countdownTextEl.textContent = GAME_DURATION;
+            timerBar.style.width = '100%';
+            timerBar.classList.remove('bg-yellow-400', 'bg-red-500');
+            timerBar.classList.add('bg-green-400');
+
+            setTimeout(() => {
+                const utterance = new SpeechSynthesisUtterance(q.question);
+                if (microsoftVoices.length > 0) {
+                    utterance.voice = microsoftVoices[questionIndex % microsoftVoices.length];
+                }
+                utterance.rate = 0.85; // Slower speech rate for clarity
+                utterance.onend = () => {
+                    startTurn();
+                };
+                synth.speak(utterance);
+            }, 500);
+        }
+
+        function startTurn() {
+            statusTextEl.textContent = "Listen and read...";
+            
+            let timeLeft = GAME_DURATION;
+            
+            timerInterval = setInterval(() => {
+                timeLeft -= 0.1;
+                const percentage = (timeLeft / GAME_DURATION) * 100;
+                timerBar.style.width = `${percentage}%`;
+                countdownTextEl.textContent = Math.ceil(timeLeft);
+
+                if (percentage < 50 && percentage > 25) {
+                    timerBar.classList.remove('bg-green-400');
+                    timerBar.classList.add('bg-yellow-400');
+                } else if (percentage <= 25) {
+                    timerBar.classList.remove('bg-yellow-400');
+                    timerBar.classList.add('bg-red-500');
+                }
+
+                if (timeLeft <= 0) {
+                    clearTimeout(timerInterval);
+                    if (timeUpSound) {
+                        timeUpSound.triggerAttackRelease("C4", "0.5");
+                    }
+                    questionIndex++;
+                    nextQuestion();
+                }
+            }, 100);
+        }
+        
+        function endGame() {
+            clearInterval(bgInterval);
+            gameScreen.classList.add('hidden');
+            endScreen.classList.remove('hidden');
+        }
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+
+        // --- Voice Initialization ---
+        if (synth.onvoiceschanged !== undefined) {
+            synth.onvoiceschanged = loadVoices;
+        }
+        loadVoices();
+
+    </script>
+</body>
+</html>

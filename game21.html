@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listening Challenge: 1 & 2 Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        :root {
+            --primary-color: #7c3aed; /* purple-600 */
+            --secondary-color: #db2777; /* pink-600 */
+            --correct-color: #10b981;  /* emerald-500 */
+            --incorrect-color: #f43f5e;/* rose-500 */
+            --warn-color: #f59e0b;   /* amber-500 */
+            --super-color1: #3b82f6;
+            --super-color2: #14b8a6;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(270deg, #e0e7ff, #f3e8ff, #fce7f3, #d1fae5);
+            background-size: 800% 800%;
+            animation: gradient-shift 30s ease infinite;
+            color: #374151;
+            padding: 1rem;
+            overflow: hidden;
+        }
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .hidden { display: none !important; }
+        .game-container {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 900px;
+            margin: 1rem auto;
+            border: 1px solid #e5e7eb;
+            position: relative;
+            transition: box-shadow 0.3s ease;
+            z-index: 10;
+        }
+        .game-container.flash-correct {
+            animation: flash-correct-anim 0.7s ease;
+        }
+        .game-container.flash-super {
+            animation: flash-super-anim 1.5s ease-out;
+        }
+        @keyframes flash-correct-anim {
+            0%, 100% { box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15); }
+            50% { box-shadow: 0 0 30px 5px var(--correct-color); }
+        }
+        @keyframes flash-super-anim {
+            0%, 100% { box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15); }
+            25% { box-shadow: 0 0 40px 10px var(--super-color1); }
+            75% { box-shadow: 0 0 40px 10px var(--super-color2); }
+        }
+
+        @media (min-width: 640px) {
+            .game-container {
+                padding: 1.5rem 2rem;
+            }
+        }
+        .game-button, .choice-button, .action-button, .level-button, .mode-button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1f2937;
+            background-color: white;
+            border: 2px solid #d1d5db;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .game-button:hover:not(:disabled), .action-button:hover:not(:disabled), .level-button:hover:not(:disabled), .mode-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px -4px rgba(0,0,0,0.1);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+        .game-button:disabled {
+            background-color: #f3f4f6;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .choice-button {
+            width: 100%;
+            text-align: center;
+        }
+        .choice-button.correct { background-color: var(--correct-color); color: white; border-color: var(--correct-color); }
+        .choice-button.incorrect { background-color: var(--incorrect-color); color: white; border-color: var(--incorrect-color); }
+        .choice-button:disabled { opacity: 0.7; cursor: not-allowed; }
+        .choice-button.correct:disabled, .choice-button.incorrect:disabled { opacity: 1; }
+
+        #feedback { font-weight: 700; margin-top: 1rem; min-height: 2rem; font-size: 1.25rem; }
+        
+        .player-button-container {
+            border: 4px solid transparent;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            transition: all 0.3s ease-in-out;
+        }
+        .player-button-container.winner-p1 {
+            animation: winner-flash-p1 0.8s ease;
+        }
+        .player-button-container.winner-p2 {
+            animation: winner-flash-p2 0.8s ease;
+        }
+        @keyframes winner-flash-p1 {
+            50% {
+                background-color: rgba(124, 58, 237, 0.1);
+                border-color: var(--primary-color);
+            }
+        }
+        @keyframes winner-flash-p2 {
+            50% {
+                background-color: rgba(219, 39, 119, 0.1);
+                border-color: var(--secondary-color);
+            }
+        }
+        #confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 9999;
+        }
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: var(--primary-color);
+            opacity: 0;
+            animation: fall 5s linear forwards;
+        }
+        @keyframes fall {
+            0% {
+                transform: translateY(-10vh) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(110vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+    <div id="confetti-container"></div>
+
+    <div id="mode-selection-screen" class="game-container text-center">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-2 text-slate-800">Welcome to the Listening Challenge!</h1>
+        <p class="mb-6 text-slate-500 text-lg">Choose your game mode.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button class="mode-button text-lg" data-mode="1">1-Player Challenge</button>
+            <button class="mode-button text-lg" data-mode="2">2-Player Race</button>
+        </div>
+         <button id="show-leaderboard-button" class="game-button mt-4">View High Scores</button>
+    </div>
+
+    <div id="level-selection-screen" class="game-container text-center hidden">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-2 text-slate-800">Choose Your Level</h1>
+        <p class="mb-6 text-slate-500 text-lg">Select a difficulty.</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button class="level-button text-lg" data-level="A1">A1</button>
+            <button class="level-button text-lg" data-level="A2">A2</button>
+            <button class="level-button text-lg" data-level="B1">B1</button>
+            <button class="level-button text-lg" data-level="B2">B2</button>
+        </div>
+    </div>
+    
+    <div id="leaderboard-screen" class="game-container text-center hidden">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-4 text-purple-700">High Scores</h1>
+        <ol id="leaderboard-list" class="list-decimal list-inside text-left max-w-sm mx-auto text-lg space-y-2"></ol>
+        <button id="back-to-menu-button" class="game-button mt-6">Back to Menu</button>
+    </div>
+
+    <div id="start-screen" class="game-container text-center hidden">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-4 text-purple-700">Level <span id="level-display"></span> Challenge</h1>
+        <div id="player-inputs">
+             <p class="mb-4 text-slate-600 text-lg">Enter player names to begin!</p>
+             <input type="text" id="username1" placeholder="Player 1 Name" class="text-center w-full mb-3 border-2 border-slate-300 p-3 rounded-lg focus:border-purple-500 focus:ring-purple-500">
+             <input type="text" id="username2" placeholder="Player 2 Name" class="text-center w-full mb-3 border-2 border-slate-300 p-3 rounded-lg focus:border-pink-500 focus:ring-pink-500 hidden">
+        </div>
+        <button id="start-button" class="game-button mt-3 w-full sm:w-auto !bg-purple-600 !text-white !border-purple-600 hover:!bg-purple-700">Start Game</button>
+    </div>
+
+    <div id="game-screen" class="game-container hidden">
+        <div class="coin"></div>
+        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+            <h2 class="text-xl md:text-2xl font-bold"><span id="turn-indicator"></span></h2>
+            <div id="main-timer-display" class="text-xl md:text-2xl font-bold text-purple-700">10:00</div>
+        </div>
+        
+        <div id="game-stats" class="grid grid-cols-2 gap-4 mb-4 text-slate-700 p-4 bg-slate-50 rounded-lg">
+            <div id="player1-score" class="player-score p-2 rounded-lg border-2 border-transparent transition-all duration-300">
+                <div class="text-center font-semibold text-purple-700" id="p1-name">Player 1</div>
+                <div class="text-center">Score: <span id="score1" class="font-bold text-xl block">0</span></div>
+            </div>
+            <div id="player2-score" class="player-score p2 p-2 rounded-lg border-2 border-transparent transition-all duration-300 hidden">
+                <div class="text-center font-semibold text-pink-700" id="p2-name">Player 2</div>
+                <div class="text-center">Score: <span id="score2" class="font-bold text-xl block">0</span></div>
+            </div>
+        </div>
+
+        <div id="current-activity-display" class="text-lg text-center font-medium my-6 p-4 bg-slate-100 rounded-lg min-h-[60px]">
+            The game will start automatically...
+        </div>
+
+        <div id="question-area" class="hidden mt-4 p-4 border-t-2 border-slate-200">
+            <div class="text-center mb-4">
+                 <p class="text-sm text-slate-500">Time left: <span id="modal-timer" class="font-bold text-lg">10</span>s</p>
+            </div>
+           
+            <div id="answer-options-container" class="grid gap-3">
+                <!-- Buttons will be injected here by JS -->
+            </div>
+
+            <div id="feedback" class="mt-4 text-center"></div>
+            <div id="example-sentence-feedback" class="hidden mt-2 p-3 bg-slate-50 rounded-md text-slate-600 text-sm"></div>
+        </div>
+    </div>
+    
+    <div id="game-over-screen" class="game-container hidden text-center">
+        <h2 class="text-3xl font-bold text-purple-700 mb-4">Game Over!</h2>
+        <div id="final-results"></div>
+        <button id="play-again-button" class="game-button mt-6">Play Again!</button>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM Elements ---
+        const modeSelectionScreen = document.getElementById('mode-selection-screen');
+        const levelSelectionScreen = document.getElementById('level-selection-screen');
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const leaderboardScreen = document.getElementById('leaderboard-screen');
+        const confettiContainer = document.getElementById('confetti-container');
+        
+        const modeButtons = document.querySelectorAll('.mode-button');
+        const levelButtons = document.querySelectorAll('.level-button');
+        const username1Input = document.getElementById('username1');
+        const username2Input = document.getElementById('username2');
+        const startButton = document.getElementById('start-button');
+        const showLeaderboardButton = document.getElementById('show-leaderboard-button');
+        const backToMenuButton = document.getElementById('back-to-menu-button');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const levelDisplay = document.getElementById('level-display');
+        
+        const turnIndicator = document.getElementById('turn-indicator');
+        const mainTimerDisplay = document.getElementById('main-timer-display');
+        const p1NameDisplay = document.getElementById('p1-name');
+        const p2NameDisplay = document.getElementById('p2-name');
+        const score1Display = document.getElementById('score1');
+        const score2Display = document.getElementById('score2');
+        const player1ScoreContainer = document.getElementById('player1-score');
+        const player2ScoreContainer = document.getElementById('player2-score');
+        
+        const currentActivityDisplay = document.getElementById('current-activity-display');
+        const questionArea = document.getElementById('question-area');
+        const modalTimer = document.getElementById('modal-timer');
+        
+        const answerOptionsContainer = document.getElementById('answer-options-container');
+
+        const feedbackDisplay = document.getElementById('feedback');
+        const exampleSentenceFeedbackDisplay = document.getElementById('example-sentence-feedback');
+        
+        const finalResultsDisplay = document.getElementById('final-results');
+        const playAgainButton = document.getElementById('play-again-button');
+
+        // --- Game Data & Config ---
+        const TOTAL_QUESTIONS_PER_GAME = 50;
+        const POINTS_PER_CORRECT_ANSWER = 10;
+        const TIME_PER_QUESTION = 10;
+        const TOTAL_GAME_TIME = 600; // 10 minutes
+        const AUTO_ADVANCE_DELAY = 2500;
+        const LEADERBOARD_KEY = 'listeningChallengeLeaderboard';
+
+        let gameState = {};
+        let currentQuestionData = {};
+        let questionTimerInterval = null;
+        let mainTimerInterval = null;
+        let isAnswered = false;
+        let questionBank = {};
+        let speechReady = false;
+        let correctSynth, incorrectSynth, rewardSynth, superStreakSynth;
+        let highQualityVoices = [];
+        let currentVoiceIndex = 0;
+        const roundWinPhrases = (name) => [`${name} wins the round!`, `Nice one, ${name}!`, `Point for ${name}!`, `Great ear, ${name}!`];
+
+        const praiseWords = ["Excellent!", "Fantastic!", "You've got a great ear!", "Superb listening!", "Nailed it!", "Awesome!", "Perfect!", "Brilliant!"];
+        const encouragementWords = ["Not quite.", "Almost there.", "Good try.", "Close!", "Not this time."];
+
+        // --- Question Data Generation ---
+        const getUniqueItems = (arr, count) => {
+            const shuffled = [...arr].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, count);
+        };
+
+        const a1Templates = [
+            (item, c, d1, d2) => `I see a ${d1} ${item} and a ${d2} ${item}. I like the ${c} ${item}. I will take the ${c} ${item}.`,
+            (item, c, d1, d2) => `The ${d1} ${item} is nice. But the ${c} ${item} is better. I want the ${c} one. The ${d2} one is okay.`,
+            (item, c, d1, d2) => `I have a ${d1} ${item}. I do not want a ${d2} ${item}. I want a ${c} ${item}.`,
+            (item, c, d1, d2) => `Is that ${item} ${d1}? No, it is ${d2}. Oh, wait. It is ${c}.`,
+            (item, c, d1, d2) => `I need a new ${item}. The ${d1} one is too big. The ${d2} one is too small. The ${c} one is perfect.`,
+            (item, c, d1, d2) => `Look, a ${d1} ${item}. And a ${c} one. I like the ${c} one.`,
+            (item, c, d1, d2) => `My ${item} is ${d1}. Your ${item} is ${d2}. I want the ${c} ${item}.`,
+            (item, c, d1, d2) => `The ${c} ${item} is here. The ${d1} ${item} is there. I want the one that is here.`,
+            (item, c, d1, d2) => `I can see three ${item}s. One is ${d1}, one is ${d2}, but I will choose the ${c} one.`,
+            (item, c, d1, d2) => `I don't like the ${d1} or ${d2} ${item}. The ${c} ${item} is the one for me.`,
+            (item, c, d1, d2) => `My mother likes the ${d1} ${item}, but I prefer the ${c} one.`,
+            (item, c, d1, d2) => `The ${c} ${item} is cheap. The ${d1} ${item} is expensive. I will buy the cheap one.`,
+            (item, c, d1, d2) => `I lost my ${d1} ${item}. I will get a new one. I think I will get a ${c} one.`,
+            (item, c, d1, d2) => `This shop has ${d1} ${item}s and ${c} ${item}s. I will get the ${c} one.`,
+            (item, c, d1, d2) => `The ${d1} ${item} is for my brother. The ${c} ${item} is for me.`,
+            (item, c, d1, d2) => `I can have the ${d1} ${item} or the ${c} ${item}. I pick the ${c} one.`,
+            (item, c, d1, d2) => `The ${c} ${item} is beautiful. The ${d1} one is not. Easy choice.`,
+            (item, c, d1, d2) => `I see a ${d1} ${item}. It's nice. Then I see a ${d2} ${item}. It's okay. Then I see the ${c} ${item}. It's perfect!`,
+            (item, c, d1, d2) => `I will not buy the ${d1} ${item}. I will not buy the ${d2} ${item}. I will buy the ${c} ${item}.`,
+            (item, c, d1, d2) => `The ${d1} ${item} is old. The ${c} ${item} is new. I want the new one.`,
+            (item, c, d1, d2) => `My friend has a ${d1} ${item}. I want a different one. I will get the ${c} ${item}.`,
+            (item, c, d1, d2) => `The ${c} ${item} is on the table. The ${d1} one is on the chair. I will take the one on the table.`,
+            (item, c, d1, d2) => `The store has many ${item}s. I see ${d1}, ${d2}, and ${c}. I choose ${c}.`,
+            (item, c, d1, d2) => `I like ${d1} and ${d2}, but I love ${c}. So I will get the ${c} ${item}.`,
+            (item, c, d1, d2) => `My favorite color is ${c}. They have a ${d1} ${item} and a ${d2} ${item}. But they also have a ${c} one, so I'll get that.`
+        ];
+
+        const a2Templates = [
+            (item, c, d1, d2, d3) => `I wanted the ${d1} ${item}, but they only had it in ${d2} or ${d3}. So, I bought the ${c} one instead.`,
+            (item, c, d1, d2, d3) => `First, I looked at the ${d1} ${item}. Then, I saw the ${d2} one. Finally, I decided on the ${c} ${item}.`,
+            (item, c, d1, d2, d3) => `My friend suggested the ${d1} ${item}. I thought about the ${d2} one, but in the end, the ${c} one was the best choice.`,
+            (item, c, d1, d2, d3) => `I was looking for a ${d1} ${item}, but I couldn't find one. I saw a ${d2} one I almost bought, but then I found the ${c} one which was much nicer.`,
+            (item, c, d1, d2, d3) => `Between the ${d1}, ${d2}, and ${c} ${item}s, the ${c} one was the most affordable.`,
+            (item, c, d1, d2, d3) => `I was going to get the ${d1} ${item}, but my sister said the ${c} one looked better on me.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was sold out. My second choice was the ${d2} one, but I ended up finding a ${c} one online.`,
+            (item, c, d1, d2, d3) => `I thought the ${d1} ${item} was the one, until I saw the price. The ${c} one was much cheaper.`,
+            (item, c, d1, d2, d3) => `I compared the ${d1} ${item} with the ${d2} one. The ${c} ${item} was a late discovery, but it won me over.`,
+            (item, c, d1, d2, d3) => `I don't usually like the color ${c}, but for this ${item}, it looked amazing. I ignored the ${d1} and ${d2} options.`,
+            (item, c, d1, d2, d3) => `The shop assistant showed me a ${d1} ${item} and a ${d2} one. I asked if they had it in ${c}, and they did!`,
+            (item, c, d1, d2, d3) => `I was tired of my old ${d1} ${item}, so I decided to get a new one. I chose the ${c} one.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was too bright, and the ${d2} was too dark. The ${c} one was just right.`,
+            (item, c, d1, d2, d3) => `Everyone has a ${d1} ${item}. I wanted something different, so I picked the ${c} one.`,
+            (item, c, d1, d2, d3) => `I saw a ${c} ${item} in a magazine and decided I had to have it, even though the store also had a nice ${d1} one.`,
+            (item, c, d1, d2, d3) => `I ordered a ${d1} ${item} online, but they sent me a ${d2} one by mistake. I returned it and bought a ${c} one from a local shop.`,
+            (item, c, d1, d2, d3) => `The new collection features a ${d1} ${item} and a ${d2} one. I preferred the classic ${c} model, though.`,
+            (item, c, d1, d2, d3) => `I borrowed my friend's ${d1} ${item}, but I liked it so much I bought my own in ${c}.`,
+            (item, c, d1, d2, d3) => `The ${c} ${item} was hidden behind a pile of ${d1} and ${d2} ones. I'm glad I found it.`,
+            (item, c, d1, d2, d3) => `I was in a hurry, so I almost grabbed the ${d1} ${item}. Luckily, I spotted the ${c} one just before I left.`,
+            (item, c, d1, d2, d3) => `The advertisement showed a ${d1} ${item}, but the ${c} version in the store was much more appealing.`,
+            (item, c, d1, d2, d3) => `I couldn't decide between the ${d1} and the ${d2} ${item}. The shopkeeper said the ${c} one was the most popular, so I took that one.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} didn't match my other clothes. The ${c} one was a perfect match.`,
+            (item, c, d1, d2, d3) => `I got a gift card for my birthday. I couldn't afford the ${d1} ${item}, but the ${c} one was in my budget.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was the latest trend, but I prefer a more timeless style, like the ${c} one.`
+        ];
+        
+        const b1Templates = [
+            (item, c, d1, d2, d3) => `I was choosing between the ${d1}, the ${d2}, and the ${d3} ${item}. Although the ${d1} one was nice, I went with the ${c} one because it was more versatile.`,
+            (item, c, d1, d2, d3) => `After comparing the ${d1} and ${d2} ${item}s, I opted for the ${c} one, since it was a better match for my shoes.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was a strong contender, and the ${d2} was also good, but my final decision was the ${c} one, mainly due to it being on sale.`,
+            (item, c, d1, d2, d3) => `Even though the ${d1} ${item} was recommended, I ultimately chose the ${c} one as it felt like a better fit.`,
+            (item, c, d1, d2, d3) => `I had my eye on the ${d1} ${item} initially. I also considered the ${d2}. However, the ${c} ${item} was the only one that was a more classic design.`,
+            (item, c, d1, d2, d3) => `While the ${d1} ${item} seemed practical, the ${c} version offered better value for money.`,
+            (item, c, d1, d2, d3) => `The ${d2} ${item} was tempting, but the quality of the ${c} one was noticeably superior.`,
+            (item, c, d1, d2, d3) => `I was about to leave with the ${d1} ${item}, but then I remembered my friend's advice and picked the ${c} one instead.`,
+            (item, c, d1, d2, d3) => `My search for the perfect ${item} led me past the ${d1} and ${d2} options, directly to the ${c} one.`,
+            (item, c, d1, d2, d3) => `If I had to choose again, I'd still pick the ${c} ${item} over the ${d1} or ${d2} ones.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was the first one I tried on, but the ${c} one just felt right.`,
+            (item, c, d1, d2, d3) => `I reviewed the features of the ${d1}, ${d2}, and ${c} ${item}s. The ${c} one had everything I needed.`,
+            (item, c, d1, d2, d3) => `I was influenced by an online review to check out the ${d1} ${item}, but I was more impressed by the ${c} model in person.`,
+            (item, c, d1, d2, d3) => `The store manager pointed out that the ${c} ${item} was a bestseller, which made my decision easier over the ${d1} option.`,
+            (item, c, d1, d2, d3) => `I couldn't justify the price of the ${d1} ${item}, so the ${c} one was a more sensible purchase.`,
+            (item, c, d1, d2, d3) => `The ${d2} ${item} was part of a new collection, but I preferred the timeless appeal of the ${c} one.`,
+            (item, c, d1, d2, d3) => `I had a discount coupon that was only valid for the ${c} ${item}, so that's the one I got.`,
+            (item, c, d1, d2, d3) => `My partner preferred the ${d1} ${item}, but I was the one paying, so I chose the ${c} one.`,
+            (item, c, d1, d2, d3) => `The ${c} ${item} came with a better warranty than the ${d1} or ${d2} models.`,
+            (item, c, d1, d2, d3) => `I was looking for something that would last a long time, and the ${c} ${item} was clearly more durable than the ${d1}.`,
+            (item, c, d1, d2, d3) => `The color of the ${d1} ${item} was a bit off, so I went with the safer ${c} option.`,
+            (item, c, d1, d2, d3) => `I needed a ${item} for a special occasion, and the ${c} one was far more elegant than the others.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was too heavy, while the ${c} one was lightweight and comfortable.`,
+            (item, c, d1, d2, d3) => `I read that the ${c} ${item} was made from sustainable materials, which was the deciding factor for me.`,
+            (item, c, d1, d2, d3) => `The ${d2} ${item} had some negative reviews online, so I avoided it and chose the ${c} one.`
+        ];
+        
+        const b2Templates = [
+            (item, c, d1, d2, d3) => `The sales assistant recommended the ${d1} ${item}, but I found it was a bit too flashy for my taste. I also considered the ${d2} and the ${d3} ones, but ultimately, the ${c} one felt like the perfect choice.`,
+            (item, c, d1, d2, d3) => `While the ${d1} ${item} had its merits, and the ${d2} was certainly an option, neither quite compared to the ${c} one, which I found to be incredibly chic.`,
+            (item, c, d1, d2, d3) => `Having weighed my options, which included the ${d1} and the ${d2} ${item}, I concluded that the ${c} one was superior. It was simply a timeless piece.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was a reasonable choice, but it lacked a certain flair. The ${d2} was interesting, but impractical. In the end, the ${c} ${item} struck me as having understated elegance.`,
+            (item, c, d1, d2, d3) => `Despite the popularity of the ${d1} model and the classic appeal of the ${d2}, I was drawn to the ${c} ${item}, which I can only describe as a statement piece.`,
+            (item, c, d1, d2, d3) => `Objectively, the ${d1} ${item} was well-made, yet the ${c} one possessed a certain je ne sais quoi that was irresistible.`,
+            (item, c, d1, d2, d3) => `I deliberated over the ${d1} and ${d2} models, but the craftsmanship of the ${c} ${item} was in a league of its own.`,
+            (item, c, d1, d2, d3) => `The influencer I follow was promoting the ${d1} ${item}, but I found the ${c} one to be a far more authentic expression of my personal style.`,
+            (item, c, d1, d2, d3) => `From a utilitarian perspective, the ${d1} ${item} was adequate. However, the aesthetic appeal of the ${c} one was undeniable.`,
+            (item, c, d1, d2, d3) => `I was initially set on the ${d1} ${item}, but a conversation with a fellow shopper convinced me that the ${c} one was the more discerning choice.`,
+            (item, c, d1, d2, d3) => `The ${d2} ${item} was the logical option, but fashion is rarely about logic. I went with the emotionally resonant ${c} one.`,
+            (item, c, d1, d2, d3) => `After an exhaustive search that included trying on the ${d1} and inspecting the ${d2}, I landed on the ${c} ${item}.`,
+            (item, c, d1, d2, d3) => `The marketing for the ${d1} ${item} was compelling, but the product itself didn't live up to the hype. The ${c} one, on the other hand, exceeded my expectations.`,
+            (item, c, d1, d2, d3) => `I had to consider the long-term value. The trendy ${d1} ${item} would be out of style next year, but the ${c} one is a classic.`,
+            (item, c, d1, d2, d3) => `My budget pointed towards the ${d2} ${item}, but I decided to invest a little more for the superior quality of the ${c} one.`,
+            (item, c, d1, d2, d3) => `The consensus among the staff was that the ${d1} was the most popular, but I've always preferred to go against the grain, so I chose the ${c}.`,
+            (item, c, d1, d2, d3) => `I found the design of the ${d1} ${item} to be rather derivative. The ${c} one, however, was refreshingly original.`,
+            (item, c, d1, d2, d3) => `The material of the ${d2} ${item} felt cheap, which was a deal-breaker. The ${c} one felt luxurious in comparison.`,
+            (item, c, d1, d2, d3) => `I was looking for a piece to complete a specific outfit, and neither the ${d1} nor the ${d2} worked. The ${c} ${item} was the missing piece.`,
+            (item, c, d1, d2, d3) => `The ${c} ${item} was a bit of a splurge, but I believe in buying fewer, better things. It was a clear winner over the ${d1}.`,
+            (item, c, d1, d2, d3) => `I was almost swayed by the practicality of the ${d1} ${item}, but the sheer beauty of the ${c} one made me reconsider my priorities.`,
+            (item, c, d1, d2, d3) => `The online photos of the ${d1} ${item} were deceiving. In person, the ${c} one had a much richer color and texture.`,
+            (item, c, d1, d2, d3) => `I needed something that could transition from day to night, and the ${c} ${item} was far more adaptable than the strictly-casual ${d1}.`,
+            (item, c, d1, d2, d3) => `The heritage of the brand behind the ${c} ${item} appealed to me more than the fast-fashion nature of the ${d1}.`,
+            (item, c, d1, d2, d3) => `I felt that the ${d1} ${item} was trying too hard to be trendy. The ${c} one, by contrast, was effortlessly stylish.`
+        ];
+        
+        const levelData = {
+            A1: { colors: ["red", "blue", "green", "yellow", "black", "white", "pink", "orange", "purple", "brown"], items: ["shirt", "hat", "car", "book", "pen", "bag", "cup", "box"] },
+            A2: { colors: ["silver", "gold", "beige", "gray", "navy", "maroon", "olive", "cyan", "lime"], items: ["jacket", "skirt", "sweater", "boots", "scarf", "dress", "phone", "laptop"] },
+            B1: { colors: ["light blue", "dark green", "bright yellow", "royal blue", "burnt orange", "seafoam green"], items: ["blouse", "trousers", "handbag", "watch", "tie", "briefcase", "sunglasses"] },
+            B2: { colors: ["crimson", "turquoise", "ivory", "teal", "magenta", "charcoal", "fuchsia", "lavender"], items: ["trench coat", "blazer", "pair of loafers", "portfolio", "fountain pen", "cufflinks"] }
+        };
+
+        function generateQuestionBank() {
+            const bank = {};
+            for (const level of ['A1', 'A2', 'B1', 'B2']) {
+                const questions = [];
+                const { colors, items } = levelData[level];
+                let currentTemplates;
+                if (level === 'A1') currentTemplates = a1Templates;
+                else if (level === 'A2') currentTemplates = a2Templates;
+                else if (level === 'B1') currentTemplates = b1Templates;
+                else currentTemplates = b2Templates;
+
+                for (let i = 0; i < TOTAL_QUESTIONS_PER_GAME; i++) {
+                    const colorPool = [...colors];
+                    const chosenColors = getUniqueItems(colorPool, 4);
+                    const correctColor = chosenColors[0];
+                    const distractors = chosenColors.slice(1);
+                    
+                    const item = getUniqueItems(items, 1)[0];
+                    const template = getUniqueItems(currentTemplates, 1)[0];
+
+                    const scenario = template(item, correctColor, ...distractors);
+                    
+                    questions.push({
+                        level,
+                        scenario,
+                        options: [correctColor, ...distractors],
+                        correctOption: correctColor
+                    });
+                }
+                bank[level] = questions;
+            }
+            return bank;
+        }
+
+        // --- Audio & TTS Functions ---
+        function initAudio() {
+            if (typeof Tone === 'undefined') return;
+            Tone.start();
+            correctSynth = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            incorrectSynth = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.5 } }).toDestination();
+            rewardSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.2 } }).toDestination();
+            superStreakSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "fatsawtooth" }, envelope: { attack: 0.1, decay: 0.5, sustain: 0.4, release: 0.8 } }).toDestination();
+        }
+
+        function initSpeechSynthesis() {
+            if (!('speechSynthesis' in window)) {
+                console.warn("Speech Synthesis not supported");
+                return;
+            }
+            const setSpeechReady = () => {
+                const voices = speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    speechReady = true;
+                    highQualityVoices = voices.filter(v => {
+                        const name = v.name.toLowerCase();
+                        const lang = v.lang.toLowerCase();
+                        return lang.startsWith('en') && 
+                               (name.includes('neural') || name.includes('natural') || name.includes('google'));
+                    });
+
+                    if (highQualityVoices.length === 0) {
+                        console.warn("No high-quality 'Neural', 'Natural', or 'Google' voices found.");
+                    }
+                }
+            };
+            if (speechSynthesis.getVoices().length > 0) {
+                setSpeechReady();
+            } else {
+                speechSynthesis.onvoiceschanged = setSpeechReady;
+            }
+             // Keep-alive for speech synthesis
+            setInterval(() => {
+                if (speechSynthesis.paused) {
+                    speechSynthesis.resume();
+                }
+            }, 14000);
+        }
+
+        function speak(text, callback) {
+            if (!speechReady) {
+                setTimeout(() => speak(text, callback), 100);
+                return;
+            }
+
+            if (highQualityVoices.length === 0) {
+                currentActivityDisplay.innerHTML = `<span class="text-red-500">High-quality voices not available in this browser.</span><br>Please use the latest version of Chrome, Edge, or Safari for the best experience.`;
+                if(callback) setTimeout(callback, 50);
+                return;
+            }
+
+            speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.voice = getUniqueItems(highQualityVoices, 1)[0];
+            
+            utterance.onend = () => {
+                 if(callback) setTimeout(callback, 100);
+            };
+            utterance.onerror = (e) => {
+                console.error("SpeechSynthesisUtterance.onerror:", e);
+                if (callback) callback();
+            };
+            speechSynthesis.speak(utterance);
+        }
+
+        // --- Game Logic Functions ---
+        function selectMode(mode) {
+            gameState.mode = parseInt(mode);
+            modeSelectionScreen.classList.add('hidden');
+            levelSelectionScreen.classList.remove('hidden');
+        }
+
+        function selectLevel(level) {
+            gameState.level = level;
+            levelSelectionScreen.classList.add('hidden');
+            levelDisplay.textContent = level;
+            startScreen.classList.remove('hidden');
+
+            if (gameState.mode === 1) {
+                username2Input.classList.add('hidden');
+                player2ScoreContainer.classList.add('hidden');
+            } else {
+                username2Input.classList.remove('hidden');
+                player2ScoreContainer.classList.remove('hidden');
+            }
+        }
+
+        function startGame() {
+            const p1Name = username1Input.value.trim();
+            const p2Name = gameState.mode === 2 ? username2Input.value.trim() : null;
+
+            let hasError = false;
+            if (!p1Name) {
+                username1Input.classList.add('!border-red-500');
+                hasError = true;
+            } else {
+                username1Input.classList.remove('!border-red-500');
+            }
+
+            if (gameState.mode === 2) {
+                if (!p2Name) {
+                    username2Input.classList.add('!border-red-500');
+                    hasError = true;
+                } else {
+                    username2Input.classList.remove('!border-red-500');
+                }
+            }
+
+            if (hasError) return;
+            
+            resetGameState(); 
+            gameState.player1.name = p1Name;
+            if (gameState.mode === 2) {
+                gameState.player2.name = p2Name;
+            }
+            
+            startScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            updateGameStatsDisplay();
+            startMainTimer();
+            startNewQuestionRound();
+        }
+
+        function resetGameState() {
+            gameState = {
+                ...gameState,
+                player1: { name: "Player 1", score: 0 },
+                player2: { name: "Player 2", score: 0 },
+                currentQuestionIndex: 0,
+                timeLeft: TOTAL_GAME_TIME,
+            };
+        }
+        
+        function startMainTimer() {
+            clearInterval(mainTimerInterval);
+            mainTimerDisplay.textContent = "10:00";
+            gameState.timeLeft = TOTAL_GAME_TIME;
+            mainTimerInterval = setInterval(() => {
+                gameState.timeLeft--;
+                const minutes = Math.floor(gameState.timeLeft / 60);
+                const seconds = gameState.timeLeft % 60;
+                mainTimerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                if (gameState.timeLeft <= 0) {
+                    endGame("Time's up!");
+                }
+            }, 1000);
+        }
+
+        function updateGameStatsDisplay() {
+            p1NameDisplay.textContent = gameState.player1.name;
+            score1Display.textContent = gameState.player1.score;
+            
+            const questionsRemaining = TOTAL_QUESTIONS_PER_GAME - gameState.currentQuestionIndex;
+            turnIndicator.textContent = `${questionsRemaining} Q's Remaining | Level: ${gameState.level}`;
+
+            if (gameState.mode === 2) {
+                p2NameDisplay.textContent = gameState.player2.name;
+                score2Display.textContent = gameState.player2.score;
+            }
+        }
+
+        function startNewQuestionRound() {
+            if (gameState.currentQuestionIndex >= TOTAL_QUESTIONS_PER_GAME) {
+                endGame("Congratulations! You've finished all questions!");
+                return;
+            }
+            isAnswered = false;
+            currentActivityDisplay.classList.remove('hidden');
+            questionArea.classList.add('hidden');
+            
+            currentQuestionData = questionBank[gameState.level][gameState.currentQuestionIndex];
+            
+            const turnText = gameState.mode === 1 ? `Listen carefully...` : `Get ready to race!`;
+            currentActivityDisplay.textContent = turnText;
+            updateGameStatsDisplay();
+            speak(currentQuestionData.scenario, () => {
+                displayQuestionWithOptions();
+                startQuestionTimer();
+            });
+        }
+        
+        function displayQuestionWithOptions() {
+            currentActivityDisplay.classList.add('hidden');
+            questionArea.classList.remove('hidden');
+            
+            const shuffledOptions = [...currentQuestionData.options].sort(() => Math.random() - 0.5);
+
+            answerOptionsContainer.innerHTML = '';
+            answerOptionsContainer.className = 'grid gap-3 ' + (gameState.mode === 1 ? 'sm:grid-cols-2' : 'grid-cols-2');
+
+            if (gameState.mode === 1) {
+                shuffledOptions.forEach(optionText => {
+                    const btn = createButton(optionText, 1);
+                    answerOptionsContainer.appendChild(btn);
+                });
+            } else {
+                const p1Container = document.createElement('div');
+                p1Container.id = 'p1-button-container';
+                p1Container.className = 'player-button-container grid grid-cols-1 sm:grid-cols-2 gap-3';
+                const p2Container = document.createElement('div');
+                p2Container.id = 'p2-button-container';
+                p2Container.className = 'player-button-container grid grid-cols-1 sm:grid-cols-2 gap-3';
+
+                shuffledOptions.forEach(optionText => {
+                    p1Container.appendChild(createButton(optionText, 1));
+                    p2Container.appendChild(createButton(optionText, 2));
+                });
+                answerOptionsContainer.appendChild(p1Container);
+                answerOptionsContainer.appendChild(p2Container);
+            }
+            
+            feedbackDisplay.textContent = '';
+            exampleSentenceFeedbackDisplay.classList.add('hidden');
+        }
+        
+        function createButton(text, playerNum) {
+            const btn = document.createElement('button');
+            btn.classList.add('choice-button');
+            btn.textContent = text;
+            btn.addEventListener('click', () => checkAnswer(text, btn, playerNum));
+            return btn;
+        }
+        
+        function startQuestionTimer() {
+            clearInterval(questionTimerInterval);
+            let timeLeft = TIME_PER_QUESTION;
+            modalTimer.textContent = timeLeft;
+            modalTimer.parentElement.classList.remove('text-red-500');
+
+            questionTimerInterval = setInterval(() => {
+                timeLeft--;
+                modalTimer.textContent = timeLeft;
+                 if (timeLeft <= 3) {
+                    modalTimer.parentElement.classList.add('text-red-500');
+                }
+                if (timeLeft <= 0) {
+                     clearInterval(questionTimerInterval);
+                     if (!isAnswered) checkAnswer(null, null, 0); // Times up
+                }
+            }, 1000);
+        }
+
+        function checkAnswer(selectedAnswerText, buttonElement, playerNum) {
+            if (isAnswered) return;
+            isAnswered = true;
+
+            clearInterval(questionTimerInterval);
+            const correctAnswer = currentQuestionData.correctOption;
+            
+            document.querySelectorAll('.choice-button').forEach(btn => {
+                btn.disabled = true;
+                if(btn.textContent === correctAnswer) {
+                    btn.classList.add('correct');
+                }
+            });
+
+            const currentPlayer = playerNum === 1 ? gameState.player1 : (playerNum === 2 ? gameState.player2 : null);
+            let feedbackToSpeak = "";
+            
+            if (currentPlayer && selectedAnswerText === correctAnswer) {
+                const points = POINTS_PER_CORRECT_ANSWER;
+                currentPlayer.score += points;
+                const winPhrases = roundWinPhrases(currentPlayer.name);
+                const praise = gameState.mode === 2 ? getUniqueItems(winPhrases, 1)[0] : praiseWords[Math.floor(Math.random()*praiseWords.length)];
+                feedbackToSpeak = `${praise} +${points} points!`;
+                feedbackDisplay.textContent = feedbackToSpeak;
+                feedbackDisplay.style.color = 'var(--correct-color)';
+                
+                if (gameState.mode === 2) {
+                    const winnerContainer = document.getElementById(`p${playerNum}-button-container`);
+                    winnerContainer.classList.add(`winner-p${playerNum}`);
+                }
+
+                if (correctSynth) correctSynth.triggerAttackRelease("C5", "8n", Tone.now());
+                triggerCoinAnimation(points, playerNum);
+            } else {
+                const incorrectPhrase = selectedAnswerText === null ? "Time's up!" : encouragementWords[Math.floor(Math.random() * encouragementWords.length)];
+                let playerName = currentPlayer ? `${currentPlayer.name} answered. ` : '';
+                feedbackToSpeak = `${gameState.mode === 2 ? playerName : ''}${incorrectPhrase}`;
+                feedbackDisplay.textContent = feedbackToSpeak;
+                feedbackDisplay.style.color = 'var(--incorrect-color)';
+                if (buttonElement) buttonElement.classList.add('incorrect');
+                if (incorrectSynth) incorrectSynth.triggerAttackRelease("A2", "8n", Tone.now());
+            }
+            
+            speak(feedbackToSpeak);
+            exampleSentenceFeedbackDisplay.textContent = `Full text: "${currentQuestionData.scenario}"`;
+            exampleSentenceFeedbackDisplay.classList.remove('hidden');
+            
+            updateGameStatsDisplay();
+            setTimeout(moveToNextQuestion, AUTO_ADVANCE_DELAY);
+        }
+        
+        function moveToNextQuestion() {
+            gameState.currentQuestionIndex++;
+            startNewQuestionRound();
+        }
+
+        function triggerCoinAnimation(points = 10, playerNum) {
+            const scoreRect = (playerNum === 1 ? score1Display : score2Display).getBoundingClientRect();
+            const gameScreenRect = gameScreen.getBoundingClientRect();
+            const startRect = feedbackDisplay.getBoundingClientRect();
+
+            const endX = scoreRect.left + (scoreRect.width / 2) - (startRect.left + (startRect.width / 2));
+            const endY = scoreRect.top + (scoreRect.height / 2) - (startRect.top + (startRect.height / 2));
+            
+            const coin = document.createElement('div');
+            coin.classList.add('coin');
+            coin.textContent = `+${points}`;
+            gameScreen.appendChild(coin);
+
+            coin.style.setProperty('--end-transform', `translate(${endX}px, ${endY}px)`);
+            coin.style.left = `${startRect.left - gameScreenRect.left + (startRect.width / 2) - 15}px`;
+            coin.style.top = `${startRect.top - gameScreenRect.top - 30}px`;
+            
+            coin.classList.add('animate');
+            setTimeout(() => coin.remove(), 1000);
+        }
+
+        function triggerConfetti() {
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = `${Math.random() * 100}vw`;
+                confetti.style.animationDelay = `${Math.random() * 3}s`;
+                confetti.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                confettiContainer.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 5000);
+            }
+        }
+
+        function endGame(reason = "") {
+            clearInterval(mainTimerInterval);
+            clearInterval(questionTimerInterval);
+            speechSynthesis.cancel();
+            
+            gameScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            
+            let resultsHTML = '';
+            if (gameState.mode === 1) {
+                const score = gameState.player1.score;
+                resultsHTML = `
+                    <p class="text-2xl text-slate-700 mb-2">Well done, <span class="font-bold text-purple-600">${gameState.player1.name}</span>!</p>
+                    <p class="text-2xl text-slate-700 mb-2">Final Score: <span class="font-bold text-purple-600">${score}</span></p>
+                `;
+                checkAndSaveLeaderboard(score);
+                triggerConfetti();
+            } else {
+                const p1s = gameState.player1.score;
+                const p2s = gameState.player2.score;
+                let winnerText = '';
+                if (p1s > p2s) {
+                    winnerText = `<p class="text-2xl font-bold text-purple-600 mb-4">${gameState.player1.name} wins!</p>`;
+                    triggerConfetti();
+                } else if (p2s > p1s) {
+                    winnerText = `<p class="text-2xl font-bold text-pink-600 mb-4">${gameState.player2.name} wins!</p>`;
+                     triggerConfetti();
+                } else {
+                    winnerText = `<p class="text-2xl font-bold text-emerald-600 mb-4">It's a tie!</p>`;
+                }
+                resultsHTML = `
+                    ${winnerText}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xl text-slate-700 mb-2"><span class="font-bold text-purple-600">${gameState.player1.name}</span></p>
+                            <p>Score: <span class="font-bold">${p1s}</span></p>
+                        </div>
+                        <div>
+                            <p class="text-xl text-slate-700 mb-2"><span class="font-bold text-pink-600">${gameState.player2.name}</span></p>
+                            <p>Score: <span class="font-bold">${p2s}</span></p>
+                        </div>
+                    </div>
+                `;
+            }
+            if(reason) {
+                finalResultsDisplay.innerHTML = `<p class="text-2xl font-bold text-rose-500 mb-4">${reason}</p>` + resultsHTML;
+            } else {
+                 finalResultsDisplay.innerHTML = resultsHTML;
+            }
+        }
+        
+        // --- Leaderboard Functions ---
+        function getLeaderboard() {
+            return JSON.parse(localStorage.getItem(LEADERBOARD_KEY)) || [];
+        }
+
+        function saveLeaderboard(board) {
+            localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(board));
+        }
+
+        function checkAndSaveLeaderboard(score) {
+            const board = getLeaderboard();
+            const lowestScore = board.length < 5 ? 0 : board[4].score;
+            if (score > lowestScore) {
+                const name = gameState.player1.name || "Anonymous";
+                board.push({ name, score });
+                board.sort((a, b) => b.score - a.score);
+                saveLeaderboard(board.slice(0, 5));
+            }
+        }
+
+        function displayLeaderboard() {
+            const board = getLeaderboard();
+            leaderboardList.innerHTML = '';
+            if (board.length === 0) {
+                leaderboardList.innerHTML = '<li class="text-slate-500">No scores yet. Be the first!</li>';
+            } else {
+                board.forEach(entry => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span class="font-semibold">${entry.name}</span> - ${entry.score}`;
+                    leaderboardList.appendChild(li);
+                });
+            }
+        }
+
+        function resetAndGoHome() {
+            clearInterval(mainTimerInterval);
+            clearInterval(questionTimerInterval);
+            speechSynthesis.cancel();
+            gameScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            leaderboardScreen.classList.add('hidden');
+            modeSelectionScreen.classList.remove('hidden');
+        }
+
+        // --- Event Listeners ---
+        modeButtons.forEach(button => {
+            button.addEventListener('click', () => selectMode(button.dataset.mode));
+        });
+        levelButtons.forEach(button => {
+            button.addEventListener('click', () => selectLevel(button.dataset.level));
+        });
+        startButton.addEventListener('click', startGame);
+        playAgainButton.addEventListener('click', resetAndGoHome);
+        showLeaderboardButton.addEventListener('click', () => {
+            modeSelectionScreen.classList.add('hidden');
+            leaderboardScreen.classList.remove('hidden');
+            displayLeaderboard();
+        });
+        backToMenuButton.addEventListener('click', () => {
+             leaderboardScreen.classList.add('hidden');
+             modeSelectionScreen.classList.remove('hidden');
+        });
+
+        // --- Initial Setup ---
+        initAudio();
+        initSpeechSynthesis();
+        questionBank = generateQuestionBank();
+    });
+    </script>
+</body>
+</html>

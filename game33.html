@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Listening Challenge: 1 & 2 Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        :root {
+            --primary-color: #7c3aed; /* purple-600 */
+            --secondary-color: #db2777; /* pink-600 */
+            --correct-color: #10b981;  /* emerald-500 */
+            --incorrect-color: #f43f5e;/* rose-500 */
+            --warn-color: #f59e0b;   /* amber-500 */
+            --super-color1: #3b82f6;
+            --super-color2: #14b8a6;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(270deg, #e0e7ff, #f3e8ff, #fce7f3, #d1fae5);
+            background-size: 800% 800%;
+            animation: gradient-shift 30s ease infinite;
+            color: #374151;
+            padding: 1rem;
+            overflow: hidden;
+        }
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .hidden { display: none !important; }
+        .game-container {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 900px;
+            margin: 1rem auto;
+            border: 1px solid #e5e7eb;
+            position: relative;
+            transition: box-shadow 0.3s ease;
+            z-index: 10;
+        }
+        .game-container.flash-correct {
+            animation: flash-correct-anim 0.7s ease;
+        }
+        .game-container.flash-super {
+            animation: flash-super-anim 1.5s ease-out;
+        }
+        @keyframes flash-correct-anim {
+            0%, 100% { box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15); }
+            50% { box-shadow: 0 0 30px 5px var(--correct-color); }
+        }
+        @keyframes flash-super-anim {
+            0%, 100% { box-shadow: 0 20px 40px -10px rgba(0,0,0,0.15); }
+            25% { box-shadow: 0 0 40px 10px var(--super-color1); }
+            75% { box-shadow: 0 0 40px 10px var(--super-color2); }
+        }
+
+        @media (min-width: 640px) {
+            .game-container {
+                padding: 1.5rem 2rem;
+            }
+        }
+        .game-button, .choice-button, .action-button, .level-button, .mode-button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1f2937;
+            background-color: white;
+            border: 2px solid #d1d5db;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .game-button:hover:not(:disabled), .action-button:hover:not(:disabled), .level-button:hover:not(:disabled), .mode-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px -4px rgba(0,0,0,0.1);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+        .game-button:disabled {
+            background-color: #f3f4f6;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .choice-button {
+            width: 100%;
+            text-align: center;
+        }
+        .choice-button.correct { background-color: var(--correct-color); color: white; border-color: var(--correct-color); }
+        .choice-button.incorrect { background-color: var(--incorrect-color); color: white; border-color: var(--incorrect-color); }
+        .choice-button:disabled { opacity: 0.7; cursor: not-allowed; }
+        .choice-button.correct:disabled, .choice-button.incorrect:disabled { opacity: 1; }
+
+        #feedback { font-weight: 700; margin-top: 1rem; min-height: 2rem; font-size: 1.25rem; }
+        
+        .player-button-container {
+            border: 4px solid transparent;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            transition: all 0.3s ease-in-out;
+        }
+        .player-button-container.winner-p1 {
+            animation: winner-flash-p1 0.8s ease;
+        }
+        .player-button-container.winner-p2 {
+            animation: winner-flash-p2 0.8s ease;
+        }
+        @keyframes winner-flash-p1 {
+            50% {
+                background-color: rgba(124, 58, 237, 0.1);
+                border-color: var(--primary-color);
+            }
+        }
+        @keyframes winner-flash-p2 {
+            50% {
+                background-color: rgba(219, 39, 119, 0.1);
+                border-color: var(--secondary-color);
+            }
+        }
+        #animation-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+    </style>
+</head>
+<body class="text-slate-700">
+    <canvas id="animation-canvas"></canvas>
+
+    <div id="mode-selection-screen" class="game-container text-center">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-2 text-slate-800">Welcome to the Listening Challenge!</h1>
+        <p class="mb-6 text-slate-500 text-lg">Choose your game mode.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button class="mode-button text-lg" data-mode="1">1-Player Challenge</button>
+            <button class="mode-button text-lg" data-mode="2">2-Player Race</button>
+        </div>
+         <button id="show-leaderboard-button" class="game-button mt-4">View High Scores</button>
+    </div>
+
+    <div id="level-selection-screen" class="game-container text-center hidden">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-2 text-slate-800">Choose Your Level</h1>
+        <p class="mb-6 text-slate-500 text-lg">Select a difficulty.</p>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button class="level-button text-lg" data-level="A1">A1</button>
+            <button class="level-button text-lg" data-level="A2">A2</button>
+            <button class="level-button text-lg" data-level="B1">B1</button>
+            <button class="level-button text-lg" data-level="B2">B2</button>
+        </div>
+    </div>
+    
+    <div id="leaderboard-screen" class="game-container text-center hidden">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-4 text-purple-700">High Scores</h1>
+        <ol id="leaderboard-list" class="list-decimal list-inside text-left max-w-sm mx-auto text-lg space-y-2"></ol>
+        <button id="back-to-menu-button" class="game-button mt-6">Back to Menu</button>
+    </div>
+
+    <div id="start-screen" class="game-container text-center hidden">
+        <h1 class="text-3xl md:text-4xl font-extrabold mb-4 text-purple-700">Level <span id="level-display"></span> Challenge</h1>
+        <div id="player-inputs">
+             <p class="mb-4 text-slate-600 text-lg">Enter player names to begin!</p>
+             <input type="text" id="username1" placeholder="Player 1 Name" class="text-center w-full mb-3 border-2 border-slate-300 p-3 rounded-lg focus:border-purple-500 focus:ring-purple-500">
+             <input type="text" id="username2" placeholder="Player 2 Name" class="text-center w-full mb-3 border-2 border-slate-300 p-3 rounded-lg focus:border-pink-500 focus:ring-pink-500 hidden">
+        </div>
+        <button id="start-button" class="game-button mt-3 w-full sm:w-auto !bg-purple-600 !text-white !border-purple-600 hover:!bg-purple-700">Start Game</button>
+    </div>
+
+    <div id="game-screen" class="game-container hidden">
+        <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+            <h2 class="text-xl md:text-2xl font-bold"><span id="turn-indicator"></span></h2>
+            <div id="main-timer-display" class="text-xl md:text-2xl font-bold text-purple-700">10:00</div>
+        </div>
+        
+        <div id="game-stats" class="grid grid-cols-2 gap-4 mb-4 text-slate-700 p-4 bg-slate-50 rounded-lg">
+            <div id="player1-score" class="player-score p-2 rounded-lg border-2 border-transparent transition-all duration-300">
+                <div class="text-center font-semibold text-purple-700" id="p1-name">Player 1</div>
+                <div class="text-center">Score: <span id="score1" class="font-bold text-xl block">0</span></div>
+            </div>
+            <div id="player2-score" class="player-score p2 p-2 rounded-lg border-2 border-transparent transition-all duration-300 hidden">
+                <div class="text-center font-semibold text-pink-700" id="p2-name">Player 2</div>
+                <div class="text-center">Score: <span id="score2" class="font-bold text-xl block">0</span></div>
+            </div>
+        </div>
+
+        <div id="current-activity-display" class="text-lg text-center font-medium my-6 p-4 bg-slate-100 rounded-lg min-h-[60px]">
+            The game will start automatically...
+        </div>
+
+        <div id="question-area" class="hidden mt-4 p-4 border-t-2 border-slate-200">
+            <div class="text-center mb-4">
+                 <p class="text-sm text-slate-500">Time left: <span id="modal-timer" class="font-bold text-lg">10</span>s</p>
+            </div>
+            
+            <div id="answer-options-container" class="grid gap-3">
+                <!-- Buttons will be injected here by JS -->
+            </div>
+
+            <div id="feedback" class="mt-4 text-center"></div>
+            <div id="example-sentence-feedback" class="hidden mt-2 p-3 bg-slate-50 rounded-md text-slate-600 text-sm"></div>
+        </div>
+    </div>
+    
+    <div id="game-over-screen" class="game-container hidden text-center">
+        <h2 class="text-3xl font-bold text-purple-700 mb-4">Game Over!</h2>
+        <div id="final-results"></div>
+        <button id="play-again-button" class="game-button mt-6">Play Again!</button>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DOM Elements ---
+        const modeSelectionScreen = document.getElementById('mode-selection-screen');
+        const levelSelectionScreen = document.getElementById('level-selection-screen');
+        const startScreen = document.getElementById('start-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const leaderboardScreen = document.getElementById('leaderboard-screen');
+        const animationCanvas = document.getElementById('animation-canvas');
+        const canvasCtx = animationCanvas.getContext('2d');
+        
+        const modeButtons = document.querySelectorAll('.mode-button');
+        const levelButtons = document.querySelectorAll('.level-button');
+        const username1Input = document.getElementById('username1');
+        const username2Input = document.getElementById('username2');
+        const startButton = document.getElementById('start-button');
+        const showLeaderboardButton = document.getElementById('show-leaderboard-button');
+        const backToMenuButton = document.getElementById('back-to-menu-button');
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const levelDisplay = document.getElementById('level-display');
+        
+        const turnIndicator = document.getElementById('turn-indicator');
+        const mainTimerDisplay = document.getElementById('main-timer-display');
+        const p1NameDisplay = document.getElementById('p1-name');
+        const p2NameDisplay = document.getElementById('p2-name');
+        const score1Display = document.getElementById('score1');
+        const score2Display = document.getElementById('score2');
+        const player1ScoreContainer = document.getElementById('player1-score');
+        const player2ScoreContainer = document.getElementById('player2-score');
+        
+        const currentActivityDisplay = document.getElementById('current-activity-display');
+        const questionArea = document.getElementById('question-area');
+        const modalTimer = document.getElementById('modal-timer');
+        
+        const answerOptionsContainer = document.getElementById('answer-options-container');
+
+        const feedbackDisplay = document.getElementById('feedback');
+        const exampleSentenceFeedbackDisplay = document.getElementById('example-sentence-feedback');
+        
+        const finalResultsDisplay = document.getElementById('final-results');
+        const playAgainButton = document.getElementById('play-again-button');
+
+        // --- Game Data & Config ---
+        const TOTAL_QUESTIONS_PER_GAME = 50;
+        const POINTS_PER_CORRECT_ANSWER = 10;
+        const TIME_PER_QUESTION = 10;
+        const TOTAL_GAME_TIME = 600; // 10 minutes
+        const AUTO_ADVANCE_DELAY = 2500;
+        const LEADERBOARD_KEY = 'listeningChallengeLeaderboard';
+
+        let gameState = {};
+        let currentQuestionData = {};
+        let questionTimerInterval = null;
+        let mainTimerInterval = null;
+        let isAnswered = false;
+        let questionBank = {};
+        let preferredVoice = null;
+        let correctSynth, incorrectSynth, rewardSynth, superStreakSynth;
+        const roundWinPhrases = (name) => [`${name} wins the round!`, `Nice one, ${name}!`, `Point for ${name}!`, `Great ear, ${name}!`];
+
+        const praiseWords = ["Excellent!", "Fantastic!", "You've got a great ear!", "Superb listening!", "Nailed it!", "Awesome!", "Perfect!", "Brilliant!"];
+        const encouragementWords = ["Not quite.", "Almost there.", "Good try.", "Close!", "Not this time."];
+
+        // --- Question Data Generation ---
+        const getUniqueItems = (arr, count) => {
+            const shuffled = [...arr].sort(() => 0.5 - Math.random());
+            return shuffled.slice(0, count);
+        };
+
+        const a1Templates = [
+            (item, c, d1, d2) => `I see a ${d1} ${item} and a ${d2} ${item}. I like the ${c} ${item}. I will take the ${c} ${item}.`,
+            (item, c, d1, d2) => `The ${d1} ${item} is nice. But the ${c} ${item} is better. I want the ${c} one. The ${d2} one is okay.`,
+            (item, c, d1, d2) => `I have a ${d1} ${item}. I do not want a ${d2} ${item}. I want a ${c} ${item}.`,
+            (item, c, d1, d2) => `Is that ${item} ${d1}? No, it is ${d2}. Oh, wait. It is ${c}.`,
+            (item, c, d1, d2) => `I need a new ${item}. The ${d1} one is too big. The ${d2} one is too small. The ${c} one is perfect.`,
+            (item, c, d1, d2) => `Look, a ${d1} ${item}. And a ${c} one. I like the ${c} one.`,
+            (item, c, d1, d2) => `My ${item} is ${d1}. Your ${item} is ${d2}. I want the ${c} ${item}.`,
+            (item, c, d1, d2) => `The ${c} ${item} is here. The ${d1} ${item} is there. I want the one that is here.`,
+            (item, c, d1, d2) => `I can see three ${item}s. One is ${d1}, one is ${d2}, but I will choose the ${c} one.`,
+            (item, c, d1, d2) => `I don't like the ${d1} or ${d2} ${item}. The ${c} ${item} is the one for me.`,
+        ];
+
+        const a2Templates = [
+            (item, c, d1, d2, d3) => `I wanted the ${d1} ${item}, but they only had it in ${d2} or ${d3}. So, I bought the ${c} one instead.`,
+            (item, c, d1, d2, d3) => `First, I looked at the ${d1} ${item}. Then, I saw the ${d2} one. Finally, I decided on the ${c} ${item}.`,
+            (item, c, d1, d2, d3) => `My friend suggested the ${d1} ${item}. I thought about the ${d2} one, but in the end, the ${c} one was the best choice.`,
+            (item, c, d1, d2, d3) => `I was looking for a ${d1} ${item}, but I couldn't find one. I saw a ${d2} one I almost bought, but then I found the ${c} one which was much nicer.`,
+            (item, c, d1, d2, d3) => `Between the ${d1}, ${d2}, and ${c} ${item}s, the ${c} one was the most affordable.`,
+            (item, c, d1, d2, d3) => `I was going to get the ${d1} ${item}, but my sister said the ${c} one looked better on me.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was sold out. My second choice was the ${d2} one, but I ended up finding a ${c} one online.`,
+            (item, c, d1, d2, d3) => `I thought the ${d1} ${item} was the one, until I saw the price. The ${c} one was much cheaper.`,
+            (item, c, d1, d2, d3) => `I compared the ${d1} ${item} with the ${d2} one. The ${c} ${item} was a late discovery, but it won me over.`,
+            (item, c, d1, d2, d3) => `I don't usually like the color ${c}, but for this ${item}, it looked amazing. I ignored the ${d1} and ${d2} options.`,
+        ];
+        
+        const b1Templates = [
+            (item, c, d1, d2, d3) => `I was choosing between the ${d1}, the ${d2}, and the ${d3} ${item}. Although the ${d1} one was nice, I went with the ${c} one because it was more versatile.`,
+            (item, c, d1, d2, d3) => `After comparing the ${d1} and ${d2} ${item}s, I opted for the ${c} one, since it was a better match for my shoes.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was a strong contender, and the ${d2} was also good, but my final decision was the ${c} one, mainly due to it being on sale.`,
+            (item, c, d1, d2, d3) => `Even though the ${d1} ${item} was recommended, I ultimately chose the ${c} one as it felt like a better fit.`,
+            (item, c, d1, d2, d3) => `I had my eye on the ${d1} ${item} initially. I also considered the ${d2}. However, the ${c} ${item} was the only one that was a more classic design.`,
+            (item, c, d1, d2, d3) => `While the ${d1} ${item} seemed practical, the ${c} version offered better value for money.`,
+            (item, c, d1, d2, d3) => `The ${d2} ${item} was tempting, but the quality of the ${c} one was noticeably superior.`,
+            (item, c, d1, d2, d3) => `I was about to leave with the ${d1} ${item}, but then I remembered my friend's advice and picked the ${c} one instead.`,
+            (item, c, d1, d2, d3) => `My search for the perfect ${item} led me past the ${d1} and ${d2} options, directly to the ${c} one.`,
+            (item, c, d1, d2, d3) => `If I had to choose again, I'd still pick the ${c} ${item} over the ${d1} or ${d2} ones.`,
+        ];
+        
+        const b2Templates = [
+            (item, c, d1, d2, d3) => `The sales assistant recommended the ${d1} ${item}, but I found it was a bit too flashy for my taste. I also considered the ${d2} and the ${d3} ones, but ultimately, the ${c} one felt like the perfect choice.`,
+            (item, c, d1, d2, d3) => `While the ${d1} ${item} had its merits, and the ${d2} was certainly an option, neither quite compared to the ${c} one, which I found to be incredibly chic.`,
+            (item, c, d1, d2, d3) => `Having weighed my options, which included the ${d1} and the ${d2} ${item}, I concluded that the ${c} one was superior. It was simply a timeless piece.`,
+            (item, c, d1, d2, d3) => `The ${d1} ${item} was a reasonable choice, but it lacked a certain flair. The ${d2} was interesting, but impractical. In the end, the ${c} ${item} struck me as having understated elegance.`,
+            (item, c, d1, d2, d3) => `Despite the popularity of the ${d1} model and the classic appeal of the ${d2}, I was drawn to the ${c} ${item}, which I can only describe as a statement piece.`,
+            (item, c, d1, d2, d3) => `Objectively, the ${d1} ${item} was well-made, yet the ${c} one possessed a certain je ne sais quoi that was irresistible.`,
+            (item, c, d1, d2, d3) => `I deliberated over the ${d1} and ${d2} models, but the craftsmanship of the ${c} ${item} was in a league of its own.`,
+            (item, c, d1, d2, d3) => `The influencer I follow was promoting the ${d1} ${item}, but I found the ${c} one to be a far more authentic expression of my personal style.`,
+            (item, c, d1, d2, d3) => `From a utilitarian perspective, the ${d1} ${item} was adequate. However, the aesthetic appeal of the ${c} one was undeniable.`,
+            (item, c, d1, d2, d3) => `I was initially set on the ${d1} ${item}, but a conversation with a fellow shopper convinced me that the ${c} one was the more discerning choice.`,
+        ];
+        
+        const levelData = {
+            A1: { colors: ["red", "blue", "green", "yellow", "black", "white", "pink", "orange", "purple", "brown"], items: ["shirt", "hat", "car", "book", "pen", "bag", "cup", "box"] },
+            A2: { colors: ["silver", "gold", "beige", "gray", "navy", "maroon", "olive", "cyan", "lime"], items: ["jacket", "skirt", "sweater", "boots", "scarf", "dress", "phone", "laptop"] },
+            B1: { colors: ["light blue", "dark green", "bright yellow", "royal blue", "burnt orange", "seafoam green"], items: ["blouse", "trousers", "handbag", "watch", "tie", "briefcase", "sunglasses"] },
+            B2: { colors: ["crimson", "turquoise", "ivory", "teal", "magenta", "charcoal", "fuchsia", "lavender"], items: ["trench coat", "blazer", "pair of loafers", "portfolio", "fountain pen", "cufflinks"] }
+        };
+
+        function generateQuestionBank() {
+            const bank = {};
+            for (const level of ['A1', 'A2', 'B1', 'B2']) {
+                const questions = [];
+                const { colors, items } = levelData[level];
+                let currentTemplates;
+                if (level === 'A1') currentTemplates = a1Templates;
+                else if (level === 'A2') currentTemplates = a2Templates;
+                else if (level === 'B1') currentTemplates = b1Templates;
+                else currentTemplates = b2Templates;
+
+                for (let i = 0; i < TOTAL_QUESTIONS_PER_GAME; i++) {
+                    const colorPool = [...colors];
+                    const chosenColors = getUniqueItems(colorPool, 4);
+                    const correctColor = chosenColors[0];
+                    const distractors = chosenColors.slice(1);
+                    
+                    const item = getUniqueItems(items, 1)[0];
+                    const template = getUniqueItems(currentTemplates, 1)[0];
+
+                    const scenario = template(item, correctColor, ...distractors);
+                    
+                    questions.push({
+                        level,
+                        scenario,
+                        options: [correctColor, ...distractors],
+                        correctOption: correctColor
+                    });
+                }
+                bank[level] = questions;
+            }
+            return bank;
+        }
+
+        // --- Audio & TTS Functions ---
+        function initAudio() {
+            if (typeof Tone === 'undefined') return;
+            // Tone.start() is now called on the first user interaction in startGame()
+            correctSynth = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            incorrectSynth = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.5 } }).toDestination();
+            rewardSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.2 } }).toDestination();
+            superStreakSynth = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "fatsawtooth" }, envelope: { attack: 0.1, decay: 0.5, sustain: 0.4, release: 0.8 } }).toDestination();
+        }
+
+        function initSpeechSynthesis() {
+            if (!('speechSynthesis' in window)) {
+                console.warn("Speech Synthesis not supported");
+                return;
+            }
+            const setVoice = () => {
+                const voices = speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    let highQualityVoices = voices.filter(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('neural') || v.name.toLowerCase().includes('google') || v.name.toLowerCase().includes('natural')));
+                    if (highQualityVoices.length > 0) {
+                        preferredVoice = getUniqueItems(highQualityVoices, 1)[0];
+                    } else {
+                        preferredVoice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
+                    }
+                }
+            };
+            
+            setVoice();
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = setVoice;
+            }
+        }
+
+        function speak(text, callback) {
+            if (!('speechSynthesis' in window) || !preferredVoice) {
+                console.warn("Speech synthesis not ready or no voice available.");
+                if (callback) setTimeout(callback, 50);
+                return;
+            }
+
+            speechSynthesis.cancel();
+            
+            // Use a timeout to ensure the callback fires, as `onend` can be unreliable on mobile
+            let spoken = false;
+            const timeout = setTimeout(() => {
+                if (!spoken) {
+                    console.warn("Speech synthesis timeout, forcing callback.");
+                    if(callback) callback();
+                }
+            }, 5000); // 5 second timeout
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.voice = preferredVoice;
+            
+            utterance.onend = () => {
+                spoken = true;
+                clearTimeout(timeout);
+                if(callback) callback();
+            };
+            utterance.onerror = (e) => {
+                spoken = true;
+                clearTimeout(timeout);
+                console.error("SpeechSynthesisUtterance.onerror:", e);
+                if (callback) callback();
+            };
+            speechSynthesis.speak(utterance);
+        }
+
+        // --- Game Logic Functions ---
+        function selectMode(mode) {
+            gameState.mode = parseInt(mode);
+            modeSelectionScreen.classList.add('hidden');
+            levelSelectionScreen.classList.remove('hidden');
+        }
+
+        function selectLevel(level) {
+            gameState.level = level;
+            levelSelectionScreen.classList.add('hidden');
+            levelDisplay.textContent = level;
+            startScreen.classList.remove('hidden');
+
+            if (gameState.mode === 1) {
+                username2Input.classList.add('hidden');
+                player2ScoreContainer.classList.add('hidden');
+            } else {
+                username2Input.classList.remove('hidden');
+                player2ScoreContainer.classList.remove('hidden');
+            }
+        }
+
+        function startGame() {
+            if (Tone.context.state !== 'running') {
+                Tone.start();
+            }
+
+            const p1Name = username1Input.value.trim();
+            const p2Name = gameState.mode === 2 ? username2Input.value.trim() : null;
+
+            let hasError = false;
+            if (!p1Name) {
+                username1Input.classList.add('!border-red-500');
+                hasError = true;
+            } else {
+                username1Input.classList.remove('!border-red-500');
+            }
+
+            if (gameState.mode === 2) {
+                if (!p2Name) {
+                    username2Input.classList.add('!border-red-500');
+                    hasError = true;
+                } else {
+                    username2Input.classList.remove('!border-red-500');
+                }
+            }
+
+            if (hasError) return;
+            
+            resetGameState(); 
+            gameState.player1.name = p1Name;
+            if (gameState.mode === 2) {
+                gameState.player2.name = p2Name;
+            }
+            
+            startScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            updateGameStatsDisplay();
+            startMainTimer();
+            startNewQuestionRound();
+        }
+
+        function resetGameState() {
+            gameState = {
+                ...gameState,
+                player1: { name: "Player 1", score: 0 },
+                player2: { name: "Player 2", score: 0 },
+                currentQuestionIndex: 0,
+                timeLeft: TOTAL_GAME_TIME,
+            };
+        }
+        
+        function startMainTimer() {
+            clearInterval(mainTimerInterval);
+            mainTimerDisplay.textContent = "10:00";
+            gameState.timeLeft = TOTAL_GAME_TIME;
+            mainTimerInterval = setInterval(() => {
+                gameState.timeLeft--;
+                const minutes = Math.floor(gameState.timeLeft / 60);
+                const seconds = gameState.timeLeft % 60;
+                mainTimerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                if (gameState.timeLeft <= 0) {
+                    endGame("Time's up!");
+                }
+            }, 1000);
+        }
+
+        function updateGameStatsDisplay() {
+            p1NameDisplay.textContent = gameState.player1.name;
+            score1Display.textContent = gameState.player1.score;
+            
+            const questionsRemaining = TOTAL_QUESTIONS_PER_GAME - gameState.currentQuestionIndex;
+            turnIndicator.textContent = `${questionsRemaining} Q's Remaining | Level: ${gameState.level}`;
+
+            if (gameState.mode === 2) {
+                p2NameDisplay.textContent = gameState.player2.name;
+                score2Display.textContent = gameState.player2.score;
+            }
+        }
+
+        function startNewQuestionRound() {
+            if (gameState.currentQuestionIndex >= TOTAL_QUESTIONS_PER_GAME) {
+                endGame("Congratulations! You've finished all questions!");
+                return;
+            }
+            isAnswered = false;
+            currentActivityDisplay.classList.remove('hidden');
+            questionArea.classList.add('hidden');
+            
+            currentQuestionData = questionBank[gameState.level][gameState.currentQuestionIndex];
+            
+            const turnText = gameState.mode === 1 ? `Listen carefully...` : `Get ready to race!`;
+            currentActivityDisplay.textContent = turnText;
+            updateGameStatsDisplay();
+            speak(currentQuestionData.scenario, () => {
+                displayQuestionWithOptions();
+                startQuestionTimer();
+            });
+        }
+        
+        function displayQuestionWithOptions() {
+            currentActivityDisplay.classList.add('hidden');
+            questionArea.classList.remove('hidden');
+            
+            const shuffledOptions = [...currentQuestionData.options].sort(() => Math.random() - 0.5);
+
+            answerOptionsContainer.innerHTML = '';
+            answerOptionsContainer.className = 'grid gap-3 ' + (gameState.mode === 1 ? 'sm:grid-cols-2' : 'grid-cols-2');
+
+            if (gameState.mode === 1) {
+                shuffledOptions.forEach(optionText => {
+                    const btn = createButton(optionText, 1);
+                    answerOptionsContainer.appendChild(btn);
+                });
+            } else {
+                const p1Container = document.createElement('div');
+                p1Container.id = 'p1-button-container';
+                p1Container.className = 'player-button-container grid grid-cols-1 sm:grid-cols-2 gap-3';
+                const p2Container = document.createElement('div');
+                p2Container.id = 'p2-button-container';
+                p2Container.className = 'player-button-container grid grid-cols-1 sm:grid-cols-2 gap-3';
+
+                shuffledOptions.forEach(optionText => {
+                    p1Container.appendChild(createButton(optionText, 1));
+                    p2Container.appendChild(createButton(optionText, 2));
+                });
+                answerOptionsContainer.appendChild(p1Container);
+                answerOptionsContainer.appendChild(p2Container);
+            }
+            
+            feedbackDisplay.textContent = '';
+            exampleSentenceFeedbackDisplay.classList.add('hidden');
+        }
+        
+        function createButton(text, playerNum) {
+            const btn = document.createElement('button');
+            btn.classList.add('choice-button');
+            btn.textContent = text;
+            const eventType = 'ontouchstart' in window ? 'touchstart' : 'click';
+            btn.addEventListener(eventType, (e) => {
+                e.preventDefault(); // Prevent double-firing on mobile
+                checkAnswer(text, btn, playerNum)
+            });
+            return btn;
+        }
+        
+        function startQuestionTimer() {
+            clearInterval(questionTimerInterval);
+            let timeLeft = TIME_PER_QUESTION;
+            modalTimer.textContent = timeLeft;
+            modalTimer.parentElement.classList.remove('text-red-500');
+
+            questionTimerInterval = setInterval(() => {
+                timeLeft--;
+                modalTimer.textContent = timeLeft;
+                 if (timeLeft <= 3) {
+                    modalTimer.parentElement.classList.add('text-red-500');
+                }
+                if (timeLeft <= 0) {
+                     clearInterval(questionTimerInterval);
+                     if (!isAnswered) checkAnswer(null, null, 0); // Times up
+                }
+            }, 1000);
+        }
+
+        function checkAnswer(selectedAnswerText, buttonElement, playerNum) {
+            if (isAnswered) return;
+            isAnswered = true;
+
+            clearInterval(questionTimerInterval);
+            const correctAnswer = currentQuestionData.correctOption;
+            
+            document.querySelectorAll('.choice-button').forEach(btn => {
+                btn.disabled = true;
+                if(btn.textContent === correctAnswer) {
+                    btn.classList.add('correct');
+                }
+            });
+
+            const currentPlayer = playerNum === 1 ? gameState.player1 : (playerNum === 2 ? gameState.player2 : null);
+            let feedbackToSpeak = "";
+            
+            if (currentPlayer && selectedAnswerText === correctAnswer) {
+                const points = POINTS_PER_CORRECT_ANSWER;
+                currentPlayer.score += points;
+                const winPhrases = roundWinPhrases(currentPlayer.name);
+                const praise = gameState.mode === 2 ? getUniqueItems(winPhrases, 1)[0] : praiseWords[Math.floor(Math.random()*praiseWords.length)];
+                feedbackToSpeak = `${praise} +${points} points!`;
+                feedbackDisplay.textContent = feedbackToSpeak;
+                feedbackDisplay.style.color = 'var(--correct-color)';
+                
+                if (gameState.mode === 2) {
+                    const winnerContainer = document.getElementById(`p${playerNum}-button-container`);
+                    winnerContainer.classList.add(`winner-p${playerNum}`);
+                }
+
+                if (correctSynth) correctSynth.triggerAttackRelease("C5", "8n", Tone.now());
+                triggerCoinAnimation(points, playerNum);
+            } else {
+                const incorrectPhrase = selectedAnswerText === null ? "Time's up!" : encouragementWords[Math.floor(Math.random() * encouragementWords.length)];
+                let playerName = currentPlayer ? `${currentPlayer.name} answered. ` : '';
+                feedbackToSpeak = `${gameState.mode === 2 ? playerName : ''}${incorrectPhrase}`;
+                feedbackDisplay.textContent = feedbackToSpeak;
+                feedbackDisplay.style.color = 'var(--incorrect-color)';
+                if (buttonElement) buttonElement.classList.add('incorrect');
+                if (incorrectSynth) incorrectSynth.triggerAttackRelease("A2", "8n", Tone.now());
+            }
+            
+            speak(feedbackToSpeak, () => {
+                setTimeout(moveToNextQuestion, 500);
+            });
+            exampleSentenceFeedbackDisplay.textContent = `Full text: "${currentQuestionData.scenario}"`;
+            exampleSentenceFeedbackDisplay.classList.remove('hidden');
+            
+            updateGameStatsDisplay();
+        }
+        
+        function moveToNextQuestion() {
+            gameState.currentQuestionIndex++;
+            startNewQuestionRound();
+        }
+
+        function triggerCoinAnimation(points = 10, playerNum) {
+            const scoreRect = (playerNum === 1 ? score1Display : score2Display).getBoundingClientRect();
+            
+            const startX = window.innerWidth / 2;
+            const startY = window.innerHeight / 2;
+            const endX = scoreRect.left + scoreRect.width / 2;
+            const endY = scoreRect.top + scoreRect.height / 2;
+
+            const coin = {
+                x: startX,
+                y: startY,
+                size: 15,
+                text: `+${points}`,
+                alpha: 1,
+                vx: (endX - startX) / 60,
+                vy: (endY - startY) / 60,
+            };
+
+            let frame = 0;
+            function animateCoin() {
+                if (frame >= 60) {
+                    canvasCtx.clearRect(0, 0, animationCanvas.width, animationCanvas.height);
+                    return;
+                }
+                coin.x += coin.vx;
+                coin.y += coin.vy;
+                coin.alpha -= 1/60;
+                
+                canvasCtx.clearRect(0, 0, animationCanvas.width, animationCanvas.height);
+                canvasCtx.globalAlpha = coin.alpha;
+                canvasCtx.fillStyle = '#facc15';
+                canvasCtx.beginPath();
+                canvasCtx.arc(coin.x, coin.y, coin.size, 0, Math.PI * 2);
+                canvasCtx.fill();
+                canvasCtx.fillStyle = '#92400e';
+                canvasCtx.font = 'bold 14px Inter';
+                canvasCtx.textAlign = 'center';
+                canvasCtx.textBaseline = 'middle';
+                canvasCtx.fillText(coin.text, coin.x, coin.y);
+                canvasCtx.globalAlpha = 1;
+
+                frame++;
+                requestAnimationFrame(animateCoin);
+            }
+            animateCoin();
+        }
+
+        function triggerConfetti() {
+            const confettiParticles = [];
+            const colors = ['#7c3aed', '#db2777', '#10b981', '#3b82f6', '#f59e0b'];
+            for (let i = 0; i < 100; i++) {
+                confettiParticles.push({
+                    x: Math.random() * animationCanvas.width,
+                    y: -20 - Math.random() * 20,
+                    size: Math.random() * 10 + 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    speed: Math.random() * 3 + 2,
+                    angle: Math.random() * Math.PI * 2,
+                    spin: Math.random() * 0.2 - 0.1
+                });
+            }
+
+            let frame = 0;
+            function animateConfetti() {
+                if(frame > 300) {
+                    canvasCtx.clearRect(0, 0, animationCanvas.width, animationCanvas.height);
+                    return;
+                }
+                canvasCtx.clearRect(0, 0, animationCanvas.width, animationCanvas.height);
+                confettiParticles.forEach(p => {
+                    p.y += p.speed;
+                    p.angle += p.spin;
+                    if (p.y > animationCanvas.height) {
+                        p.y = -20;
+                        p.x = Math.random() * animationCanvas.width;
+                    }
+                    canvasCtx.fillStyle = p.color;
+                    canvasCtx.save();
+                    canvasCtx.translate(p.x, p.y);
+                    canvasCtx.rotate(p.angle);
+                    canvasCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                    canvasCtx.restore();
+                });
+                frame++;
+                requestAnimationFrame(animateConfetti);
+            }
+            animateConfetti();
+        }
+
+        function endGame(reason = "") {
+            clearInterval(mainTimerInterval);
+            clearInterval(questionTimerInterval);
+            speechSynthesis.cancel();
+            
+            gameScreen.classList.add('hidden');
+            gameOverScreen.classList.remove('hidden');
+            
+            let resultsHTML = '';
+            if (gameState.mode === 1) {
+                const score = gameState.player1.score;
+                resultsHTML = `
+                    <p class="text-2xl text-slate-700 mb-2">Well done, <span class="font-bold text-purple-600">${gameState.player1.name}</span>!</p>
+                    <p class="text-2xl text-slate-700 mb-2">Final Score: <span class="font-bold text-purple-600">${score}</span></p>
+                `;
+                checkAndSaveLeaderboard(score);
+                triggerConfetti();
+            } else {
+                const p1s = gameState.player1.score;
+                const p2s = gameState.player2.score;
+                let winnerText = '';
+                if (p1s > p2s) {
+                    winnerText = `<p class="text-2xl font-bold text-purple-600 mb-4">${gameState.player1.name} wins!</p>`;
+                    triggerConfetti();
+                } else if (p2s > p1s) {
+                    winnerText = `<p class="text-2xl font-bold text-pink-600 mb-4">${gameState.player2.name} wins!</p>`;
+                     triggerConfetti();
+                } else {
+                    winnerText = `<p class="text-2xl font-bold text-emerald-600 mb-4">It's a tie!</p>`;
+                }
+                resultsHTML = `
+                    ${winnerText}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xl text-slate-700 mb-2"><span class="font-bold text-purple-600">${gameState.player1.name}</span></p>
+                            <p>Score: <span class="font-bold">${p1s}</span></p>
+                        </div>
+                        <div>
+                            <p class="text-xl text-slate-700 mb-2"><span class="font-bold text-pink-600">${gameState.player2.name}</span></p>
+                            <p>Score: <span class="font-bold">${p2s}</span></p>
+                        </div>
+                    </div>
+                `;
+            }
+            if(reason) {
+                finalResultsDisplay.innerHTML = `<p class="text-2xl font-bold text-rose-500 mb-4">${reason}</p>` + resultsHTML;
+            } else {
+                 finalResultsDisplay.innerHTML = resultsHTML;
+            }
+        }
+        
+        // --- Leaderboard Functions ---
+        function getLeaderboard() {
+            return JSON.parse(localStorage.getItem(LEADERBOARD_KEY)) || [];
+        }
+
+        function saveLeaderboard(board) {
+            localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(board));
+        }
+
+        function checkAndSaveLeaderboard(score) {
+            const board = getLeaderboard();
+            const lowestScore = board.length < 5 ? 0 : board[4].score;
+            if (score > lowestScore) {
+                const name = gameState.player1.name || "Anonymous";
+                board.push({ name, score });
+                board.sort((a, b) => b.score - a.score);
+                saveLeaderboard(board.slice(0, 5));
+            }
+        }
+
+        function displayLeaderboard() {
+            const board = getLeaderboard();
+            leaderboardList.innerHTML = '';
+            if (board.length === 0) {
+                leaderboardList.innerHTML = '<li class="text-slate-500">No scores yet. Be the first!</li>';
+            } else {
+                board.forEach(entry => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span class="font-semibold">${entry.name}</span> - ${entry.score}`;
+                    leaderboardList.appendChild(li);
+                });
+            }
+        }
+
+        function resetAndGoHome() {
+            clearInterval(mainTimerInterval);
+            clearInterval(questionTimerInterval);
+            speechSynthesis.cancel();
+            gameScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            leaderboardScreen.classList.add('hidden');
+            modeSelectionScreen.classList.remove('hidden');
+        }
+
+        function resizeCanvas() {
+            animationCanvas.width = window.innerWidth;
+            animationCanvas.height = window.innerHeight;
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('resize', resizeCanvas);
+        modeButtons.forEach(button => {
+            button.addEventListener('click', () => selectMode(button.dataset.mode));
+        });
+        levelButtons.forEach(button => {
+            button.addEventListener('click', () => selectLevel(button.dataset.level));
+        });
+        startButton.addEventListener('click', startGame);
+        playAgainButton.addEventListener('click', resetAndGoHome);
+        showLeaderboardButton.addEventListener('click', () => {
+            modeSelectionScreen.classList.add('hidden');
+            leaderboardScreen.classList.remove('hidden');
+            displayLeaderboard();
+        });
+        backToMenuButton.addEventListener('click', () => {
+             leaderboardScreen.classList.add('hidden');
+             modeSelectionScreen.classList.remove('hidden');
+        });
+
+        // --- Initial Setup ---
+        resizeCanvas();
+        initAudio();
+        initSpeechSynthesis();
+        questionBank = generateQuestionBank();
+    });
+    </script>
+</body>
+</ht

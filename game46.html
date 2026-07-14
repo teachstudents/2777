@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamified Audio Quizzes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .feedback-modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+        @keyframes fly-to-score {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--translateX), var(--translateY)) scale(0.2); opacity: 0; }
+        }
+        .score-token {
+            position: absolute;
+            animation: fly-to-score 1s ease-in-out forwards;
+            z-index: 100;
+            pointer-events: none;
+        }
+        @keyframes badge-unlocked {
+            0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+            50% { transform: scale(1.2) rotate(10deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .badge-unlocked-animation {
+            animation: badge-unlocked 0.5s ease-out;
+        }
+        /* Ensure the game page takes up the full view height on mobile */
+        #game-page {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        #quiz-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        #questions-container {
+            flex-grow: 1;
+            overflow-y: auto; /* Allow questions to scroll if they overflow on small screens */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Start Page -->
+    <div id="start-page" class="max-w-lg mx-auto p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-screen">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 text-center w-full">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-4">Audio Quiz Challenge</h1>
+            <p class="text-gray-600 mb-8">Enter your name to begin your quest!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name..." class="w-full px-4 py-3 border border-gray-300 rounded-lg mb-6 text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            <button id="start-game-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-xl transition-transform transform hover:scale-105 shadow-lg">Start Game</button>
+        </div>
+    </div>
+
+    <!-- Game Page -->
+    <div id="game-page" class="hidden max-w-5xl mx-auto p-2 sm:p-4 md:p-6 w-full">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl shadow-lg p-4 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-0 z-10">
+            <div class="text-center sm:text-left">
+                <h2 class="text-2xl font-bold text-gray-900" id="player-name-display">Player</h2>
+                <p class="text-gray-500 text-sm sm:text-base">Reach 50 correct answers to win!</p>
+            </div>
+            <div class="flex items-center gap-4 sm:gap-6">
+                <div id="badges-container" class="flex items-center gap-2">
+                    <!-- Badges will be added here -->
+                </div>
+                <div id="score-container" class="text-center relative">
+                    <div class="text-sm font-semibold text-gray-500">SCORE</div>
+                    <div id="score" class="text-3xl sm:text-4xl font-extrabold text-blue-600" aria-live="polite">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quiz Container -->
+        <div id="quiz-container" class="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <!-- Audio Player & Timer -->
+            <div class="p-4 sm:p-6 border-b border-gray-200 bg-gray-50">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-4 w-full">
+                        <button id="playPauseBtn" class="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center rounded-full text-white bg-blue-500 hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex-shrink-0">
+                            <svg id="playIcon" class="w-6 h-6 sm:w-7 sm:h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" /></svg>
+                            <svg id="pauseIcon" class="w-6 h-6 sm:w-7 sm:h-7 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-6-13.5v13.5" /></svg>
+                        </button>
+                        <div class="text-left flex-grow">
+                             <div id="quiz-title" class="text-lg sm:text-xl font-bold text-gray-900">Quiz Title</div>
+                             <p id="quiz-instruction" class="text-gray-600 text-xs sm:text-sm">Listen carefully to the audio.</p>
+                        </div>
+                    </div>
+                    <div id="timer-container" class="text-center hidden flex-shrink-0">
+                         <div class="text-sm font-semibold text-gray-500">TIME LEFT</div>
+                         <div id="timer" class="text-3xl sm:text-4xl font-extrabold text-red-600">3:00</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Questions -->
+            <div id="questions-container" class="p-4 sm:p-6 space-y-4">
+                <!-- MCQ will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
+        <div class="feedback-modal-backdrop fixed inset-0"></div>
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg relative text-center">
+            <h3 id="game-over-title" class="text-4xl font-extrabold text-green-500 mb-4">Congratulations!</h3>
+            <p id="game-over-subtitle" class="text-lg text-gray-700 mb-6">You've completed the challenge!</p>
+            <div class="mb-6">
+                <div class="text-lg font-semibold text-gray-500">FINAL SCORE</div>
+                <div id="final-score" class="text-5xl font-black text-blue-600">0</div>
+            </div>
+            <div id="final-badges-container" class="flex items-center justify-center gap-4 mb-6">
+                 <!-- Final badges will be shown here -->
+            </div>
+            <!-- Mistake Summary -->
+            <div id="mistake-summary-container" class="mb-8"></div>
+            <button id="play-again-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-xl transition-transform transform hover:scale-105 shadow-lg">Play Again</button>
+        </div>
+    </div>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DATA ---
+        const WIN_CONDITION = 50; // Set win condition to 50 correct answers
+        const quizData = [
+            // Quiz 46
+            {
+                instruction: "You will hear a student talking about her visit to a science fair.",
+                title: "Science Fair Visit",
+                audioscript: `<p>Last week, I went to the annual science fair, which was held at the city’s exhibition centre. It was a huge event, with projects from lots of different schools in the area. There were so many clever ideas on display. My favourite project was a working model of a volcano. It was brilliant! It actually erupted with red, bubbly liquid. The students who made it explained that they had built it mostly from recycled materials, which I thought was a great idea. There was a competition to find the best project of the day, and the prize was a new computer for the winning school. I really enjoyed the science fair. Seeing all the amazing projects made me feel very inspired to think about my own science project for next year.</p>`,
+                mcqs: [
+                    { question: "Where was the science fair held?", options: ["At a school", "At the city library", "At the exhibition centre", "At a university"], answer: "At the exhibition centre", feedback: "Correct! The student says it 'was held at the city’s exhibition centre.'" },
+                    { question: "What was the student's favourite project?", options: ["A robot", "A model of a volcano", "A chemistry experiment", "A project about space"], answer: "A model of a volcano", feedback: "That's right. She says, 'My favourite project was a working model of a volcano.'" },
+                    { question: "What was the prize for the best project?", options: ["A cash prize", "A new computer", "A science kit", "A trophy"], answer: "A new computer", feedback: "Correct. The prize 'was a new computer for the winning school.'" },
+                    { question: "How did the science fair make the student feel?", options: ["Bored", "Confused", "Tired", "Inspired"], answer: "Inspired", feedback: "Correct! She says, 'Seeing all the amazing projects made me feel very inspired...'" }
+                ]
+            },
+            // Quiz 47
+            {
+                instruction: "You will hear a teacher leaving a message for her students.",
+                title: "Cancelled Class",
+                audioscript: `<p>Hello, this is a message for my Year 9 science class. I am afraid that I have to cancel our lesson tomorrow morning as I am feeling ill and will not be in school. I have set you some work to do instead. If you go to the school’s website and log in, you will find the details in our class section. I would like you to read the next chapter in your textbook about electricity and then answer the questions at the end of the chapter. Please can you complete this work and hand it in to me at the beginning of our lesson next week. I am very sorry for any inconvenience this may cause. Thank you.</p>`,
+                mcqs: [
+                    { question: "Why is the science class cancelled?", options: ["The teacher is on holiday", "There is a school trip", "The teacher is ill", "The classroom is being used"], answer: "The teacher is ill", feedback: "Correct! The teacher says, 'I have to cancel our lesson tomorrow morning as I am feeling ill...'" },
+                    { question: "Where can students find the work the teacher has set?", options: ["In their email", "On the school's website", "In the textbook", "The teacher will give it next lesson"], answer: "On the school's website", feedback: "That's right. 'If you go to the school’s website and log in, you will find the details...'" },
+                    { question: "What is the topic of the work?", options: ["Chemistry", "Biology", "Physics", "Electricity"], answer: "Electricity", feedback: "Correct. They need to read the 'chapter in your textbook about electricity...'" },
+                    { question: "When should the work be handed in?", options: ["Tomorrow", "By the end of the week", "Next week", "It is optional"], answer: "Next week", feedback: "Correct! The work should be handed in 'at the beginning of our lesson next week.'" }
+                ]
+            },
+            // Quiz 48
+            {
+                instruction: "You will hear a history teacher giving a lesson about Ancient Egypt.",
+                title: "Ancient Egypt",
+                audioscript: `<p>Good morning, class. Today, we are going to begin our new topic: Ancient Egypt. The Ancient Egyptian civilization was one of the greatest in history. They lived thousands of years ago along the banks of the River Nile in Africa. They are famous for building the huge stone structures that we call pyramids. These were incredible feats of engineering. The pyramids were built as special tombs for their rulers, the pharaohs. The Egyptians also developed a fascinating system of writing that used pictures instead of letters. This was called hieroglyphics. Their religion was very important to them, and they believed in many different gods and goddesses. If you’re interested in learning more, there is an excellent documentary on the history channel tonight that I recommend you watch.</p>`,
+                mcqs: [
+                    { question: "What were the pyramids built for?", options: ["As palaces for pharaohs", "As temples for gods", "As tombs for pharaohs", "As engineering schools"], answer: "As tombs for pharaohs", feedback: "Correct! The teacher explains, 'The pyramids were built as special tombs for their rulers, the pharaohs.'" },
+                    { question: "What was the Egyptian system of writing called?", options: ["Alphabet", "Hieroglyphics", "Cuneiform", "Script"], answer: "Hieroglyphics", feedback: "That's right. 'This was called hieroglyphics.'" },
+                    { question: "What did the Ancient Egyptians believe in?", options: ["One god", "No gods", "Many different gods", "The history channel"], answer: "Many different gods", feedback: "Correct. The teacher says, 'they believed in many different gods and goddesses.'" },
+                    { question: "Where did the Ancient Egyptian civilization develop?", options: ["Around the Amazon River", "In Europe", "Along the River Nile", "In Asia"], answer: "Along the River Nile", feedback: "Correct! 'They lived thousands of years ago along the banks of the River Nile...'" }
+                ]
+            },
+            // Quiz 49
+            {
+                instruction: "You will hear an announcement about a local library.",
+                title: "Library Announcement",
+                audioscript: `<p>This is an announcement for all library users. Please note that the library will be closed for two days next week, on Monday and Tuesday. We are closing so that we can install a new computer system, which will make it much faster and easier for you to borrow and return books in the future. During the closure, you can still return any books you have borrowed by using the special box located outside the main entrance. The library’s online services, where you can reserve books and access e-books, will still be available as normal. The regular children’s story time on Tuesday morning has been moved to the local museum for that week only. We apologise for any disruption. The library will reopen as normal on Wednesday, July 1st.</p>`,
+                mcqs: [
+                    { question: "Why is the library closing next week?", options: ["For a staff holiday", "For redecoration", "To install a new computer system", "For a special event"], answer: "To install a new computer system", feedback: "Correct! 'We are closing so that we can install a new computer system...'" },
+                    { question: "How can people return books during the closure?", options: ["They cannot return books", "By post", "Using a box outside", "At the museum"], answer: "Using a box outside", feedback: "That's right. You can use 'the special box located outside the main entrance.'" },
+                    { question: "What will happen to the children's story time?", options: ["It is cancelled", "It is moved to the museum", "It is online", "It is on Wednesday instead"], answer: "It is moved to the museum", feedback: "Correct. It 'has been moved to the local museum for that week only.'" },
+                    { question: "When will the library reopen?", options: ["Monday, July 1st", "Tuesday, July 1st", "Wednesday, July 1st", "The following Monday"], answer: "Wednesday, July 1st", feedback: "Correct! 'The library will reopen as normal on Wednesday, July 1st.'" }
+                ]
+            },
+            // Quiz 50
+            {
+                instruction: "You will hear a man talking about his hobby of gardening.",
+                title: "Gardening Hobby",
+                audioscript: `<p>I’d like to talk about my favourite hobby, which is gardening. I’m lucky enough to have a small garden behind my house. It’s not very big, but I manage to grow a lot of things in it. Every spring, I get very excited about planting all the seeds and watching them grow. I grow flowers and vegetables. My favourite things to grow are tomatoes. There’s nothing like the taste of a tomato that you’ve grown yourself. I find that spending time in the garden is very relaxing. It’s also good exercise, with all the digging and weeding. I always grow too much, so I give a lot of my fresh vegetables to my friends and neighbours. I’m still learning, and I get a lot of good tips from a gardening programme I watch on television every week.</p>`,
+                mcqs: [
+                    { question: "What are the man's favourite things to grow?", options: ["Flowers", "Carrots", "Potatoes", "Tomatoes"], answer: "Tomatoes", feedback: "Correct! He says, 'My favourite things to grow are tomatoes.'" },
+                    { question: "Besides being relaxing, what is another benefit of gardening that he mentions?", options: ["It saves money", "It's good exercise", "It's a quick hobby", "It's easy to learn"], answer: "It's good exercise", feedback: "That's right. He says, 'It’s also good exercise, with all the digging and weeding.'" },
+                    { question: "What does he do with his extra vegetables?", options: ["He sells them", "He throws them away", "He gives them to neighbours", "He freezes them"], answer: "He gives them to neighbours", feedback: "Correct. 'I give a lot of my fresh vegetables to my friends and neighbours.'" },
+                    { question: "Where does he get tips for his hobby?", options: ["From books", "From his friends", "From a TV programme", "From a website"], answer: "From a TV programme", feedback: "Correct! He says, 'I get a lot of good tips from a gardening programme I watch on television...'" }
+                ]
+            },
+            // Quiz 51
+            {
+                instruction: "You will hear an announcement about a charity fun run.",
+                title: "Charity Fun Run",
+                audioscript: `<p>Get your running shoes ready for the annual town fun run! This year, we are raising money for the local children’s hospital, to help them build a new playground. The run is five kilometres long, so you can run, jog or walk the course. It’s all about taking part and having fun. The route will start and finish in the main town square. The race starts at 11 a.m. on Sunday. Every single person who crosses the finish line will receive a special medal to celebrate their achievement. To take part, you need to register in advance. You can do this by filling in the form on the town council’s website. The event is being supported by our local radio station, who will be playing music to keep you motivated.</p>`,
+                mcqs: [
+                    { question: "What is the fun run raising money for?", options: ["The town council", "A new radio station", "A new playground", "The town square"], answer: "A new playground", feedback: "Correct! The money is 'to help them build a new playground' for the children's hospital." },
+                    { question: "How long is the run?", options: ["10 kilometres", "3 kilometres", "5 kilometres", "1 kilometre"], answer: "5 kilometres", feedback: "That's right. 'The run is five kilometres long...'" },
+                    { question: "What will everyone who finishes the run receive?", options: ["A T-shirt", "A certificate", "A medal", "A bottle of water"], answer: "A medal", feedback: "Correct. 'Every single person who crosses the finish line will receive a special medal...'" },
+                    { question: "How can people register to take part?", options: ["On the radio station's website", "On the day of the race", "At the hospital", "On the town council’s website"], answer: "On the town council’s website", feedback: "Correct! 'You can do this by filling in the form on the town council’s website.'" }
+                ]
+            },
+            // Quiz 52
+            {
+                instruction: "You will hear a geography teacher talking about different types of weather.",
+                title: "Weather Talk",
+                audioscript: `<p>Hello class. Our geography topic today is weather. So, what is weather? It’s the condition of the atmosphere in a particular place and at a particular time. Let’s talk about clouds. Clouds are made of billions of tiny drops of water or ice crystals. Wind is another key part of weather. It is simply the movement of air from one place to another. Sometimes we get more dramatic weather. A thunderstorm, for example, is a storm with thunder and lightning. And what about snow? Snow is formed when the air temperature is below zero degrees Celsius, causing water vapour to freeze into ice crystals. We try to predict what the weather will be like by using a weather forecast, which gathers data from satellites and weather stations.</p>`,
+                mcqs: [
+                    { question: "What are clouds made of?", options: ["Air", "Smoke", "Tiny drops of water", "Oxygen"], answer: "Tiny drops of water", feedback: "Correct! The teacher explains, 'Clouds are made of billions of tiny drops of water or ice crystals.'" },
+                    { question: "What causes wind?", options: ["The movement of clouds", "The movement of air", "The spinning of the Earth", "Changes in temperature"], answer: "The movement of air", feedback: "That's right. 'Wind is... simply the movement of air from one place to another.'" },
+                    { question: "What two things does a thunderstorm have?", options: ["Rain and wind", "Thunder and lightning", "Snow and ice", "Clouds and rain"], answer: "Thunder and lightning", feedback: "Correct. A thunderstorm 'is a storm with thunder and lightning.'" },
+                    { question: "At what temperature does snow form?", options: ["Below 10 degrees", "Exactly zero degrees", "Above zero degrees", "Below zero degrees"], answer: "Below zero degrees", feedback: "Correct! 'Snow is formed when the air temperature is below zero degrees Celsius...'" }
+                ]
+            },
+            // Quiz 53
+            {
+                instruction: "You will hear a drama teacher making an announcement about school play auditions.",
+                title: "School Play Auditions",
+                audioscript: `<p>Can I have your attention please, all you budding actors! I’m excited to announce this year’s school play. It’s a fantastic play called ‘The Golden Key’. It’s a mystery story, full of secrets and surprises. We will be holding auditions to find our cast. The auditions will take place after school next Tuesday. Please come along to the drama studio at 4 p.m. if you are interested. You don’t need to prepare anything. And you don’t need to have any previous acting experience – everyone is welcome to try out. There are lots of great parts available, both large and small. You can find a full list of all the different parts on the noticeboard outside the main hall. I look forward to seeing lots of you there.</p>`,
+                mcqs: [
+                    { question: "What type of story is 'The Golden Key'?", options: ["A comedy", "A romance", "A mystery", "A history play"], answer: "A mystery", feedback: "Correct! The teacher says, 'It’s a mystery story, full of secrets and surprises.'" },
+                    { question: "When are the auditions being held?", options: ["Next Tuesday at 4 p.m.", "This Tuesday at 4 p.m.", "Next Wednesday at 6 p.m.", "Next Tuesday in the morning"], answer: "Next Tuesday at 4 p.m.", feedback: "That's right. 'The auditions will take place after school next Tuesday... at 4 p.m.'" },
+                    { question: "What do students need to do to prepare for the audition?", options: ["Learn a script", "Prepare a song", "Wear a costume", "Nothing"], answer: "Nothing", feedback: "Correct. The teacher says, 'You don’t need to prepare anything.'" },
+                    { question: "Where can students find a list of the parts in the play?", options: ["In the drama studio", "On the school website", "Outside the main hall", "From the teacher"], answer: "Outside the main hall", feedback: "Correct! 'You can find a full list of all the different parts on the noticeboard outside the main hall.'" }
+                ]
+            },
+            // Quiz 54
+            {
+                instruction: "You will hear a visitor talking about a trip to an art gallery.",
+                title: "Art Gallery Visit",
+                audioscript: `<p>I spent a lovely afternoon at the city art gallery yesterday. They have a new special exhibition of modern paintings which was really interesting, with lots of bright colours. My favourite painting in the whole gallery was a beautiful picture of a boat at sea during a storm. As well as paintings, the gallery has a large room full of sculpture, which I also enjoyed. While I was there, I took part in a short drawing workshop. It was great fun and I learned some new techniques. After looking at all the art, I went to the gallery’s café for a cup of tea. It’s a lovely space with big windows and great views over the river. Best of all, entry to the gallery is completely free for students, so I’ll definitely be going back again soon.</p>`,
+                mcqs: [
+                    { question: "What was the visitor's favourite painting of?", options: ["A storm at sea", "A modern sculpture", "The river", "A boat at sea"], answer: "A boat at sea", feedback: "Correct! The visitor says their favourite was 'a beautiful picture of a boat at sea during a storm.'" },
+                    { question: "What activity did the visitor take part in?", options: ["A guided tour", "A sculpture class", "A drawing workshop", "A talk by an artist"], answer: "A drawing workshop", feedback: "That's right. 'While I was there, I took part in a short drawing workshop.'" },
+                    { question: "What is special about the gallery's café?", options: ["It has a special menu", "It has views of the river", "It is free for students", "It has outdoor seating"], answer: "It has views of the river", feedback: "Correct. It's 'a lovely space with big windows and great views over the river.'" },
+                    { question: "How much does it cost for students to enter the gallery?", options: ["A small fee", "It depends on the exhibition", "It is free", "Half price"], answer: "It is free", feedback: "Correct! 'Best of all, entry to the gallery is completely free for students...'" }
+                ]
+            },
+            // Quiz 55
+            {
+                instruction: "You will hear an expert giving a talk about internet safety.",
+                title: "Internet Safety",
+                audioscript: `<p>Today’s topic is about staying safe online. The internet is a fantastic tool, but it’s important to use it safely. First, always keep your password private and don’t share it with anyone. Second, be very careful about sharing personal information. You should never give out your address or your phone number to people you don’t know. Third, think carefully before you post any photos of yourself online. Once something is on the internet, it can be difficult to remove. Fourth, always be kind and respectful to other people online, just as you would be in real life. Finally, if you ever see anything online that makes you feel worried or uncomfortable, you must tell an adult you trust, like a parent or a teacher. And remember, it’s a good idea to take regular breaks from looking at screens.</p>`,
+                mcqs: [
+                    { question: "What is the first piece of advice for staying safe online?", options: ["Be kind to others", "Keep your password private", "Don't post photos", "Tell an adult if you're worried"], answer: "Keep your password private", feedback: "Correct! The expert says, 'First, always keep your password private...'" },
+                    { question: "What kind of personal information should you not share?", options: ["Your name", "Your age", "Your address or phone number", "Your favourite hobbies"], answer: "Your address or phone number", feedback: "That's right. 'You should never give out your address or your phone number...'" },
+                    { question: "What should you do if something online makes you feel worried?", options: ["Close the website", "Tell a friend", "Tell a trusted adult", "Ignore it"], answer: "Tell a trusted adult", feedback: "Correct. The advice is to 'tell an adult you trust, like a parent or a teacher.'" },
+                    { question: "What is recommended regarding screen time?", options: ["Limit it to one hour a day", "Only use screens for homework", "Take regular breaks", "Don't use screens at night"], answer: "Take regular breaks", feedback: "Correct! The speaker ends by saying, '...it’s a good idea to take regular breaks from looking at screens.'" }
+                ]
+            },
+            // Quiz 56
+            {
+                instruction: "You will hear a girl leaving a message for her friend.",
+                title: "Lost Phone Message",
+                audioscript: `<p>Hi Anna, it’s me, Lucy. I’m so sorry to bother you, but I think I’ve lost my phone and I’m wondering if I left it at your house. I was there last evening, remember? We were watching that film. I’ve looked everywhere here and I can’t find it. It’s the one with the bright green case, so it’s quite easy to see. I really need it because I have to call my mum later. Could you possibly have a look for me? I think it might be in the kitchen, maybe on the table where we had a snack. I’d be so grateful if you could check. I’m calling from my dad’s phone at the moment, but I’ll call you back later. Thanks a lot, bye!</p>`,
+                mcqs: [
+                    { question: "Why is Lucy calling Anna?", options: ["To invite her to watch a film", "To ask if she has lost her phone", "To check if her phone is at Anna's house", "To borrow her dad's phone"], answer: "To check if her phone is at Anna's house", feedback: "Correct! Lucy says, '...I’m wondering if I left it at your house.'" },
+                    { question: "What colour is Lucy's phone case?", options: ["Blue", "Bright green", "Red", "Black"], answer: "Bright green", feedback: "That's right. She says, 'It’s the one with the bright green case...'" },
+                    { question: "Where does Lucy suggest the phone might be?", options: ["In the living room", "In the garden", "In the kitchen", "In Anna's bedroom"], answer: "In the kitchen", feedback: "Correct. She says, 'I think it might be in the kitchen...'" },
+                    { question: "Whose phone is Lucy using to make the call?", options: ["Her own phone", "Her mum's phone", "A public phone", "Her dad's phone"], answer: "Her dad's phone", feedback: "Correct! She says, 'I’m calling from my dad’s phone at the moment...'" }
+                ]
+            },
+            // Quiz 57
+            {
+                instruction: "You will hear a radio report about a local farmer's market.",
+                title: "Farmer's Market",
+                audioscript: `<p>I’m reporting today from our wonderful local farmer’s market. It’s held every Sunday in the main town square, and it’s always busy. It’s a great place to come and buy delicious local produce. There are stalls selling all kinds of fresh fruit and vegetables that have been grown nearby. There’s also a fantastic stall that sells homemade bread and delicious cakes. I can tell you they smell amazing! I particularly recommend the local cheese, which has won several awards. Shopping here is a great way to support our local farmers and small businesses. The market is open every Sunday from 9 a.m. until 2 p.m. Make sure you come and visit.</p>`,
+                mcqs: [
+                    { question: "When is the farmer's market held?", options: ["Every Saturday", "Every Sunday", "The first Sunday of the month", "Every weekday"], answer: "Every Sunday", feedback: "Correct! The reporter says, 'It’s held every Sunday in the main town square...'" },
+                    { question: "Besides fruit and vegetables, what else is sold at the market?", options: ["Clothes and shoes", "Bread and cakes", "Flowers and plants", "Meat and fish"], answer: "Bread and cakes", feedback: "That's right. 'There’s also a fantastic stall that sells homemade bread and delicious cakes.'" },
+                    { question: "What food item does the reporter particularly recommend?", options: ["The fruit", "The cakes", "The bread", "The local cheese"], answer: "The local cheese", feedback: "Correct. 'I particularly recommend the local cheese, which has won several awards.'" },
+                    { question: "What time does the market close?", options: ["9 a.m.", "Midday", "2 p.m.", "5 p.m."], answer: "2 p.m.", feedback: "Correct! The market is open 'until 2 p.m.'" }
+                ]
+            },
+            // Quiz 58
+            {
+                instruction: "You will hear a student giving a talk about famous inventors.",
+                title: "Famous Inventors",
+                audioscript: `<p>For my presentation today, I’m going to talk about two famous inventors from history. First, Alexander Graham Bell. He was a Scottish scientist who is most famous for inventing the telephone in 1876. This invention completely changed communication. The second inventor is Thomas Edison, from America. He is best known for inventing the practical electric lightbulb. But he was an amazing inventor and actually created over one thousand other inventions in his lifetime. These two men, and many others like them, have had a huge impact on our lives. Their inventions have completely changed the way we live and work. I found all the information for my talk in some books I borrowed from the library.</p>`,
+                mcqs: [
+                    { question: "What did Alexander Graham Bell invent?", options: ["The lightbulb", "The radio", "The telephone", "The computer"], answer: "The telephone", feedback: "Correct! The student says he 'is most famous for inventing the telephone in 1876.'" },
+                    { question: "What is Thomas Edison best known for inventing?", options: ["The television", "The electric lightbulb", "The car", "The airplane"], answer: "The electric lightbulb", feedback: "That's right. 'He is best known for inventing the practical electric lightbulb.'" },
+                    { question: "How many other inventions did Edison create?", options: ["About one hundred", "Exactly one thousand", "Over one thousand", "Less than one hundred"], answer: "Over one thousand", feedback: "Correct. He 'created over one thousand other inventions in his lifetime.'" },
+                    { question: "Where did the student find the information for the talk?", options: ["On the internet", "In a magazine", "From a documentary", "In the library"], answer: "In the library", feedback: "Correct! The student says, 'I found all the information for my talk in some books I borrowed from the library.'" }
+                ]
+            },
+            // Quiz 59
+            {
+                instruction: "You will hear a boy describing his first camping trip.",
+                title: "My First Camping Trip",
+                audioscript: `<p>Last weekend, I went on my first ever camping trip. I went with my dad. We went to a small campsite right next to a big forest. It was really exciting. The first thing we had to do when we arrived was put up the tent. It was quite tricky, but we managed it in the end. In the evening, my dad showed me how to build a small, safe fire, and we cooked sausages on it for our dinner. They tasted so good! Later, when it got dark, we sat by the fire and he told me some funny stories. We could see so many stars in the sky because we were away from the city lights. It was a brilliant trip and a great adventure. I can’t wait to go camping again.</p>`,
+                mcqs: [
+                    { question: "Who did the boy go camping with?", options: ["His friends", "His school", "His dad", "His brother"], answer: "His dad", feedback: "Correct! He says, 'I went with my dad.'" },
+                    { question: "What was the first thing they did when they arrived?", options: ["Built a fire", "Cooked dinner", "Put up the tent", "Went for a walk"], answer: "Put up the tent", feedback: "That's right. 'The first thing we had to do when we arrived was put up the tent.'" },
+                    { question: "What did they cook on the fire for dinner?", options: ["Burgers", "Marshmallows", "Sausages", "Potatoes"], answer: "Sausages", feedback: "Correct. '...we cooked sausages on it for our dinner.'" },
+                    { question: "What did they do when it got dark?", options: ["Went to sleep", "Played a game", "Sang songs", "Told stories and looked at the stars"], answer: "Told stories and looked at the stars", feedback: "Correct! '...we sat by the fire and he told me some funny stories. We could see so many stars...'" }
+                ]
+            },
+            // Quiz 60
+            {
+                instruction: "You will hear an announcement at an airport.",
+                title: "Airport Announcement",
+                audioscript: `<p>This is the final boarding call for passenger Smith, travelling on flight BA249 to Paris. Please proceed to gate number 48 immediately. That’s gate 48. Please ensure you have your boarding pass and your passport ready for inspection. The final checks are being completed and the captain will order the doors to be closed in approximately 10 minutes. I repeat, this is the final call. Any passengers travelling with young children are invited to board at this time. The airline would like to wish all passengers a pleasant flight. Thank you.</p>`,
+                mcqs: [
+                    { question: "What is the destination of flight BA249?", options: ["London", "Rome", "Paris", "Berlin"], answer: "Paris", feedback: "Correct! The announcement is for the 'flight BA249 to Paris.'" },
+                    { question: "Which gate should passengers go to?", options: ["Gate 48", "Gate 49", "Gate 24", "Gate 10"], answer: "Gate 48", feedback: "That's right. 'Please proceed to gate number 48 immediately.'" },
+                    { question: "What two items should passengers have ready?", options: ["Ticket and money", "Boarding pass and passport", "Luggage and ticket", "Passport and visa"], answer: "Boarding pass and passport", feedback: "Correct. 'Please ensure you have your boarding pass and your passport ready...'" },
+                    { question: "Who is invited to board the plane first?", options: ["Passenger Smith", "Passengers with lots of luggage", "Passengers with young children", "All passengers"], answer: "Passengers with young children", feedback: "Correct! 'Any passengers travelling with young children are invited to board at this time.'" }
+                ]
+            }
+        ];
+
+        // --- GAME STATE ---
+        let playerName = "";
+        let score = 0;
+        let correctAnswersCount = 0;
+        let currentQuizIndex = 0;
+        let timerInterval;
+        let timeLeft = 180; // 3 minutes in seconds
+        let questionsAnswered = 0;
+        let mistakes = [];
+
+        // --- DOM ELEMENTS ---
+        const startPage = document.getElementById('start-page');
+        const gamePage = document.getElementById('game-page');
+        const playerNameInput = document.getElementById('player-name-input');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const playerNameDisplay = document.getElementById('player-name-display');
+        const scoreDisplay = document.getElementById('score');
+        const badgesContainer = document.getElementById('badges-container');
+        const quizContainer = document.getElementById('quiz-container');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIcon');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const quizTitle = document.getElementById('quiz-title');
+        const quizInstruction = document.getElementById('quiz-instruction');
+        const timerContainer = document.getElementById('timer-container');
+        const timerDisplay = document.getElementById('timer');
+        const questionsContainer = document.getElementById('questions-container');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const gameOverTitle = document.getElementById('game-over-title');
+        const gameOverSubtitle = document.getElementById('game-over-subtitle');
+        const finalScore = document.getElementById('final-score');
+        const finalBadgesContainer = document.getElementById('final-badges-container');
+        const mistakeSummaryContainer = document.getElementById('mistake-summary-container');
+        const playAgainBtn = document.getElementById('play-again-btn');
+
+        // --- TTS SETUP ---
+        const utterance = new SpeechSynthesisUtterance();
+        let voicesLoaded = false;
+
+        function loadVoices() {
+            if (voicesLoaded) return;
+            let allVoices = speechSynthesis.getVoices();
+            if (allVoices.length === 0) {
+                return; // Voices not ready yet
+            }
+            voicesLoaded = true;
+        }
+        speechSynthesis.onvoiceschanged = loadVoices;
+
+        // --- GAME LOGIC ---
+        function startGame() {
+            playerName = playerNameInput.value.trim();
+            if (playerName === "") {
+                playerName = "Player";
+            }
+            playerNameDisplay.textContent = playerName;
+            startPage.classList.add('hidden');
+            gamePage.classList.remove('hidden');
+            resetGame();
+            loadQuiz(currentQuizIndex);
+        }
+
+        function resetGame() {
+            speechSynthesis.cancel();
+            score = 0;
+            correctAnswersCount = 0;
+            currentQuizIndex = 0;
+            mistakes = [];
+            updateScore();
+            badgesContainer.innerHTML = '';
+            finalBadgesContainer.innerHTML = '';
+        }
+
+        function loadQuiz(index) {
+            speechSynthesis.cancel(); // Stop any previous audio
+            clearInterval(timerInterval); // Ensure previous timer is cleared
+            const quiz = quizData[index];
+            quizTitle.textContent = `Quiz ${index + 31}: ${quiz.title}`;
+            quizInstruction.textContent = quiz.instruction;
+            questionsContainer.innerHTML = '';
+            questionsAnswered = 0;
+            playPauseBtn.disabled = false;
+            
+            // Reset player UI
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            timerContainer.classList.add('hidden');
+
+            quiz.mcqs.forEach((mcq, i) => {
+                const questionEl = document.createElement('div');
+                questionEl.id = `question-${i}`;
+                const shuffledOptions = [...mcq.options].sort(() => Math.random() - 0.5);
+                questionEl.innerHTML = `
+                    <p class="font-bold text-lg mb-3">${i + 1}. ${mcq.question}</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        ${shuffledOptions.map(option => `
+                            <button class="option-btn w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-100 hover:border-blue-400 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                                ${option}
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                questionsContainer.appendChild(questionEl);
+            });
+
+            questionsContainer.querySelectorAll('.option-btn').forEach(btn => {
+                btn.addEventListener('click', handleAnswer);
+            });
+            
+            utterance.text = new DOMParser().parseFromString(quiz.audioscript, "text/html").documentElement.textContent;
+            setVoiceForQuiz(index);
+        }
+
+        function setVoiceForQuiz(index) {
+             let allVoices = speechSynthesis.getVoices();
+             if (allVoices.length === 0) return;
+             let usUkVoices = allVoices.filter(v => v.lang.startsWith('en-US') || v.lang.startsWith('en-GB'));
+             const preferredVoiceNames = [
+                'Microsoft Andrew Online (Natural) - English (United States)', 'Microsoft Ava Online (Natural) - English (United States)',
+                'Microsoft Brian Online (Natural) - English (United States)', 'Microsoft Emma Online (Natural) - English (United States)'
+             ];
+             let preferredVoices = preferredVoiceNames.map(name => usUkVoices.find(v => v.name === name)).filter(Boolean);
+             let msNaturalVoices = usUkVoices.filter(v => v.name.includes('Microsoft') && v.name.includes('Natural') && !preferredVoiceNames.includes(v.name));
+             const isApple = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+             let applePremiumVoices = isApple ? usUkVoices.filter(v => (v.name.includes('(Enhanced)') || v.name.includes('Premium'))) : [];
+             let chosenVoiceList = [...preferredVoices, ...msNaturalVoices, ...applePremiumVoices];
+             if (chosenVoiceList.length > 0) {
+                utterance.voice = chosenVoiceList[index % chosenVoiceList.length];
+             } else {
+                utterance.voice = usUkVoices.find(v => v.name.includes('Neural')) || usUkVoices.find(v => v.name.includes('Google')) || usUkVoices.find(v => v.lang.startsWith('en-GB')) || usUkVoices[0];
+             }
+        }
+
+        function startTimer() {
+            timeLeft = 180;
+            timerDisplay.textContent = '3:00';
+            timerDisplay.classList.remove('text-yellow-500', 'text-red-600');
+            timerContainer.classList.remove('hidden');
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                if (timeLeft <= 60 && timeLeft > 10) timerDisplay.classList.add('text-yellow-500');
+                if (timeLeft <= 10) timerDisplay.classList.add('text-red-600');
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    disableAllOptions();
+                    setTimeout(advanceToNextQuiz, 1500); // Auto-advance after a delay
+                }
+            }, 1000);
+        }
+
+        function handleAnswer(e) {
+            const selectedBtn = e.target;
+            const questionContainer = selectedBtn.closest('[id^="question-"]');
+            const questionIndex = parseInt(questionContainer.id.split('-')[1]);
+            const correctAnswer = quizData[currentQuizIndex].mcqs[questionIndex].answer;
+            const isCorrect = selectedBtn.textContent.trim() === correctAnswer.trim();
+            
+            questionContainer.querySelectorAll('.option-btn').forEach(btn => {
+                btn.disabled = true;
+                if (btn.textContent.trim() === correctAnswer.trim()) {
+                    btn.classList.add('bg-green-200', 'border-green-500');
+                }
+            });
+
+            if (isCorrect) {
+                score++;
+                correctAnswersCount++;
+                selectedBtn.classList.add('bg-green-200', 'border-green-500');
+                showFlyingToken(selectedBtn);
+                checkBadges();
+                if (correctAnswersCount >= WIN_CONDITION) {
+                    endGame(true);
+                }
+            } else {
+                score = Math.max(0, score - 1);
+                selectedBtn.classList.add('bg-red-200', 'border-red-500');
+                mistakes.push({
+                    quizTitle: quizData[currentQuizIndex].title,
+                    question: quizData[currentQuizIndex].mcqs[questionIndex].question,
+                    yourAnswer: selectedBtn.textContent.trim(),
+                    correctAnswer: correctAnswer
+                });
+            }
+            updateScore();
+            questionsAnswered++;
+            if (questionsAnswered >= 4) {
+                clearInterval(timerInterval);
+                setTimeout(advanceToNextQuiz, 1200); // Auto-advance after a short delay
+            }
+        }
+        
+        function disableAllOptions() {
+             questionsContainer.querySelectorAll('.option-btn').forEach(btn => btn.disabled = true);
+        }
+
+        function updateScore() {
+            scoreDisplay.textContent = score;
+        }
+
+        function showFlyingToken(buttonEl) {
+            const scoreContainerRect = scoreDisplay.getBoundingClientRect();
+            const buttonRect = buttonEl.getBoundingClientRect();
+            const token = document.createElement('div');
+            token.textContent = '+1';
+            token.className = 'score-token absolute text-2xl font-bold text-green-500';
+            token.style.left = `${buttonRect.left + buttonRect.width / 2 - 10}px`;
+            token.style.top = `${buttonRect.top}px`;
+            token.style.setProperty('--translateX', `${scoreContainerRect.left - buttonRect.left}px`);
+            token.style.setProperty('--translateY', `${scoreContainerRect.top - buttonRect.top}px`);
+            document.body.appendChild(token);
+            setTimeout(() => token.remove(), 1000);
+        }
+
+        function checkBadges() {
+            const badges = [
+                { count: 10, name: 'Bronze Star', icon: '⭐' },
+                { count: 25, name: 'Silver Ear', icon: '🥈' },
+                { count: 40, name: 'Golden Listener', icon: '🏆' }
+            ];
+            badges.forEach(badge => {
+                if (correctAnswersCount === badge.count && !document.getElementById(`badge-${badge.count}`)) {
+                    const badgeEl = document.createElement('div');
+                    badgeEl.id = `badge-${badge.count}`;
+                    badgeEl.className = `badge-unlocked-animation text-4xl`;
+                    badgeEl.innerHTML = `<span title="${badge.name}">${badge.icon}</span>`;
+                    badgesContainer.appendChild(badgeEl);
+                }
+            });
+        }
+        
+        function endGame(isWinner) {
+            clearInterval(timerInterval);
+            finalScore.textContent = score;
+            finalBadgesContainer.innerHTML = badgesContainer.innerHTML;
+
+            if (isWinner) {
+                gameOverTitle.textContent = "Congratulations!";
+                gameOverSubtitle.textContent = "You've completed the challenge!";
+            } else {
+                gameOverTitle.textContent = "Game Over";
+                gameOverSubtitle.textContent = "You've completed all the quizzes!";
+            }
+
+            if (mistakes.length > 0) {
+                let summaryHTML = `<h4 class="text-xl font-bold mb-2 text-left">Mistake Summary</h4><div class="text-left text-sm max-h-48 overflow-y-auto border p-2 rounded-lg bg-gray-50"><ul class="space-y-2">`;
+                mistakes.forEach(mistake => {
+                    summaryHTML += `<li class="border-b pb-2"><strong>Q:</strong> ${mistake.question}<br><span class="text-red-600"><strong>You said:</strong> ${mistake.yourAnswer}</span><br><span class="text-green-600"><strong>Correct:</strong> ${mistake.correctAnswer}</span></li>`;
+                });
+                summaryHTML += '</ul></div>';
+                mistakeSummaryContainer.innerHTML = summaryHTML;
+            } else {
+                mistakeSummaryContainer.innerHTML = `<p class="text-green-600 font-semibold">You made no mistakes. Perfect score!</p>`;
+            }
+
+            gameOverModal.classList.remove('hidden');
+        }
+
+        function advanceToNextQuiz() {
+            currentQuizIndex++;
+            if (currentQuizIndex < quizData.length) {
+                loadQuiz(currentQuizIndex);
+            } else {
+                endGame(false); // Game ends because quizzes ran out
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        startGameBtn.addEventListener('click', startGame);
+        
+        playPauseBtn.addEventListener('click', () => {
+             loadVoices(); 
+             if (!utterance.voice) {
+                setTimeout(() => { 
+                    loadVoices();
+                    setVoiceForQuiz(currentQuizIndex);
+                }, 100);
+             }
+
+             if (speechSynthesis.speaking) {
+                if (speechSynthesis.paused) {
+                    speechSynthesis.resume();
+                } else {
+                    speechSynthesis.pause();
+                }
+             } else {
+                speechSynthesis.cancel();
+                speechSynthesis.speak(utterance);
+             }
+        });
+
+        utterance.onstart = () => {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+            playPauseBtn.disabled = true;
+        };
+
+        utterance.onpause = () => {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            playPauseBtn.disabled = false;
+        };
+        
+        utterance.onresume = () => {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+        };
+
+        utterance.onend = () => {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            playPauseBtn.disabled = false;
+            startTimer();
+        };
+        
+        playAgainBtn.addEventListener('click', () => {
+            gameOverModal.classList.add('hidden');
+            resetGame();
+            loadQuiz(currentQuizIndex);
+        });
+
+        // Initial voice load
+        loadVoices();
+    });
+    </script>
+
+</body>
+</html>

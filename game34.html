@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antonym Overdrive Challenge</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-start: #4a0404; /* Dark Red */
+            --bg-end: #1c0101;   /* Very Dark Red/Black */
+            --text-light: #fff5e6; /* Creamy White */
+            --text-dark: #ffcc80;  /* Light Orange */
+            --primary: #ff7e5f;   /* Coral */
+            --primary-glow: #ffac99; /* Light Coral */
+            --secondary: #feb47b; /* Sandy Orange */
+            --secondary-glow: #fed9b6; /* Light Sandy Orange */
+            --correct: #76ff03;   /* Lime Green */
+            --incorrect: #ff5252; /* Bright Red */
+            --winner: #ffeb3b; /* Bright Yellow */
+        }
+
+        @keyframes background-pan {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        html, body {
+            overscroll-behavior: none;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(270deg, var(--bg-start), var(--bg-end), #8a2c0d);
+            background-size: 600% 600%;
+            animation: background-pan 30s ease infinite;
+            color: var(--text-light);
+            margin: 0;
+            min-height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        .main-container {
+            width: 100%;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 1200px;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .screen.active { display: flex; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        h1, h2, h3 {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 10px var(--primary-glow);
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        h1 { color: var(--primary); font-size: clamp(2rem, 8vw, 3.5rem); margin-bottom: 1rem; }
+        h2 { color: var(--secondary); margin: 1.5rem 0 1rem; }
+        h3 { color: var(--primary); font-size: 1.5rem; margin-bottom: 1rem; }
+
+        .game-card {
+            background: rgba(40, 2, 2, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 126, 95, 0.2);
+            padding: clamp(1.5rem, 5vw, 2.5rem);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .game-button, .choice-button, .action-button {
+            font-family: 'Orbitron', sans-serif;
+            border: 1px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            padding: 0.8em 1.5em;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px var(--primary), inset 0 0 5px var(--primary);
+            text-transform: uppercase;
+            font-size: clamp(1rem, 2.5vw, 1.2rem);
+        }
+        .game-button:hover:not(:disabled), .action-button:hover {
+            background: var(--primary);
+            color: var(--bg-start);
+            box-shadow: 0 0 20px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+        
+        .choice-button {
+            width: 100%;
+            margin: 0.5rem 0;
+            font-family: 'Roboto', sans-serif;
+            font-weight: 500;
+            border-color: var(--secondary);
+            color: var(--secondary);
+            box-shadow: 0 0 5px var(--secondary), inset 0 0 5px var(--secondary);
+            text-transform: none;
+            padding: 1em 1.5em;
+        }
+        .choice-button:hover:not(:disabled) {
+            background: var(--secondary);
+            color: var(--bg-start);
+            box-shadow: 0 0 20px var(--secondary-glow);
+        }
+        .choice-button.correct { background-color: var(--correct) !important; border-color: var(--correct) !important; color: #000 !important; box-shadow: 0 0 15px var(--correct) !important; transform: scale(1.05); }
+        .choice-button.incorrect { background-color: var(--incorrect) !important; border-color: var(--incorrect) !important; color: #fff !important; box-shadow: 0 0 15px var(--incorrect) !important; }
+        .choice-button:disabled { cursor: not-allowed; opacity: 0.7; }
+        
+        .feedback-display {
+            font-size: 1.5em;
+            min-height: 2em;
+            margin-top: 1em;
+            font-weight: bold;
+            color: var(--text-light);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        #main-word-1p, #main-word-2p {
+            font-size: clamp(2.5rem, 10vw, 4rem);
+            font-weight: bold;
+            color: var(--text-light);
+            margin-bottom: 1rem;
+            text-transform: none;
+        }
+        
+        input[type="text"] {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--text-dark);
+            border-radius: 8px;
+            padding: 0.8em;
+            color: var(--text-light);
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        
+        /* 1P Specific Styles */
+        .hud-1p {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1em;
+            margin-bottom: 2rem;
+            font-size: 1em;
+            text-align: center;
+        }
+        .hud-item-1p {
+            background: rgba(0,0,0,0.2);
+            padding: 0.75em 0.5em;
+            border-radius: 8px;
+            border: 1px solid var(--text-dark);
+        }
+        .hud-item-1p span { color: var(--text-light); font-weight: bold; font-size: 1.2em; }
+        #hud-score-1p.flash-correct { color: var(--correct); transform: scale(1.2); transition: all 0.2s ease; }
+        #hud-score-1p.flash-incorrect { color: var(--incorrect); transform: scale(0.9); transition: all 0.2s ease; }
+
+        #badge-alert {
+            position: fixed; top: -100px; left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: white; padding: 12px 24px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); z-index: 2000;
+            font-weight: 600; font-family: 'Orbitron', sans-serif;
+            transition: top 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            text-align: center;
+        }
+        #badge-alert.show { top: 20px; }
+        
+        #unlocked-badges-container {
+            margin-top: 1.5rem;
+        }
+        .badge {
+            display: inline-block;
+            background-color: var(--secondary);
+            color: black;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            margin: 0.25rem;
+            box-shadow: 0 0 10px var(--secondary-glow);
+            font-weight: 500;
+        }
+
+        /* 2P Specific Styles */
+        .winner-card {
+            border: 2px solid var(--winner);
+            box-shadow: 0 0 20px var(--winner);
+        }
+        .player-area {
+            transition: box-shadow 0.3s ease, transform 0.3s ease;
+        }
+        .player-area.winner-glow {
+            transform: scale(1.02);
+            box-shadow: 0 0 25px var(--correct);
+        }
+        .score-token {
+            position: absolute; width: 20px; height: 20px;
+            border-radius: 50%;
+            z-index: 100; opacity: 1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+
+        <!-- MODE SELECTION SCREEN -->
+        <div id="mode-selection-screen" class="screen active">
+            <div class="game-card text-center">
+                <h1>Antonym Overdrive</h1>
+                <p class="text-lg text-text-dark mb-8">Choose your mission type.</p>
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <button id="one-player-btn" class="game-button">1 Player Mission</button>
+                    <button id="two-player-btn" class="game-button">2 Player Challenge</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 1P: LEVEL SELECTION SCREEN -->
+        <div id="level-selection-screen" class="screen">
+            <div class="game-card text-center">
+                <h1>Select Difficulty</h1>
+                <p class="text-lg text-text-dark mb-8">Choose your difficulty to begin your solo mission.</p>
+                <div id="level-selection-container" class="flex flex-col sm:flex-row justify-center gap-4">
+                    <button data-level="A1-A2" class="game-button">Beginner</button>
+                    <button data-level="B1-B2" class="game-button">Intermediate</button>
+                    <button data-level="C1-C2" class="game-button">Advanced</button>
+                </div>
+                 <button id="back-to-mode-btn-1p" class="game-button !border-slate-400 !text-slate-300 hover:!bg-slate-500 hover:!text-white mt-8">Back to Menu</button>
+            </div>
+        </div>
+
+        <!-- 1P: START SCREEN -->
+        <form id="start-screen-1p" class="screen" autocomplete="off">
+            <div class="game-card text-center">
+                <h1 id="start-title-1p">Level: A1-A2</h1>
+                <p class="text-lg text-text-dark mb-6">Enter your name to start the mission, Commander.</p>
+                <input type="text" id="player-name-input-1p" placeholder="Commander Name" maxlength="20" autocomplete="off" class="text-center w-full max-w-xs mx-auto mb-6">
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <button type="submit" id="start-game-btn-1p" class="game-button">Start Mission</button>
+                    <button type="button" id="back-to-levels-btn-1p" class="game-button !border-slate-400 !text-slate-300 hover:!bg-slate-500 hover:!text-white">Change Level</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- 1P: GAME SCREEN -->
+        <div id="game-screen-1p" class="screen">
+            <div class="hud-1p" id="hud-1p">
+                <div class="hud-item-1p">Player: <span id="hud-player-1p">?</span></div>
+                <div class="hud-item-1p">Score: <span id="hud-score-1p">0</span></div>
+                <div class="hud-item-1p">Q-Time: <span id="hud-q-time-1p">10</span></div>
+                <div class="hud-item-1p">Question: <span id="hud-question-1p">1 / 25</span></div>
+            </div>
+            <div class="w-full text-center">
+                <div id="game-timer-display-1p" class="text-primary text-2xl font-orbitron mb-2">05:00</div>
+                <h2 id="main-word-1p" class="my-4">...</h2>
+            </div>
+            <div id="options-container-1p" class="w-full max-w-md grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+            <div class="feedback-display" id="feedback-1p"></div>
+        </div>
+
+        <!-- 1P: END SCREEN -->
+        <div id="end-screen-1p" class="screen">
+             <div class="game-card text-center w-full">
+                <h1 id="end-title-1p">Mission Complete!</h1>
+                <div class="bg-transparent border-none p-0">
+                    <h2 id="final-name-1p" class="!text-primary">Player</h2>
+                    <div class="grid grid-cols-2 gap-4 my-6 text-lg">
+                        <div class="bg-slate-800/50 p-3 rounded-lg"><strong>Final Score:</strong> <span id="final-score-1p" class="text-correct font-bold">0</span></div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg"><strong>Correct:</strong> <span id="final-correct-1p" class="text-correct font-bold">0</span></div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg"><strong>Time Left:</strong> <span id="final-time-1p" class="text-secondary font-bold">00:00</span></div>
+                        <div class="bg-slate-800/50 p-3 rounded-lg"><strong>Accuracy:</strong> <span id="final-accuracy-1p" class="text-secondary font-bold">0%</span></div>
+                    </div>
+                    <div id="unlocked-badges-container"></div>
+                </div>
+                <div id="high-scores-container-1p" class="mt-6 mb-6">
+                    <h2 class="!text-secondary">High Scores</h2>
+                    <ol id="high-scores-list-1p" class="list-decimal list-inside text-left text-text-dark w-fit mx-auto">
+                        <li>Loading...</li>
+                    </ol>
+                </div>
+                <button id="play-again-btn-1p" class="game-button action-button">Play Again</button>
+            </div>
+        </div>
+
+        <!-- 2P: START SCREEN -->
+        <div id="start-screen-2p" class="screen">
+            <div class="game-card text-center">
+                <h1>2-Player Challenge</h1>
+                <p class="text-lg text-text-dark mb-8">Enter commander names to begin the face-off.</p>
+                <div class="grid sm:grid-cols-2 gap-6 mb-8">
+                     <input type="text" id="player1-name-input-2p" placeholder="Enter Player 1 Name" maxlength="20" class="w-full">
+                     <input type="text" id="player2-name-input-2p" placeholder="Enter Player 2 Name" maxlength="20" class="w-full">
+                </div>
+                <div class="flex flex-col sm:flex-row justify-center gap-4">
+                    <button id="start-game-btn-2p" class="game-button">Start Challenge</button>
+                    <button id="back-to-mode-btn-2p" class="game-button !border-slate-400 !text-slate-300 hover:!bg-slate-500 hover:!text-white">Back to Menu</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2P: GAME SCREEN -->
+        <div id="game-screen-2p" class="screen !items-stretch !justify-start md:!justify-center h-full w-full">
+            <div class="w-full h-full flex flex-col md:flex-row md:items-center md:justify-center gap-8 p-4">
+        
+                <!-- Player 1 Area (Left) -->
+                <div id="player1-area-2p" class="player-area p-4 border-2 border-primary/50 rounded-lg w-full md:w-1/3 h-full flex flex-col justify-between">
+                    <div class="p-3 bg-slate-800/50 rounded-lg text-center mb-4">
+                        <div id="player1-name-2p" class="font-bold text-xl truncate">Player 1</div>
+                        <div id="player1-score-2p" class="text-3xl font-orbitron text-primary">0</div>
+                    </div>
+                    <div id="player1-options-2p" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 gap-3 flex-grow content-center"></div>
+                </div>
+                
+                <!-- Center Column (Word, Timers) -->
+                <div class="w-full md:w-1/3 flex flex-col items-center justify-center order-first md:order-none">
+                    <div id="game-timer-display-2p" class="text-primary text-3xl font-orbitron mb-2">05:00</div>
+                    <div class="text-lg text-text-dark">Q-Time: <span id="hud-q-time-2p">10</span>s | Question: <span id="hud-question-2p">1 / 50</span></div>
+                    <h2 id="main-word-2p" class="my-4">...</h2>
+                    <div id="feedback-2p" class="feedback-display"></div>
+                </div>
+        
+                <!-- Player 2 Area (Right) -->
+                <div id="player2-area-2p" class="player-area p-4 border-2 border-secondary/50 rounded-lg w-full md:w-1/3 h-full flex flex-col justify-between">
+                     <div class="p-3 bg-slate-800/50 rounded-lg text-center mb-4">
+                        <div id="player2-name-2p" class="font-bold text-xl truncate">Player 2</div>
+                        <div id="player2-score-2p" class="text-3xl font-orbitron text-secondary">0</div>
+                    </div>
+                    <div id="player2-options-2p" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 gap-3 flex-grow content-center"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2P: END SCREEN -->
+        <div id="end-screen-2p" class="screen">
+             <div class="game-card text-center w-full">
+                <h1 id="end-title-2p" class="!text-winner">Mission Over!</h1>
+                <h2 id="winner-name-2p" class="!text-primary -mt-4 mb-6"></h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-6 text-lg">
+                    <div id="p1-results-card-2p" class="bg-slate-800/50 p-4 rounded-lg">
+                        <h3 id="p1-final-name-2p" class="!text-primary">Player 1</h3>
+                        <p>Final Score: <span id="p1-final-score-2p" class="font-bold text-correct">0</span></p>
+                    </div>
+                    <div id="p2-results-card-2p" class="bg-slate-800/50 p-4 rounded-lg">
+                        <h3 id="p2-final-name-2p" class="!text-secondary">Player 2</h3>
+                        <p>Final Score: <span id="p2-final-score-2p" class="font-bold text-correct">0</span></p>
+                    </div>
+                </div>
+                <button id="play-again-btn-2p" class="game-button action-button mt-6">Play Again</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="badge-alert" class="">Badge Unlocked!</div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        let db, auth;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // --- Firebase Initialization ---
+            try {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                console.log("Firebase authentication successful.");
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+            }
+
+            // --- SHARED DATA & UTILS ---
+            const wordData = {
+                'A1-A2': [
+                    { word: 'big', antonym: 'small', options: ['large', 'huge', 'enormous'] },
+                    { word: 'happy', antonym: 'sad', options: ['joyful', 'cheerful', 'glad'] },
+                    { word: 'fast', antonym: 'slow', options: ['quick', 'rapid', 'swift'] },
+                    { word: 'good', antonym: 'bad', options: ['fine', 'excellent', 'great'] },
+                    { word: 'hot', antonym: 'cold', options: ['warm', 'burning', 'heated'] },
+                    { word: 'start', antonym: 'end', options: ['begin', 'commence', 'initiate'] },
+                    { word: 'true', antonym: 'false', options: ['correct', 'right', 'accurate'] },
+                    { word: 'old', antonym: 'new', options: ['ancient', 'aged', 'mature'] },
+                    { word: 'rich', antonym: 'poor', options: ['wealthy', 'affluent', 'loaded'] },
+                    { word: 'hard', antonym: 'soft', options: ['difficult', 'firm', 'solid'] },
+                    { word: 'light', antonym: 'dark', options: ['bright', 'pale', 'weightless'] },
+                    { word: 'clean', antonym: 'dirty', options: ['tidy', 'spotless', 'pure'] },
+                    { word: 'quiet', antonym: 'loud', options: ['silent', 'peaceful', 'calm'] },
+                    { word: 'strong', antonym: 'weak', options: ['powerful', 'mighty', 'sturdy'] },
+                    { word: 'full', antonym: 'empty', options: ['filled', 'packed', 'loaded'] },
+                ],
+                'B1-B2': [
+                    { word: 'accept', antonym: 'refuse', options: ['receive', 'admit', 'allow'] },
+                    { word: 'brave', antonym: 'cowardly', options: ['courageous', 'bold', 'heroic'] },
+                    { word: 'create', antonym: 'destroy', options: ['build', 'make', 'produce'] },
+                    { word: 'expand', antonym: 'contract', options: ['grow', 'enlarge', 'increase'] },
+                    { word: 'frequent', antonym: 'rare', options: ['common', 'often', 'usual'] },
+                    { word: 'generous', antonym: 'selfish', options: ['giving', 'charitable', 'kind'] },
+                    { word: 'honest', antonym: 'dishonest', options: ['truthful', 'sincere', 'frank'] },
+                    { word: 'include', antonym: 'exclude', options: ['contain', 'involve', 'comprise'] },
+                    { word: 'major', antonym: 'minor', options: ['important', 'significant', 'main'] },
+                    { word: 'optimistic', antonym: 'pessimistic', options: ['hopeful', 'positive', 'confident'] },
+                    { word: 'permanent', antonym: 'temporary', options: ['lasting', 'eternal', 'enduring'] },
+                    { word: 'polite', antonym: 'rude', options: ['courteous', 'respectful', 'civil'] },
+                    { word: 'remember', antonym: 'forget', options: ['recall', 'recollect', 'retain'] },
+                    { word: 'simple', antonym: 'complex', options: ['easy', 'plain', 'straightforward'] },
+                    { word: 'victory', antonym: 'defeat', options: ['win', 'triumph', 'success'] },
+                ],
+                'C1-C2': [
+                    { word: 'benevolent', antonym: 'malevolent', options: ['kind', 'charitable', 'generous'] },
+                    { word: 'mitigate', antonym: 'aggravate', options: ['alleviate', 'lessen', 'reduce'] },
+                    { word: 'ephemeral', antonym: 'permanent', options: ['transient', 'fleeting', 'short-lived'] },
+                    { word: 'gregarious', antonym: 'reclusive', options: ['sociable', 'outgoing', 'friendly'] },
+                    { word: 'eloquent', antonym: 'inarticulate', options: ['fluent', 'expressive', 'persuasive'] },
+                    { word: 'auspicious', antonym: 'ominous', options: ['favorable', 'promising', 'propitious'] },
+                    { word: 'plethora', antonym: 'dearth', options: ['surplus', 'abundance', 'excess'] },
+                    { word: 'recalcitrant', antonym: 'compliant', options: ['stubborn', 'disobedient', 'defiant'] },
+                    { word: 'veracity', antonym: 'falsehood', options: ['truthfulness', 'accuracy', 'honesty'] },
+                    { word: 'obfuscate', antonym: 'clarify', options: ['confuse', 'obscure', 'complicate'] },
+                    { word: 'taciturn', antonym: 'loquacious', options: ['reserved', 'silent', 'uncommunicative'] },
+                    { word: 'ubiquitous', antonym: 'scarce', options: ['omnipresent', 'everywhere', 'common'] },
+                    { word: 'zenith', antonym: 'nadir', options: ['peak', 'summit', 'pinnacle'] },
+                    { word: 'corroborate', antonym: 'contradict', options: ['confirm', 'verify', 'support'] },
+                    { word: 'extol', antonym: 'censure', options: ['praise', 'laud', 'acclaim'] },
+                ]
+            };
+            
+            const praiseWords = ['Awesome!', 'Stellar!', 'Brilliant!', 'Fantastic!', 'Superb!', 'Out of this world!'];
+
+            const screens = {
+                modeSelection: document.getElementById('mode-selection-screen'),
+                levelSelection: document.getElementById('level-selection-screen'),
+                start1P: document.getElementById('start-screen-1p'),
+                game1P: document.getElementById('game-screen-1p'),
+                end1P: document.getElementById('end-screen-1p'),
+                start2P: document.getElementById('start-screen-2p'),
+                game2P: document.getElementById('game-screen-2p'),
+                end2P: document.getElementById('end-screen-2p'),
+            };
+
+            const sounds = {
+                correct: () => new Tone.PolySynth(Tone.Synth, { volume: -10 }).toDestination().triggerAttackRelease(["C5", "G5"], "8n", Tone.now()),
+                incorrect: () => new Tone.PolySynth(Tone.FMSynth, { volume: -10, harmonicity: 1.2, modulationIndex: 5 }).toDestination().triggerAttackRelease(["C3", "C#3"], "8n", Tone.now()),
+                click: () => new Tone.MembraneSynth({ octaves: 4, pitchDecay: 0.1, volume: -15 }).toDestination().triggerAttackRelease("C2", "8n", Tone.now()),
+                start: () => {
+                    const synth = new Tone.FMSynth({ volume: -12 }).toDestination();
+                    const now = Tone.now();
+                    synth.triggerAttackRelease("C4", "8n", now);
+                    synth.triggerAttackRelease("E4", "8n", now + 0.1);
+                    synth.triggerAttackRelease("G4", "8n", now + 0.2);
+                },
+                end: () => new Tone.FMSynth({ volume: -10 }).toDestination().triggerAttackRelease("C3", "2n", Tone.now()),
+                badge: () => {
+                    const synth = new Tone.PolySynth(Tone.Synth, { volume: -8 }).toDestination();
+                    const now = Tone.now();
+                    synth.triggerAttackRelease(["C5", "E5", "G5", "C6"], "4n", now);
+                }
+            };
+
+            let preferredVoice = null;
+
+            function playSound(sound) {
+                if (Tone.context.state !== 'running') { Tone.start().catch(e => console.error("Tone.js start failed", e)); }
+                if (sounds[sound]) { sounds[sound](); }
+            }
+
+            function setupVoice() {
+                const setVoice = () => {
+                    const voices = window.speechSynthesis.getVoices();
+                    preferredVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Ava')) || voices.find(v => v.lang === 'en-US' && (v.name.includes('Female') || v.gender === 'female')) || voices.find(v => v.lang === 'en-US');
+                };
+                setVoice();
+                if (window.speechSynthesis.onvoiceschanged !== undefined) { window.speechSynthesis.onvoiceschanged = setVoice; }
+            }
+
+            function speak(text) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                if (preferredVoice) { utterance.voice = preferredVoice; }
+                window.speechSynthesis.speak(utterance);
+            }
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+            
+            function switchScreen(screenName) {
+                Object.values(screens).forEach(s => s.classList.remove('active'));
+                if (screens[screenName]) {
+                    screens[screenName].classList.add('active');
+                }
+            }
+
+            // --- MASTER CONTROLLER ---
+            const gameController = {
+                init() {
+                    document.getElementById('one-player-btn').addEventListener('click', () => {
+                        playSound('click');
+                        onePlayer.init();
+                        switchScreen('levelSelection');
+                    });
+                    document.getElementById('two-player-btn').addEventListener('click', () => {
+                        playSound('click');
+                        twoPlayer.init();
+                        switchScreen('start2P');
+                    });
+                    
+                    document.getElementById('back-to-mode-btn-1p').addEventListener('click', () => {
+                        playSound('click');
+                        switchScreen('modeSelection');
+                    });
+                     document.getElementById('back-to-mode-btn-2p').addEventListener('click', () => {
+                        playSound('click');
+                        switchScreen('modeSelection');
+                    });
+
+                    setupVoice();
+                }
+            };
+
+            // --- 1 PLAYER LOGIC ---
+            const onePlayer = {
+                state: {},
+                dom: {
+                    levelSelectionContainer: document.getElementById('level-selection-container'),
+                    startForm: document.getElementById('start-screen-1p'),
+                    playerNameInput: document.getElementById('player-name-input-1p'),
+                    startTitle: document.getElementById('start-title-1p'),
+                    backToLevelsBtn: document.getElementById('back-to-levels-btn-1p'),
+                    hud: {
+                        player: document.getElementById('hud-player-1p'),
+                        score: document.getElementById('hud-score-1p'),
+                        qTime: document.getElementById('hud-q-time-1p'),
+                        question: document.getElementById('hud-question-1p'),
+                    },
+                    mainWordEl: document.getElementById('main-word-1p'),
+                    optionsContainer: document.getElementById('options-container-1p'),
+                    feedbackEl: document.getElementById('feedback-1p'),
+                    gameTimerDisplay: document.getElementById('game-timer-display-1p'),
+                    endScreen: {
+                        title: document.getElementById('end-title-1p'),
+                        name: document.getElementById('final-name-1p'),
+                        score: document.getElementById('final-score-1p'),
+                        correct: document.getElementById('final-correct-1p'),
+                        time: document.getElementById('final-time-1p'),
+                        accuracy: document.getElementById('final-accuracy-1p'),
+                        highScoresList: document.getElementById('high-scores-list-1p'),
+                        playAgainBtn: document.getElementById('play-again-btn-1p'),
+                        badgeContainer: document.getElementById('unlocked-badges-container'),
+                    },
+                    badgeAlert: document.getElementById('badge-alert'),
+                },
+                TOTAL_QUESTIONS: 25,
+                GAME_DURATION: 5 * 60,
+
+                init() {
+                    this.dom.levelSelectionContainer.addEventListener('click', (e) => {
+                        if (e.target.tagName === 'BUTTON' && e.target.dataset.level) {
+                            this.selectLevel(e.target.dataset.level);
+                        }
+                    });
+                    this.dom.startForm.addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        this.startGame();
+                    });
+                    this.dom.backToLevelsBtn.addEventListener('click', () => {
+                        playSound('click');
+                        switchScreen('levelSelection');
+                    });
+                    this.dom.endScreen.playAgainBtn.addEventListener('click', () => {
+                        playSound('click');
+                        switchScreen('levelSelection');
+                    });
+                    this.resetState();
+                },
+                
+                resetState() {
+                    this.state = {
+                        playerName: 'Commander', level: 'A1-A2', score: 0, correctAnswers: 0,
+                        questionIndex: 0, questionTimeLeft: 10, gameTimeLeft: this.GAME_DURATION,
+                        questionTimerInterval: null, gameTimerInterval: null,
+                        currentQuestions: [], unlockedBadges: new Set(), correctStreak: 0,
+                    };
+                },
+
+                selectLevel(level) {
+                    this.resetState();
+                    this.state.level = level;
+                    this.dom.startTitle.textContent = `Level: ${level}`;
+                    switchScreen('start1P');
+                    playSound('click');
+                },
+
+                startGame() {
+                    const playerName = this.dom.playerNameInput.value.trim();
+                    if (playerName) this.state.playerName = playerName;
+                    
+                    this.state.currentQuestions = shuffleArray([...wordData[this.state.level]]).slice(0, this.TOTAL_QUESTIONS);
+                    this.dom.hud.player.textContent = this.state.playerName;
+                    this.dom.hud.score.textContent = this.state.score;
+                    
+                    switchScreen('game1P');
+                    playSound('start');
+                    
+                    this.state.gameTimerInterval = setInterval(() => this.updateGameTimer(), 1000);
+                    this.displayQuestion();
+                },
+
+                updateGameTimer() {
+                    this.state.gameTimeLeft--;
+                    const minutes = Math.floor(this.state.gameTimeLeft / 60);
+                    const seconds = this.state.gameTimeLeft % 60;
+                    this.dom.gameTimerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    if (this.state.gameTimeLeft <= 0) this.endGame(false);
+                },
+
+                displayQuestion() {
+                    if (this.state.questionIndex >= this.state.currentQuestions.length) {
+                        this.endGame(true);
+                        return;
+                    }
+
+                    this.dom.feedbackEl.textContent = '';
+                    this.dom.hud.question.textContent = `${this.state.questionIndex + 1} / ${this.TOTAL_QUESTIONS}`;
+                    
+                    const question = this.state.currentQuestions[this.state.questionIndex];
+                    this.dom.mainWordEl.textContent = question.word;
+                    speak(question.word);
+
+                    const choices = shuffleArray([question.antonym, ...question.options]);
+                    this.dom.optionsContainer.innerHTML = '';
+                    choices.forEach(choice => {
+                        const button = document.createElement('button');
+                        button.textContent = choice;
+                        button.classList.add('choice-button');
+                        button.addEventListener('click', () => this.handleAnswer(choice, question.antonym, button));
+                        this.dom.optionsContainer.appendChild(button);
+                    });
+                    
+                    clearInterval(this.state.questionTimerInterval);
+                    this.state.questionTimeLeft = 10;
+                    this.dom.hud.qTime.textContent = this.state.questionTimeLeft;
+                    this.state.questionTimerInterval = setInterval(() => {
+                        this.state.questionTimeLeft--;
+                        this.dom.hud.qTime.textContent = this.state.questionTimeLeft;
+                        if (this.state.questionTimeLeft <= 0) {
+                            this.handleAnswer(null, question.antonym, null);
+                        }
+                    }, 1000);
+                },
+
+                handleAnswer(selected, correct, button) {
+                    clearInterval(this.state.questionTimerInterval);
+                    this.dom.optionsContainer.querySelectorAll('.choice-button').forEach(btn => btn.disabled = true);
+
+                    if (selected === null) {
+                        this.state.correctStreak = 0;
+                        this.dom.feedbackEl.textContent = `Time's up! The answer was "${correct}".`;
+                        this.dom.feedbackEl.style.color = 'var(--incorrect)';
+                        playSound('incorrect');
+                        this.flashScore('incorrect');
+                    } else if (selected === correct) {
+                        const points = 5 + this.state.questionTimeLeft;
+                        this.state.score += points;
+                        this.state.correctAnswers++;
+                        this.state.correctStreak++;
+                        const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                        this.dom.feedbackEl.textContent = `${praise} +${points}`;
+                        this.dom.feedbackEl.style.color = 'var(--correct)';
+                        button.classList.add('correct');
+                        playSound('correct');
+                        this.flashScore('correct');
+                        this.animateScoreTokens();
+                        this.checkBadges();
+                    } else {
+                        this.state.correctStreak = 0;
+                        this.dom.feedbackEl.textContent = `Incorrect. The answer was "${correct}".`;
+                        this.dom.feedbackEl.style.color = 'var(--incorrect)';
+                        button.classList.add('incorrect');
+                        playSound('incorrect');
+                        this.flashScore('incorrect');
+                    }
+                    
+                    if (selected !== correct) {
+                        this.dom.optionsContainer.querySelectorAll('.choice-button').forEach(btn => {
+                            if (btn.textContent === correct) btn.classList.add('correct');
+                        });
+                    }
+                    
+                    this.state.questionIndex++;
+                    this.dom.hud.score.textContent = this.state.score;
+                    setTimeout(() => this.displayQuestion(), 2500);
+                },
+                
+                flashScore(type) {
+                    const scoreEl = this.dom.hud.score;
+                    scoreEl.classList.remove('flash-correct', 'flash-incorrect');
+                    void scoreEl.offsetWidth; 
+                    scoreEl.classList.add(type === 'correct' ? 'flash-correct' : 'flash-incorrect');
+                },
+
+                animateScoreTokens() {
+                    const startRect = this.dom.mainWordEl.getBoundingClientRect();
+                    const endRect = this.dom.hud.score.getBoundingClientRect();
+
+                    for (let i = 0; i < 5; i++) {
+                        const token = document.createElement('div');
+                        token.classList.add('score-token');
+                        token.style.backgroundColor = 'var(--primary)';
+                        token.style.boxShadow = '0 0 10px var(--primary-glow)';
+                        
+                        token.style.top = `${startRect.top + startRect.height / 2}px`;
+                        token.style.left = `${startRect.left + startRect.width / 2}px`;
+                        
+                        document.body.appendChild(token);
+
+                        requestAnimationFrame(() => {
+                            token.style.transition = `transform 1s cubic-bezier(0.5, -0.5, 1, 1), opacity 1s linear ${i * 0.05}s`;
+                            token.style.transform = `translate(${endRect.left - startRect.left}px, ${endRect.top - startRect.top}px) scale(0.5)`;
+                            token.style.opacity = '0';
+                        });
+                        
+                        token.addEventListener('transitionend', () => token.remove());
+                    }
+                },
+
+                checkBadges() {
+                    if (this.state.correctStreak === 5 && !this.state.unlockedBadges.has('Hot Streak')) {
+                        this.unlockBadge('Hot Streak');
+                    }
+                    if (this.state.correctStreak === 10 && !this.state.unlockedBadges.has('On Fire!')) {
+                        this.unlockBadge('On Fire!');
+                    }
+                    if (this.state.score >= 100 && !this.state.unlockedBadges.has('Centurion')) {
+                        this.unlockBadge('Centurion');
+                    }
+                },
+
+                unlockBadge(badgeName) {
+                    this.state.unlockedBadges.add(badgeName);
+                    const alertEl = this.dom.badgeAlert;
+                    alertEl.textContent = `Badge Unlocked: ${badgeName}!`;
+                    alertEl.classList.add('show');
+                    playSound('badge');
+                    setTimeout(() => alertEl.classList.remove('show'), 4000);
+                },
+
+                async endGame(completed) {
+                    clearInterval(this.state.questionTimerInterval);
+                    clearInterval(this.state.gameTimerInterval);
+                    playSound('end');
+                    
+                    this.dom.endScreen.title.textContent = completed ? "Mission Accomplished!" : "Mission Over";
+                    this.dom.endScreen.name.textContent = this.state.playerName;
+                    this.dom.endScreen.score.textContent = this.state.score;
+                    this.dom.endScreen.correct.textContent = `${this.state.correctAnswers} / ${this.state.questionIndex}`;
+                    
+                    const minutes = Math.floor(this.state.gameTimeLeft / 60);
+                    const seconds = this.state.gameTimeLeft % 60;
+                    this.dom.endScreen.time.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    
+                    const accuracy = this.state.questionIndex > 0 ? ((this.state.correctAnswers / this.state.questionIndex) * 100).toFixed(1) : 0;
+                    this.dom.endScreen.accuracy.textContent = `${accuracy}%`;
+
+                    if (accuracy == 100 && this.state.questionIndex > 0 && !this.state.unlockedBadges.has('Perfectionist')) {
+                        this.unlockBadge('Perfectionist');
+                    }
+                    
+                    this.displayUnlockedBadges();
+                    await this.saveHighScore();
+                    await this.displayHighScores();
+                    switchScreen('end1P');
+                },
+
+                displayUnlockedBadges() {
+                    this.dom.endScreen.badgeContainer.innerHTML = '';
+                    if (this.state.unlockedBadges.size > 0) {
+                        const title = document.createElement('h3');
+                        title.textContent = "Badges Earned";
+                        title.className = "!text-secondary !text-xl !mb-2";
+                        this.dom.endScreen.badgeContainer.appendChild(title);
+
+                        this.state.unlockedBadges.forEach(badgeName => {
+                            const badgeEl = document.createElement('span');
+                            badgeEl.className = 'badge';
+                            badgeEl.textContent = badgeName;
+                            this.dom.endScreen.badgeContainer.appendChild(badgeEl);
+                        });
+                    }
+                },
+
+                async getHighScores() {
+                    if (!db) {
+                        console.error("Firestore is not initialized. Cannot fetch high scores.");
+                        return [];
+                    }
+                    try {
+                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                        const collectionName = `artifacts/${appId}/public/data/antonym-overdrive-scores-${this.state.level}`;
+                        const q = query(collection(db, collectionName), orderBy("score", "desc"), limit(5));
+                        const querySnapshot = await getDocs(q);
+                        const scores = [];
+                        querySnapshot.forEach((doc) => {
+                            scores.push(doc.data());
+                        });
+                        return scores;
+                    } catch (error) {
+                        console.error("Error getting high scores: ", error);
+                        return [];
+                    }
+                },
+
+                async saveHighScore() {
+                    if (!db || this.state.score === 0) return;
+                    try {
+                        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                        const collectionName = `artifacts/${appId}/public/data/antonym-overdrive-scores-${this.state.level}`;
+                        await addDoc(collection(db, collectionName), {
+                            name: this.state.playerName,
+                            score: this.state.score,
+                            timestamp: new Date()
+                        });
+                    } catch (error) {
+                        console.error("Error saving high score: ", error);
+                    }
+                },
+
+                async displayHighScores() {
+                    this.dom.endScreen.highScoresList.innerHTML = '<li>Loading...</li>';
+                    const scores = await this.getHighScores();
+                    this.dom.endScreen.highScoresList.innerHTML = '';
+                    if (scores.length === 0) {
+                        this.dom.endScreen.highScoresList.innerHTML = '<li class="text-slate-400">No scores yet. Be the first!</li>';
+                        return;
+                    }
+                    scores.forEach((score, index) => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<span class="font-bold text-white">${index + 1}. ${score.name}:</span> <span class="text-primary">${score.score} pts</span>`;
+                        this.dom.endScreen.highScoresList.appendChild(li);
+                    });
+                },
+            };
+
+            // --- 2 PLAYER LOGIC ---
+            const twoPlayer = {
+                state: {},
+                dom: {
+                    p1NameInput: document.getElementById('player1-name-input-2p'),
+                    p2NameInput: document.getElementById('player2-name-input-2p'),
+                    startGameBtn: document.getElementById('start-game-btn-2p'),
+                    player1Area: document.getElementById('player1-area-2p'),
+                    player2Area: document.getElementById('player2-area-2p'),
+                    player1HUD: { name: document.getElementById('player1-name-2p'), score: document.getElementById('player1-score-2p'), options: document.getElementById('player1-options-2p') },
+                    player2HUD: { name: document.getElementById('player2-name-2p'), score: document.getElementById('player2-score-2p'), options: document.getElementById('player2-options-2p') },
+                    gameTimerDisplay: document.getElementById('game-timer-display-2p'),
+                    qTimeDisplay: document.getElementById('hud-q-time-2p'),
+                    qCountDisplay: document.getElementById('hud-question-2p'),
+                    mainWordEl: document.getElementById('main-word-2p'),
+                    feedbackEl: document.getElementById('feedback-2p'),
+                    endScreen: {
+                        title: document.getElementById('end-title-2p'),
+                        winnerName: document.getElementById('winner-name-2p'),
+                        p1: { card: document.getElementById('p1-results-card-2p'), name: document.getElementById('p1-final-name-2p'), score: document.getElementById('p1-final-score-2p') },
+                        p2: { card: document.getElementById('p2-results-card-2p'), name: document.getElementById('p2-final-name-2p'), score: document.getElementById('p2-final-score-2p') },
+                        playAgainBtn: document.getElementById('play-again-btn-2p'),
+                    },
+                },
+                TOTAL_QUESTIONS: 50,
+                GAME_DURATION: 5 * 60,
+
+                init() {
+                    this.dom.startGameBtn.addEventListener('click', () => this.startGame());
+                    this.dom.endScreen.playAgainBtn.addEventListener('click', () => {
+                        playSound('click');
+                        this.dom.p1NameInput.value = '';
+                        this.dom.p2NameInput.value = '';
+                        switchScreen('start2P');
+                    });
+                    this.resetState();
+                },
+
+                resetState() {
+                    this.state = {
+                        players: { p1: { name: 'Player 1', score: 0 }, p2: { name: 'Player 2', score: 0 } },
+                        currentQuestionIndex: 0, questionTimeLeft: 10, gameTimeLeft: this.GAME_DURATION,
+                        questionTimer: null, gameTimer: null, questions: [], isAnswered: false,
+                    };
+                },
+
+                startGame() {
+                    playSound('start');
+                    this.resetState();
+
+                    this.state.players.p1.name = this.dom.p1NameInput.value.trim() || 'Player 1';
+                    this.state.players.p2.name = this.dom.p2NameInput.value.trim() || 'Player 2';
+                    this.dom.player1HUD.name.textContent = this.state.players.p1.name;
+                    this.dom.player2HUD.name.textContent = this.state.players.p2.name;
+                    this.dom.player1HUD.score.textContent = 0;
+                    this.dom.player2HUD.score.textContent = 0;
+
+                    const allWords = [...wordData['A1-A2'], ...wordData['B1-B2'], ...wordData['C1-C2']];
+                    this.state.questions = shuffleArray(allWords).slice(0, this.TOTAL_QUESTIONS);
+                    
+                    switchScreen('game2P');
+                    
+                    this.state.gameTimer = setInterval(() => this.updateGameTimer(), 1000);
+                    this.displayQuestion();
+                },
+
+                updateGameTimer() {
+                    this.state.gameTimeLeft--;
+                    const minutes = Math.floor(this.state.gameTimeLeft / 60);
+                    const seconds = this.state.gameTimeLeft % 60;
+                    this.dom.gameTimerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                    if (this.state.gameTimeLeft <= 0) this.endGame();
+                },
+
+                displayQuestion() {
+                    if (this.state.currentQuestionIndex >= this.TOTAL_QUESTIONS) {
+                        this.endGame();
+                        return;
+                    }
+
+                    this.state.isAnswered = false;
+                    this.dom.feedbackEl.textContent = '';
+                    this.dom.feedbackEl.style.textShadow = 'none';
+                    this.dom.player1Area.classList.remove('winner-glow');
+                    this.dom.player2Area.classList.remove('winner-glow');
+                    this.dom.qCountDisplay.textContent = `${this.state.currentQuestionIndex + 1} / ${this.TOTAL_QUESTIONS}`;
+                    
+                    const question = this.state.questions[this.state.currentQuestionIndex];
+                    this.dom.mainWordEl.textContent = question.word;
+                    speak(question.word);
+
+                    const choices = shuffleArray([question.antonym, ...question.options]);
+                    
+                    [this.dom.player1HUD, this.dom.player2HUD].forEach((hud, index) => {
+                        const playerId = index === 0 ? 'p1' : 'p2';
+                        hud.options.innerHTML = '';
+                        choices.forEach(choice => {
+                            const button = document.createElement('button');
+                            button.textContent = choice;
+                            button.classList.add('choice-button');
+                            if (playerId === 'p1') {
+                                button.style.borderColor = 'var(--primary)';
+                                button.style.color = 'var(--primary)';
+                                button.style.boxShadow = '0 0 5px var(--primary), inset 0 0 5px var(--primary)';
+                            }
+                            button.addEventListener('click', () => this.handleAnswer(choice, question.antonym, playerId, button));
+                            hud.options.appendChild(button);
+                        });
+                    });
+                    
+                    clearInterval(this.state.questionTimer);
+                    this.state.questionTimeLeft = 10;
+                    this.dom.qTimeDisplay.textContent = this.state.questionTimeLeft;
+                    this.state.questionTimer = setInterval(() => {
+                        this.state.questionTimeLeft--;
+                        this.dom.qTimeDisplay.textContent = this.state.questionTimeLeft;
+                        if (this.state.questionTimeLeft <= 0) {
+                            this.handleAnswer(null, question.antonym, null, null);
+                        }
+                    }, 1000);
+                },
+
+                handleAnswer(selected, correct, playerId, button) {
+                    if (this.state.isAnswered) return;
+                    this.state.isAnswered = true;
+
+                    clearInterval(this.state.questionTimer);
+                    document.querySelectorAll('#game-screen-2p .choice-button').forEach(btn => btn.disabled = true);
+
+                    if (selected === null) {
+                        this.dom.feedbackEl.textContent = `Time's up! The answer was "${correct}".`;
+                        this.dom.feedbackEl.style.textShadow = `0 0 10px var(--incorrect)`;
+                        playSound('incorrect');
+                        document.querySelectorAll('#game-screen-2p .choice-button').forEach(btn => {
+                            if (btn.textContent === correct) btn.classList.add('correct');
+                        });
+                    } else if (selected === correct) {
+                        const points = 5 + this.state.questionTimeLeft;
+                        this.state.players[playerId].score += points;
+                        const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                        this.dom.feedbackEl.textContent = `${praise} ${this.state.players[playerId].name}! +${points}`;
+                        this.dom.feedbackEl.style.textShadow = `0 0 10px var(--correct)`;
+                        button.classList.add('correct');
+                        
+                        const winnerArea = playerId === 'p1' ? this.dom.player1Area : this.dom.player2Area;
+                        const color = playerId === 'p1' ? 'var(--primary)' : 'var(--secondary)';
+                        const glow = playerId === 'p1' ? 'var(--primary-glow)' : 'var(--secondary-glow)';
+                        winnerArea.classList.add('winner-glow');
+                        this.animateScoreTokens(playerId, color, glow);
+                        playSound('correct');
+                    } else {
+                        this.dom.feedbackEl.textContent = `Incorrect, ${this.state.players[playerId].name}!`;
+                        this.dom.feedbackEl.style.textShadow = `0 0 10px var(--incorrect)`;
+                        button.classList.add('incorrect');
+                        
+                        document.querySelectorAll('#game-screen-2p .choice-button').forEach(btn => {
+                            if (btn.textContent === correct) btn.classList.add('correct');
+                        });
+                        playSound('incorrect');
+                    }
+                    
+                    this.dom.player1HUD.score.textContent = this.state.players.p1.score;
+                    this.dom.player2HUD.score.textContent = this.state.players.p2.score;
+                    
+                    this.state.currentQuestionIndex++;
+                    setTimeout(() => this.displayQuestion(), 3000);
+                },
+
+                animateScoreTokens(playerId, color, glow) {
+                    const startRect = this.dom.mainWordEl.getBoundingClientRect();
+                    const targetHUD = playerId === 'p1' ? this.dom.player1HUD.score : this.dom.player2HUD.score;
+                    const endRect = targetHUD.getBoundingClientRect();
+
+                    for (let i = 0; i < 5; i++) {
+                        const token = document.createElement('div');
+                        token.classList.add('score-token');
+                        token.style.backgroundColor = color;
+                        token.style.boxShadow = `0 0 10px ${glow}`;
+                        
+                        token.style.top = `${startRect.top + startRect.height / 2}px`;
+                        token.style.left = `${startRect.left + startRect.width / 2}px`;
+                        
+                        document.body.appendChild(token);
+
+                        requestAnimationFrame(() => {
+                            token.style.transition = `transform 1s cubic-bezier(0.5, -0.5, 1, 1), opacity 1s linear ${i * 0.05}s`;
+                            token.style.transform = `translate(${endRect.left - startRect.left}px, ${endRect.top - startRect.top}px) scale(0.5)`;
+                            token.style.opacity = '0';
+                        });
+                        
+                        token.addEventListener('transitionend', () => token.remove());
+                    }
+                },
+                
+                endGame() {
+                    clearInterval(this.state.gameTimer);
+                    clearInterval(this.state.questionTimer);
+                    playSound('end');
+                    
+                    const p1 = this.state.players.p1;
+                    const p2 = this.state.players.p2;
+
+                    this.dom.endScreen.p1.name.textContent = p1.name;
+                    this.dom.endScreen.p1.score.textContent = p1.score;
+                    this.dom.endScreen.p2.name.textContent = p2.name;
+                    this.dom.endScreen.p2.score.textContent = p2.score;
+                    
+                    this.dom.endScreen.p1.card.classList.remove('winner-card');
+                    this.dom.endScreen.p2.card.classList.remove('winner-card');
+
+                    if (p1.score > p2.score) {
+                        this.dom.endScreen.winnerName.textContent = `${p1.name} Wins!`;
+                        this.dom.endScreen.p1.card.classList.add('winner-card');
+                    } else if (p2.score > p1.score) {
+                        this.dom.endScreen.winnerName.textContent = `${p2.name} Wins!`;
+                        this.dom.endScreen.p2.card.classList.add('winner-card');
+                    } else {
+                        this.dom.endScreen.winnerName.textContent = "It's a Tie!";
+                    }
+                    
+                    switchScreen('end2P');
+                }
+            };
+
+            // --- INITIALIZE THE APP ---
+            gameController.init();
+        });
+    </script>
+</body>
+</html>

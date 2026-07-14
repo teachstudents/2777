@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2-Player Synonym Galaxy Challenge</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg-start: #0f172a; /* slate-900 */
+            --bg-end: #1e293b;   /* slate-800 */
+            --text-light: #f1f5f9; /* slate-100 */
+            --text-dark: #94a3b8;  /* slate-400 */
+            --primary: #22d3ee;   /* cyan-400 */
+            --primary-glow: #67e8f9; /* cyan-300 */
+            --secondary: #a78bfa; /* violet-400 */
+            --secondary-glow: #c4b5fd; /* violet-300 */
+            --correct: #2dd4bf;   /* teal-400 */
+            --incorrect: #fb923c; /* orange-400 */
+            --winner: #facc15; /* yellow-400 */
+        }
+
+        @keyframes background-pan {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        html, body {
+            overscroll-behavior: none;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(270deg, var(--bg-start), var(--bg-end), #334155);
+            background-size: 600% 600%;
+            animation: background-pan 30s ease infinite;
+            color: var(--text-light);
+            margin: 0;
+            min-height: 100dvh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden; /* Prevent scrollbars from coin animations */
+        }
+        
+        .main-container {
+            width: 100%;
+            min-height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 1200px; /* Wider for side-by-side */
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .screen.active { display: flex; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        h1, h2, h3 {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 10px var(--primary-glow);
+            letter-spacing: 2px;
+            text-align: center;
+        }
+        h1 { color: var(--primary); font-size: clamp(2rem, 8vw, 3.5rem); margin-bottom: 1rem; }
+        h2 { color: var(--secondary); margin: 1.5rem 0 1rem; }
+        h3 { color: var(--primary); font-size: 1.5rem; margin-bottom: 1rem; }
+
+        .game-card {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            padding: clamp(1.5rem, 5vw, 2.5rem);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .game-button, .choice-button, .action-button {
+            font-family: 'Orbitron', sans-serif;
+            border: 1px solid var(--primary);
+            background: transparent;
+            color: var(--primary);
+            padding: 0.8em 1.5em;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 5px var(--primary), inset 0 0 5px var(--primary);
+            text-transform: uppercase;
+            font-size: clamp(1rem, 2.5vw, 1.2rem);
+        }
+        .game-button:hover:not(:disabled), .action-button:hover {
+            background: var(--primary);
+            color: var(--bg-start);
+            box-shadow: 0 0 20px var(--primary-glow);
+            transform: translateY(-2px);
+        }
+        
+        .choice-button {
+            width: 100%;
+            margin: 0.5rem 0;
+            font-family: 'Roboto', sans-serif;
+            font-weight: 500;
+            border-color: var(--secondary);
+            color: var(--secondary);
+            box-shadow: 0 0 5px var(--secondary), inset 0 0 5px var(--secondary);
+            text-transform: none;
+            padding: 1em 1.5em;
+        }
+        .choice-button:hover:not(:disabled) {
+            background: var(--secondary);
+            color: var(--bg-start);
+            box-shadow: 0 0 20px var(--secondary-glow);
+        }
+        .choice-button.correct { background-color: var(--correct) !important; border-color: var(--correct) !important; color: #000 !important; box-shadow: 0 0 15px var(--correct) !important; transform: scale(1.05); }
+        .choice-button.incorrect { background-color: var(--incorrect) !important; border-color: var(--incorrect) !important; color: #fff !important; box-shadow: 0 0 15px var(--incorrect) !important; }
+        .choice-button:disabled { cursor: not-allowed; opacity: 0.7; }
+        
+        .feedback-display {
+            font-size: 1.5em;
+            min-height: 2em;
+            margin-top: 1em;
+            font-weight: bold;
+            color: var(--text-light); /* Changed to white */
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        #main-word {
+            font-size: clamp(2.5rem, 10vw, 4rem);
+            font-weight: bold;
+            color: var(--text-light);
+            margin-bottom: 1rem;
+            text-transform: none;
+        }
+        
+        input[type="text"] {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--text-dark);
+            border-radius: 8px;
+            padding: 0.8em;
+            color: var(--text-light);
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        
+        .hidden { display: none !important; }
+        
+        .winner-card {
+            border: 2px solid var(--winner);
+            box-shadow: 0 0 20px var(--winner);
+        }
+        
+        .player-area {
+            transition: box-shadow 0.3s ease, transform 0.3s ease;
+        }
+        .player-area.winner-glow {
+            transform: scale(1.02);
+            box-shadow: 0 0 25px var(--correct);
+        }
+
+        .coin {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: var(--primary);
+            border-radius: 50%;
+            z-index: 100;
+            opacity: 1;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        @keyframes fly-to-p1 {
+            0% { top: 50%; left: 50%; opacity: 1; transform: scale(1.5); }
+            100% { top: 10%; left: 25%; opacity: 0; transform: scale(0); }
+        }
+
+        @keyframes fly-to-p2 {
+            0% { top: 50%; left: 50%; opacity: 1; transform: scale(1.5); }
+            100% { top: 10%; left: 75%; opacity: 0; transform: scale(0); }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- HOME SCREEN -->
+        <div id="home-screen" class="screen active">
+            <div class="game-card text-center">
+                <h1>Synonym Galaxy</h1>
+                <p class="text-lg text-slate-300 mb-8">A Side-by-Side 2-Player Challenge</p>
+                <div class="grid sm:grid-cols-2 gap-6 mb-8">
+                     <input type="text" id="player1-name-input" placeholder="Enter Player 1 Name" maxlength="20" class="w-full">
+                     <input type="text" id="player2-name-input" placeholder="Enter Player 2 Name" maxlength="20" class="w-full">
+                </div>
+                <button id="start-game-btn" class="game-button w-full max-w-xs mx-auto">Start Game</button>
+            </div>
+        </div>
+
+        <!-- GAME SCREEN -->
+        <div id="game-screen" class="screen">
+            <!-- Central Info -->
+            <div class="w-full text-center mb-4">
+                 <div id="game-timer-display" class="text-primary text-3xl font-orbitron mb-2">10:00</div>
+                 <div class="text-lg text-slate-400">Q-Time: <span id="hud-q-time">10</span>s | Question: <span id="hud-question">1 / 100</span></div>
+                 <h2 id="main-word" class="my-4">...</h2>
+            </div>
+            
+            <!-- Player Areas -->
+            <div class="w-full grid md:grid-cols-2 gap-8">
+                <!-- Player 1 Area -->
+                <div id="player1-area" class="player-area p-4 border-2 border-primary/50 rounded-lg">
+                    <div id="player1-hud" class="p-3 bg-slate-800/50 rounded-lg text-center mb-4">
+                        <div id="player1-name" class="font-bold text-xl truncate">Player 1</div>
+                        <div id="player1-score" class="text-3xl font-orbitron text-primary">0</div>
+                    </div>
+                    <div id="player1-options" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+                </div>
+                
+                <!-- Player 2 Area -->
+                <div id="player2-area" class="player-area p-4 border-2 border-secondary/50 rounded-lg">
+                     <div id="player2-hud" class="p-3 bg-slate-800/50 rounded-lg text-center mb-4">
+                        <div id="player2-name" class="font-bold text-xl truncate">Player 2</div>
+                        <div id="player2-score" class="text-3xl font-orbitron text-secondary">0</div>
+                    </div>
+                    <div id="player2-options" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+                </div>
+            </div>
+
+            <div id="feedback" class="feedback-display"></div>
+        </div>
+
+        <!-- END SCREEN -->
+        <div id="end-screen" class="screen">
+             <div class="game-card text-center w-full">
+                <h1 id="end-title" class="!text-winner">Mission Over!</h1>
+                <h2 id="winner-name" class="!text-primary -mt-4 mb-6"></h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-6 text-lg">
+                    <div id="p1-results-card" class="bg-slate-800/50 p-4 rounded-lg">
+                        <h3 id="p1-final-name" class="!text-secondary">Player 1</h3>
+                        <p>Final Score: <span id="p1-final-score" class="font-bold text-teal-400">0</span></p>
+                    </div>
+                    <div id="p2-results-card" class="bg-slate-800/50 p-4 rounded-lg">
+                        <h3 id="p2-final-name" class="!text-secondary">Player 2</h3>
+                        <p>Final Score: <span id="p2-final-score" class="font-bold text-teal-400">0</span></p>
+                    </div>
+                </div>
+                <button id="play-again-btn" class="game-button action-button mt-6">Play Again</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // --- DOM ELEMENTS ---
+        const screens = {
+            home: document.getElementById('home-screen'),
+            game: document.getElementById('game-screen'),
+            end: document.getElementById('end-screen'),
+        };
+        const p1NameInput = document.getElementById('player1-name-input');
+        const p2NameInput = document.getElementById('player2-name-input');
+        const startGameBtn = document.getElementById('start-game-btn');
+        
+        const player1Area = document.getElementById('player1-area');
+        const player2Area = document.getElementById('player2-area');
+        const player1HUD = { name: document.getElementById('player1-name'), score: document.getElementById('player1-score'), options: document.getElementById('player1-options') };
+        const player2HUD = { name: document.getElementById('player2-name'), score: document.getElementById('player2-score'), options: document.getElementById('player2-options') };
+        
+        const gameTimerDisplay = document.getElementById('game-timer-display');
+        const qTimeDisplay = document.getElementById('hud-q-time');
+        const qCountDisplay = document.getElementById('hud-question');
+        const mainWordEl = document.getElementById('main-word');
+        const feedbackEl = document.getElementById('feedback');
+        
+        const endScreen = {
+            title: document.getElementById('end-title'),
+            winnerName: document.getElementById('winner-name'),
+            p1: { card: document.getElementById('p1-results-card'), name: document.getElementById('p1-final-name'), score: document.getElementById('p1-final-score') },
+            p2: { card: document.getElementById('p2-results-card'), name: document.getElementById('p2-final-name'), score: document.getElementById('p2-final-score') },
+            playAgainBtn: document.getElementById('play-again-btn'),
+        };
+
+        // --- GAME CONFIG ---
+        const TOTAL_QUESTIONS = 100;
+        const GAME_DURATION = 10 * 60;
+        let gameState = {};
+        
+        // --- SOUND & VOICE ENGINE ---
+        let preferredVoice = null;
+        const sounds = {
+            correct: () => new Tone.PolySynth(Tone.Synth, { volume: -10 }).toDestination().triggerAttackRelease(["C5", "G5"], "8n", Tone.now()),
+            incorrect: () => new Tone.PolySynth(Tone.FMSynth, { volume: -10, harmonicity: 1.2, modulationIndex: 5 }).toDestination().triggerAttackRelease(["C3", "C#3"], "8n", Tone.now()),
+            click: () => new Tone.MembraneSynth({ octaves: 4, pitchDecay: 0.1, volume: -15 }).toDestination().triggerAttackRelease("C2", "8n", Tone.now()),
+            start: () => {
+                const synth = new Tone.FMSynth({ volume: -12 }).toDestination();
+                const now = Tone.now();
+                synth.triggerAttackRelease("C4", "8n", now);
+                synth.triggerAttackRelease("E4", "8n", now + 0.1);
+                synth.triggerAttackRelease("G4", "8n", now + 0.2);
+            },
+            end: () => new Tone.FMSynth({ volume: -10 }).toDestination().triggerAttackRelease("C3", "2n", Tone.now()),
+        };
+        function playSound(sound) {
+            if (Tone.context.state !== 'running') { Tone.start().catch(e => console.error("Tone.js start failed", e)); }
+            if (sounds[sound]) { sounds[sound](); }
+        }
+        function setupVoice() {
+            const setVoice = () => {
+                const voices = window.speechSynthesis.getVoices();
+                preferredVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Ava')) || voices.find(v => v.lang === 'en-US' && (v.name.includes('Female') || v.gender === 'female')) || voices.find(v => v.lang === 'en-US');
+            };
+            setVoice();
+            if (window.speechSynthesis.onvoiceschanged !== undefined) { window.speechSynthesis.onvoiceschanged = setVoice; }
+        }
+        function speak(text) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            if (preferredVoice) { utterance.voice = preferredVoice; }
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // --- GAME DATA ---
+        const wordData = {
+          'A1-A2': [ { word: 'big', synonym: 'large', options: ['small', 'fast', 'cold'] }, { word: 'small', synonym: 'tiny', options: ['huge', 'wide', 'tall'] }, { word: 'happy', synonym: 'joyful', options: ['sad', 'angry', 'tired'] }, { word: 'sad', synonym: 'unhappy', options: ['glad', 'pleased', 'lucky'] }, { word: 'fast', synonym: 'quick', options: ['slow', 'heavy', 'light'] }, { word: 'slow', synonym: 'leisurely', options: ['rapid', 'swift', 'sharp'] }, { word: 'good', synonym: 'fine', options: ['bad', 'awful', 'terrible'] }, { word: 'bad', synonym: 'evil', options: ['great', 'nice', 'superb'] }, { word: 'pretty', synonym: 'beautiful', options: ['ugly', 'plain', 'dull'] }, { word: 'start', synonym: 'begin', options: ['end', 'finish', 'stop'] }, { word: 'end', synonym: 'finish', options: ['commence', 'launch', 'open'] }, { word: 'true', synonym: 'correct', options: ['false', 'wrong', 'fake'] }, { word: 'false', synonym: 'untrue', options: ['right', 'accurate', 'real'] }, { word: 'old', synonym: 'ancient', options: ['new', 'young', 'modern'] }, { word: 'new', synonym: 'fresh', options: ['stale', 'aged', 'worn'] }, { word: 'rich', synonym: 'wealthy', options: ['poor', 'broke', 'needy'] }, { word: 'hard', synonym: 'difficult', options: ['easy', 'simple', 'soft'] }, { word: 'easy', synonym: 'simple', options: ['tough', 'complex', 'hard'] }, { word: 'speak', synonym: 'talk', options: ['listen', 'hear', 'quiet'] }, { word: 'look', synonym: 'see', options: ['ignore', 'hide', 'blind'] }, { word: 'angry', synonym: 'mad', options: ['calm', 'happy', 'pleased'] }, { word: 'scared', synonym: 'afraid', options: ['brave', 'bold', 'calm'] }, { word: 'bright', synonym: 'shining', options: ['dark', 'dull', 'dim'] }, { word: 'dark', synonym: 'gloomy', options: ['light', 'bright', 'clear'] }, { word: 'dirty', synonym: 'unclean', options: ['clean', 'pure', 'fresh'] }, { word: 'clean', synonym: 'tidy', options: ['messy', 'dirty', 'foul'] }, { word: 'quiet', synonym: 'silent', options: ['loud', 'noisy', 'rowdy'] }, { word: 'loud', synonym: 'noisy', options: ['soft', 'quiet', 'faint'] }, { word: 'strong', synonym: 'powerful', options: ['weak', 'frail', 'feeble'] }, { word: 'weak', synonym: 'frail', options: ['strong', 'mighty', 'tough'] }, { word: 'right', synonym: 'correct', options: ['wrong', 'incorrect', 'false'] }, { word: 'wrong', synonym: 'incorrect', options: ['right', 'true', 'proper'] }, { word: 'same', synonym: 'alike', options: ['different', 'unlike', 'varied'] }, { word: 'different', synonym: 'unlike', options: ['same', 'identical', 'similar'] }, { word: 'love', synonym: 'adore', options: ['hate', 'dislike', 'despise'] }, { word: 'hate', synonym: 'detest', options: ['love', 'like', 'admire'] }, { word: 'laugh', synonym: 'giggle', options: ['cry', 'weep', 'sob'] }, { word: 'cry', synonym: 'weep', options: ['laugh', 'smile', 'chuckle'] }, { word: 'friend', synonym: 'pal', options: ['enemy', 'foe', 'rival'] }, { word: 'enemy', synonym: 'foe', options: ['friend', 'ally', 'buddy'] }, { word: 'give', synonym: 'provide', options: ['take', 'receive', 'get'] }, { word: 'take', synonym: 'grab', options: ['give', 'offer', 'hand'] }, { word: 'ask', synonym: 'inquire', options: ['answer', 'reply', 'tell'] }, { word: 'tell', synonym: 'inform', options: ['ask', 'question', 'hide'] }, { word: 'work', synonym: 'labor', options: ['play', 'rest', 'relax'] }, { word: 'play', synonym: 'recreation', options: ['work', 'toil', 'strive'] }, { word: 'rest', synonym: 'relax', options: ['work', 'strain', 'exert'] }, { word: 'help', synonym: 'assist', options: ['hinder', 'harm', 'hurt'] }, { word: 'hurt', synonym: 'harm', options: ['help', 'heal', 'soothe'] }, { word: 'make', synonym: 'create', options: ['break', 'destroy', 'ruin'] } ],
+          'B1-B2': [ { word: 'intelligent', synonym: 'clever', options: ['stupid', 'unaware', 'dense'] }, { word: 'sufficient', synonym: 'enough', options: ['lacking', 'scarce', 'inadequate'] }, { word: 'create', synonym: 'produce', options: ['destroy', 'ruin', 'demolish'] }, { word: 'important', synonym: 'significant', options: ['trivial', 'minor', 'petty'] }, { word: 'delicious', synonym: 'tasty', options: ['bland', 'distasteful', 'gross'] }, { word: 'assist', synonym: 'help', options: ['hinder', 'obstruct', 'prevent'] }, { word: 'complete', synonym: 'finish', options: ['start', 'abandon', 'pause'] }, { word: 'accurate', synonym: 'correct', options: ['inaccurate', 'wrong', 'flawed'] }, { word: 'beautiful', synonym: 'gorgeous', options: ['hideous', 'unattractive', 'plain'] }, { word: 'brave', synonym: 'courageous', options: ['cowardly', 'fearful', 'timid'] }, { word: 'calm', synonym: 'peaceful', options: ['agitated', 'excited', 'turbulent'] }, { word: 'eager', synonym: 'keen', options: ['apathetic', 'indifferent', 'reluctant'] }, { word: 'famous', synonym: 'renowned', options: ['unknown', 'obscure', 'anonymous'] }, { word: 'generous', synonym: 'giving', options: ['selfish', 'stingy', 'miserly'] }, { word: 'honest', synonym: 'truthful', options: ['deceitful', 'dishonest', 'lying'] }, { word: 'polite', synonym: 'courteous', options: ['rude', 'impolite', 'disrespectful'] }, { word: 'powerful', synonym: 'strong', options: ['weak', 'feeble', 'powerless'] }, { word: 'unusual', synonym: 'strange', options: ['common', 'ordinary', 'typical'] }, { word: 'valuable', synonym: 'precious', options: ['worthless', 'cheap', 'useless'] }, { word: 'exhausted', synonym: 'fatigued', options: ['energetic', 'rested', 'lively'] }, { word: 'ancient', synonym: 'archaic', options: ['modern', 'new', 'current'] }, { word: 'difficult', synonym: 'challenging', options: ['simple', 'easy', 'effortless'] }, { word: 'enormous', synonym: 'immense', options: ['tiny', 'small', 'minuscule'] }, { word: 'interesting', synonym: 'fascinating', options: ['boring', 'dull', 'uninteresting'] }, { word: 'reliable', synonym: 'dependable', options: ['unreliable', 'untrustworthy', 'fickle'] }, { word: 'sensible', synonym: 'practical', options: ['foolish', 'absurd', 'silly'] }, { word: 'terrible', synonym: 'awful', options: ['wonderful', 'great', 'excellent'] }, { word: 'understand', synonym: 'comprehend', options: ['misunderstand', 'confuse', 'mistake'] }, { word: 'wonderful', synonym: 'magnificent', options: ['terrible', 'dreadful', 'horrible'] }, { word: 'opportunity', synonym: 'chance', options: ['disadvantage', 'obstacle', 'hindrance'] }, { word: 'necessary', synonym: 'essential', options: ['unnecessary', 'optional', 'trivial'] }, { word: 'prohibit', synonym: 'forbid', options: ['allow', 'permit', 'authorize'] }, { word: 'allow', synonym: 'permit', options: ['prohibit', 'ban', 'deny'] }, { word: 'achieve', synonym: 'accomplish', options: ['fail', 'lose', 'forfeit'] }, { word: 'acquire', synonym: 'obtain', options: ['lose', 'surrender', 'give'] }, { word: 'apparent', synonym: 'obvious', options: ['hidden', 'unclear', 'obscure'] }, { word: 'bizarre', synonym: 'weird', options: ['normal', 'ordinary', 'common'] }, { word: 'crucial', synonym: 'vital', options: ['unimportant', 'minor', 'trivial'] }, { word: 'decrease', synonym: 'reduce', options: ['increase', 'expand', 'grow'] }, { word: 'demonstrate', synonym: 'show', options: ['hide', 'conceal', 'disprove'] }, { word: 'enormous', synonym: 'huge', options: ['tiny', 'small', 'little'] }, { word: 'frequently', synonym: 'often', options: ['rarely', 'seldom', 'infrequently'] }, { word: 'gather', synonym: 'collect', options: ['scatter', 'disperse', 'separate'] }, { word: 'gradually', synonym: 'slowly', options: ['suddenly', 'rapidly', 'quickly'] }, { word: 'identical', synonym: 'same', options: ['different', 'unlike', 'distinct'] }, { word: 'ignore', synonym: 'disregard', options: ['notice', 'acknowledge', 'attend'] }, { word: 'illustrate', synonym: 'explain', options: ['confuse', 'obscure', 'complicate'] }, { word: 'immediately', synonym: 'instantly', options: ['later', 'eventually', 'slowly'] }, { word: 'increase', synonym: 'expand', options: ['decrease', 'reduce', 'shrink'] }, { word: 'indicate', synonym: 'suggest', options: ['deny', 'contradict', 'hide'] } ],
+          'C1-C2': [ { word: 'ubiquitous', synonym: 'omnipresent', options: ['rare', 'scarce', 'infrequent'] }, { word: 'ephemeral', synonym: 'transient', options: ['permanent', 'eternal', 'lasting'] }, { word: 'gregarious', synonym: 'sociable', options: ['reclusive', 'introverted', 'shy'] }, { word: 'mitigate', synonym: 'alleviate', options: ['aggravate', 'worsen', 'intensify'] }, { word: 'ambiguous', synonym: 'equivocal', options: ['clear', 'explicit', 'unambiguous'] }, { word: 'auspicious', synonym: 'propitious', options: ['ominous', 'unfavorable', 'inauspicious'] }, { word: 'benevolent', synonym: 'magnanimous', options: ['malevolent', 'malicious', 'spiteful'] }, { word: 'cacophony', synonym: 'dissonance', options: ['harmony', 'euphony', 'melody'] }, { word: 'eloquent', synonym: 'articulate', options: ['inarticulate', 'mumbling', 'unclear'] }, { word: 'fastidious', synonym: 'meticulous', options: ['careless', 'sloppy', 'lax'] }, { word: 'idiosyncrasy', synonym: 'peculiarity', options: ['normality', 'commonality', 'regularity'] }, { word: 'juxtaposition', synonym: 'proximity', options: ['separation', 'distance', 'remoteness'] }, { word: 'loquacious', synonym: 'garrulous', options: ['taciturn', 'reticent', 'silent'] }, { word: 'nefarious', synonym: 'iniquitous', options: ['virtuous', 'righteous', 'noble'] }, { word: 'obfuscate', synonym: 'obscure', options: ['clarify', 'elucidate', 'explain'] }, { word: 'plethora', synonym: 'surfeit', options: ['dearth', 'scarcity', 'paucity'] }, { word: 'quixotic', synonym: 'idealistic', options: ['pragmatic', 'realistic', 'practical'] }, { word: 'recalcitrant', synonym: 'obstinate', options: ['compliant', 'amenable', 'docile'] }, { word: 'sycophant', synonym: 'toady', options: ['leader', 'critic', 'rebel'] }, { word: 'veracity', synonym: 'truthfulness', options: ['falsehood', 'deceit', 'mendacity'] }, { word: 'abate', synonym: 'subside', options: ['increase', 'intensify', 'amplify'] }, { word: 'aberration', synonym: 'anomaly', options: ['normality', 'regularity', 'standard'] }, { word: 'acerbic', synonym: 'caustic', options: ['kind', 'mild', 'sweet'] }, { word: 'alacrity', synonym: 'eagerness', options: ['apathy', 'reluctance', 'lethargy'] }, { word: 'anachronistic', synonym: 'obsolete', options: ['modern', 'contemporary', 'current'] }, { word: 'assuage', synonym: 'soothe', options: ['exacerbate', 'aggravate', 'intensify'] }, { word: 'audacious', synonym: 'daring', options: ['timid', 'cautious', 'cowardly'] }, { word: 'capricious', synonym: 'fickle', options: ['stable', 'consistent', 'predictable'] }, { word: 'chicanery', synonym: 'deception', options: ['honesty', 'truthfulness', 'candor'] }, { word: 'conundrum', synonym: 'enigma', options: ['solution', 'answer', 'clarification'] }, { word: 'didactic', synonym: 'instructive', options: ['uninformative', 'misleading', 'confusing'] }, { word: 'disparate', synonym: 'dissimilar', options: ['similar', 'alike', 'homogeneous'] }, { word: 'dogmatic', synonym: 'doctrinaire', options: ['flexible', 'open-minded', 'latitudinarian'] }, { word: 'eclectic', synonym: 'diverse', options: ['uniform', 'narrow', 'monolithic'] }, { word: 'enervate', synonym: 'weaken', options: ['strengthen', 'invigorate', 'energize'] }, { word: 'erudite', synonym: 'scholarly', options: ['ignorant', 'uneducated', 'illiterate'] }, { word: 'esoteric', synonym: 'abstruse', options: ['simple', 'common', 'well-known'] }, { word: 'eulogy', synonym: 'tribute', options: ['criticism', 'condemnation', 'diatribe'] }, { word: 'exacerbate', synonym: 'worsen', options: ['alleviate', 'mitigate', 'improve'] }, { word: 'exculpate', synonym: 'absolve', options: ['incriminate', 'accuse', 'blame'] }, { word: 'exigent', synonym: 'urgent', options: ['trivial', 'noncritical', 'ordinary'] }, { word: 'fallacious', synonym: 'deceptive', options: ['valid', 'truthful', 'sound'] }, { word: 'gainsay', synonym: 'dispute', options: ['confirm', 'affirm', 'agree'] }, { word: 'harangue', synonym: 'tirade', options: ['praise', 'accolade', 'eulogy'] }, { word: 'iconoclast', synonym: 'maverick', options: ['conformist', 'believer', 'traditionalist'] }, { word: 'impecunious', synonym: 'destitute', options: ['wealthy', 'affluent', 'rich'] }, { word: 'imperturbable', synonym: 'unflappable', options: ['anxious', 'agitated', 'restless'] }, { word: 'implacable', synonym: 'unrelenting', options: ['lenient', 'merciful', 'forgiving'] }, { word: 'inchoate', synonym: 'nascent', options: ['developed', 'mature', 'complete'] }, { word: 'ingenuous', synonym: 'naive', options: ['sophisticated', 'artful', 'cunning'] } ]
+        };
+        
+        // --- UTILITY FUNCTIONS ---
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        
+        // --- SCREEN MANAGEMENT ---
+        function switchScreen(screenName) {
+            Object.values(screens).forEach(s => s.classList.remove('active'));
+            if (screens[screenName]) {
+                screens[screenName].classList.add('active');
+            }
+        }
+
+        function resetGameState() {
+            gameState = {
+                players: {
+                    p1: { name: 'Player 1', score: 0 },
+                    p2: { name: 'Player 2', score: 0 }
+                },
+                currentQuestionIndex: 0,
+                questionTimeLeft: 10,
+                gameTimeLeft: GAME_DURATION,
+                questionTimer: null,
+                gameTimer: null,
+                questions: [],
+                isAnswered: false,
+            };
+        }
+
+        function startGame() {
+            playSound('start');
+            resetGameState();
+
+            // Set player names
+            gameState.players.p1.name = p1NameInput.value.trim() || 'Player 1';
+            gameState.players.p2.name = p2NameInput.value.trim() || 'Player 2';
+            player1HUD.name.textContent = gameState.players.p1.name;
+            player2HUD.name.textContent = gameState.players.p2.name;
+            player1HUD.score.textContent = 0;
+            player2HUD.score.textContent = 0;
+
+            // Create progressive question list
+            const a1a2 = shuffleArray([...wordData['A1-A2']]).slice(0, 40);
+            const b1b2 = shuffleArray([...wordData['B1-B2']]).slice(0, 40);
+            const c1c2 = shuffleArray([...wordData['C1-C2']]).slice(0, 20);
+            gameState.questions = [...a1a2, ...b1b2, ...c1c2];
+            
+            switchScreen('game');
+            
+            // Start timers
+            gameState.gameTimer = setInterval(updateGameTimer, 1000);
+            displayQuestion();
+        }
+
+        function updateGameTimer() {
+            gameState.gameTimeLeft--;
+            const minutes = Math.floor(gameState.gameTimeLeft / 60);
+            const seconds = gameState.gameTimeLeft % 60;
+            gameTimerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+            if (gameState.gameTimeLeft <= 0) {
+                endGame();
+            }
+        }
+
+        function displayQuestion() {
+            if (gameState.currentQuestionIndex >= TOTAL_QUESTIONS) {
+                endGame();
+                return;
+            }
+
+            gameState.isAnswered = false;
+            feedbackEl.textContent = '';
+            feedbackEl.style.textShadow = 'none';
+            player1Area.classList.remove('winner-glow');
+            player2Area.classList.remove('winner-glow');
+            qCountDisplay.textContent = `${gameState.currentQuestionIndex + 1} / ${TOTAL_QUESTIONS}`;
+            
+            const question = gameState.questions[gameState.currentQuestionIndex];
+            mainWordEl.textContent = question.word;
+            speak(question.word);
+
+            const choices = shuffleArray([question.synonym, ...question.options]);
+            
+            // Populate buttons for both players
+            player1HUD.options.innerHTML = '';
+            player2HUD.options.innerHTML = '';
+            
+            [player1HUD, player2HUD].forEach((hud, index) => {
+                const playerId = index === 0 ? 'p1' : 'p2';
+                choices.forEach(choice => {
+                    const button = document.createElement('button');
+                    button.textContent = choice;
+                    button.classList.add('choice-button');
+                    button.addEventListener('click', () => handleAnswer(choice, question.synonym, playerId, button));
+                    hud.options.appendChild(button);
+                });
+            });
+            
+            // Start question timer
+            clearInterval(gameState.questionTimer);
+            gameState.questionTimeLeft = 10;
+            qTimeDisplay.textContent = gameState.questionTimeLeft;
+            gameState.questionTimer = setInterval(() => {
+                gameState.questionTimeLeft--;
+                qTimeDisplay.textContent = gameState.questionTimeLeft;
+                if (gameState.questionTimeLeft <= 0) {
+                    handleAnswer(null, question.synonym, null, null); // Timeout
+                }
+            }, 1000);
+        }
+
+        function handleAnswer(selected, correct, playerId, button) {
+            if (gameState.isAnswered) return;
+            gameState.isAnswered = true;
+
+            clearInterval(gameState.questionTimer);
+            
+            // Disable all buttons for both players
+            document.querySelectorAll('.choice-button').forEach(btn => btn.disabled = true);
+
+            if (selected === null) { // Timeout
+                feedbackEl.textContent = `Time's up! The answer was "${correct}".`;
+                feedbackEl.style.textShadow = `0 0 10px var(--incorrect)`;
+                playSound('incorrect');
+                // Show correct answer for both on timeout
+                 document.querySelectorAll('.choice-button').forEach(btn => {
+                    if (btn.textContent === correct) {
+                        btn.classList.add('correct');
+                    }
+                });
+            } else if (selected === correct) {
+                gameState.players[playerId].score += 4;
+                feedbackEl.textContent = `${gameState.players[playerId].name} is Correct!`;
+                feedbackEl.style.textShadow = `0 0 10px var(--correct)`;
+                button.classList.add('correct');
+                
+                // Add glow and coins to winner
+                const winnerArea = playerId === 'p1' ? player1Area : player2Area;
+                const winnerScoreEl = playerId === 'p1' ? player1HUD.score : player2HUD.score;
+                winnerArea.classList.add('winner-glow');
+                animateCoins(winnerScoreEl, playerId);
+
+                playSound('correct');
+            } else {
+                feedbackEl.textContent = `Incorrect, ${gameState.players[playerId].name}!`;
+                feedbackEl.style.textShadow = `0 0 10px var(--incorrect)`;
+                button.classList.add('incorrect');
+                
+                // Show correct answer only for the player who answered
+                const playerOptions = playerId === 'p1' ? player1HUD.options : player2HUD.options;
+                playerOptions.querySelectorAll('.choice-button').forEach(btn => {
+                     if (btn.textContent === correct) {
+                        btn.classList.add('correct');
+                    }
+                });
+                playSound('incorrect');
+            }
+            
+            // Update scores on HUD
+            player1HUD.score.textContent = gameState.players.p1.score;
+            player2HUD.score.textContent = gameState.players.p2.score;
+            
+            gameState.currentQuestionIndex++;
+            setTimeout(displayQuestion, 2500);
+        }
+
+        function animateCoins(targetElement, playerId) {
+            for (let i = 0; i < 5; i++) {
+                const coin = document.createElement('div');
+                coin.classList.add('coin');
+                
+                // Start in the middle of the screen
+                coin.style.top = '50vh';
+                coin.style.left = '50vw';
+                
+                // Add random offset to starting position for a "burst" effect
+                const offsetX = (Math.random() - 0.5) * 100;
+                const offsetY = (Math.random() - 0.5) * 100;
+                coin.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+
+                document.body.appendChild(coin);
+
+                // Set animation
+                const animationName = playerId === 'p1' ? 'fly-to-p1' : 'fly-to-p2';
+                coin.style.animation = `${animationName} 1s ease-out forwards`;
+                coin.style.animationDelay = `${i * 0.05}s`;
+
+                coin.addEventListener('animationend', () => {
+                    coin.remove();
+                });
+            }
+        }
+        
+        function endGame() {
+            clearInterval(gameState.gameTimer);
+            clearInterval(gameState.questionTimer);
+            playSound('end');
+            
+            const p1 = gameState.players.p1;
+            const p2 = gameState.players.p2;
+
+            endScreen.p1.name.textContent = p1.name;
+            endScreen.p1.score.textContent = p1.score;
+            endScreen.p2.name.textContent = p2.name;
+            endScreen.p2.score.textContent = p2.score;
+            
+            endScreen.p1.card.classList.remove('winner-card');
+            endScreen.p2.card.classList.remove('winner-card');
+
+            if (p1.score > p2.score) {
+                endScreen.winnerName.textContent = `${p1.name} Wins!`;
+                endScreen.p1.card.classList.add('winner-card');
+            } else if (p2.score > p1.score) {
+                endScreen.winnerName.textContent = `${p2.name} Wins!`;
+                endScreen.p2.card.classList.add('winner-card');
+            } else {
+                endScreen.winnerName.textContent = "It's a Tie!";
+            }
+            
+            switchScreen('end');
+        }
+
+        // --- EVENT LISTENERS ---
+        startGameBtn.addEventListener('click', startGame);
+        endScreen.playAgainBtn.addEventListener('click', () => switchScreen('home'));
+
+        // --- INITIALIZATION ---
+        setupVoice();
+    </script>
+</body>
+</html>

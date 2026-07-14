@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamified Audio Quizzes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .feedback-modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+        @keyframes fly-to-score {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--translateX), var(--translateY)) scale(0.2); opacity: 0; }
+        }
+        .score-token {
+            position: absolute;
+            animation: fly-to-score 1s ease-in-out forwards;
+            z-index: 100;
+            pointer-events: none;
+        }
+        @keyframes badge-unlocked {
+            0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+            50% { transform: scale(1.2) rotate(10deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .badge-unlocked-animation {
+            animation: badge-unlocked 0.5s ease-out;
+        }
+        /* Ensure the game page takes up the full view height on mobile */
+        #game-page {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        #quiz-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        #questions-container {
+            flex-grow: 1;
+            overflow-y: auto; /* Allow questions to scroll if they overflow on small screens */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Start Page -->
+    <div id="start-page" class="max-w-lg mx-auto p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-screen">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 text-center w-full">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-4">Audio Quiz Challenge</h1>
+            <p class="text-gray-600 mb-8">Enter your name to begin your quest!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name..." class="w-full px-4 py-3 border border-gray-300 rounded-lg mb-6 text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            <button id="start-game-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-xl transition-transform transform hover:scale-105 shadow-lg">Start Game</button>
+        </div>
+    </div>
+
+    <!-- Game Page -->
+    <div id="game-page" class="hidden max-w-5xl mx-auto p-2 sm:p-4 md:p-6 w-full">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl shadow-lg p-4 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-0 z-10">
+            <div class="text-center sm:text-left">
+                <h2 class="text-2xl font-bold text-gray-900" id="player-name-display">Player</h2>
+                <p class="text-gray-500 text-sm sm:text-base">Reach 50 correct answers to win!</p>
+            </div>
+            <div class="flex items-center gap-4 sm:gap-6">
+                <div id="badges-container" class="flex items-center gap-2">
+                    <!-- Badges will be added here -->
+                </div>
+                <div id="score-container" class="text-center relative">
+                    <div class="text-sm font-semibold text-gray-500">SCORE</div>
+                    <div id="score" class="text-3xl sm:text-4xl font-extrabold text-blue-600" aria-live="polite">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quiz Container -->
+        <div id="quiz-container" class="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <!-- Audio Player & Timer -->
+            <div class="p-4 sm:p-6 border-b border-gray-200 bg-gray-50">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-4 w-full">
+                        <button id="playPauseBtn" class="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center rounded-full text-white bg-blue-500 hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex-shrink-0">
+                            <svg id="playIcon" class="w-6 h-6 sm:w-7 sm:h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l1.54 6.348a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" /></svg>
+                            <svg id="pauseIcon" class="w-6 h-6 sm:w-7 sm:h-7 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-6-13.5v13.5" /></svg>
+                        </button>
+                        <div class="text-left flex-grow">
+                             <div id="quiz-title" class="text-lg sm:text-xl font-bold text-gray-900">Quiz Title</div>
+                             <p id="quiz-instruction" class="text-gray-600 text-xs sm:text-sm">Listen carefully to the audio.</p>
+                        </div>
+                    </div>
+                    <div id="timer-container" class="text-center hidden flex-shrink-0">
+                         <div class="text-sm font-semibold text-gray-500">TIME LEFT</div>
+                         <div id="timer" class="text-3xl sm:text-4xl font-extrabold text-red-600">3:00</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Questions -->
+            <div id="questions-container" class="p-4 sm:p-6 space-y-4">
+                <!-- MCQ will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
+        <div class="feedback-modal-backdrop fixed inset-0"></div>
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg relative text-center">
+            <h3 id="game-over-title" class="text-4xl font-extrabold text-green-500 mb-4">Congratulations!</h3>
+            <p id="game-over-subtitle" class="text-lg text-gray-700 mb-6">You've completed the challenge!</p>
+            <div class="mb-6">
+                <div class="text-lg font-semibold text-gray-500">FINAL SCORE</div>
+                <div id="final-score" class="text-5xl font-black text-blue-600">0</div>
+            </div>
+            <div id="final-badges-container" class="flex items-center justify-center gap-4 mb-6">
+                 <!-- Final badges will be shown here -->
+            </div>
+            <!-- Mistake Summary -->
+            <div id="mistake-summary-container" class="mb-8"></div>
+            <button id="play-again-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-xl transition-transform transform hover:scale-105 shadow-lg">Play Again</button>
+        </div>
+    </div>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DATA ---
+        const WIN_CONDITION = 50; // Set win condition to 50 correct answers
+        const quizData = [
+            // Quiz 1
+            {
+                instruction: "You will hear a student giving a review of a new video game to his class.",
+                title: "Video Game Review",
+                audioscript: `<p>Hi everyone. I’m going to tell you about a new video game that I’ve played a lot recently, called Sky Jam. It’s produced by the same company that made Road Jam a few years ago, which was set in a city of course. Instead of streets and huge buildings, though, you’ll find yourself living in a rainforest in this game.</p><p>It’s an unusual game because you have to answer questions in order to make progress, as well as by moving through the environment. You’ll be asked all sorts of things regarding insects, which you have to learn on the way from the many helpful creatures you meet, such as butterflies and bats.</p><p>There are 30 levels in the whole game, which are supposed to become more and more challenging as you go on. I found the one called ‘the monkey’ almost impossible, even though it comes well before the last level, called ‘the frog’, which didn’t seem so difficult.</p><p>There are lots of things to love about this game. The story you learn about as you continue through the game is fantastic, second only to the characters you can play, who are lovely, and extremely interesting too. Learning to play the game is easy and fun, too.</p><p>Unfortunately, unlike the eight players who could play against each other in Road Jam, six people at the most can join in this game at any one time. I found this to be a few too many, though, and preferred playing in a group of four.</p><p>You can find out more about the game online. If you’re interested, visit the company’s website www.lombardio.com. I’ll spell that for you: it’s L-O-M-B-A-R-D-I-O.</p>`,
+                mcqs: [
+                    { question: "What is the setting of the video game 'Sky Jam'?", options: ["A busy city", "A rainforest", "A desert", "Outer space"], answer: "A rainforest", feedback: "Correct! The speaker says, '...you’ll find yourself living in a rainforest in this game.'" },
+                    { question: "What topic are the in-game questions about?", options: ["Butterflies", "Bats", "Rainforest plants", "Insects"], answer: "Insects", feedback: "That's right. The speaker mentions, 'You’ll be asked all sorts of things regarding insects...'" },
+                    { question: "Which level did the speaker find the most difficult?", options: ["The frog", "The monkey", "The last level", "Road Jam"], answer: "The monkey", feedback: "Correct. The speaker says, 'I found the one called ‘the monkey’ almost impossible...'" },
+                    { question: "What is the maximum number of players for 'Sky Jam'?", options: ["Four", "Eight", "Six", "Thirty"], answer: "Six", feedback: "Correct! The speaker states, '...six people at the most can join in this game at any one time.'" }
+                ]
+            },
+            // Quiz 2
+            {
+                instruction: "You will hear a teacher giving some information about a school photography competition.",
+                title: "Photography Competition",
+                audioscript: `<p>Listen, everyone! I’ve got some information about this year’s school photography competition. As you’ll probably remember, last year’s competition asked you to focus on the topic of travel, but photos should have something to do with the environment this time.</p><p>As in previous years, there are certain things that we want the photographs to include. We want all the pictures to have wildlife in them, so we’re not looking for photos that only show landscapes or people.</p><p>The head teacher has decided to ask someone from outside the school to judge the competition this year. She was hoping that local artist Sally Graves would be able to judge the entries, but she’s actually away at that time. Writer James McKay has agreed to help us instead. I’m sure many of you have heard of him, as he’s quite famous and was born not far away from here, too.</p><p>It was felt that most keen photographers already have the photography books or equipment they need, so the organisers have decided that the winner will receive a photography course run by Central College instead. The College was also hoping to have a small photography exhibition for winners of all the school photography competitions in the area, but their gallery’s too busy putting on other shows, I’m afraid.</p><p>The winner of the competition will be announced on 11th March. If you wish to enter, please make sure we receive your photos by 15th February, as the judging will take place on 19th February.</p><p>So if you’re interested, send your entry to the school secretary, Mrs Mitchell, not to me or the head teacher. I’ll give you her email address – it’s k dot Mitchell, that’s spelt M-I-T-C-H-E-double-L at school dot com. Good luck!</p>`,
+                mcqs: [
+                    { question: "What is the theme of this year's photography competition?", options: ["Travel", "People", "The environment", "Landscapes"], answer: "The environment", feedback: "Correct! The teacher says, '...photos should have something to do with the environment this time.'" },
+                    { question: "Who will be judging the competition?", options: ["The head teacher", "A local artist", "A famous writer", "The school secretary"], answer: "A famous writer", feedback: "That's right. It will be judged by 'Writer James McKay'." },
+                    { question: "What is the first prize for the competition?", options: ["Photography equipment", "A photography book", "An exhibition of their work", "A photography course"], answer: "A photography course", feedback: "Correct. The winner will receive 'a photography course run by Central College.'" },
+                    { question: "What is the deadline for sending in photos?", options: ["11th March", "19th February", "15th February", "7th July"], answer: "15th February", feedback: "Correct! The teacher states, '...please make sure we receive your photos by 15th February...'" }
+                ]
+            },
+            // Quiz 3
+            {
+                instruction: "You will hear a student giving some information about an acting club.",
+                title: "Acting Club",
+                audioscript: `<p>Hello, everyone! I’d like to tell you about this wonderful acting club I joined recently. The best thing about it is the teacher. We’re really lucky to have someone who’s actually quite famous. Her name’s Alice Fisher, and she’s appearing in a play at the big theatre in town at the moment. She plays a policewoman in that, but you’ll probably know her better as the farmer in the series ‘Green Valley’ that was on last year.</p><p>She’s worked as a professional theatre actor for about 10 years. As well as having three years’ experience of appearing in serious drama, she’s also spent seven years working in comedy productions, so has lots of different talents.</p><p>The sessions are always fun and are split into two sections. In the first part, rather than practising anything to do with movement of the body, we focus instead on improving how to control the voice as an actor. In the second part, we practise our performance skills.</p><p>If you’re interested in coming to the drama club, you’ll need to know where to come, of course. The club actually hires a room from the university to run the classes. It’s much cheaper to do it there than at the college or the acting school. The sessions are on Wednesday evenings.</p><p>At the moment, we’re practising for a play, which will be on at the Town Theatre soon. Its name is ‘The Passenger’ and we’re hoping that this latest one will be as popular as the last production the club did, which was called ‘Reality’. It was a big success, apparently.</p><p>We’ve got our last practice for the new play on the thirteenth of July, with audiences able to come and see it from twentieth of July for one week.</p><p>Thanks for listening.</p>`,
+                mcqs: [
+                    { question: "What is the teacher, Alice Fisher, best known for?", options: ["Playing a policewoman", "Appearing in serious drama", "Playing a farmer on TV", "Working in comedy"], answer: "Playing a farmer on TV", feedback: "Correct! The speaker says, '...you’ll probably know her better as the farmer in the series ‘Green Valley’...'" },
+                    { question: "What is the main focus of the first part of each session?", options: ["Practising movement", "Controlling the voice", "Learning performance skills", "Reading scripts"], answer: "Controlling the voice", feedback: "That's right. In the first part, '...we focus instead on improving how to control the voice as an actor.'" },
+                    { question: "Where do the acting club sessions take place?", options: ["At the college", "At the acting school", "At the Town Theatre", "At the university"], answer: "At the university", feedback: "Correct. The speaker explains, 'The club actually hires a room from the university to run the classes.'" },
+                    { question: "What is the name of the play the club is currently practising?", options: ["Green Valley", "Reality", "The Passenger", "The Policewoman"], answer: "The Passenger", feedback: "Correct! The speaker says, 'Its name is ‘The Passenger’...'" }
+                ]
+            },
+            // Quiz 4
+            {
+                instruction: "You will hear a student called Matilde giving a presentation about a science museum.",
+                title: "Science Museum Visit",
+                audioscript: `<p>Hi everyone. I’m going to tell you about my trip to the new science museum last week. I went with my family and we looked around the whole museum. There are loads of different rooms and each one contains displays about a particular topic. We spent ages looking around the room that was all about space’ and even longer in the one with loads of stuff on ‘energy’, which I thought was the best bit.</p><p>The museum’s free, but there are also two special exhibitions that you have to pay for. You can’t go into the one on ’health’ yet because it doesn’t open for another couple of weeks. I’d like to go back and see that. The other exhibition on ‘computers’ was good, though.</p><p>As well as the displays, there are lots of things you can actually do there too. My brother made this fantastic car that went quite fast, using only power from the sun, while I created a rocket that used gas to fly. It went really high!</p><p>As well as the interesting things to see and do, there’s a nice shop. My mum and dad let me get something because it was my birthday. There were so many chemistry sets to choose from, it took me ages to decide which one I wanted. They have the usual toys and games, and a few nice books there, too.</p><p>You can also take a tour of the museum with a guide. When we arrived, they said we’d have to wait for at least sixty minutes for the eighty-minute tour because it was so popular, so we decided against it.</p><p>If you want to go, the entrance is on Lockhart Road. I’ll spell that for you, it’s L-O-C-K-H-A-R-T Road.</p><p>Thanks for listening.</p>`,
+                mcqs: [
+                    { question: "Which room in the museum was Matilde's favourite?", options: ["The space room", "The health exhibition", "The computers exhibition", "The energy room"], answer: "The energy room", feedback: "Correct! Matilde says, '...even longer in the one with loads of stuff on ‘energy’, which I thought was the best bit.'" },
+                    { question: "What did Matilde make at the museum?", options: ["A car that used gas", "A rocket that used solar power", "A car that used solar power", "A rocket that used gas"], answer: "A rocket that used gas", feedback: "That's right. She says, '...I created a rocket that used gas to fly.'" },
+                    { question: "What did Matilde buy in the museum shop?", options: ["A toy car", "A book about space", "A chemistry set", "A game"], answer: "A chemistry set", feedback: "Correct. She mentions, 'There were so many chemistry sets to choose from, it took me ages to decide which one I wanted.'" },
+                    { question: "Why did Matilde's family decide not to take the guided tour?", options: ["It was too expensive", "It was too long", "It was too popular and had a long wait", "It wasn't interesting"], answer: "It was too popular and had a long wait", feedback: "Correct! They decided against it because 'we’d have to wait for at least sixty minutes for the eighty-minute tour because it was so popular.'" }
+                ]
+            },
+            // Quiz 5
+            {
+                instruction: "You will hear a teacher giving his students information about a school trip to a farm.",
+                title: "School Trip to Farm",
+                audioscript: `<p>Good morning everyone. I’m going to tell you about the school trip to the farm tomorrow. As I told you last week, you need to wait for the bus by the school gate, so don’t go to the bus stop or come straight into the playground like you usually do.</p><p>The farm is providing us all with a nice packed lunch, so there’s no need to bring one yourself. It’d be great if you could make sure you’ve got a drink, though, as it can get quite hot on the bus.</p><p>There are lots of different animals on the farm. You’re all going to have a go at brushing the horses just after we arrive there at about 9 a.m. Shortly after this, you’ll learn what farmers give lambs to eat, and you’ll be able to give them their breakfast, too.</p><p>As well as the animals, the farm has lots of activities students can take part in. We’re going to do some climbing on the special wall they have there after lunch, and maybe next time we can try one of the other activities like fishing or playing baseball.</p><p>We’ll be setting off back to school at about 3.30 p.m., and will be back here at 4.15, so 45 minutes after the usual school finish time of 3.30. Please could you let your parents know, especially if they usually come to the school to pick you up.</p><p>If you or your parents want to find out more about the farm before we go, you can visit their website and there’s loads of information about it on there. I’ll give you the website address: it’s www dot caffertys dot farm dot com. I’ll spell that for you: it’s C-A-double F-E-R-T-Y-S dot farm dot com.</p><p>OK, see you all tomorrow.</p>`,
+                mcqs: [
+                    { question: "What do students need to bring with them on the trip?", options: ["A packed lunch", "Money for lunch", "A drink", "A baseball"], answer: "A drink", feedback: "Correct! The teacher says, '...it’d be great if you could make sure you’ve got a drink...'" },
+                    { question: "Which activity will the students do in the morning?", options: ["Brushing horses and feeding lambs", "Climbing the wall", "Fishing", "Playing baseball"], answer: "Brushing horses and feeding lambs", feedback: "That's right. The script says they will brush horses just after arriving and then feed the lambs." },
+                    { question: "What activity is planned for after lunch?", options: ["Feeding lambs", "Fishing", "Climbing", "Brushing horses"], answer: "Climbing", feedback: "Correct. The teacher says, 'We’re going to do some climbing on the special wall they have there after lunch...'" },
+                    { question: "What time will the students arrive back at school?", options: ["3:30 p.m.", "4:00 p.m.", "4:15 p.m.", "4:30 p.m."], answer: "4:15 p.m.", feedback: "Correct! The teacher states they 'will be back here at 4.15...'" }
+                ]
+            },
+            // Quiz 6
+            {
+                instruction: "You will hear a music teacher giving some information to students about Saturday music classes.",
+                title: "Saturday Music Classes",
+                audioscript: `<p>Listen, everyone. I know some of you are interested in learning to play a musical instrument so I have some information about Saturday morning music classes that are starting this week.</p><p>There are many classes to choose from for a range of different instruments. You can learn anything from the drums to the guitar. The violin teacher the school usually uses can’t make it on Saturdays, but why not have a go at the flute if you prefer classical music.</p><p>When you arrive at the school, you’ll need to collect your instruments. You probably know that these are normally kept in the large cupboard next to the technology room but we’ll make sure they’re all ready for you in the drama room so go straight there, please.</p><p>You’ll need to tell your parents about the cost, of course. They can pay in two different ways: if they decide to pay for each individual class, it’ll be £7.75, or they can pay per term, in which case it works out a little cheaper at £72.</p><p>There’ll be an end of term concert for all students, which will take place on 24th June, and not on 7th July as it says on the school website. You’ll be able to play solo, that’s by yourself, or with others. Last year, there were several students who joined together in a band and they played together at the concert. This year, though, we’d like to include more people and have an orchestra that students can play in. Family and friends are welcome to come and listen.</p><p>If you or your parents want more information, you’ll need to email Mr Driscoll, the music teacher on driscoll at school dot net. I’ll spell that for you: it’s D-R-I-S-C-O-double-L at school dot net.</p>`,
+                mcqs: [
+                    { question: "Which instrument is NOT available on Saturdays?", options: ["Drums", "Guitar", "Violin", "Flute"], answer: "Violin", feedback: "Correct. The speaker says, 'The violin teacher the school usually uses can’t make it on Saturdays...'" },
+                    { question: "Where should students go when they arrive?", options: ["The technology room", "The large cupboard", "The drama room", "The main office"], answer: "The drama room", feedback: "That's right. Students are told to go 'straight there' to the drama room to collect their instruments." },
+                    { question: "When is the end-of-term concert?", options: ["7th July", "24th July", "7th June", "24th June"], answer: "24th June", feedback: "Correct. The concert 'will take place on 24th June, and not on 7th July as it says on the school website.'" },
+                    { question: "What new musical group is being introduced this year?", options: ["A solo performance group", "A student band", "An orchestra", "A choir"], answer: "An orchestra", feedback: "Correct! The teacher says, '...this year, though, we’d like to include more people and have an orchestra that students can play in.'" }
+                ]
+            },
+            // Quiz 7
+            {
+                instruction: "You will hear a radio presenter called Erica talking about how we can help the environment.",
+                title: "Help the Environment",
+                audioscript: `<p>This morning we’re continuing to look at environmental problems to see what we can do to help. And we can make a difference if we try. We often forget that as people who go shopping, we have a lot of power. If one company does something we don’t like we can always shop somewhere else.</p><p>Then there’s the amount of plastic that comes with the goods we buy. Try buying things that aren’t wrapped in it. And if you’re offered a bag and you don’t need one, just say ‘no thanks’. And any plastic bags you have at home, don’t throw them away. Put them away somewhere until your next shopping trip and use them then.</p><p>On the subject of throwing stuff away, I try to keep things that other people might be able to use. There are always charity shops which are very happy to help you recycle your old clothes or things in the house. Knowing that someone else is getting pleasure from something you no longer need is a lovely feeling.</p><p>Pollution is of course a big problem, and we often feel that as individuals we have no power to make any difference. But that’s not true. Find out what some of the local environmental problems are and see how you can help. Get together with friends and help to clear the rubbish from local rivers or collect litter from the streets around your home to keep the area looking tidy.</p><p>Finally, let’s turn to energy. Cars are here to stay for the moment, and it would be difficult to ask people not to use them at all. But we should all try to avoid making unnecessary car journeys. Go by bike or public transport sometimes or, if you work in the same area as your neighbour, try car-sharing. Take it in turns to drive to work.</p>`,
+                mcqs: [
+                    { question: "What power does the presenter say shoppers have?", options: ["The power to set prices", "The power to shop somewhere else", "The power to demand less plastic", "The power to get free bags"], answer: "The power to shop somewhere else", feedback: "Correct! The presenter says, 'If one company does something we don’t like we can always shop somewhere else.'" },
+                    { question: "What does the presenter suggest doing with old clothes?", options: ["Throwing them away", "Reusing them at home", "Giving them to charity shops", "Selling them online"], answer: "Giving them to charity shops", feedback: "That's right. The advice is to give them to 'charity shops which are very happy to help you recycle your old clothes...'" },
+                    { question: "How does the presenter suggest people can help with local pollution?", options: ["Writing to the council", "Only using public transport", "Clearing rubbish from rivers and streets", "Donating to environmental groups"], answer: "Clearing rubbish from rivers and streets", feedback: "Correct. The suggestion is to 'help to clear the rubbish from local rivers or collect litter from the streets...'" },
+                    { question: "What is suggested as an alternative to making unnecessary car journeys?", options: ["Working from home", "Only driving at night", "Buying an electric car", "Car-sharing with a neighbour"], answer: "Car-sharing with a neighbour", feedback: "Correct! One of the final suggestions is to 'try car-sharing' with a neighbour." }
+                ]
+            },
+            // Quiz 8
+            {
+                instruction: "You will hear a radio presenter called Jonathan talking about the programmes on during the week.",
+                title: "Radio Programmes",
+                audioscript: `<p>Before tonight’s news let me tell you about some of the shows we have for you this week so you can make a note of them in your diary. There are a few changes to our regular programmes so listen carefully to make sure you don’t miss any of your favourites.</p><p>Tonight at 8.30 John Seymour will present this week’s wildlife documentary. John entertained us all previously with his trip to the safari park when he went along to meet the elephants. This time John will be telling us about how we can recognise the wildflowers in our gardens.</p><p>Then our first change of schedule. Apologies to listeners looking forward to Writers’ World and our interview with Francis Selhurst, on how to get ideas for your next novel. We’ve had to rearrange this interview for next week as Francis is attending a conference. Instead, we’ll be talking with an expert about how you can make use of the internet to get your next book published.</p><p>On Thursday at 8.00 we have Sports Night as usual, with a look at next Weekend’s football. Most of the games from last Saturday were cancelled due to the terrible weather, so there are no reports on those matches. But our experts will be looking forward to seeing some action this Saturday and will be trying to predict results as usual. Join our team at 8.00.</p><p>And finally, our reporter Sally Williams will be in town next Friday morning. She’ll be interviewing people for our weekly programme Money Matters, starting from 10.00, not the usual 9.00. If you’d like the chance to speak to her and share your views of your experiences and any problems you may have, meet Sally at the main door of the library, not the normal meeting place at the Town Hall, which is closed due to building work.</p>`,
+                mcqs: [
+                    { question: "What is the topic of tonight's wildlife documentary?", options: ["Elephants at a safari park", "Recognising wildflowers", "Getting ideas for novels", "Last weekend's football"], answer: "Recognising wildflowers", feedback: "Correct! The presenter says, 'This time John will be telling us about how we can recognise the wildflowers in our gardens.'" },
+                    { question: "Why has the 'Writers’ World' interview been rearranged?", options: ["The author is unwell", "The author is at a conference", "The expert couldn't make it", "There was a scheduling mistake"], answer: "The author is at a conference", feedback: "That's right. The interview was rearranged 'as Francis is attending a conference.'" },
+                    { question: "Why won't 'Sports Night' discuss last Saturday's matches?", options: ["They were boring", "The experts were away", "They were cancelled due to weather", "They are being discussed next week"], answer: "They were cancelled due to weather", feedback: "Correct. The presenter explains, 'Most of the games from last Saturday were cancelled due to the terrible weather...'" },
+                    { question: "Where can people meet Sally Williams on Friday?", options: ["At the Town Hall", "At the radio station", "At the main door of the library", "At the football ground"], answer: "At the main door of the library", feedback: "Correct! The new meeting place is 'at the main door of the library, not the normal meeting place at the Town Hall...'" }
+                ]
+            },
+            // Quiz 9
+            {
+                instruction: "You will hear a manager called Sandra talking about a company training day.",
+                title: "Company Training Day",
+                audioscript: `<p>Can I just say something about the training day next week. You should all receive your programme by email shortly. We’ve had to make changes to rooms and even now some of the training sessions may have to be held in a different building. But we’ll let you know if this happens.</p><p>Some of you have asked about changing to a different session than the one you signed up for. We’ve tried to do this when it’s been possible but as some training sessions are full it will sometimes not be possible. We will let you know by email on 13 September the full list of names of people going to each session.</p><p>The trainers will email you the materials they’ll be using during the sessions for you to have a look at before the training day. There are some tasks for you to complete in preparation for your session. Please make sure you print out these materials and complete the exercises before you attend.</p><p>At the end of the training day you will all be given a questionnaire for your comments on each of the sessions you attended. Could you please make sure you complete this and give it to the training manager? We are using a new company for this event and are keen to see how well the day goes.</p><p>Because staff in the company restaurant will also be attending training sessions, the restaurant will not be open. We are arranging cold food, teas and coffee for everyone. Could you email the restaurant manager before the end of this week and let him know if you have any special dietary requirements.</p><p>Finally, can I remind you to check the noticeboard outside room 134 for any last-minute changes. Yes, we’ll email you all important information but several of you have complained that you haven’t received our messages, so to be absolutely sure you’re up to date, check the noticeboard.</p>`,
+                mcqs: [
+                    { question: "What must employees do before the training day?", options: ["Email the trainer", "Print materials and complete exercises", "Choose a different session", "Visit a different building"], answer: "Print materials and complete exercises", feedback: "Correct. Sandra says, 'Please make sure you print out these materials and complete the exercises before you attend.'" },
+                    { question: "Who should the completed questionnaire be given to?", options: ["The trainer", "The restaurant manager", "The training manager", "The head of the company"], answer: "The training manager", feedback: "That's right. The instruction is to 'give it to the training manager.'" },
+                    { question: "Why will the company restaurant be closed?", options: ["It is being redecorated", "The staff are on holiday", "The staff will be attending training", "It is a cost-saving measure"], answer: "The staff will be attending training", feedback: "Correct. The reason given is, 'Because staff in the company restaurant will also be attending training sessions...'" },
+                    { question: "Where is the final place to check for last-minute changes?", options: ["In an email", "On the company website", "The noticeboard outside room 134", "By calling the training manager"], answer: "The noticeboard outside room 134", feedback: "Correct! Sandra says to check the noticeboard 'to be absolutely sure you’re up to date.'" }
+                ]
+            },
+            // Quiz 10
+            {
+                instruction: "You will hear a student called Andreana giving a presentation to her class about her father’s job.",
+                title: "Fly High",
+                audioscript: `<p>Hi everyone. I have chosen to tell you about my father’s job for the project we had for today. I chose the first project which focuses on jobs. I found the other topic on the environment a bit difficult.</p><p>My father is a pilot for an international airline company. He’s been flying people around the world for the last sixteen years and he loves his job. After he graduated from university, he became a teacher. He taught in a primary school and he really enjoyed it. However, he’d always had a dream that one day he would fly, so he decided to go for an important career change and train as a pilot.</p><p>He will never forget his first flight when he was responsible for a plane with 80 happy holiday-makers on their way to Italy. Six more people were working on the plane. He was very nervous. Everything went well though and he was so pleased when his first flight was behind him.</p><p>He often gets nervous people asking him questions about how dangerous flying really is. He tells them that it is the safest way to travel. However, sometimes unexpected things happen during a flight, such as bad weather or difficult passengers, but he says that the most important thing a pilot can do is to always stay calm.</p><p>My father believes that what nervous passengers have in common is that they need to be in control of their life and when they get on a plane they have to give up that control.</p><p>He always does his best to make passengers feel relaxed on the flight. Once he has taken off and he is cruising in the sky, he always has a coffee to make him feel extra awake and ready for anything.</p>`,
+                mcqs: [
+                    { question: "What was Andreana's father's job before he became a pilot?", options: ["An airline manager", "A primary school teacher", "An environmental scientist", "A university student"], answer: "A primary school teacher", feedback: "Correct! The text says, 'After he graduated from university, he became a teacher. He taught in a primary school...'" },
+                    { question: "How many passengers were on his first flight?", options: ["Sixteen", "Eighty", "Six", "Eighty-six"], answer: "Eighty", feedback: "That's right. It was 'a plane with 80 happy holiday-makers...'" },
+                    { question: "According to her father, what is the most important thing for a pilot to do during unexpected events?", options: ["Fly faster", "Stay calm", "Talk to the passengers", "Drink coffee"], answer: "Stay calm", feedback: "Correct. He says '...the most important thing a pilot can do is to always stay calm.'" },
+                    { question: "What does Andreana's father believe nervous passengers need?", options: ["To be in control of their life", "To ask lots of questions", "To have a coffee", "To know how safe flying is"], answer: "To be in control of their life", feedback: "Correct! He believes they 'need to be in control of their life and when they get on a plane they have to give up that control.'" }
+                ]
+            },
+            // Quiz 11
+            {
+                instruction: "You will hear a radio presenter called William talking about a photography course he did.",
+                title: "How to Take a Great Photo",
+                audioscript: `<p>I had a great time away on holiday and one of the things I did was go on a two-day photography course about taking photos of people. It was for beginners and I was given quite a few tips, some of which I think are really useful.</p><p>For example, getting your position correct is really important. They said a common mistake is to stand too far away from the person. You get a much better result if you get close to them as they take up more of the photo. It’s also important to make sure the camera is at the same height as the person, especially if you’re taking one of a child.</p><p>A really useful tip was to pay attention to the background. The person will stand out much more if the background is as plain as possible. This will help you to focus on the subject of your photo.</p><p>Although most smartphones come with a flash to provide extra light, they suggested we try to make as much use as possible of daylight. Doing this will make the colours more accurate and the photo will appear more natural.</p><p>We’re all used to asking someone to ‘say cheese’ when we’re about to take their photo. To get a more interesting picture, they recommended taking a photo of the person when they don’t know you’re about to do it. Perhaps they’re reading or looking out of the window.</p><p>Finally, they told us to take plenty of photos so we can practise our skills. They said we should aim to take at least three photos of people every day. These can be of friends and family or even strangers, if you ask their permission.</p>`,
+                mcqs: [
+                    { question: "What is a common mistake when taking photos of people?", options: ["Standing too close", "Using the flash", "Standing too far away", "Taking photos of children"], answer: "Standing too far away", feedback: "Correct. The speaker says, 'a common mistake is to stand too far away from the person.'" },
+                    { question: "What kind of background is recommended for a photo?", options: ["A busy background", "A colourful background", "A plain background", "A dark background"], answer: "A plain background", feedback: "That's right. The tip was that 'the person will stand out much more if the background is as plain as possible.'" },
+                    { question: "Why is using daylight better than a flash?", options: ["It makes the photo brighter", "It makes the colours more accurate", "It is easier to use", "It makes the background blurry"], answer: "It makes the colours more accurate", feedback: "Correct. Using daylight 'will make the colours more accurate and the photo will appear more natural.'" },
+                    { question: "How many photos did the course suggest taking each day to practice?", options: ["At least one", "At least three", "As many as possible", "Only photos of strangers"], answer: "At least three", feedback: "Correct! The advice was to 'aim to take at least three photos of people every day.'" }
+                ]
+            },
+            // Quiz 12
+            {
+                instruction: "You will hear a radio presenter called Ellen talking about activities taking place over the summer.",
+                title: "Summer Activities",
+                audioscript: `<p>If you’re looking for things to do over the summer, there’s lots going on in the area. I’ll give you an idea of what you can do now, but for a full programme of events text 1576 and we’ll send you a link to all the information you need.</p><p>To give you a taste of what’s on offer, the Activity Centre is running a wide range of activities for all the family. There’s climbing for beginners. This is indoors and will be led by experienced teachers. The centre has also organised a walk along the coast path for a look at some of the creatures you can find there. The centre is open seven days a week, with a special open day on the thirteenth of June to give you an idea of what else is on offer.</p><p>As you know, our town has a very long history, and those with an interest in the past can sign up for one of the guided walks the History Group has organised. Find out where a very well-known celebrity was born and learn about local industry in the past. You can find out more at the History Centre, which is located in the central library.</p><p>For film lovers, the Arts Centre has a full programme of films running throughout the summer months. And the Book Festival, which starts on the fourteenth of August, has several speakers on its programme and book readings by some well-known authors. This year they’ll be organising a question and answer session for anyone interested in writing poetry. The Arts Centre expects this to be quite popular, so you should call them first to book a place.</p>`,
+                mcqs: [
+                    { question: "Which activity at the Activity Centre is specifically for beginners?", options: ["Wildlife walks", "Climbing", "The open day", "Sailing"], answer: "Climbing", feedback: "Correct! The presenter mentions, 'There’s climbing for beginners. This is indoors...'" },
+                    { question: "What can people learn about on the History Group's guided walk?", options: ["Local wildlife", "The central library", "A famous celebrity's birthplace", "The Book Festival"], answer: "A famous celebrity's birthplace", feedback: "That's right. The walk lets you 'Find out where a very well-known celebrity was born...'" },
+                    { question: "Where is the History Centre located?", options: ["In the Activity Centre", "In the Arts Centre", "In the central library", "At the town hall"], answer: "In the central library", feedback: "Correct. The presenter states it 'is located in the central library.'" },
+                    { question: "What special session is being organised at the Book Festival?", options: ["A film screening", "A book reading by a local author", "A question and answer session about poetry", "A guided walk"], answer: "A question and answer session about poetry", feedback: "Correct! The festival will be 'organising a question and answer session for anyone interested in writing poetry.'" }
+                ]
+            },
+            // Quiz 13
+            {
+                instruction: "You will hear an announcement in a supermarket.",
+                title: "Milburn’s Stores",
+                audioscript: `<p>Welcome to Milburn’s. If you’re looking for a sale or for something unusual, don’t forget our Thursday ‘Special Buy’ day where you’ll find some great offers. These change every week and are removed from the shelves at the end of the day. This Thursday you’ll be able to buy a special gift for your pet with lots of items at low. low prices. Come early and don’t miss our offers.</p><p>Are you interested in a career with Milburn’s? we’re looking for new staff in various areas of the business. There are now opportunities to join our trainee manager programme and several jobs for cleaners. We are proud of our staff and like to think they’re proud to be part of the Milburn family. Why not speak to our manager today if you’re interested in joining us? Or pick up our magazine at the exit for details about how to apply.</p><p>As the New Year approaches we know you’ll need to get your shopping done ready for all the celebrations. We’ll be opening until 10.30 on Friday evening to give you time to get ready for the big day. Don’t forget we’ll be closed on the first but open again on the second, when we return to normal opening hours.</p><p>We value our local community and are always looking for the chance to help out where we can. This month we’re supporting the local Arts Project and the Children’s Theatre Group. When you pay for your shopping you’ll be given a ticket. To show your support, choose which of the organisations you would like to give this to by putting it in the box by the exit. We’ll turn these into cash when they are counted up at the end of the month.</p>`,
+                mcqs: [
+                    { question: "What is special about this coming Thursday at Milburn's?", options: ["A sale on pet gifts", "New Year's celebration items", "Job application day", "A charity event"], answer: "A sale on pet gifts", feedback: "Correct! The announcement says, 'This Thursday you’ll be able to buy a special gift for your pet...'" },
+                    { question: "Which job opportunities are currently available?", options: ["Manager and cashier", "Trainee manager and cleaner", "Cleaner and shelf stacker", "Butcher and baker"], answer: "Trainee manager and cleaner", feedback: "That's right. The announcement mentions 'opportunities to join our trainee manager programme and several jobs for cleaners.'" },
+                    { question: "What are the special opening hours for Friday?", options: ["Closed for New Year", "Open until 10:30 p.m.", "Normal opening hours", "Open from the second"], answer: "Open until 10:30 p.m.", feedback: "Correct. The announcement states, 'We’ll be opening until 10.30 on Friday evening...'" },
+                    { question: "How can customers support the local community projects?", options: ["By donating cash at the till", "By buying special items", "By putting a ticket in a box", "By volunteering at the theatre"], answer: "By putting a ticket in a box", feedback: "Correct! Customers are given a ticket and can 'choose which of the organisations you would like to give this to by putting it in the box by the exit.'" }
+                ]
+            },
+            // Quiz 14
+            {
+                instruction: "You will hear a radio presenter telling new students about the first week at university.",
+                title: "First Week at University",
+                audioscript: `<p>This will be a very exciting time for you. You’ve got the grades you needed and you’re off to university. For many of you this will be the first time away from home. Write a list of things you should take with you, for example, your passport if you’re planning to go travelling. You’ll certainly need all the documentation the university has sent you about your course or accommodation. Don’t bring too many household items with you. You’ll be able to buy a lot of things at university.</p><p>When you arrive and go to your room, check that everything is as it should be and in good condition. Report anything that looks damaged. You don’t want to be blamed for this and be asked to pay any costs involved. This is also the time to get to meet new people. Don’t lock yourself away in your room, but go to the kitchen as this is always the first place to introduce yourself to other students.</p><p>During your first week you can enjoy Freshers· Week. This is the time to find out about all the clubs and societies you can join at university. These are great ways to get to know students doing different subjects. These people will help you to forget about your studies when you need to relax and not talk about work. It’s sensible to limit yourself to signing up to a maximum of five groups or you’ll be receiving emails for weeks to come.</p><p>Don’t forget the important things like registering with the local doctor as soon as you can. And think about your weekly shopping list. Don’t spend too much but at the same time make sure you don’t go hungry. And remember to put your name on your food. A shared fridge sometimes leads to arguments!</p>`,
+                mcqs: [
+                    { question: "What is the first thing a student should do when they arrive in their room?", options: ["Unpack their bags", "Go to the kitchen", "Check for any damage", "Lock the door"], answer: "Check for any damage", feedback: "Correct. The advice is to 'check that everything is as it should be and in good condition. Report anything that looks damaged.'" },
+                    { question: "Where is the best place to first meet other students?", options: ["In your room", "At the Freshers' Week fair", "In the kitchen", "At the local doctor's office"], answer: "In the kitchen", feedback: "That's right. The presenter says, '...go to the kitchen as this is always the first place to introduce yourself to other students.'" },
+                    { question: "What is the recommended maximum number of clubs to sign up for?", options: ["As many as you like", "Two", "Ten", "Five"], answer: "Five", feedback: "Correct. The advice is to 'limit yourself to signing up to a maximum of five groups...'" },
+                    { question: "What important task should be done soon after arriving?", options: ["Go travelling", "Join a sports club", "Register with a local doctor", "Buy household items"], answer: "Register with a local doctor", feedback: "Correct! The presenter says, 'Don’t forget the important things like registering with the local doctor as soon as you can.'" }
+                ]
+            },
+            // Quiz 15
+            {
+                instruction: "You will hear a man talking to a class of students about a language course.",
+                title: "French for Beginners",
+                audioscript: `<p>Hello, everybody and welcome to the class. I’m pleased to see so many of you here today. But don’t worry, there won’t be any more of you! There’s always a maximum of 15 in the class, and a minimum of eight. Before we start, I’d like to tell you about the course. Some of the information you’ll probably know already, but some of it has changed.</p><p>Your class will still be on Tuesday evenings, but it won’t start at seven o’clock. It will start at the later time of 7.30, and will end at 9.30, not nine o’clock. I hope that change is OK for everyone. Unfortunately I can’t be here any earlier than that. Another change is the room. Next week we need to move to the second floor to the room opposite the art room. That’s Room 26. Today is the only time we’ll be here in Room 12.</p><p>The coursebook will be the same as before, that is Starting French. I see some of you have already bought it – that’s good. However, if you want to buy it from us, it costs £8. You can order it today, but it takes two weeks so you won’t have it until 1st October.</p><p>One more thing … during the last week of term, there is an International Evening at the college. There will be traditional dancing from different countries and every class is asked to provide some food. I thought we could take some French cheese, but any other suggestions are welcome.</p><p>And finally, let me remind you that most of your lessons will be completely in French. So, let’s begin …</p>`,
+                mcqs: [
+                    { question: "What is the new start time for the French class?", options: ["7:00 p.m.", "9:30 p.m.", "7:30 p.m.", "9:00 p.m."], answer: "7:30 p.m.", feedback: "Correct. The speaker says, 'It will start at the later time of 7.30...'" },
+                    { question: "Where will the class be held next week?", options: ["In Room 12", "In the art room", "On the first floor", "In Room 26"], answer: "In Room 26", feedback: "That's right. 'Next week we need to move to the second floor to the room opposite the art room. That’s Room 26.'" },
+                    { question: "If a student orders the coursebook today, when will it arrive?", options: ["Next week", "In two weeks", "1st October", "Today"], answer: "1st October", feedback: "Correct. It takes two weeks to arrive, so 'you won’t have it until 1st October.'" },
+                    { question: "What is each class asked to provide for the International Evening?", options: ["Traditional dancing", "French cheese", "Some food", "Coursebook suggestions"], answer: "Some food", feedback: "Correct! The speaker says, '...every class is asked to provide some food.'" }
+                ]
+            }
+        ];
+
+        // --- GAME STATE ---
+        let playerName = "";
+        let score = 0;
+        let correctAnswersCount = 0;
+        let currentQuizIndex = 0;
+        let timerInterval;
+        let timeLeft = 180; // 3 minutes in seconds
+        let questionsAnswered = 0;
+        let mistakes = [];
+
+        // --- DOM ELEMENTS ---
+        const startPage = document.getElementById('start-page');
+        const gamePage = document.getElementById('game-page');
+        const playerNameInput = document.getElementById('player-name-input');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const playerNameDisplay = document.getElementById('player-name-display');
+        const scoreDisplay = document.getElementById('score');
+        const badgesContainer = document.getElementById('badges-container');
+        const quizContainer = document.getElementById('quiz-container');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIcon');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const quizTitle = document.getElementById('quiz-title');
+        const quizInstruction = document.getElementById('quiz-instruction');
+        const timerContainer = document.getElementById('timer-container');
+        const timerDisplay = document.getElementById('timer');
+        const questionsContainer = document.getElementById('questions-container');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const gameOverTitle = document.getElementById('game-over-title');
+        const gameOverSubtitle = document.getElementById('game-over-subtitle');
+        const finalScore = document.getElementById('final-score');
+        const finalBadgesContainer = document.getElementById('final-badges-container');
+        const mistakeSummaryContainer = document.getElementById('mistake-summary-container');
+        const playAgainBtn = document.getElementById('play-again-btn');
+
+        // --- TTS SETUP ---
+        const utterance = new SpeechSynthesisUtterance();
+        let voicesLoaded = false;
+
+        function loadVoices() {
+            if (voicesLoaded) return;
+            let allVoices = speechSynthesis.getVoices();
+            if (allVoices.length === 0) {
+                return; // Voices not ready yet
+            }
+            voicesLoaded = true;
+        }
+        speechSynthesis.onvoiceschanged = loadVoices;
+
+        // --- GAME LOGIC ---
+        function startGame() {
+            playerName = playerNameInput.value.trim();
+            if (playerName === "") {
+                playerName = "Player";
+            }
+            playerNameDisplay.textContent = playerName;
+            startPage.classList.add('hidden');
+            gamePage.classList.remove('hidden');
+            resetGame();
+            loadQuiz(currentQuizIndex);
+        }
+
+        function resetGame() {
+            score = 0;
+            correctAnswersCount = 0;
+            currentQuizIndex = 0;
+            mistakes = [];
+            updateScore();
+            badgesContainer.innerHTML = '';
+            finalBadgesContainer.innerHTML = '';
+        }
+
+        function loadQuiz(index) {
+            clearInterval(timerInterval); // Ensure previous timer is cleared
+            const quiz = quizData[index];
+            quizTitle.textContent = `Quiz ${index + 1}: ${quiz.title}`;
+            quizInstruction.textContent = quiz.instruction;
+            questionsContainer.innerHTML = '';
+            questionsAnswered = 0;
+            playPauseBtn.disabled = false;
+            
+            // Reset player UI
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            timerContainer.classList.add('hidden');
+
+            quiz.mcqs.forEach((mcq, i) => {
+                const questionEl = document.createElement('div');
+                questionEl.id = `question-${i}`;
+                const shuffledOptions = [...mcq.options].sort(() => Math.random() - 0.5);
+                questionEl.innerHTML = `
+                    <p class="font-bold text-lg mb-3">${i + 1}. ${mcq.question}</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        ${shuffledOptions.map(option => `
+                            <button class="option-btn w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-100 hover:border-blue-400 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                                ${option}
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                questionsContainer.appendChild(questionEl);
+            });
+
+            questionsContainer.querySelectorAll('.option-btn').forEach(btn => {
+                btn.addEventListener('click', handleAnswer);
+            });
+            
+            utterance.text = new DOMParser().parseFromString(quiz.audioscript, "text/html").documentElement.textContent;
+            setVoiceForQuiz(index);
+        }
+
+        function setVoiceForQuiz(index) {
+             let allVoices = speechSynthesis.getVoices();
+             if (allVoices.length === 0) return;
+             let usUkVoices = allVoices.filter(v => v.lang.startsWith('en-US') || v.lang.startsWith('en-GB'));
+             const preferredVoiceNames = [
+                'Microsoft Andrew Online (Natural) - English (United States)', 'Microsoft Ava Online (Natural) - English (United States)',
+                'Microsoft Brian Online (Natural) - English (United States)', 'Microsoft Emma Online (Natural) - English (United States)'
+             ];
+             let preferredVoices = preferredVoiceNames.map(name => usUkVoices.find(v => v.name === name)).filter(Boolean);
+             let msNaturalVoices = usUkVoices.filter(v => v.name.includes('Microsoft') && v.name.includes('Natural') && !preferredVoiceNames.includes(v.name));
+             const isApple = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+             let applePremiumVoices = isApple ? usUkVoices.filter(v => (v.name.includes('(Enhanced)') || v.name.includes('Premium'))) : [];
+             let chosenVoiceList = [...preferredVoices, ...msNaturalVoices, ...applePremiumVoices];
+             if (chosenVoiceList.length > 0) {
+                utterance.voice = chosenVoiceList[index % chosenVoiceList.length];
+             } else {
+                utterance.voice = usUkVoices.find(v => v.name.includes('Neural')) || usUkVoices.find(v => v.name.includes('Google')) || usUkVoices.find(v => v.lang.startsWith('en-GB')) || usUkVoices[0];
+             }
+        }
+
+        function startTimer() {
+            timeLeft = 180;
+            timerDisplay.textContent = '3:00';
+            timerDisplay.classList.remove('text-yellow-500', 'text-red-600');
+            timerContainer.classList.remove('hidden');
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                if (timeLeft <= 60 && timeLeft > 10) timerDisplay.classList.add('text-yellow-500');
+                if (timeLeft <= 10) timerDisplay.classList.add('text-red-600');
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    disableAllOptions();
+                    setTimeout(advanceToNextQuiz, 1500); // Auto-advance after a delay
+                }
+            }, 1000);
+        }
+
+        function handleAnswer(e) {
+            const selectedBtn = e.target;
+            const questionContainer = selectedBtn.closest('[id^="question-"]');
+            const questionIndex = parseInt(questionContainer.id.split('-')[1]);
+            const correctAnswer = quizData[currentQuizIndex].mcqs[questionIndex].answer;
+            const isCorrect = selectedBtn.textContent.trim() === correctAnswer.trim();
+            
+            questionContainer.querySelectorAll('.option-btn').forEach(btn => {
+                btn.disabled = true;
+                if (btn.textContent.trim() === correctAnswer.trim()) {
+                    btn.classList.add('bg-green-200', 'border-green-500');
+                }
+            });
+
+            if (isCorrect) {
+                score++;
+                correctAnswersCount++;
+                selectedBtn.classList.add('bg-green-200', 'border-green-500');
+                showFlyingToken(selectedBtn);
+                checkBadges();
+                if (correctAnswersCount >= WIN_CONDITION) {
+                    endGame(true);
+                }
+            } else {
+                score = Math.max(0, score - 1);
+                selectedBtn.classList.add('bg-red-200', 'border-red-500');
+                mistakes.push({
+                    quizTitle: quizData[currentQuizIndex].title,
+                    question: quizData[currentQuizIndex].mcqs[questionIndex].question,
+                    yourAnswer: selectedBtn.textContent.trim(),
+                    correctAnswer: correctAnswer
+                });
+            }
+            updateScore();
+            questionsAnswered++;
+            if (questionsAnswered >= 4) {
+                clearInterval(timerInterval);
+                setTimeout(advanceToNextQuiz, 1200); // Auto-advance after a short delay
+            }
+        }
+        
+        function disableAllOptions() {
+             questionsContainer.querySelectorAll('.option-btn').forEach(btn => btn.disabled = true);
+        }
+
+        function updateScore() {
+            scoreDisplay.textContent = score;
+        }
+
+        function showFlyingToken(buttonEl) {
+            const scoreContainerRect = scoreDisplay.getBoundingClientRect();
+            const buttonRect = buttonEl.getBoundingClientRect();
+            const token = document.createElement('div');
+            token.textContent = '+1';
+            token.className = 'score-token absolute text-2xl font-bold text-green-500';
+            token.style.left = `${buttonRect.left + buttonRect.width / 2 - 10}px`;
+            token.style.top = `${buttonRect.top}px`;
+            token.style.setProperty('--translateX', `${scoreContainerRect.left - buttonRect.left}px`);
+            token.style.setProperty('--translateY', `${scoreContainerRect.top - buttonRect.top}px`);
+            document.body.appendChild(token);
+            setTimeout(() => token.remove(), 1000);
+        }
+
+        function checkBadges() {
+            const badges = [
+                { count: 10, name: 'Bronze Star', icon: '⭐' },
+                { count: 25, name: 'Silver Ear', icon: '🥈' },
+                { count: 40, name: 'Golden Listener', icon: '🏆' }
+            ];
+            badges.forEach(badge => {
+                if (correctAnswersCount === badge.count && !document.getElementById(`badge-${badge.count}`)) {
+                    const badgeEl = document.createElement('div');
+                    badgeEl.id = `badge-${badge.count}`;
+                    badgeEl.className = `badge-unlocked-animation text-4xl`;
+                    badgeEl.innerHTML = `<span title="${badge.name}">${badge.icon}</span>`;
+                    badgesContainer.appendChild(badgeEl);
+                }
+            });
+        }
+        
+        function endGame(isWinner) {
+            clearInterval(timerInterval);
+            finalScore.textContent = score;
+            finalBadgesContainer.innerHTML = badgesContainer.innerHTML;
+
+            if (isWinner) {
+                gameOverTitle.textContent = "Congratulations!";
+                gameOverSubtitle.textContent = "You've completed the challenge!";
+            } else {
+                gameOverTitle.textContent = "Game Over";
+                gameOverSubtitle.textContent = "You've completed all the quizzes!";
+            }
+
+            if (mistakes.length > 0) {
+                let summaryHTML = `<h4 class="text-xl font-bold mb-2 text-left">Mistake Summary</h4><div class="text-left text-sm max-h-48 overflow-y-auto border p-2 rounded-lg bg-gray-50"><ul class="space-y-2">`;
+                mistakes.forEach(mistake => {
+                    summaryHTML += `<li class="border-b pb-2"><strong>Q:</strong> ${mistake.question}<br><span class="text-red-600"><strong>You said:</strong> ${mistake.yourAnswer}</span><br><span class="text-green-600"><strong>Correct:</strong> ${mistake.correctAnswer}</span></li>`;
+                });
+                summaryHTML += '</ul></div>';
+                mistakeSummaryContainer.innerHTML = summaryHTML;
+            } else {
+                mistakeSummaryContainer.innerHTML = `<p class="text-green-600 font-semibold">You made no mistakes. Perfect score!</p>`;
+            }
+
+            gameOverModal.classList.remove('hidden');
+        }
+
+        function advanceToNextQuiz() {
+            currentQuizIndex++;
+            if (currentQuizIndex < quizData.length) {
+                loadQuiz(currentQuizIndex);
+            } else {
+                endGame(false); // Game ends because quizzes ran out
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        startGameBtn.addEventListener('click', startGame);
+        
+        playPauseBtn.addEventListener('click', () => {
+             loadVoices(); 
+             if (!utterance.voice) {
+                setTimeout(() => { 
+                    loadVoices();
+                    setVoiceForQuiz(currentQuizIndex);
+                }, 100);
+             }
+
+             if (speechSynthesis.speaking) {
+                if (speechSynthesis.paused) {
+                    speechSynthesis.resume();
+                } else {
+                    speechSynthesis.pause();
+                }
+             } else {
+                speechSynthesis.cancel();
+                speechSynthesis.speak(utterance);
+             }
+        });
+
+        utterance.onstart = () => {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+            playPauseBtn.disabled = true;
+        };
+
+        utterance.onpause = () => {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            playPauseBtn.disabled = false;
+        };
+        
+        utterance.onresume = () => {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+        };
+
+        utterance.onend = () => {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            playPauseBtn.disabled = false;
+            startTimer();
+        };
+        
+        playAgainBtn.addEventListener('click', () => {
+            gameOverModal.classList.add('hidden');
+            resetGame();
+            loadQuiz(currentQuizIndex);
+        });
+
+        // Initial voice load
+        loadVoices();
+    });
+    </script>
+
+</body>
+</html>

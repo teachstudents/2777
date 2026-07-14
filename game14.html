@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CEFR Synonym Match Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Google Fonts for modern look -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:wght@400;700&display=swap">
+  <!-- Howler.js for cross-browser audio -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+  <style>
+    :root {
+      --bg-main: #181a21;
+      --bg-accent1: #2d3142;
+      --bg-accent2: #363e54;
+      --primary: #ffd700;
+      --secondary: #6ee7b7;
+      --correct: #98ec65;
+      --incorrect: #f87171;
+      --badge: #38bdf8;
+      --text-light: #f4f1ee;
+      --token-move: cubic-bezier(.68,-0.55,.27,1.55);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-light);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.8s;
+      overflow: hidden; /* Prevent scrollbars from flashy awards */
+    }
+    .container {
+      width: 98vw; max-width: 520px; min-height: 80vh;
+      margin: 2vh auto;
+      background: var(--bg-accent1);
+      border-radius: 18px;
+      box-shadow: 0 2px 24px 0 #000a;
+      padding: 2rem 1rem;
+      display: flex; flex-direction: column; align-items: center;
+      transition: background 0.8s;
+      position: relative;
+      z-index: 1;
+    }
+    h1, h2 {
+      margin: 0.2em 0 0.7em 0;
+      letter-spacing: 1px;
+      color: var(--primary);
+      text-align: center;
+    }
+    .screen { display: none; }
+    .screen.active { display: block; width: 100%; text-align: center; }
+    .level-btn {
+      background: var(--secondary);
+      border: none;
+      border-radius: 12px;
+      color: #1d1d28;
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin: 0.5em 0.5em;
+      padding: 0.8em 2.3em;
+      box-shadow: 0 1px 4px #0003;
+      transition: background 0.2s, transform 0.2s;
+      cursor: pointer;
+    }
+    .level-btn.selected, .level-btn:hover {
+      background: var(--primary);
+      color: #181a21;
+      transform: scale(1.06);
+    }
+    .start-btn, .play-again-btn {
+      background: var(--primary);
+      border: none;
+      border-radius: 10px;
+      color: #1d1d28;
+      font-size: 1.1rem;
+      font-weight: bold;
+      margin: 1em 0.5em 0 0;
+      padding: 0.8em 2em;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s, transform 0.18s;
+      box-shadow: 0 2px 10px #0002;
+    }
+    .start-btn:disabled {
+        background-color: #555;
+        color: #999;
+        cursor: not-allowed;
+        transform: none;
+    }
+    .option-btn {
+      display: block;
+      width: 100%;
+      margin: 0.45em 0;
+      padding: 1em 0;
+      font-size: 1.07em;
+      background: var(--bg-accent2);
+      color: var(--text-light);
+      border: 2px solid transparent;
+      border-radius: 11px;
+      position: relative;
+      transition: background 0.24s, color 0.24s, border 0.24s;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .option-btn.correct {
+      background: var(--correct);
+      color: #212121;
+      border-color: #9fff7a;
+      font-weight: bold;
+    }
+    .option-btn.incorrect {
+      background: var(--incorrect);
+      color: #fff;
+      border-color: var(--incorrect);
+      font-weight: bold;
+    }
+    @keyframes flash-correct { 50% { background: #d6fdbe;}}
+    @keyframes flash-incorrect { 50% { background: #f87171; color: #fff;}}
+    .flash-correct { animation: flash-correct 0.5s; }
+    .flash-incorrect { animation: flash-incorrect 0.5s; }
+
+    .hud {
+      width: 100%; display: flex; flex-wrap: wrap;
+      justify-content: space-between; align-items: center;
+      background: #232439;
+      padding: 0.4em 1em;
+      border-radius: 8px;
+      margin-bottom: 1.1em;
+      font-size: 1.05em;
+      box-sizing: border-box;
+    }
+    .hud-item { margin: 0.2em 0.7em; }
+    #hud-timer, #hud-total-timer {
+        font-weight: bold;
+        transition: color 0.5s, transform 0.3s;
+    }
+    #hud-timer.low-time, #hud-total-timer.low-time {
+        color: var(--incorrect);
+        transform: scale(1.1);
+    }
+    .token-anim {
+      position: absolute; left: 50%; top: 50%;
+      font-size: 2em;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      animation: coin-move 0.9s var(--token-move) forwards;
+      z-index: 2;
+    }
+    @keyframes coin-move {
+      0% { opacity: 1; transform: translate(-50%,-50%) scale(1);}
+      30% { opacity: 1;}
+      100% { opacity: 0; transform: translate(220%,-260%) scale(0.5);}
+    }
+    .feedback-display {
+      font-size: 1.5em;
+      min-height: 2em;
+      margin-bottom: 0.5em;
+      font-weight: bold;
+      text-align: center;
+      transition: color 0.25s;
+    }
+    .feedback-correct { color: #aefa4b;}
+    .feedback-incorrect { color: var(--incorrect);}
+    .badge {
+      background: var(--badge);
+      color: #fff;
+      font-weight: bold;
+      border-radius: 20px;
+      padding: 0.3em 1.2em;
+      margin: 0.2em 0.4em;
+      font-size: 1em;
+      display: inline-block;
+      box-shadow: 0 0 8px #1e90ff77;
+      animation: pop-badge 0.6s;
+    }
+    @keyframes pop-badge {
+      0% { transform: scale(0); }
+      70% { transform: scale(1.15);}
+      100% { transform: scale(1);}
+    }
+    .results-container {
+      background: var(--bg-accent2);
+      padding: 2em 1em;
+      border-radius: 13px;
+      border: 2px solid #2c3a5b;
+      width: 100%; max-width: 480px;
+      margin: 1em auto;
+      color: var(--text-light);
+      text-align: center;
+    }
+    .reward-token {
+      color: var(--primary);
+      font-size: 2em;
+      animation: spin 1.1s infinite linear;
+      margin-left: 0.2em;
+      display: inline-block; /* Fix for animation */
+    }
+    @keyframes spin {
+      100% { transform: rotate(360deg);}
+    }
+    
+    /* Big Flashing Award Styles */
+    #award-overlay {
+        position: fixed;
+        top: 0; left: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.7);
+        display: none; /* Changed to none */
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        text-align: center;
+        color: white;
+    }
+    #award-overlay.show {
+        display: flex; /* Show the overlay */
+        animation: fadeIn 0.3s forwards;
+    }
+    .award-content {
+        animation: big-flash 2.5s forwards;
+    }
+    .award-content h2 {
+        font-size: 4rem;
+        text-shadow: 0 0 10px #fff, 0 0 20px var(--primary), 0 0 30px var(--primary);
+    }
+    .award-content .emoji {
+        font-size: 6rem;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @keyframes big-flash {
+        0% { transform: scale(0.5); opacity: 0; }
+        20% { transform: scale(1.2); opacity: 1; }
+        40% { transform: scale(1.1); }
+        80% { transform: scale(1.15); opacity: 1; }
+        100% { transform: scale(0.8); opacity: 0; }
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 1em 0.4em;}
+      .results-container { padding: 1em 0.5em;}
+      .hud { font-size: 0.85em;}
+      .option-btn { font-size: 1em;}
+      .award-content h2 { font-size: 2.5rem; }
+      .award-content .emoji { font-size: 4rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- START SCREEN -->
+    <div id="start-screen" class="screen active">
+      <h1>CEFR Synonym Match</h1>
+      <p style="color:#fff3; font-size:1.08em; max-width: 400px; margin: 0 auto 1em;">Match synonyms for your chosen CEFR level. Earn points, tokens, badges, & praise!</p>
+      <label for="player-name-input" style="color:var(--badge);font-size:1em;">Player Name</label>
+      <input type="text" id="player-name-input" placeholder="Enter your name" maxlength="20" autocomplete="off" style="padding:0.7em 1em; border-radius:10px; border:1px solid #444; width:90%;font-size:1.1em; margin-bottom:1em; box-sizing: border-box;">
+      <h2>Choose Level</h2>
+      <div>
+        <button class="level-btn" id="level-a12" data-level="A1A2">A1–A2 (Beginner)</button>
+        <button class="level-btn" id="level-b12" data-level="B1B2">B1–B2 (Intermediate)</button>
+        <button class="level-btn" id="level-c12" data-level="C1C2">C1–C2 (Advanced)</button>
+      </div>
+      <button class="start-btn" id="start-btn" disabled>Start Game</button>
+    </div>
+    <!-- GAME SCREEN -->
+    <div id="game-screen" class="screen">
+      <div class="hud" id="hud">
+        <div class="hud-item"><b>Player:</b> <span id="hud-player">?</span></div>
+        <div class="hud-item"><b>Level:</b> <span id="hud-level">?</span></div>
+        <div class="hud-item"><b>Score:</b> <span id="hud-score">0</span></div>
+        <div class="hud-item"><b>Tokens:</b> <span id="hud-tokens">0</span></div>
+        <div class="hud-item"><b>Time:</b> <span id="hud-timer">10</span></div>
+        <div class="hud-item"><b>Total Time:</b> <span id="hud-total-timer">10:00</span></div>
+        <div class="hud-item"><b>Q:</b> <span id="hud-question">1/0</span></div>
+      </div>
+      <div class="feedback-display" id="feedback"></div>
+      <h2 id="main-word"></h2>
+      <div id="options-container" style="width: 95%; max-width: 450px; margin: 0 auto;"></div>
+      <div id="badge-container" style="margin-top: 1em;"></div>
+    </div>
+    <!-- END SCREEN -->
+    <div id="end-screen" class="screen">
+      <h1 id="end-title">Game Over</h1>
+      <div class="results-container">
+        <h2 id="final-name">Player</h2>
+        <div style="display:flex; flex-wrap:wrap; gap:1em; justify-content:center; align-items: center; margin:1em 0;">
+          <div><strong>Score:</strong> <span id="final-score">0</span></div>
+          <div><strong>Tokens:</strong> <span id="final-tokens">0</span> <span class="reward-token">🪙</span></div>
+          <div><strong>Correct:</strong> <span id="final-correct">0</span></div>
+        </div>
+        <div id="final-badges" style="margin-top:1em; display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5em;"></div>
+      </div>
+      <button class="play-again-btn" id="play-again-btn">Play Again</button>
+    </div>
+  </div>
+  <!-- Big Flashing Award Overlay -->
+  <div id="award-overlay">
+      <div class="award-content">
+          <div id="award-emoji" class="emoji"></div>
+          <h2 id="award-text"></h2>
+      </div>
+  </div>
+<script>
+    // --- Data ---
+    const synonymData = {
+      A1A2: [ {main:"happy",synonym:"joyful",options:["joyful","sad","angry","tired"]}, {main:"big",synonym:"large",options:["large","small","tiny","short"]}, {main:"small",synonym:"little",options:["little","huge","tall","wide"]}, {main:"fast",synonym:"quick",options:["quick","slow","late","early"]}, {main:"good",synonym:"fine",options:["fine","bad","evil","wrong"]}, {main:"sad",synonym:"unhappy",options:["unhappy","happy","glad","pleased"]}, {main:"cold",synonym:"chilly",options:["chilly","hot","warm","burning"]}, {main:"pretty",synonym:"beautiful",options:["beautiful","ugly","plain","boring"]}, {main:"hard",synonym:"difficult",options:["difficult","easy","soft","simple"]}, {main:"true",synonym:"correct",options:["correct","false","wrong","fake"]}, {main:"smart",synonym:"clever",options:["clever","dull","lazy","slow"]}, {main:"cheap",synonym:"inexpensive",options:["inexpensive","costly","expensive","high"]}, {main:"easy",synonym:"simple",options:["simple","hard","tough","rough"]}, {main:"clean",synonym:"tidy",options:["tidy","dirty","messy","cloudy"]}, {main:"strong",synonym:"powerful",options:["powerful","weak","tiny","gentle"]}, {main:"old",synonym:"ancient",options:["ancient","modern","young","fresh"]}, {main:"loud",synonym:"noisy",options:["noisy","silent","quiet","mute"]}, {main:"thin",synonym:"slim",options:["slim","fat","large","thick"]}, {main:"rich",synonym:"wealthy",options:["wealthy","poor","cheap","weak"]}, {main:"empty",synonym:"vacant",options:["vacant","full","busy","packed"]}, {main:"near",synonym:"close",options:["close","far","away","distant"]}, {main:"quiet",synonym:"silent",options:["silent","loud","noisy","shouting"]}, {main:"funny",synonym:"humorous",options:["humorous","sad","angry","boring"]}, {main:"start",synonym:"begin",options:["begin","end","stop","finish"]}, {main:"look",synonym:"see",options:["see","hear","taste","feel"]}, {main:"angry",synonym:"mad",options:["mad","happy","sad","joyful"]}, {main:"tired",synonym:"sleepy",options:["sleepy","awake","alert","energetic"]}, {main:"brave",synonym:"courageous",options:["courageous","scared","timid","afraid"]}, {main:"empty",synonym:"blank",options:["blank","full","packed","crowded"]}, {main:"friend",synonym:"pal",options:["pal","enemy","foe","stranger"]}, {main:"gift",synonym:"present",options:["present","past","future","return"]}, {main:"road",synonym:"street",options:["street","river","field","mountain"]}, {main:"writer",synonym:"author",options:["author","reader","listener","speaker"]}, {main:"ill",synonym:"sick",options:["sick","well","healthy","fit"]}, {main:"end",synonym:"finish",options:["finish","start","begin","open"]}, {main:"job",synonym:"work",options:["work","play","game","rest"]}, {main:"car",synonym:"auto",options:["auto","bike","bus","train"]}, {main:"idea",synonym:"thought",options:["thought","dream","plan","wish"]}, {main:"speak",synonym:"talk",options:["talk","walk","run","listen"]}, {main:"choose",synonym:"select",options:["select","pick","drop","leave"]}, {main:"correct",synonym:"right",options:["right","wrong","bad","false"]}, {main:"picture",synonym:"image",options:["image","photo","drawing","painting"]}, {main:"quick",synonym:"rapid",options:["rapid","slow","lazy","idle"]}, {main:"buy",synonym:"purchase",options:["purchase","sell","trade","give"]}, {main:"child",synonym:"kid",options:["kid","adult","teen","parent"]}, {main:"strange",synonym:"odd",options:["odd","even","normal","usual"]}, {main:"true",synonym:"real",options:["real","fake","false","wrong"]}, {main:"fix",synonym:"repair",options:["repair","break","destroy","ruin"]}, {main:"center",synonym:"middle",options:["middle","top","bottom","side"]}, {main:"finish",synonym:"complete",options:["complete","start","begin","open"]}, {main:"old",synonym:"elderly",options:["elderly","young","fresh","modern"]}, {main:"big",synonym:"huge",options:["huge","tiny","small","thin"]}, {main:"end",synonym:"stop",options:["stop","go","move","begin"]}, {main:"hungry",synonym:"starving",options:["starving","full","eating","waiting"]}, {main:"hard",synonym:"tough",options:["tough","soft","weak","easy"]}, {main:"talk",synonym:"speak",options:["speak","whisper","shout","cry"]}, {main:"teacher",synonym:"instructor",options:["instructor","student","pupil","friend"]}, {main:"correct",synonym:"accurate",options:["accurate","wrong","false","bad"]}, {main:"student",synonym:"pupil",options:["pupil","teacher","leader","boss"]}, {main:"see",synonym:"view",options:["view","hear","feel","smell"]}, {main:"love",synonym:"like",options:["like","hate","ignore","miss"]}, {main:"listen",synonym:"hear",options:["hear","shout","talk","sing"]}, {main:"check",synonym:"verify",options:["verify","ignore","forget","close"]}, {main:"wrong",synonym:"incorrect",options:["incorrect","right","true","good"]}, {main:"leave",synonym:"depart",options:["depart","arrive","come","stay"]}, {main:"arrive",synonym:"reach",options:["reach","leave","depart","move"]}, {main:"finish",synonym:"end",options:["end","start","continue","open"]}, {main:"begin",synonym:"commence",options:["commence","finish","close","pause"]}, {main:"make",synonym:"create",options:["create","destroy","break","lose"]}, {main:"show",synonym:"display",options:["display","hide","cover","move"]}, {main:"look",synonym:"watch",options:["watch","ignore","listen","smell"]}, {main:"speak",synonym:"say",options:["say","listen","see","write"]}, {main:"buy",synonym:"get",options:["get","sell","give","lose"]}, {main:"give",synonym:"offer",options:["offer","take","get","leave"]}, {main:"find",synonym:"discover",options:["discover","lose","hide","cover"]}, {main:"help",synonym:"assist",options:["assist","hurt","ignore","leave"]}, {main:"look",synonym:"glance",options:["glance","stare","miss","ignore"]}, {main:"move",synonym:"shift",options:["shift","stay","stop","wait"]}, {main:"open",synonym:"uncover",options:["uncover","close","cover","hide"]}, {main:"play",synonym:"perform",options:["perform","watch","listen","rest"]}, {main:"read",synonym:"study",options:["study","ignore","close","forget"]}, {main:"run",synonym:"jog",options:["jog","walk","sit","stop"]}, {main:"write",synonym:"record",options:["record","read","listen","speak"]}, {main:"use",synonym:"employ",options:["employ","ignore","miss","forget"]}, {main:"walk",synonym:"stroll",options:["stroll","run","jump","wait"]}, {main:"work",synonym:"labor",options:["labor","rest","play","sleep"]}, {main:"young",synonym:"youthful",options:["youthful","old","ancient","elderly"]}, {main:"bad",synonym:"awful",options:["awful","good","nice","fine"]}, {main:"good",synonym:"nice",options:["nice","bad","sad","weak"]}, {main:"bright",synonym:"shiny",options:["shiny","dark","dull","sad"]}, {main:"dark",synonym:"dim",options:["dim","bright","shiny","clear"]}, {main:"clean",synonym:"spotless",options:["spotless","dirty","messy","cloudy"]}, {main:"dirty",synonym:"filthy",options:["filthy","clean","tidy","shiny"]}, {main:"fun",synonym:"enjoyable",options:["enjoyable","boring","hard","tough"]}, {main:"boring",synonym:"dull",options:["dull","fun","exciting","interesting"]}, {main:"easy",synonym:"effortless",options:["effortless","hard","tough","rough"]}, {main:"hard",synonym:"challenging",options:["challenging","easy","simple","quick"]}, {main:"late",synonym:"tardy",options:["tardy","early","quick","slow"]}, {main:"early",synonym:"prompt",options:["prompt","late","slow","tardy"]}, {main:"rich",synonym:"affluent",options:["affluent","poor","cheap","weak"]}, {main:"poor",synonym:"needy",options:["needy","rich","affluent","costly"]}, {main:"safe",synonym:"secure",options:["secure","dangerous","risky","unsafe"]}, {main:"dangerous",synonym:"risky",options:["risky","safe","secure","fine"]}, {main:"soft",synonym:"gentle",options:["gentle","hard","rough","tough"]}, {main:"strong",synonym:"sturdy",options:["sturdy","weak","tiny","gentle"]}, {main:"weak",synonym:"fragile",options:["fragile","strong","sturdy","hard"]}, {main:"young",synonym:"juvenile",options:["juvenile","old","ancient","elderly"]}, {main:"old",synonym:"aged",options:["aged","young","fresh","modern"]}, {main:"thin",synonym:"lean",options:["lean","fat","large","thick"]}, {main:"fat",synonym:"chubby",options:["chubby","thin","lean","slim"]} ].slice(0, 100),
+      B1B2: [ {main:"assist",synonym:"help",options:["help","hurt","stop","delay"]}, {main:"brilliant",synonym:"bright",options:["bright","dull","dark","dim"]}, {main:"complex",synonym:"complicated",options:["complicated","simple","easy","plain"]}, {main:"difficult",synonym:"challenging",options:["challenging","easy","plain","simple"]}, {main:"calm",synonym:"peaceful",options:["peaceful","loud","noisy","stormy"]}, {main:"dangerous",synonym:"risky",options:["risky","safe","secure","fine"]}, {main:"huge",synonym:"enormous",options:["enormous","tiny","small","little"]}, {main:"mistake",synonym:"error",options:["error","success","win","gain"]}, {main:"opinion",synonym:"view",options:["view","fact","truth","law"]}, {main:"principal",synonym:"main",options:["main","side","back","corner"]}, {main:"silent",synonym:"quiet",options:["quiet","loud","noisy","talkative"]}, {main:"vacation",synonym:"holiday",options:["holiday","work","meeting","school"]}, {main:"value",synonym:"worth",options:["worth","cost","price","amount"]}, {main:"youth",synonym:"teenager",options:["teenager","adult","elder","baby"]}, {main:"ancient",synonym:"old",options:["old","young","modern","recent"]}, {main:"decrease",synonym:"reduce",options:["reduce","increase","raise","grow"]}, {main:"enemy",synonym:"foe",options:["foe","friend","pal","buddy"]}, {main:"generous",synonym:"giving",options:["giving","mean","selfish","stingy"]}, {main:"honest",synonym:"truthful",options:["truthful","lying","false","wrong"]}, {main:"improve",synonym:"enhance",options:["enhance","destroy","ruin","break"]}, {main:"limit",synonym:"restrict",options:["restrict","expand","grow","add"]}, {main:"necessary",synonym:"essential",options:["essential","optional","extra","unneeded"]}, {main:"ordinary",synonym:"normal",options:["normal","strange","rare","unique"]}, {main:"permit",synonym:"allow",options:["allow","forbid","deny","refuse"]}, {main:"purchase",synonym:"buy",options:["buy","sell","rent","trade"]}, {main:"abundant",synonym:"plentiful",options:["plentiful","scarce","rare","few"]}, {main:"brief",synonym:"short",options:["short","long","tall","big"]}, {main:"cease",synonym:"stop",options:["stop","start","go","begin"]}, {main:"difficult",synonym:"arduous",options:["arduous","easy","plain","simple"]}, {main:"elaborate",synonym:"complex",options:["complex","simple","easy","plain"]}, {main:"fortunate",synonym:"lucky",options:["lucky","unlucky","bad","sad"]}, {main:"genuine",synonym:"authentic",options:["authentic","fake","false","wrong"]}, {main:"hostile",synonym:"unfriendly",options:["unfriendly","friendly","kind","gentle"]}, {main:"impartial",synonym:"neutral",options:["neutral","biased","partial","side"]}, {main:"keen",synonym:"eager",options:["eager","lazy","slow","tired"]}, {main:"lucid",synonym:"clear",options:["clear","cloudy","dark","fuzzy"]}, {main:"meticulous",synonym:"careful",options:["careful","careless","quick","rough"]}, {main:"notable",synonym:"remarkable",options:["remarkable","usual","common","normal"]}, {main:"obsolete",synonym:"outdated",options:["outdated","modern","recent","current"]}, {main:"proficient",synonym:"skilled",options:["skilled","unskilled","novice","beginner"]}, {main:"reliable",synonym:"dependable",options:["dependable","unreliable","shaky","weak"]}, {main:"scrutinize",synonym:"examine",options:["examine","ignore","overlook","miss"]}, {main:"tranquil",synonym:"peaceful",options:["peaceful","noisy","stormy","loud"]}, {main:"vivid",synonym:"bright",options:["bright","dull","dim","dark"]}, {main:"wary",synonym:"cautious",options:["cautious","careless","brave","bold"]}, {main:"yearn",synonym:"long",options:["long","hate","detest","dislike"]}, {main:"zealous",synonym:"enthusiastic",options:["enthusiastic","bored","tired","lazy"]}, {main:"avid",synonym:"eager",options:["eager","reluctant","shy","unwilling"]}, {main:"copious",synonym:"abundant",options:["abundant","scarce","rare","few"]}, {main:"succinct",synonym:"brief",options:["brief","long","lengthy","extended"]}, {main:"accept",synonym:"receive",options:["receive","reject","refuse","deny"]}, {main:"adapt",synonym:"adjust",options:["adjust","ignore","forget","refuse"]}, {main:"amazing",synonym:"astonishing",options:["astonishing","boring","usual","plain"]}, {main:"ancient",synonym:"antique",options:["antique","modern","recent","current"]}, {main:"arrange",synonym:"organize",options:["organize","mess","scatter","lose"]}, {main:"attain",synonym:"achieve",options:["achieve","lose","miss","fail"]}, {main:"ban",synonym:"prohibit",options:["prohibit","allow","permit","let"]}, {main:"basic",synonym:"simple",options:["simple","complex","difficult","advanced"]}, {main:"brief",synonym:"concise",options:["concise","long","lengthy","endless"]}, {main:"brilliant",synonym:"clever",options:["clever","dull","lazy","boring"]}, {main:"calm",synonym:"serene",options:["serene","noisy","wild","stormy"]}, {main:"cause",synonym:"reason",options:["reason","effect","result","end"]}, {main:"cease",synonym:"halt",options:["halt","continue","start","begin"]}, {main:"choose",synonym:"select",options:["select","refuse","forget","lose"]}, {main:"clarify",synonym:"explain",options:["explain","confuse","hide","ignore"]}, {main:"combine",synonym:"merge",options:["merge","separate","divide","split"]}, {main:"complete",synonym:"finish",options:["finish","start","begin","open"]}, {main:"complicated",synonym:"intricate",options:["intricate","simple","plain","easy"]}, {main:"confident",synonym:"sure",options:["sure","doubtful","uncertain","unsure"]}, {main:"connect",synonym:"link",options:["link","separate","cut","break"]}, {main:"consider",synonym:"think",options:["think","ignore","forget","miss"]}, {main:"continue",synonym:"proceed",options:["proceed","stop","pause","rest"]}, {main:"create",synonym:"invent",options:["invent","destroy","break","remove"]}, {main:"danger",synonym:"risk",options:["risk","safe","secure","fine"]}, {main:"decrease",synonym:"decline",options:["decline","increase","raise","grow"]}, {main:"describe",synonym:"explain",options:["explain","hide","cover","forget"]}, {main:"difficult",synonym:"tough",options:["tough","easy","plain","simple"]}, {main:"enormous",synonym:"gigantic",options:["gigantic","tiny","small","little"]}, {main:"fail",synonym:"lose",options:["lose","win","achieve","get"]}, {main:"famous",synonym:"well-known",options:["well-known","unknown","strange","rare"]}, {main:"frequent",synonym:"often",options:["often","rarely","never","sometimes"]}, {main:"generous",synonym:"charitable",options:["charitable","mean","selfish","stingy"]}, {main:"genuine",synonym:"real",options:["real","fake","false","wrong"]}, {main:"happy",synonym:"content",options:["content","sad","angry","tired"]}, {main:"honest",synonym:"sincere",options:["sincere","lying","false","wrong"]}, {main:"huge",synonym:"massive",options:["massive","tiny","small","little"]}, {main:"important",synonym:"significant",options:["significant","unimportant","minor","small"]}, {main:"increase",synonym:"raise",options:["raise","decrease","reduce","lower"]}, {main:"inform",synonym:"tell",options:["tell","hide","cover","forget"]}, {main:"insist",synonym:"demand",options:["demand","suggest","ask","request"]}, {main:"interesting",synonym:"fascinating",options:["fascinating","boring","dull","plain"]}, {main:"large",synonym:"big",options:["big","small","tiny","short"]}, {main:"mention",synonym:"refer",options:["refer","hide","cover","forget"]}, {main:"mistake",synonym:"blunder",options:["blunder","success","win","gain"]}, {main:"modern",synonym:"contemporary",options:["contemporary","old","ancient","aged"]}, {main:"necessary",synonym:"required",options:["required","optional","extra","unneeded"]}, {main:"ordinary",synonym:"average",options:["average","unique","rare","special"]}, {main:"permit",synonym:"allow",options:["allow","deny","forbid","refuse"]}, {main:"prefer",synonym:"choose",options:["choose","ignore","forget","miss"]}, {main:"rare",synonym:"scarce",options:["scarce","common","usual","normal"]}, {main:"reduce",synonym:"decrease",options:["decrease","increase","raise","grow"]}, {main:"reliable",synonym:"trustworthy",options:["trustworthy","unreliable","shaky","weak"]}, {main:"rich",synonym:"wealthy",options:["wealthy","poor","cheap","weak"]}, {main:"rude",synonym:"impolite",options:["impolite","polite","kind","gentle"]}, {main:"safe",synonym:"secure",options:["secure","dangerous","risky","unsafe"]}, {main:"silent",synonym:"quiet",options:["quiet","noisy","loud","talkative"]}, {main:"sincere",synonym:"honest",options:["honest","lying","false","wrong"]}, {main:"small",synonym:"tiny",options:["tiny","large","huge","big"]}, {main:"strange",synonym:"weird",options:["weird","normal","usual","common"]}, {main:"strong",synonym:"powerful",options:["powerful","weak","tiny","gentle"]}, {main:"unique",synonym:"special",options:["special","common","usual","normal"]}, {main:"usual",synonym:"common",options:["common","rare","unique","strange"]}, {main:"weak",synonym:"fragile",options:["fragile","strong","sturdy","hard"]}, ],
+      C1C2:  [ {main:"aberration",synonym:"anomaly",options:["anomaly","normality","pattern","habit"]}, {main:"benevolent",synonym:"kind",options:["kind","cruel","mean","selfish"]}, {main:"candid",synonym:"frank",options:["frank","deceitful","rude","shy"]}, {main:"dilapidated",synonym:"run-down",options:["run-down","new","strong","shiny"]}, {main:"enigma",synonym:"mystery",options:["mystery","solution","answer","clarity"]}, {main:"fastidious",synonym:"meticulous",options:["meticulous","careless","quick","lazy"]}, {main:"gregarious",synonym:"sociable",options:["sociable","shy","quiet","private"]}, {main:"hackneyed",synonym:"overused",options:["overused","original","fresh","unique"]}, {main:"iconoclast",synonym:"rebel",options:["rebel","follower","believer","conformist"]}, {main:"juxtapose",synonym:"contrast",options:["contrast","combine","unite","merge"]}, {main:"laconic",synonym:"brief",options:["brief","wordy","long","drawn-out"]}, {main:"magnanimous",synonym:"generous",options:["generous","mean","selfish","stingy"]}, {main:"nefarious",synonym:"evil",options:["evil","good","kind","nice"]}, {main:"obfuscate",synonym:"confuse",options:["confuse","clarify","explain","solve"]}, {main:"paradigm",synonym:"model",options:["model","error","mistake","problem"]}, {main:"quell",synonym:"suppress",options:["suppress","encourage","raise","increase"]}, {main:"rancor",synonym:"hatred",options:["hatred","love","friendship","affection"]}, {main:"sagacious",synonym:"wise",options:["wise","foolish","silly","dull"]}, {main:"tantamount",synonym:"equivalent",options:["equivalent","different","opposite","contrary"]}, {main:"ubiquitous",synonym:"everywhere",options:["everywhere","rare","unusual","unique"]}, {main:"vacillate",synonym:"hesitate",options:["hesitate","decide","settle","conclude"]}, {main:"wane",synonym:"decrease",options:["decrease","increase","grow","expand"]}, {main:"xenophobia",synonym:"prejudice",options:["prejudice","acceptance","openness","welcome"]}, {main:"yoke",synonym:"join",options:["join","separate","divide","detach"]}, {main:"zealot",synonym:"fanatic",options:["fanatic","moderate","skeptic","critic"]}, {main:"abstruse",synonym:"obscure",options:["obscure","clear","obvious","plain"]}, {main:"belligerent",synonym:"hostile",options:["hostile","friendly","kind","gentle"]}, {main:"capitulate",synonym:"surrender",options:["surrender","fight","resist","attack"]}, {main:"deleterious",synonym:"harmful",options:["harmful","helpful","good","beneficial"]}, {main:"egregious",synonym:"outrageous",options:["outrageous","ordinary","normal","usual"]}, {main:"felicitous",synonym:"appropriate",options:["appropriate","wrong","bad","unfit"]}, {main:"guile",synonym:"deceit",options:["deceit","honesty","truth","openness"]}, {main:"harangue",synonym:"lecture",options:["lecture","joke","story","question"]}, {main:"impecunious",synonym:"poor",options:["poor","rich","wealthy","affluent"]}, {main:"jubilant",synonym:"joyful",options:["joyful","sad","angry","tired"]}, {main:"kudos",synonym:"praise",options:["praise","criticism","blame","ignore"]}, {main:"languid",synonym:"lazy",options:["lazy","active","energetic","busy"]}, {main:"munificent",synonym:"generous",options:["generous","mean","stingy","selfish"]}, {main:"nuance",synonym:"subtlety",options:["subtlety","obviousness","clarity","plainness"]}, {main:"ostracize",synonym:"exclude",options:["exclude","include","welcome","invite"]}, {main:"paragon",synonym:"exemplar",options:["exemplar","failure","mistake","error"]}, {main:"quixotic",synonym:"idealistic",options:["idealistic","practical","realistic","sensible"]}, {main:"rescind",synonym:"cancel",options:["cancel","approve","continue","open"]}, {main:"sycophant",synonym:"flatterer",options:["flatterer","critic","judge","leader"]}, {main:"tenuous",synonym:"weak",options:["weak","strong","firm","solid"]}, {main:"unctuous",synonym:"insincere",options:["insincere","genuine","honest","open"]}, {main:"venerate",synonym:"respect",options:["respect","hate","ignore","dislike"]}, {main:"wily",synonym:"cunning",options:["cunning","honest","simple","open"]}, {main:"yokel",synonym:"bumpkin",options:["bumpkin","city dweller","urbanite","citizen"]}, {main:"zenith",synonym:"peak",options:["peak","bottom","valley","trough"]}, {main:"affable",synonym:"friendly",options:["friendly","hostile","rude","mean"]}, {main:"bombastic",synonym:"pompous",options:["pompous","humble","plain","simple"]}, {main:"circumspect",synonym:"cautious",options:["cautious","careless","rash","reckless"]}, {main:"diatribe",synonym:"criticism",options:["criticism","praise","compliment","approval"]}, {main:"efficacious",synonym:"effective",options:["effective","ineffective","useless","weak"]}, {main:"fortuitous",synonym:"accidental",options:["accidental","deliberate","planned","intentional"]}, {main:"garrulous",synonym:"talkative",options:["talkative","silent","quiet","mute"]}, {main:"hapless",synonym:"unlucky",options:["unlucky","fortunate","lucky","blessed"]}, {main:"intransigent",synonym:"stubborn",options:["stubborn","flexible","yielding","open"]}, {main:"jocular",synonym:"humorous",options:["humorous","serious","sad","angry"]}, {main:"kinetic",synonym:"active",options:["active","passive","inactive","still"]}, {main:"lugubrious",synonym:"mournful",options:["mournful","cheerful","happy","joyful"]}, {main:"mollify",synonym:"soothe",options:["soothe","anger","enrage","annoy"]}, {main:"neophyte",synonym:"beginner",options:["beginner","expert","master","pro"]}, {main:"obdurate",synonym:"stubborn",options:["stubborn","flexible","open","yielding"]}, {main:"palpable",synonym:"tangible",options:["tangible","intangible","unseen","hidden"]}, {main:"quandary",synonym:"dilemma",options:["dilemma","solution","answer","clarity"]}, {main:"rancorous",synonym:"bitter",options:["bitter","sweet","happy","mild"]}, {main:"spurious",synonym:"false",options:["false","true","real","genuine"]}, {main:"taciturn",synonym:"reserved",options:["reserved","talkative","outgoing","loud"]}, {main:"usurp",synonym:"seize",options:["seize","give","offer","leave"]}, {main:"veracity",synonym:"truth",options:["truth","lie","falsehood","story"]}, {main:"wistful",synonym:"longing",options:["longing","content","happy","satisfied"]}, {main:"yoke",synonym:"join",options:["join","detach","separate","divide"]}, {main:"zephyr",synonym:"breeze",options:["breeze","storm","wind","hurricane"]}, {main:"apocryphal",synonym:"doubtful",options:["doubtful","certain","clear","sure"]}, {main:"blandishment",synonym:"flattery",options:["flattery","insult","criticism","abuse"]}, {main:"cajole",synonym:"persuade",options:["persuade","force","demand","order"]}, {main:"debacle",synonym:"disaster",options:["disaster","success","win","gain"]}, {main:"effrontery",synonym:"audacity",options:["audacity","shyness","fear","timidity"]}, {main:"fallacious",synonym:"misleading",options:["misleading","honest","truthful","clear"]}, {main:"grandiloquent",synonym:"pompous",options:["pompous","simple","plain","humble"]}, {main:"harbinger",synonym:"forerunner",options:["forerunner","follower","copy","imitator"]}, {main:"impetuous",synonym:"impulsive",options:["impulsive","planned","deliberate","careful"]}, {main:"juxtaposition",synonym:"comparison",options:["comparison","contrast","separation","difference"]}, {main:"knell",synonym:"toll",options:["toll","bell","ring","sound"]}, {main:"libertarian",synonym:"free thinker",options:["free thinker","conservative","traditionalist","orthodox"]}, {main:"maverick",synonym:"nonconformist",options:["nonconformist","follower","believer","conformist"]}, {main:"nadir",synonym:"bottom",options:["bottom","top","peak","apex"]}, {main:"obsequious",synonym:"servile",options:["servile","dominant","bossy","assertive"]}, {main:"pellucid",synonym:"clear",options:["clear","cloudy","unclear","foggy"]}, {main:"quagmire",synonym:"predicament",options:["predicament","solution","answer","clarity"]}, {main:"recalcitrant",synonym:"uncooperative",options:["uncooperative","cooperative","helpful","agreeable"]}, {main:"sagacity",synonym:"wisdom",options:["wisdom","ignorance","stupidity","foolishness"]}, {main:"timorous",synonym:"fearful",options:["fearful","brave","bold","daring"]}, {main:"unctuous",synonym:"insincere",options:["insincere","genuine","honest","open"]}, {main:"vapid",synonym:"dull",options:["dull","exciting","interesting","fun"]}, {main:"winsome",synonym:"charming",options:["charming","boring","dull","rude"]}, {main:"yoke",synonym:"bond",options:["bond","break","divide","split"]}, {main:"zealous",synonym:"enthusiastic",options:["enthusiastic","apathetic","bored","tired"]}, ]
+    };
+    // --- Game State ---
+    let game = {
+      playerName: "",
+      score: 0,
+      tokens: 0,
+      correct: 0,
+      questionList: [],
+      questionIndex: 0,
+      selectedLevel: "",
+      badges: [],
+      lastScreenColor: 0,
+      questionTimerId: null,
+      totalTimerId: null,
+      timeLeft: 10,
+      totalTimeLeft: 600,
+    };
+
+    // --- DOM Elements ---
+    const $ = id => document.getElementById(id);
+    const startScreen = $('start-screen'), gameScreen = $('game-screen'), endScreen = $('end-screen');
+    const startBtn = $('start-btn'), playAgainBtn = $('play-again-btn');
+    const levelBtns = [ $('level-a12'), $('level-b12'), $('level-c12') ];
+    const mainWord = $('main-word'), optionsContainer = $('options-container');
+    const feedback = $('feedback'), badgeContainer = $('badge-container');
+    const hud = {
+      player: $('hud-player'), level: $('hud-level'), score: $('hud-score'),
+      tokens: $('hud-tokens'), question: $('hud-question'), timer: $('hud-timer'),
+      totalTimer: $('hud-total-timer')
+    };
+    const finalName = $('final-name'), finalScore = $('final-score');
+    const finalTokens = $('final-tokens'), finalCorrect = $('final-correct'), finalBadges = $('final-badges');
+    const awardOverlay = $('award-overlay'), awardText = $('award-text'), awardEmoji = $('award-emoji');
+
+
+    // --- Audio & Speech ---
+    let bestVoice = null;
+    const sounds = {
+      correct: new Howl({src:['https://cdn.pixabay.com/audio/2022/03/10/audio_c848a87992.mp3'], volume:0.5}),
+      incorrect: new Howl({src:['https://cdn.pixabay.com/audio/2021/08/04/audio_c6ccf34812.mp3'], volume:0.4}),
+      coin: new Howl({src:['https://cdn.pixabay.com/audio/2022/03/15/audio_115b6b6f6e.mp3'], volume:0.8}),
+      badge: new Howl({src:['https://cdn.pixabay.com/audio/2022/03/15/audio_115b6b6f6e.mp3'], rate:1.3, volume:0.6}),
+      applause: new Howl({src:['https://cdn.pixabay.com/audio/2022/11/18/audio_8b2571c863.mp3'], volume:0.7})
+    };
+    /**
+     * Finds and sets the best available "natural" or "neural" English voice for speech synthesis.
+     * This improves the quality of the audible feedback.
+     */
+    function loadVoices() {
+        const voices = window.speechSynthesis.getVoices();
+        bestVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('Neural')) || 
+                    voices.find(v => v.lang.startsWith('en') && v.name.includes('Google')) ||
+                    voices.find(v => v.lang.startsWith('en-US')) ||
+                    voices.find(v => v.lang.startsWith('en'));
+    }
+    /**
+     * Speaks the given text using the best available voice.
+     * @param {string} text - The text to be spoken.
+     */
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 1.1; u.pitch = 1; u.lang = 'en-US';
+        if (bestVoice) {
+            u.voice = bestVoice;
+        }
+        window.speechSynthesis.speak(u);
+      }
+    }
+
+    // --- Utility & UI ---
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+    function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+    function nextScreenColor() {
+      game.lastScreenColor = (game.lastScreenColor + 41) % 360;
+      document.body.style.background = `linear-gradient(120deg,hsl(${game.lastScreenColor},70%,14%),hsl(${(game.lastScreenColor+120)%360},70%,18%))`;
+      document.querySelector('.container').style.background = `linear-gradient(180deg,hsl(${game.lastScreenColor},40%,30%),hsl(${(game.lastScreenColor+60)%360},40%,20%))`;
+    }
+    function resetScreenColor() {
+      document.body.style.background = "";
+      document.querySelector('.container').style.background = "";
+    }
+    function showScreen(screen) {
+      [startScreen, gameScreen, endScreen].forEach(s => s.classList.remove('active'));
+      screen.classList.add('active');
+    }
+
+    // --- Badges & Rewards ---
+    function awardBadge(name, emoji, isMajor = false) {
+      if (!game.badges.some(b => b.name === name)) {
+        game.badges.push({name, emoji});
+        const badge = document.createElement('span');
+        badge.className = "badge";
+        badge.textContent = `${emoji} ${name}`;
+        badgeContainer.appendChild(badge);
+        sounds.badge.play();
+        speak(`${name} badge earned!`);
+        if (isMajor) {
+            showBigFlashyAward(name, emoji);
+        }
+      }
+    }
+    function showBigFlashyAward(name, emoji) {
+        awardText.textContent = name;
+        awardEmoji.textContent = emoji;
+        awardOverlay.classList.add('show');
+        awardOverlay.firstElementChild.classList.add('award-content');
+        setTimeout(() => {
+            awardOverlay.classList.remove('show');
+            awardOverlay.firstElementChild.classList.remove('award-content');
+        }, 2500);
+    }
+
+    // --- Timer Functions ---
+    function startQuestionTimer() {
+        clearInterval(game.questionTimerId);
+        game.timeLeft = 10;
+        hud.timer.textContent = game.timeLeft;
+        hud.timer.classList.remove('low-time');
+
+        game.questionTimerId = setInterval(() => {
+            game.timeLeft--;
+            hud.timer.textContent = game.timeLeft;
+            if (game.timeLeft <= 3) {
+                hud.timer.classList.add('low-time');
+            }
+            if (game.timeLeft <= 0) {
+                clearInterval(game.questionTimerId);
+                const q = game.questionList[game.questionIndex];
+                handleGuess(null, null, q); // Timeout counts as incorrect
+            }
+        }, 1000);
+    }
+    function startTotalTimer() {
+        clearInterval(game.totalTimerId);
+        game.totalTimeLeft = 600; // 10 minutes
+        hud.totalTimer.textContent = formatTime(game.totalTimeLeft);
+        hud.totalTimer.classList.remove('low-time');
+
+        game.totalTimerId = setInterval(() => {
+            game.totalTimeLeft--;
+            hud.totalTimer.textContent = formatTime(game.totalTimeLeft);
+            if (game.totalTimeLeft <= 30) { // Turns red in the last 30 seconds
+                hud.totalTimer.classList.add('low-time');
+            }
+            if (game.totalTimeLeft <= 0) {
+                clearInterval(game.totalTimerId);
+                clearInterval(game.questionTimerId);
+                finishGame("Time's Up!");
+            }
+        }, 1000);
+    }
+
+    // --- Game Functions ---
+    function startGame() {
+      game.score = 0; game.tokens = 0; game.correct = 0; game.questionIndex = 0;
+      game.badges = [];
+      game.questionList = shuffleArray([...synonymData[game.selectedLevel]]);
+      
+      badgeContainer.innerHTML = "";
+      feedback.textContent = '';
+      
+      showScreen(gameScreen);
+      startTotalTimer();
+      nextQuestion();
+      updateHUD();
+      nextScreenColor();
+    }
+
+    function nextQuestion() {
+      feedback.textContent = '';
+      badgeContainer.innerHTML = '';
+      if (game.questionIndex >= game.questionList.length) {
+        finishGame("Round Complete!");
+        return;
+      }
+      const q = game.questionList[game.questionIndex];
+      mainWord.textContent = q.main;
+      optionsContainer.innerHTML = '';
+      shuffleArray([...q.options]).forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = opt;
+        btn.onclick = () => handleGuess(opt, btn, q);
+        btn.tabIndex = 0;
+        optionsContainer.appendChild(btn);
+      });
+      updateHUD();
+      nextScreenColor();
+      startQuestionTimer();
+    }
+
+    function handleGuess(selected, btn, q) {
+      clearInterval(game.questionTimerId); // Stop the question timer
+      Array.from(optionsContainer.children).forEach(b => b.disabled = true);
+      let isCorrect = selected === q.synonym;
+
+      if (isCorrect) {
+        btn.classList.add('flash-correct');
+        sounds.correct.play();
+        showToken(btn);
+        feedback.textContent = "✔️ Correct!";
+        feedback.className = "feedback-display feedback-correct";
+        speak(praiseRandom());
+        
+        game.tokens += 10 + Math.floor(Math.random() * 6);
+        game.score++;
+        game.correct++;
+        
+        if (game.correct === 25) awardBadge("Quarter Mark", "🎯", true);
+        if (game.correct === 50) awardBadge("Halfway Hero", "🏆", true);
+        if (game.correct === 75) awardBadge("Virtuoso", "🤩", true);
+
+      } else {
+        if (btn) btn.classList.add('flash-incorrect');
+        const correctBtn = Array.from(optionsContainer.children).find(b => b.textContent === q.synonym);
+        if(correctBtn) correctBtn.classList.add('correct');
+
+        sounds.incorrect.play();
+        const reason = selected === null ? "Time's up!" : "Incorrect!";
+        feedback.textContent = `❌ ${reason} The answer was "${q.synonym}".`;
+        feedback.className = "feedback-display feedback-incorrect";
+        speak("Oops! Let's try that one again later.");
+        game.score = Math.max(0, game.score - 1);
+        
+        if (selected !== null) {
+            game.questionList.push(q);
+        }
+      }
+      game.questionIndex++;
+      updateHUD();
+      setTimeout(nextQuestion, 2200);
+    }
+
+    function showToken(btn) {
+      const coin = document.createElement('div');
+      coin.className = 'token-anim';
+      coin.textContent = '🪙';
+      btn.appendChild(coin);
+      sounds.coin.play();
+      setTimeout(() => { coin.remove(); }, 900);
+    }
+
+    function updateHUD() {
+      hud.player.textContent = game.playerName;
+      hud.level.textContent = levelName(game.selectedLevel);
+      hud.score.textContent = game.score;
+      hud.tokens.textContent = game.tokens;
+      const totalQuestions = game.questionList.length;
+      const currentQuestion = Math.min(game.questionIndex + 1, totalQuestions);
+      hud.question.textContent = `${currentQuestion}/${totalQuestions}`;
+    }
+
+    function finishGame(title) {
+      clearInterval(game.questionTimerId);
+      clearInterval(game.totalTimerId);
+      resetScreenColor();
+      showScreen(endScreen);
+      $('end-title').textContent = title;
+      finalName.textContent = game.playerName;
+      finalScore.textContent = game.score;
+      finalTokens.textContent = game.tokens;
+      finalCorrect.textContent = `${game.correct}/${game.questionIndex}`;
+      finalBadges.innerHTML = '';
+      
+      const accuracy = game.questionIndex > 0 ? (game.correct / game.questionIndex) * 100 : 0;
+
+      if (accuracy === 100 && game.correct >= 100) {
+        awardBadge("Perfectionist", "💯", true);
+        sounds.applause.play();
+        speak("Incredible! One hundred percent correct!");
+      } else if (accuracy >= 80) {
+        speak("Fantastic effort! You are a real synonym superstar!");
+      }
+
+      if (game.badges.length > 0) {
+        game.badges.forEach(b => {
+          const badgeEl = document.createElement('span');
+          badgeEl.className = "badge";
+          badgeEl.textContent = `${b.emoji} ${b.name}`;
+          finalBadges.appendChild(badgeEl);
+        });
+      }
+    }
+
+    function praiseRandom() {
+      const phrases = [
+          "Excellent!", "Well done!", "Brilliant!", "Great job!", "That's correct!", "Nice!", "Keep it up!", "Awesome!",
+          "You've got it!", "Superb!", "Fantastic!", "Perfect!", "You're a star!", "Amazing!", "Outstanding!", "That's the way!",
+          "Unstoppable!", "Magnificent!", "You're on fire!", "Nailed it!"
+      ];
+      return phrases[Math.floor(Math.random() * phrases.length)];
+    }
+
+    function levelName(lvl) {
+      if (lvl==='A1A2') return "A1-A2";
+      if (lvl==='B1B2') return "B1-B2";
+      if (lvl==='C1C2') return "C1-C2";
+      return "?";
+    }
+
+    // --- Event Handlers ---
+    let selectedLevel = null;
+    levelBtns.forEach(btn => {
+      btn.onclick = e => {
+        levelBtns.forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedLevel = btn.dataset.level;
+        startBtn.disabled = !$('player-name-input').value.trim();
+      }
+    });
+
+    $('player-name-input').addEventListener('input', () => {
+        startBtn.disabled = !$('player-name-input').value.trim() || !selectedLevel;
+    });
+
+    startBtn.onclick = e => {
+      const name = $('player-name-input').value.trim();
+      if (!selectedLevel || !name) return;
+      game.playerName = name;
+      game.selectedLevel = selectedLevel;
+      startGame();
+    };
+
+    playAgainBtn.onclick = () => {
+      resetScreenColor();
+      showScreen(startScreen);
+      levelBtns.forEach(b => b.classList.remove('selected'));
+      startBtn.disabled = true;
+      selectedLevel = null;
+    };
+
+    // --- Initial Setup ---
+    window.onload = () => { 
+        $('player-name-input').focus(); 
+        // Load voices for speech synthesis
+        if ('speechSynthesis' in window) {
+            loadVoices();
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = loadVoices;
+            }
+        }
+    };
+</script>
+</body>
+</html>

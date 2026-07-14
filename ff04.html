@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joel Mitchell's ESL - Friends & Family 4</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; touch-action: manipulation; overflow-y: auto; }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        /* Timer Bar */
+        #timer-bar-container { background-color: #e5e7eb; border-radius: 9999px; overflow: hidden; height: 12px; width: 100%; }
+        #timer-bar { background-color: #34d399; height: 100%; transition: width 0.5s linear; }
+        /* Memory Match Styles */
+        .memory-card { perspective: 1000px; }
+        .memory-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s, opacity 0.5s; transform-style: preserve-3d; }
+        .memory-card.flipped .memory-card-inner { transform: rotateY(180deg); }
+        .memory-card.matched { pointer-events: none; }
+        .memory-card.matched .memory-card-inner { transform: scale(1.1) rotateY(180deg); box-shadow: 0 0 20px rgba(22, 163, 74, 0.7); border: 2px solid #16a34a; border-radius: 0.5rem;}
+        .memory-card.disappear .memory-card-inner { opacity: 0; transform: scale(0.5) rotateY(180deg); }
+        .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; -webkit-backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 0.5rem; }
+        .card-front { background-color: #2dd4bf; color: white; font-size: 2.5rem; }
+        .card-back { background-color: #ffffff; transform: rotateY(180deg); flex-direction: column; padding: 0.25rem; line-height: 1.1; }
+        .card-back-emoji { font-size: 2rem; }
+        .card-back-text { font-size: 0.65rem; }
+        @media (max-width: 640px) {
+            .card-back-emoji { font-size: 1.5rem; }
+            .card-back-text { font-size: 0.55rem; }
+        }
+        /* Drag & Drop and Tap Styles */
+        .draggable-word { touch-action: none; cursor: grab; transition: transform 0.2s, box-shadow 0.2s; }
+        .draggable-word:active, .draggable-word.selected { cursor: grabbing; transform: scale(1.1); z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .drop-zone { position: relative; }
+        .drop-zone.drag-over { transform: scale(1.1); border: 2px dashed #3b82f6; }
+        .drop-zone.correct { background-color: #10b981 !important; color: white; animation: pop 0.3s ease-out; }
+        .drop-zone.incorrect { animation: shake 0.5s; background-color: #ef4444; }
+        /* Game Selection Progress */
+        .game-select-btn { position: relative; transition: transform 0.2s; }
+        .game-select-btn:active { transform: scale(0.95); }
+        .completion-check { position: absolute; top: 10px; right: 10px; color: white; background-color: #10b981; border-radius: 50%; width: 30px; height: 30px; display: none; align-items: center; justify-content: center; }
+        .completion-check.completed { display: flex; }
+        /* Certificate */
+        #certificate { border: 10px solid #a78bfa; background-color: #f5f3ff; }
+        @media print { body * { visibility: hidden; } #certificate-modal, #certificate-modal * { visibility: visible; } #certificate-modal { position: absolute; left: 0; top: 0; width: 100%; } #print-cert-btn, #close-cert-btn { display: none; } }
+        /* General Animation & Effects */
+        @keyframes pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .pop-in { animation: pop 0.3s ease-out forwards; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+        
+        .flying-token {
+            position: fixed;
+            background: radial-gradient(circle, #fde047, #f59e0b);
+            color: #ca8a04;
+            font-weight: bold;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 10px #f59e0b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: transform 1s cubic-bezier(0.5, -0.5, 0.5, 1.5), opacity 1s linear;
+        }
+
+        #fireworks-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
+        @keyframes badge-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .badge-shimmer { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); background-size: 200% 100%; animation: badge-shimmer 3s infinite; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <canvas id="fireworks-canvas"></canvas>
+
+    <div id="app-container" class="w-full max-w-6xl mx-auto p-4">
+
+        <!-- Header with Score, Timer, Badges -->
+        <div id="hud" class="hidden sticky top-0 bg-white/80 backdrop-blur-sm z-50 p-4 rounded-b-xl shadow-lg mb-4 flex flex-col gap-3">
+            <div class="flex justify-between items-center w-full">
+                <button id="back-to-menu" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Topics</button>
+                <div class="flex items-center gap-4 md:gap-8 text-lg font-semibold text-gray-700">
+                    <div>🏆 Score: <span id="score-display" class="font-bold text-indigo-600">0</span></div>
+                    <div>⏳ Time: <span id="timer-display" class="font-bold text-red-600">0</span></div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="tts-toggle" class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full"></button>
+                    <button id="badges-button" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-lg">Badges (<span id="badges-count">0</span>)</button>
+                </div>
+            </div>
+            <div id="timer-bar-container"><div id="timer-bar"></div></div>
+        </div>
+
+        <!-- Main Menu Screen -->
+        <div id="main-menu" class="screen active">
+            <h1 class="text-4xl font-bold text-center text-indigo-800 mb-2" onclick="speechService.speak(this.textContent)">ESL Game Hub: Family & Friends 4</h1>
+            <p class="text-center text-gray-600 mb-6" onclick="speechService.speak(this.textContent)">Select a topic to start learning!</p>
+            <div id="topic-buttons" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></div>
+        </div>
+
+        <!-- Game Hub Screen -->
+        <div id="game-hub" class="screen">
+            <h2 id="topic-title" class="text-3xl font-bold text-center text-indigo-800 mb-6" onclick="speechService.speak(this.textContent)"></h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button data-game="memory" class="game-select-btn bg-teal-500 hover:bg-teal-600 text-white p-6 rounded-lg shadow-lg text-center">
+                    <div class="completion-check">✓</div><div class="text-4xl">🧠</div><h3 class="text-xl font-bold mt-2">Memory Match</h3>
+                </button>
+                <button data-game="drop" class="game-select-btn bg-sky-500 hover:bg-sky-600 text-white p-6 rounded-lg shadow-lg text-center">
+                    <div class="completion-check">✓</div><div class="text-4xl">🎯</div><h3 class="text-xl font-bold mt-2">Emoji Drop</h3>
+                </button>
+                <button data-game="scramble" class="game-select-btn bg-purple-500 hover:bg-purple-600 text-white p-6 rounded-lg shadow-lg text-center">
+                    <div class="completion-check">✓</div><div class="text-4xl">✍️</div><h3 class="text-xl font-bold mt-2">Sentence Scramble</h3>
+                </button>
+                <button data-game="listen" class="game-select-btn bg-rose-500 hover:bg-rose-600 text-white p-6 rounded-lg shadow-lg text-center">
+                    <div class="completion-check">✓</div><div class="text-4xl">🎧</div><h3 class="text-xl font-bold mt-2">Listen & Match</h3>
+                </button>
+            </div>
+             <div id="topic-feedback" class="text-center mt-8"></div>
+        </div>
+
+        <!-- Game Screens -->
+        <div id="memory-game" class="screen game-screen"></div>
+        <div id="drop-game" class="screen game-screen"></div>
+        <div id="scramble-game" class="screen game-screen"></div>
+        <div id="listen-game" class="screen game-screen"></div>
+
+        <!-- Modals -->
+        <div id="completion-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center pop-in">
+                <h2 id="completion-title" class="text-4xl font-bold text-green-600 mb-4"></h2>
+                <div class="text-lg space-y-2 text-gray-700">
+                    <p>Time Bonus: <span id="time-bonus" class="font-bold"></span></p>
+                    <p>Points Earned: <span id="points-earned" class="font-bold"></span></p>
+                    <hr class="my-4">
+                    <p class="text-xl">Total Score: <span id="final-score" class="font-bold text-indigo-600"></span></p>
+                </div>
+                <button id="next-btn" class="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg">Continue</button>
+            </div>
+        </div>
+
+        <div id="badges-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl text-center relative">
+                <button id="close-modal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-3xl">&times;</button>
+                <h2 class="text-3xl font-bold text-amber-600 mb-4">Your Badges</h2>
+                <div id="badges-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4 max-h-96 overflow-y-auto"></div>
+            </div>
+        </div>
+        
+        <div id="certificate-modal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
+            <div class="w-full max-w-4xl text-center pop-in">
+                <div id="certificate" class="p-8 relative">
+                    <h1 class="text-5xl font-bold text-purple-800" style="font-family: 'Brush Script MT', cursive;">Certificate of Achievement</h1>
+                    <p class="text-xl mt-6">This certificate is proudly presented to</p>
+                    <input id="cert-name" type="text" placeholder="Enter Your Name Here" class="text-4xl font-semibold text-center bg-transparent border-b-2 border-purple-400 w-3/4 my-4 focus:outline-none">
+                    <p class="text-xl">for successfully completing all topics in the</p>
+                    <p class="text-3xl font-bold text-indigo-700 mt-2">ESL Game Hub</p>
+                    <p class="mt-8">Date: <span id="cert-date"></span></p>
+                </div>
+                <div class="flex justify-center gap-4">
+                    <button id="print-cert-btn" class="mt-6 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg">Print Certificate</button>
+                    <button id="close-cert-btn" class="mt-6 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+        // --- UPGRADED SPEECH SERVICE (v6.2) ---
+        class SpeechService {
+            constructor() {
+                this.synth = window.speechSynthesis;
+                this.enabled = true;
+                this.utteranceQueue = [];
+                this.isSpeaking = false;
+            }
+
+            speak(text, options = {}) {
+                if (!this.enabled || !text) return;
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = options.rate || 0.85; // Default slow rate
+                utterance.pitch = options.pitch || 1;
+                
+                utterance.onend = () => {
+                    this.isSpeaking = false;
+                    this.processQueue();
+                };
+
+                this.utteranceQueue.push(utterance);
+                if (!this.isSpeaking) {
+                    this.processQueue();
+                }
+            }
+            
+            processQueue() {
+                if (this.utteranceQueue.length > 0 && !this.isSpeaking) {
+                    this.isSpeaking = true;
+                    const utterance = this.utteranceQueue.shift();
+                    this.synth.speak(utterance);
+                }
+            }
+
+            toggle() {
+                this.enabled = !this.enabled;
+                if (!this.enabled) {
+                    this.utteranceQueue = [];
+                    this.synth.cancel();
+                }
+                return this.enabled;
+            }
+
+            isEnabled() {
+                return this.enabled;
+            }
+        }
+        const speechService = new SpeechService();
+
+
+        // --- UPGRADED AUDIO & SOUND EFFECTS ENGINE ---
+        let audioReady = false;
+        let toneSynth;
+
+        async function initAudio() {
+            if (!audioReady) {
+                await Tone.start();
+                toneSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 }
+                }).toDestination();
+                audioReady = true;
+            }
+        }
+        
+        function playSound(type) {
+            if (!audioReady) return;
+            const now = Tone.now();
+            switch (type) {
+                case 'correct':
+                    toneSynth.triggerAttackRelease(["C5", "E5", "G5"], "8n", now);
+                    break;
+                case 'incorrect':
+                    toneSynth.triggerAttackRelease("A2", "8n", now);
+                    break;
+                case 'flip':
+                    toneSynth.triggerAttackRelease("A4", "16n", now);
+                    break;
+                case 'win':
+                    toneSynth.triggerAttackRelease("C4", "8n", now);
+                    toneSynth.triggerAttackRelease("E4", "8n", now + 0.1);
+                    toneSynth.triggerAttackRelease("G4", "8n", now + 0.2);
+                    toneSynth.triggerAttackRelease("C5", "8n", now + 0.3);
+                    break;
+                case 'badge':
+                    toneSynth.triggerAttackRelease(["C5", "G5", "C6"], "4n", now);
+                    break;
+            }
+        }
+        
+        document.body.addEventListener('click', initAudio, { once: true });
+
+
+        // --- DATA STRUCTURE ---
+        const praiseWords = ["Awesome!", "Great job!", "Excellent!", "Well done!", "Perfect!", "Amazing!"];
+        const topics = {
+            "Unit 1: Back Together!": {
+                emoji: "👋",
+                words: { "reading": "📚", "skateboarding": "🛹", "photos": "📸", "sports": "⚽", "music": "🎵", "toys": "🧸", "pasta": "🍝", "melon": "🍈", "cheese": "🧀", "cereal": "🥣", "onions": "🧅", "grapes": "🍇" },
+                sentences: ["I like reading and learning.", "She likes listening to music.", "I love taking photos and playing sports.", "He really loves skateboarding.", "We do lots of things together.", "Can I play some games on the computer?", "I'd like a melon, please.", "What would you like?"],
+                questions: [{ q: "What do you do with a camera?", a: "photos" }, { q: "What do you do on a board with wheels?", a: "skateboarding" }, { q: "What do you listen to?", a: "music" }, { q: "What is a type of food from Italy?", a: "pasta" }, { q: "What is a sweet, round fruit?", a: "melon" }, { q: "What do you eat for breakfast?", a: "cereal" }]
+            },
+            "Unit 2: The Food is Great!": {
+                emoji: "🍕",
+                words: { "waiter": "👨‍🍳", "waitress": "👩‍🍳", "uniform": "👕", "menu": "📜", "customer": "🙋‍♂️", "water": "💧", "coffee": "☕", "milk": "🥛", "soup": "🥣", "salad": "🥗", "pizza": "🍕", "beans": "🫘" },
+                sentences: ["The food here is great!", "They usually wear blue uniforms.", "Can I have a bowl of pasta?", "We haven't got any pasta.", "You're our first customers!", "We're having pizza now.", "I rarely eat carrots.", "I usually drink water."],
+                questions: [{ q: "Who brings you food in a restaurant?", a: "waiter" }, { q: "What do you read to choose your food?", a: "menu" }, { q: "What is a hot drink for adults?", a: "coffee" }, { q: "What is a healthy dish with vegetables?", a: "salad" }, { q: "What do you drink when you are thirsty?", a: "water" }, { q: "What is a round Italian food?", a: "pizza" }]
+            },
+            "Unit 3: We Had a Concert": {
+                emoji: "🎻",
+                words: { "concert": "🎶", "drums": "🥁", "violin": "🎻", "audience": "👏", "stage": "🎭", "programme": "📖", "trumpet": "🎺", "recorder": "🎼", "guitar": "🎸", "piano": "🎹", "cheer": "🥳", "clap": "👏" },
+                sentences: ["We had a concert at our house.", "All our friends were there.", "I played the drums.", "The audience clapped and cheered.", "It's much smaller than a guitar.", "Let's make it a surprise!", "Everyone was brilliant.", "Mum played the piano."],
+                questions: [{ q: "What do you play with sticks?", a: "drums" }, { q: "What instrument has strings and is small?", a: "violin" }, { q: "Who watches a show?", a: "audience" }, { q: "Where do actors perform?", a: "stage" }, { q: "What instrument has black and white keys?", a: "piano" }, { q: "What do you do with your hands to show you like something?", a: "clap" }]
+            },
+            "Unit 4: The Dinosaur Museum": {
+                emoji: "🦕",
+                words: { "dinosaur": "🦖", "museum": "🏛️", "model": "🗿", "skeleton": "💀", "scary": "😨", "scream": "😱", "roar": "🗣️", "alive": "😄", "dead": "😵", "robot": "🤖", "bones": "🦴", "fish": "🐟" },
+                sentences: ["We went to the dinosaur museum.", "I bought this dinosaur model.", "We saw dinosaur skeletons.", "Something scary happened.", "We all screamed.", "I thought it was alive.", "The dinosaur was a robot.", "We didn't go to school today."],
+                questions: [{ q: "What is a very old, big animal?", a: "dinosaur" }, { q: "What do you see in a museum?", a: "skeleton" }, { q: "How do you feel when you see a monster?", a: "scary" }, { q: "What sound does a lion or dinosaur make?", a: "roar" }, { q: "What is a machine that looks like a person?", a: "robot" }, { q: "What is the opposite of alive?", a: "dead" }]
+            },
+            "Unit 5: Whose Jacket is This?": {
+                emoji: "🧥",
+                words: { "team": "👨‍👩‍👧‍👦", "jacket": "🧥", "trainers": "👟", "trophy": "🏆", "player": "🏃", "kick": "⚽", "goal": "🥅", "racket": "🎾", "rucksack": "🎒", "win": "🥇", "ball": "🏀", "mine": "🙋" },
+                sentences: ["Let's play football!", "Let's have two teams.", "Whose jacket is this?", "Yes, it's mine.", "This blue jacket is hers.", "Are you sure it's yours?", "I've got yours!", "Our team played well."],
+                questions: [{ q: "What do you wear on your feet for sports?", a: "trainers" }, { q: "What do you win in a competition?", a: "trophy" }, { q: "What do you do to a football?", a: "kick" }, { q: "What do you use to play tennis?", a: "racket" }, { q: "What do you carry your books in?", a: "rucksack" }, { q: "What is the opposite of lose?", a: "win" }]
+            },
+            "Unit 6: Giving Directions": {
+                emoji: "🗺️",
+                words: { "map": "🗺️", "turn left": "⬅️", "turn right": "➡️", "go back": "↩️", "traffic light": "🚦", "roundabout": "🔄", "petrol station": "⛽", "hurry": "🏃‍♀️", "get lost": "❓", "bridge": "🌉", "straight on": "⬆️", "shadow": "👤" },
+                sentences: ["Are we lost?", "Let's look at the map again.", "We have to go back.", "Go straight on.", "Turn right at the traffic lights.", "We have to hurry!", "We can take you!", "Why are we at this petrol station?"],
+                questions: [{ q: "What do you use to find your way?", a: "map" }, { q: "What has red, yellow, and green lights?", a: "traffic light" }, { q: "Where do you buy fuel for a car?", a: "petrol station" }, { q: "What do you do when you are late?", a: "hurry" }, { q: "What goes over a river?", a: "bridge" }, { q: "What is the opposite of turn left?", a: "turn right" }]
+            },
+            "Unit 7: The Best Bed!": {
+                emoji: "🛏️",
+                words: { "break": "💔", "repair": "🔧", "comfortable": "😌", "hard": "🧱", "soft": "🧸", "expensive": "💰", "cheap": "🪙", "wooden": "🪵", "metal": "🔩", "modern": "✨", "bed": "🛏️", "best": "👍" },
+                sentences: ["My bed broke, Mum.", "It was a very old bed.", "This metal one is bigger.", "My old bed is more comfortable.", "This one is softer.", "It's the most expensive bed.", "We can repair old beds.", "My old bed is the best of all."],
+                questions: [{ q: "What is the opposite of expensive?", a: "cheap" }, { q: "What is the opposite of hard?", a: "soft" }, { q: "What do you do to a broken toy?", a: "repair" }, { q: "What is a chair or bed that feels nice?", a: "comfortable" }, { q: "What is something that costs a lot of money?", a: "expensive" }, { q: "What is better than good?", a: "best" }]
+            },
+            "Unit 8: Future Predictions": {
+                emoji: "🚀",
+                words: { "future": "🔮", "travel": "✈️", "satellite": "🛰️", "moon": "🌕", "sun": "☀️", "planets": "🪐", "rocket": "🚀", "astronaut": "🧑‍🚀", "star": "⭐", "spaceship": "🛸", "robot": "🤖", "road": "🛣️" },
+                sentences: ["There will be super-fast planes.", "Will it really happen?", "There won't be any more long journeys.", "Robots will do everything for us.", "Our cars will be very different.", "It will be hotter.", "People will travel in super-fast planes.", "Will they go back to Australia?"],
+                questions: [{ q: "Who travels in a spaceship?", a: "astronaut" }, { q: "What do we travel in to go to the moon?", a: "rocket" }, { q: "What are Mars and Jupiter?", a: "planets" }, { q: "What shines in the sky at night?", a: "moon" }, { q: "What will help us with our homework?", a: "robot" }, { q: "What is the opposite of past?", a: "future" }]
+            },
+            "Unit 9: At the Airport": {
+                emoji: "✈️",
+                words: { "money": "💰", "passenger": "🧍", "arrivals": "🛬", "departures": "🛫", "luggage": "🧳", "suitcase": "🧳", "magazine": "📰", "newspaper": "🗞️", "coin": "🪙", "passport": "🛂", "holiday": "🏖️", "shops": "🛍️" },
+                sentences: ["How much time have we got?", "There's still lots of time left.", "Here's some money for you.", "How many pencils have you got?", "We haven't got much money.", "Let's buy one really nice thing.", "Thank you for taking us on holiday.", "Have you got any newspapers?"],
+                questions: [{ q: "What do you need to travel to another country?", a: "passport" }, { q: "What do you call your bags for a trip?", a: "luggage" }, { q: "Who travels on a plane or bus?", a: "passenger" }, { q: "Where do planes take off from?", a: "departures" }, { q: "What do you use to buy things?", a: "money" }, { q: "What do you pack clothes in?", a: "suitcase" }]
+            },
+            "Unit 10: What's on TV?": {
+                emoji: "📺",
+                words: { "cartoon": "🐰", "radio": "📻", "channel": "📡", "camcorder": "📹", "the news": "📰", "documentary": "🌍", "advert": "📢", "remote control": "🎛️", "TV programme": "📺", "mobile phone": "📱", "film": "🎬", "sports": "⚽" },
+                sentences: ["Please give me the remote control.", "I turned on the TV to watch the match.", "My favourite programme is on now.", "Let's find something new to watch.", "We went in the boat to see the dolphins.", "How often do you watch TV?", "I watch it every day.", "I watch a documentary once a week."],
+                questions: [{ q: "What do you use to change the TV channel?", a: "remote control" }, { q: "What is a funny show for children?", a: "cartoon" }, { q: "What tells you about world events?", a: "the news" }, { q: "What do you listen to for music and talk?", a: "radio" }, { q: "What is a factual programme about nature or history?", a: "documentary" }, { q: "What do you use to record videos?", a: "camcorder" }]
+            },
+            "Unit 11: Using Computers": {
+                emoji: "💻",
+                words: { "printer": "🖨️", "screen": "🖥️", "mouse": "🖱️", "log on": "🔑", "speakers": "🔊", "click on": "👆", "save": "💾", "memory stick": "💾", "Internet": "🌐", "homework": "📝", "email": "📧", "website": "🌐" },
+                sentences: ["We've finished our homework.", "Have you turned off the computer?", "You've made a mess in here.", "I've put all the books in order.", "Have you seen my new speakers?", "She hasn't printed the document.", "Have you saved your work?", "I've tried to print my work."],
+                questions: [{ q: "What do you use to print documents?", a: "printer" }, { q: "What do you look at on a computer?", a: "screen" }, { q: "What do you use to click on things?", a: "mouse" }, { q: "What do you use to listen to music?", a: "speakers" }, { q: "Where do you save your work to take it with you?", a: "memory stick" }, { q: "What do you do to keep your work?", a: "save" }]
+            },
+            "Unit 12: Have You Ever...?": {
+                emoji: "🗺️",
+                words: { "town": "🏘️", "ocean": "🌊", "volcano": "🌋", "village": "🏡", "oasis": "🏝️", "rainforest": "🌳", "capital city": "🏙️", "desert": "🏜️", "island": "🏝️", "cave": "⛰️", "space": "🚀", "mountains": "🏔️" },
+                sentences: ["He has been somewhere very exciting.", "Have you ever been to space?", "I've never been to space.", "Have you ever climbed a really high one?", "Have you climbed a volcano?", "I've never seen a volcano.", "She's never been to the bottom of the ocean.", "We've never fallen in the mountains."],
+                questions: [{ q: "What is a mountain that erupts?", a: "volcano" }, { q: "What is a very dry, sandy place?", a: "desert" }, { q: "What is a place with lots of trees and rain?", a: "rainforest" }, { q: "What is a very large body of salt water?", a: "ocean" }, { q: "Where can you find water in a desert?", a: "oasis" }, { q: "What is a dark place inside a mountain?", a: "cave" }]
+            },
+            "Unit 13: What's the Matter?": {
+                emoji: "🤒",
+                words: { "headache": "🤕", "feel sick": "🤢", "feel dizzy": "😵", "a cold": "🤧", "a cough": "😷", "earache": "👂", "stomach ache": "😩", "sore throat": "😫", "medicine": "💊", "healthy": "💪", "exercise": "🏃", "water": "💧" },
+                sentences: ["What's the matter?", "I've got a stomach ache.", "You should drink some water.", "You shouldn't eat cakes.", "You couldn't eat your dinner.", "He couldn't see the board.", "You should play outside.", "Take lots of exercise."],
+                questions: [{ q: "What should you take when you are ill?", a: "medicine" }, { q: "What is it called when your head hurts?", a: "headache" }, { q: "What is it called when your tummy hurts?", a: "stomach ache" }, { q: "What should you do to be strong?", a: "exercise" }, { q: "What is the opposite of healthy?", a: "sick" }, { q: "What should you drink a lot of?", a: "water" }]
+            },
+            "Unit 14: Making Smoothies": {
+                emoji: "🍓",
+                words: { "smoothie": "🥤", "milk": "🥛", "fridge": "🧊", "pour": "💧", "blender": "🌀", "strawberry": "🍓", "chop": "🔪", "lid": "뚜", "mango": "🥭", "peel": "🍌", "sugar": "🍚", "help": "🤝" },
+                sentences: ["Can you help me make smoothies?", "Get some milk from the fridge.", "Pour it in the blender.", "Chop them up please.", "Give them to Leo.", "This is the lid which goes on the blender.", "This is the boy who didn't put the lid on.", "Sorry, I'll clean it up."],
+                questions: [{ q: "What machine do you use to make a smoothie?", a: "blender" }, { q: "What do you do to a banana before eating it?", a: "peel" }, { q: "What is a small, red fruit?", a: "strawberry" }, { q: "What do you put on top of a blender?", a: "lid" }, { q: "What do you do with a knife to vegetables?", a: "chop" }, { q: "What white liquid comes from a cow?", a: "milk" }]
+            },
+            "Unit 15: Family Memories": {
+                emoji: "👨‍👩‍👧‍👦",
+                words: { "son": "👦", "daughter": "👧", "niece": "👧", "nephew": "👦", "husband": "👨", "wife": "👩", "fishing": "🎣", "toddler": "👶", "cousins": "🧑‍🤝‍🧑", "aunt": "👩‍🦱", "uncle": "👨‍🦱", "born": "🍼" },
+                sentences: ["We were fishing together.", "He was making a mess!", "What were you doing?", "I was looking at photos.", "My mum was born in 1981.", "She was born on 9th July.", "My relatives are coming.", "He likes to scream and shout."],
+                questions: [{ q: "What do you call your aunt's or uncle's child?", a: "cousins" }, { q: "What do you call your mother's sister?", a: "aunt" }, { q: "What do you call a very young child who is learning to walk?", a: "toddler" }, { q: "What do you call your sister's son?", a: "nephew" }, { q: "What do you call your brother's daughter?", a: "niece" }, { q: "What is the activity of catching fish?", a: "fishing" }]
+            }
+        };
+
+        // --- GAME STATE ---
+        let score = 0;
+        let timer;
+        let timeLeft = 0;
+        let initialTime = 0;
+        let currentTopic = null;
+        let currentGame = null;
+        let badges = new Set();
+        let topicScores = {};
+        let topicProgress = {};
+
+        // --- DOM ELEMENTS ---
+        const screens = document.querySelectorAll('.screen');
+        const hud = document.getElementById('hud');
+        const scoreDisplay = document.getElementById('score-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const timerBar = document.getElementById('timer-bar');
+        const topicButtonsContainer = document.getElementById('topic-buttons');
+        const topicTitle = document.getElementById('topic-title');
+        
+        // --- INITIALIZATION ---
+        function init() {
+            loadState();
+            generateTopicButtons();
+            document.getElementById('back-to-menu').addEventListener('click', showMainMenu);
+            document.querySelectorAll('.game-select-btn').forEach(btn => btn.addEventListener('click', startGame));
+            document.getElementById('badges-button').addEventListener('click', showBadges);
+            document.getElementById('close-modal').addEventListener('click', () => document.getElementById('badges-modal').style.display = 'none');
+            document.getElementById('tts-toggle').addEventListener('click', handleTtsToggle);
+            updateTtsButton();
+            document.getElementById('next-btn').addEventListener('click', handleCompletionContinue);
+            document.getElementById('print-cert-btn').addEventListener('click', () => window.print());
+            document.getElementById('close-cert-btn').addEventListener('click', () => {
+                document.getElementById('certificate-modal').style.display = 'none';
+                stopFireworks();
+            });
+            updateBadgesDisplay();
+        }
+        
+        function handleTtsToggle() {
+            speechService.toggle();
+            updateTtsButton();
+        }
+        
+        function updateTtsButton() {
+            const button = document.getElementById('tts-toggle');
+            if (!speechService.isEnabled()) {
+                button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" d="M17 14l-4-4m0 4l4-4" /></svg>`;
+            } else {
+                button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z" /></svg>`;
+            }
+        }
+
+        function generateTopicButtons() {
+            topicButtonsContainer.innerHTML = '';
+            for (const topicName in topics) {
+                const topic = topics[topicName];
+                const button = document.createElement('button');
+                button.className = 'topic-btn bg-white p-4 rounded-lg shadow-md text-center hover:shadow-xl hover:scale-105 transition-all duration-300 flex flex-col items-center justify-center min-h-[120px]';
+                button.dataset.topic = topicName;
+                button.innerHTML = `
+                    <div class="text-4xl mb-2">${topic.emoji}</div>
+                    <div class="font-semibold text-gray-700 text-sm leading-tight">${topicName}</div>
+                `;
+                button.addEventListener('click', () => {
+                    speechService.speak(topicName);
+                    selectTopic(topicName);
+                });
+                topicButtonsContainer.appendChild(button);
+            }
+        }
+
+        // --- SCREEN MANAGEMENT ---
+        function showScreen(screenId) {
+            screens.forEach(screen => screen.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            hud.style.display = (screenId.includes('game') && screenId !== 'game-hub') ? 'flex' : 'none';
+            if (screenId === 'game-hub') {
+                hud.style.display = 'flex'; // Show HUD on game hub too
+            }
+        }
+
+        function showMainMenu() {
+            stopTimer();
+            hud.style.display = 'none';
+            showScreen('main-menu');
+        }
+
+        function selectTopic(topicName) {
+            currentTopic = topicName;
+            topicTitle.textContent = topicName;
+            updateTopicFeedback();
+            updateGameCompletionChecks();
+            showScreen('game-hub');
+        }
+
+        function updateGameCompletionChecks() {
+            const progress = topicProgress[currentTopic] || new Set();
+            document.querySelectorAll('.game-select-btn').forEach(btn => {
+                const game = btn.dataset.game;
+                const check = btn.querySelector('.completion-check');
+                check.classList.toggle('completed', progress.has(game));
+            });
+        }
+        
+        // --- GAME LOGIC ---
+        function startGame(e) {
+            currentGame = e.currentTarget.dataset.game;
+            const gameScreen = document.getElementById(`${currentGame}-game`);
+            showScreen(`${currentGame}-game`);
+
+            switch (currentGame) {
+                case 'memory': setupMemoryGame(gameScreen); startTimer(60); break;
+                case 'drop': setupDropGame(gameScreen); startTimer(90); break;
+                case 'scramble': setupScrambleGame(gameScreen); startTimer(120); break;
+                case 'listen': setupListenGame(gameScreen); startTimer(120); break;
+            }
+        }
+        
+        function updateScore(points) {
+            score += points;
+            scoreDisplay.textContent = score;
+        }
+
+        function startTimer(duration) {
+            stopTimer(); // Ensure no multiple timers run
+            initialTime = duration;
+            timeLeft = duration;
+            timerDisplay.textContent = timeLeft;
+            timerBar.style.width = '100%';
+            timer = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = timeLeft;
+                timerBar.style.width = `${(timeLeft / initialTime) * 100}%`;
+                if (timeLeft <= 0) {
+                    stopTimer();
+                    endGame(false, 'Time is up!');
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timer);
+        }
+
+        function endGame(isWin, message) {
+            stopTimer();
+            let pointsEarned = isWin ? Math.ceil(timeLeft * 0.1) + 5 : 0;
+            
+            if (isWin) {
+                if (!topicProgress[currentTopic]) {
+                    topicProgress[currentTopic] = new Set();
+                }
+                topicProgress[currentTopic].add(currentGame);
+                
+                const isLevelComplete = topicProgress[currentTopic].size === 4;
+
+                playSound('win');
+                speechService.speak('You win!');
+                showCompletionModal(isLevelComplete, pointsEarned);
+                
+                const currentTopicScore = (topicScores[currentTopic] || 0) + pointsEarned;
+                topicScores[currentTopic] = currentTopicScore;
+                
+                if(isLevelComplete && !badges.has(currentTopic)) {
+                    badges.add(currentTopic);
+                    playSound('badge');
+                    const badgeMessage = `New Badge Unlocked: ${currentTopic} Master!`;
+                    setTimeout(() => { 
+                        speechService.speak(badgeMessage); 
+                    }, 1000);
+                    updateBadgesDisplay();
+                    if (badges.size === Object.keys(topics).length) {
+                        setTimeout(showCertificate, 2000);
+                    }
+                }
+            } else {
+                speechService.speak(message, { pitch: 0.8 });
+                setTimeout(() => selectTopic(currentTopic), 2000); // Go back to game hub
+            }
+            updateScore(pointsEarned); // Update score after all calculations
+            saveState();
+            updateTopicFeedback();
+        }
+        
+        // --- MEMORY GAME ---
+        function setupMemoryGame(container) {
+            const words = topics[currentTopic].words;
+            const wordEntries = Object.entries(words).sort(() => 0.5 - Math.random()).slice(0, 8);
+            const items = [...wordEntries, ...wordEntries].sort(() => Math.random() - 0.5);
+
+            container.innerHTML = `<div class="grid grid-cols-4 gap-1 md:gap-2 max-w-2xl mx-auto"></div>`;
+            const grid = container.querySelector('.grid');
+
+            items.forEach(([word, emoji]) => {
+                const card = document.createElement('div');
+                card.className = 'memory-card aspect-square';
+                card.dataset.word = word;
+                card.innerHTML = `
+                    <div class="memory-card-inner">
+                        <div class="card-face card-front shadow-lg">?</div>
+                        <div class="card-face card-back shadow-lg">
+                            <div class="card-back-emoji">${emoji}</div>
+                            <div class="card-back-text font-semibold text-center mt-1">${word}</div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            let flippedCards = [];
+            let matchedPairs = 0;
+            let canFlip = true;
+            grid.addEventListener('click', e => {
+                const card = e.target.closest('.memory-card');
+                if (!card || !canFlip || card.classList.contains('flipped') || flippedCards.length >= 2) return;
+                
+                playSound('flip');
+                speechService.speak(card.dataset.word);
+                card.classList.add('flipped');
+                flippedCards.push(card);
+
+                if (flippedCards.length === 2) {
+                    canFlip = false;
+                    if (flippedCards[0].dataset.word === flippedCards[1].dataset.word) {
+                        playSound('correct');
+                        animatePointsToScore(flippedCards[0], 1);
+                        setTimeout(() => updateScore(1), 1000);
+
+                        flippedCards.forEach(c => {
+                            c.classList.add('matched');
+                            setTimeout(() => c.classList.add('disappear'), 500);
+                        });
+                        flippedCards = [];
+                        matchedPairs++;
+                        canFlip = true;
+                        if (matchedPairs === wordEntries.length) endGame(true, 'You found all matches!');
+                    } else {
+                        setTimeout(() => {
+                            flippedCards.forEach(c => c.classList.remove('flipped'));
+                            flippedCards = [];
+                            canFlip = true;
+                        }, 1200);
+                    }
+                }
+            });
+        }
+
+        // --- UPGRADED REWARD ANIMATION SYSTEM ---
+        function animatePointsToScore(targetElement, points) {
+            const scoreEl = document.getElementById('score-display');
+            const startRect = targetElement.getBoundingClientRect();
+            const endRect = scoreEl.getBoundingClientRect();
+
+            for (let i = 0; i < points; i++) {
+                setTimeout(() => {
+                    const token = document.createElement('div');
+                    token.className = 'flying-token';
+                    token.textContent = '+1';
+                    token.style.width = '30px';
+                    token.style.height = '30px';
+                    token.style.left = `${startRect.left + startRect.width / 2 - 15}px`;
+                    token.style.top = `${startRect.top + startRect.height / 2 - 15}px`;
+                    document.body.appendChild(token);
+
+                    requestAnimationFrame(() => {
+                        token.style.transform = `translate(${endRect.left - startRect.left}px, ${endRect.top - startRect.top}px) scale(0.5)`;
+                        token.style.opacity = '0';
+                    });
+
+                    token.addEventListener('transitionend', () => {
+                        token.remove();
+                        scoreEl.classList.add('pop-in');
+                        setTimeout(() => scoreEl.classList.remove('pop-in'), 300);
+                    });
+                }, i * 100);
+            }
+        }
+
+
+        // --- EMOJI DROP GAME ---
+        function setupDropGame(container) {
+             const words = topics[currentTopic].words;
+             const wordEntries = Object.entries(words);
+             const alphabetizedWords = Object.keys(words).sort();
+             const shuffledEntries = [...wordEntries].sort(() => Math.random() - 0.5);
+             let matchedCount = 0;
+             let selectedWordEl = null;
+
+             container.innerHTML = `
+                <p class="text-center text-lg text-gray-600 mb-4" onclick="speechService.speak(this.textContent)">Drag & Drop or Tap the word then the emoji.</p>
+                <div id="drop-zone-container" class="grid grid-cols-3 md:grid-cols-4 gap-4 max-w-2xl mx-auto mb-8"></div>
+                <div id="drop-word-bank" class="flex flex-wrap gap-3 p-4 bg-gray-200 rounded-lg justify-center"></div>
+             `;
+             const dropZoneContainer = container.querySelector('#drop-zone-container');
+             const wordBank = container.querySelector('#drop-word-bank');
+
+             function handleMatch(zone, word) {
+                playSound('correct');
+                speechService.speak("Correct!", { pitch: 1.2 });
+                animatePointsToScore(zone, 1);
+                setTimeout(() => updateScore(1), 1000);
+                
+                zone.classList.add('correct');
+                zone.innerHTML = `<div class="text-sm font-bold">${word}</div>`;
+                const wordEl = document.getElementById(`word-${word.replace(/\s/g, '-')}`);
+                if(wordEl) wordEl.style.display = 'none';
+                matchedCount++;
+                if (matchedCount === wordEntries.length) endGame(true, 'Great job!');
+             }
+
+             shuffledEntries.forEach(([word, emoji]) => {
+                const zone = document.createElement('div');
+                zone.className = 'drop-zone bg-sky-200 text-4xl p-2 md:p-4 rounded-lg shadow-md flex items-center justify-center transition-colors duration-300 min-h-[80px]';
+                zone.textContent = emoji;
+                zone.dataset.word = word;
+                zone.addEventListener('dragover', e => { e.preventDefault(); e.target.classList.add('drag-over'); });
+                zone.addEventListener('dragleave', e => e.target.classList.remove('drag-over'));
+                zone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    e.target.classList.remove('drag-over');
+                    const droppedWord = e.dataTransfer.getData('text/plain');
+                    if (droppedWord === zone.dataset.word) {
+                        handleMatch(zone, droppedWord);
+                    } else {
+                        playSound('incorrect');
+                        speechService.speak("Incorrect.", { pitch: 0.8 });
+                        zone.classList.add('incorrect');
+                        setTimeout(() => zone.classList.remove('incorrect'), 500);
+                    }
+                });
+                zone.addEventListener('click', () => {
+                    if (selectedWordEl && selectedWordEl.dataset.word === zone.dataset.word) {
+                        handleMatch(zone, selectedWordEl.dataset.word);
+                        selectedWordEl.classList.remove('selected', 'bg-yellow-300');
+                        selectedWordEl = null;
+                    } else if (selectedWordEl) {
+                        playSound('incorrect');
+                        speechService.speak("Incorrect.", { pitch: 0.8 });
+                        zone.classList.add('incorrect');
+                        setTimeout(() => zone.classList.remove('incorrect'), 500);
+                    }
+                });
+                dropZoneContainer.appendChild(zone);
+             });
+
+             alphabetizedWords.forEach(word => {
+                const wordEl = document.createElement('div');
+                wordEl.id = `word-${word.replace(/\s/g, '-')}`;
+                wordEl.className = 'draggable-word bg-white text-sm font-bold py-1 px-2 rounded-lg shadow-md';
+                wordEl.textContent = word;
+                wordEl.dataset.word = word;
+                wordEl.draggable = true;
+                wordEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', word));
+                wordEl.addEventListener('click', () => {
+                    if (selectedWordEl) {
+                        selectedWordEl.classList.remove('selected', 'bg-yellow-300');
+                    }
+                    selectedWordEl = wordEl;
+                    selectedWordEl.classList.add('selected', 'bg-yellow-300');
+                });
+                wordBank.appendChild(wordEl);
+             });
+        }
+
+        // --- SENTENCE SCRAMBLE GAME ---
+        function setupScrambleGame(container) {
+            const sentences = [...topics[currentTopic].sentences].sort(() => 0.5 - Math.random());
+            let currentSentenceIndex = 0;
+
+            container.innerHTML = `
+                <div id="scramble-feedback" class="text-center text-xl font-bold h-8 mb-4"></div>
+                <div id="scramble-drop-zone" class="sentence-drop-zone flex flex-wrap gap-2 p-4 bg-purple-200 rounded-lg justify-center mb-6 border-2 border-dashed border-purple-400 min-h-[50px]"></div>
+                <div id="scramble-word-bank" class="flex flex-wrap gap-2 p-4 bg-gray-200 rounded-lg justify-center"></div>
+            `;
+            const dropZone = container.querySelector('#scramble-drop-zone');
+            const wordBank = container.querySelector('#scramble-word-bank');
+            const feedbackEl = container.querySelector('#scramble-feedback');
+
+            function nextSentence() {
+                if (currentSentenceIndex >= sentences.length) {
+                    endGame(true, 'You completed all sentences!');
+                    return;
+                }
+                feedbackEl.textContent = `Sentence ${currentSentenceIndex + 1} of ${sentences.length}`;
+                const sentence = sentences[currentSentenceIndex];
+                speechService.speak(sentence);
+                const words = sentence.replace(/[.!?]/g, '').split(' ');
+                const punctuation = sentence.match(/[.!?]/g) || [];
+                const itemsToScramble = [...words, ...punctuation];
+                const shuffledWords = itemsToScramble.sort(() => Math.random() - 0.5);
+
+                wordBank.innerHTML = '';
+                dropZone.innerHTML = '';
+                shuffledWords.forEach((word, index) => {
+                    const wordEl = document.createElement('div');
+                    wordEl.id = `scramble-word-${index}`;
+                    wordEl.className = 'sentence-word bg-white p-2 px-4 rounded shadow font-semibold cursor-pointer';
+                    wordEl.textContent = word;
+                    wordEl.draggable = true;
+                    wordEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.target.id));
+                    wordEl.addEventListener('click', () => {
+                        dropZone.appendChild(wordEl);
+                        checkSentence();
+                    });
+                    wordBank.appendChild(wordEl);
+                });
+            }
+            
+            function checkSentence() {
+                const correctSentence = sentences[currentSentenceIndex];
+                const wordsInSentence = correctSentence.replace(/[.!?]/g, '').split(' ');
+                const punctuation = correctSentence.match(/[.!?]/g) || [];
+                const totalItems = wordsInSentence.length + punctuation.length;
+                
+                const wordsInDropZone = Array.from(dropZone.children);
+                if (wordsInDropZone.length !== totalItems) return;
+
+                const userAnswer = wordsInDropZone.map(child => child.textContent).join(' ').replace(/\s+([.!?])/g, '$1');
+                if (userAnswer === correctSentence) {
+                    playSound('correct');
+                    const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                    feedbackEl.textContent = praise;
+                    speechService.speak(praise, { pitch: 1.2 });
+                    
+                    animatePointsToScore(dropZone, 2);
+                    setTimeout(() => updateScore(2), 1000);
+                    
+                    currentSentenceIndex++;
+                    setTimeout(nextSentence, 1500);
+                } else {
+                    playSound('incorrect');
+                    speechService.speak('Not quite right, try again!', { pitch: 0.8 });
+                    feedbackEl.textContent = "Try again!";
+                    dropZone.classList.add('incorrect');
+                    setTimeout(() => {
+                        dropZone.classList.remove('incorrect');
+                        wordsInDropZone.forEach(word => wordBank.appendChild(word));
+                    }, 1000);
+                }
+            }
+
+            const dropHandler = e => {
+                e.preventDefault();
+                const wordId = e.dataTransfer.getData('text/plain');
+                const wordEl = document.getElementById(wordId);
+                if (wordEl && e.currentTarget.contains(wordEl) === false) {
+                    e.currentTarget.appendChild(wordEl);
+                    if (e.currentTarget.id === 'scramble-drop-zone') {
+                        checkSentence();
+                    }
+                }
+            };
+            
+            dropZone.addEventListener('dragover', e => e.preventDefault());
+            dropZone.addEventListener('drop', dropHandler);
+            wordBank.addEventListener('dragover', e => e.preventDefault());
+            wordBank.addEventListener('drop', dropHandler);
+
+            nextSentence();
+        }
+
+        // --- LISTEN & MATCH GAME ---
+        function setupListenGame(container) {
+            const allQuestions = topics[currentTopic].questions;
+            if (!allQuestions || allQuestions.length === 0) {
+                container.innerHTML = `<p class="text-center text-red-500">No listening questions available for this topic.</p>`;
+                setTimeout(() => selectTopic(currentTopic), 2000);
+                return;
+            }
+            const questions = [...allQuestions].sort(() => 0.5 - Math.random()).slice(0, 10);
+            let currentQuestionIndex = 0;
+
+            container.innerHTML = `
+                <div id="listen-feedback" class="text-center text-xl font-bold h-8 mb-4"></div>
+                <div class="text-center mb-8">
+                    <button id="play-question-btn" class="bg-rose-500 hover:bg-rose-600 text-white p-6 rounded-full shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" viewBox="0 0 20 20" fill="currentColor"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" /></svg>
+                    </button>
+                </div>
+                <div id="answer-options" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto"></div>
+            `;
+            
+            const feedbackEl = container.querySelector('#listen-feedback');
+            const playBtn = container.querySelector('#play-question-btn');
+            const optionsContainer = container.querySelector('#answer-options');
+
+            function nextQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true, 'You answered all questions!');
+                    return;
+                }
+                feedbackEl.textContent = `Question ${currentQuestionIndex + 1} of ${questions.length}`;
+                const qData = questions[currentQuestionIndex];
+                
+                speechService.speak(qData.q);
+                playBtn.onclick = () => speechService.speak(qData.q);
+                
+                optionsContainer.innerHTML = '';
+                
+                const allAnswers = allQuestions.map(q => q.a);
+                let options = [qData.a];
+                while (options.length < 3) {
+                    const randomAnswer = allAnswers[Math.floor(Math.random() * allAnswers.length)];
+                    if (!options.includes(randomAnswer)) {
+                        options.push(randomAnswer);
+                    }
+                }
+                options.sort(() => Math.random() - 0.5);
+
+                options.forEach(option => {
+                    const btn = document.createElement('button');
+                    btn.className = 'answer-btn bg-white text-lg font-semibold p-4 rounded-lg shadow-md hover:bg-gray-100 transition-colors';
+                    btn.textContent = option;
+                    btn.onclick = () => {
+                        if (option === qData.a) {
+                            playSound('correct');
+                            speechService.speak('Correct!', { pitch: 1.2 });
+                            animatePointsToScore(btn, 2);
+                            setTimeout(() => updateScore(2), 1000);
+                            
+                            btn.classList.add('bg-green-500', 'text-white');
+                            currentQuestionIndex++;
+                            setTimeout(nextQuestion, 1000);
+                        } else {
+                            playSound('incorrect');
+                            speechService.speak('Try again.', { pitch: 0.8 });
+                            btn.classList.add('bg-red-500', 'text-white');
+                            setTimeout(() => btn.classList.remove('bg-red-500', 'text-white'), 500);
+                        }
+                    };
+                    optionsContainer.appendChild(btn);
+                });
+            }
+            
+            nextQuestion();
+        }
+
+        // --- LEVEL COMPLETE & BADGES ---
+        function showCompletionModal(isLevelComplete, points) {
+            const modal = document.getElementById('completion-modal');
+            document.getElementById('completion-title').textContent = isLevelComplete ? "Topic Complete!" : "Game Complete!";
+            document.getElementById('time-bonus').textContent = Math.ceil(timeLeft * 0.1);
+            document.getElementById('points-earned').textContent = points;
+            document.getElementById('final-score').textContent = score;
+            modal.dataset.isLevelComplete = isLevelComplete;
+            modal.style.display = 'flex';
+            if (isLevelComplete) {
+                startFireworks();
+            }
+        }
+        
+        function handleCompletionContinue() {
+            const modal = document.getElementById('completion-modal');
+            const isLevelComplete = modal.dataset.isLevelComplete === 'true';
+            modal.style.display = 'none';
+            stopFireworks();
+            if (isLevelComplete) {
+                showMainMenu();
+            } else {
+                selectTopic(currentTopic);
+            }
+        }
+
+        function showCertificate() {
+            document.getElementById('cert-date').textContent = new Date().toLocaleDateString();
+            document.getElementById('certificate-modal').style.display = 'flex';
+            startFireworks();
+        }
+
+        function showBadges() {
+            const modal = document.getElementById('badges-modal');
+            const grid = document.getElementById('badges-grid');
+            grid.innerHTML = '';
+            for (const topicName in topics) {
+                const topic = topics[topicName];
+                const hasBadge = badges.has(topicName);
+                const badgeEl = document.createElement('div');
+                badgeEl.className = `p-2 text-center rounded-lg relative overflow-hidden ${hasBadge ? 'bg-amber-400' : 'bg-gray-200'}`;
+                badgeEl.innerHTML = `
+                    <div class="text-4xl ${hasBadge ? '' : 'opacity-30'}">${topic.emoji}</div>
+                    <div class="text-xs font-semibold mt-1">${topicName}</div>
+                    ${hasBadge ? '<div class="absolute inset-0 badge-shimmer"></div>' : ''}
+                `;
+                grid.appendChild(badgeEl);
+            }
+            modal.style.display = 'flex';
+        }
+        
+        function updateBadgesDisplay() {
+            document.getElementById('badges-count').textContent = badges.size;
+        }
+
+        function updateTopicFeedback() {
+             const feedbackEl = document.getElementById('topic-feedback');
+             const score = topicScores[currentTopic] || 0;
+             const hasBadge = badges.has(currentTopic);
+             feedbackEl.innerHTML = `
+                <p class="font-semibold">Topic Score: ${score}</p>
+                ${hasBadge ? '<p class="text-amber-600 font-bold">🏅 Badge Earned!</p>' : ''}
+             `;
+        }
+
+        // --- STATE MANAGEMENT ---
+        function saveState() {
+            localStorage.setItem('ff4GameScore', score);
+            localStorage.setItem('ff4GameBadges', JSON.stringify(Array.from(badges)));
+            localStorage.setItem('ff4GameTopicScores', JSON.stringify(topicScores));
+            const progressToSave = {};
+            for (const key in topicProgress) {
+                progressToSave[key] = Array.from(topicProgress[key]);
+            }
+            localStorage.setItem('ff4GameTopicProgress', JSON.stringify(progressToSave));
+        }
+
+        function loadState() {
+            score = parseInt(localStorage.getItem('ff4GameScore')) || 0;
+            const savedBadges = JSON.parse(localStorage.getItem('ff4GameBadges')) || [];
+            badges = new Set(savedBadges);
+            topicScores = JSON.parse(localStorage.getItem('ff4GameTopicScores')) || {};
+            const savedProgress = JSON.parse(localStorage.getItem('ff4GameTopicProgress')) || {};
+            for (const key in savedProgress) {
+                topicProgress[key] = new Set(savedProgress[key]);
+            }
+            scoreDisplay.textContent = score;
+        }
+        
+        // --- FIREWORKS ---
+        const fireworksCanvas = document.getElementById('fireworks-canvas');
+        const ctx = fireworksCanvas.getContext('2d');
+        let fireworks = [];
+        let particles = [];
+        let fireworksAnimationId;
+
+        function startFireworks() {
+            fireworksCanvas.width = window.innerWidth;
+            fireworksCanvas.height = window.innerHeight;
+            function loop() {
+                if (Math.random() < 0.05) fireworks.push(new Firework());
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+                ctx.globalCompositeOperation = 'lighter';
+                
+                for (let i = fireworks.length - 1; i >= 0; i--) {
+                    fireworks[i].update();
+                    fireworks[i].draw();
+                    if (fireworks[i].done()) fireworks.splice(i, 1);
+                }
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    particles[i].update();
+                    particles[i].draw();
+                    if (particles[i].done()) particles.splice(i, 1);
+                }
+                fireworksAnimationId = requestAnimationFrame(loop);
+            }
+            if(fireworksAnimationId) cancelAnimationFrame(fireworksAnimationId);
+            loop();
+        }
+
+        function stopFireworks() {
+            if (fireworksAnimationId) {
+                cancelAnimationFrame(fireworksAnimationId);
+                fireworksAnimationId = null;
+            }
+            fireworks = [];
+            particles = [];
+            ctx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 2 + 1;
+                this.alpha = 1; this.decay = Math.random() * 0.015 + 0.015;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 5;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.alpha -= this.decay; }
+            done() { return this.alpha <= this.decay; }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Firework {
+            constructor() {
+                this.x = Math.random() * fireworksCanvas.width;
+                this.y = fireworksCanvas.height;
+                this.targetY = Math.random() * (fireworksCanvas.height / 2);
+                this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                this.exploded = false;
+            }
+            update() {
+                if (!this.exploded) {
+                    this.y -= 3;
+                    if (this.y < this.targetY) {
+                        this.exploded = true;
+                        for (let i = 0; i < 30; i++) particles.push(new Particle(this.x, this.y, this.color));
+                    }
+                }
+            }
+            done() { return this.exploded; }
+            draw() {
+                if (!this.exploded) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, 2, 0, Math.PI * 2, false);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
+            }
+        }
+
+        init();
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Career Change Challenge - 2 Player Edition</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden; /* Prevent scrollbars on the body */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f9ff; /* sky-50 */
+            background-image: radial-gradient(circle at top right, #e0f2fe, #f0f9ff);
+        }
+        #app-container {
+             transition: background-color 2s ease-in-out;
+        }
+        .hidden { display: none !important; }
+        .view-container { 
+            transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out; 
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .view-container.hidden { opacity: 0; transform: scale(0.98); }
+
+        @keyframes flash-correct {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.5); }
+            50% { box-shadow: 0 0 0 0px rgba(34, 197, 94, 0); }
+        }
+        .flash-correct { animation: flash-correct 0.7s ease-out; }
+
+        @keyframes round-winner-intense-flash {
+            0% { background-color: rgba(251, 191, 36, 0); border-color: rgba(251, 191, 36, 0.5); transform: scale(1); }
+            25% { background-color: rgba(251, 191, 36, 0.4); border-color: rgba(251, 191, 36, 1); transform: scale(1.02); }
+            50% { background-color: rgba(251, 191, 36, 0.1); border-color: rgba(251, 191, 36, 0.6); transform: scale(1); }
+            75% { background-color: rgba(251, 191, 36, 0.5); border-color: rgba(251, 191, 36, 1); transform: scale(1.02); }
+            100% { background-color: rgba(251, 191, 36, 0); border-color: rgba(251, 191, 36, 0.5); transform: scale(1); }
+        }
+        .round-winner { animation: round-winner-intense-flash 1.5s ease-in-out; }
+
+        @keyframes audio-wave {
+            0% { transform: scaleY(0.4); } 25% { transform: scaleY(1); }
+            50% { transform: scaleY(0.6); } 75% { transform: scaleY(0.8); }
+            100% { transform: scaleY(0.4); }
+        }
+        .audio-wave-bar { animation: audio-wave 1.2s infinite ease-in-out; }
+        .audio-wave-bar:nth-child(2) { animation-delay: -1.0s; }
+        .audio-wave-bar:nth-child(3) { animation-delay: -0.8s; }
+        .audio-wave-bar:nth-child(4) { animation-delay: -0.6s; }
+        .audio-wave-bar:nth-child(5) { animation-delay: -0.4s; }
+
+        @keyframes badge-alert-in {
+            0% { opacity: 0; transform: translateY(20px) scale(0.9); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes badge-alert-out {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-20px) scale(0.9); }
+        }
+        .badge-alert-enter { animation: badge-alert-in 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+        .badge-alert-exit { animation: badge-alert-out 0.5s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards; }
+
+        .coin {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background-color: #fbbF24; /* amber-400 */
+            border-radius: 50%;
+            border: 2px solid #f59e0b; /* amber-500 */
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @keyframes fly-to-p1 {
+            0% { top: 50%; left: 50%; opacity: 1; transform: scale(1.5); }
+            100% { top: var(--p1-score-top); left: var(--p1-score-left); opacity: 0; transform: scale(0.2); }
+        }
+        @keyframes fly-to-p2 {
+            0% { top: 50%; left: 50%; opacity: 1; transform: scale(1.5); }
+            100% { top: var(--p2-score-top); left: var(--p2-score-left); opacity: 0; transform: scale(0.2); }
+        }
+
+    </style>
+</head>
+<body class="flex items-center justify-center p-2 sm:p-4 text-slate-800">
+
+    <div id="app-container" class="relative w-full max-w-4xl h-full max-h-[95vh] sm:max-h-[90vh] p-4 sm:p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl flex flex-col">
+        <div id="coin-animation-container" class="absolute inset-0 pointer-events-none overflow-hidden z-50"></div>
+        
+        <!-- View: Level Selection -->
+        <div id="level-selection-view" class="view-container text-center">
+            <div>
+                <h1 class="text-3xl sm:text-4xl font-extrabold mb-2 text-sky-700">Career Change Challenge</h1>
+                <p id="level-selection-prompt" class="mb-4 text-slate-600 text-base sm:text-lg">Loading audio resources...</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 items-center justify-center gap-4 mb-6">
+                    <input type="text" id="player1-name" placeholder="Enter Player 1 Name" class="w-full px-4 py-2 sm:py-3 text-base sm:text-lg border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition">
+                    <input type="text" id="player2-name" placeholder="Enter Player 2 Name" class="w-full px-4 py-2 sm:py-3 text-base sm:text-lg border-2 border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:border-rose-500 transition">
+                </div>
+                <button id="start-game-button" class="w-full max-w-xs mx-auto text-white font-bold py-4 sm:py-6 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300 bg-green-500 hover:bg-green-600 disabled:bg-slate-400 disabled:cursor-not-allowed disabled:transform-none">
+                    <span class="text-2xl sm:text-3xl">Start Game</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- View: Game -->
+        <div id="game-view" class="view-container hidden">
+            <div class="flex-shrink-0">
+                <div id="progress-bar-container" class="w-full h-2 bg-slate-200 rounded-full overflow-hidden mb-3">
+                    <div id="progress-bar" class="h-full" style="width: 100%; background-color: #22c55e; transition: width 1s linear, background-color 1s linear;"></div>
+                </div>
+                <div class="flex justify-between items-center mb-3">
+                     <div class="grid grid-cols-2 gap-4">
+                        <div id="player1-score-box" class="p-2 rounded-lg bg-sky-100 text-center">
+                            <div id="player1-score-display" class="font-bold text-2xl text-sky-800">0</div>
+                            <div class="text-xs text-sky-600" id="player1-name-score">Player 1</div>
+                        </div>
+                        <div id="player2-score-box" class="p-2 rounded-lg bg-rose-100 text-center">
+                            <div id="player2-score-display" class="font-bold text-2xl text-rose-800">0</div>
+                            <div class="text-xs text-rose-600" id="player2-name-score">Player 2</div>
+                        </div>
+                    </div>
+                    <div class="text-xl sm:text-2xl font-bold text-rose-600 bg-rose-100 px-3 py-1 sm:px-4 sm:py-2 rounded-lg">
+                        <span id="game-countdown-display">10:00</span>
+                    </div>
+                </div>
+                 <div class="text-center mb-2 font-semibold text-slate-600">Question <span id="question-count">0</span> / <span id="question-total">25</span></div>
+            </div>
+            
+            <div id="question-area" class="w-full max-w-4xl mx-auto p-3 sm:p-4 bg-white rounded-2xl shadow-lg flex-grow flex flex-col">
+                <div class="flex justify-between items-center mb-2">
+                    <p class="text-xs sm:text-sm text-slate-500">Time: <span id="question-timer" class="font-bold text-sm sm:text-base text-rose-600">--</span>s</p>
+                    <button id="repeat-button" class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-1 px-2 sm:py-2 sm:px-4 rounded-lg shadow-sm hover:shadow-md transition flex items-center gap-2 disabled:bg-slate-400 text-sm" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.6A9 9 0 0 1 12 3a9 9 0 0 1 8.4 5.4"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.4A9 9 0 0 1 12 21a9 9 0 0 1-8.4-5.4"/></svg>
+                        <span class="hidden sm:inline">Repeat</span>
+                    </button>
+                </div>
+
+                <div id="stimulus-area" class="mb-2 p-2 min-h-[60px] sm:min-h-[80px] bg-slate-100 rounded-lg flex flex-col justify-center items-center">
+                    <div id="audio-visualizer" class="flex items-center justify-center h-10 sm:h-12 space-x-1.5">
+                        <div class="audio-wave-bar w-1.5 sm:w-2 h-full bg-sky-500 rounded-full"></div>
+                        <div class="audio-wave-bar w-1.5 sm:w-2 h-full bg-sky-500 rounded-full"></div>
+                        <div class="audio-wave-bar w-1.5 sm:w-2 h-full bg-sky-500 rounded-full"></div>
+                        <div class="audio-wave-bar w-1.5 sm:w-2 h-full bg-sky-500 rounded-full"></div>
+                        <div class="audio-wave-bar w-1.5 sm:w-2 h-full bg-sky-500 rounded-full"></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 flex-grow mt-4">
+                    <!-- Player 1 Area -->
+                    <div id="player1-container" class="p-3 rounded-lg bg-sky-50 border-2 border-sky-200 transition-all duration-500">
+                        <h3 id="player1-name-display" class="text-lg font-bold text-sky-800 text-center mb-2">Player 1</h3>
+                        <div id="answer-options-p1" class="grid grid-cols-2 gap-2"></div>
+                        <div id="feedback-p1" class="mt-2 font-semibold text-center min-h-[24px] text-base"></div>
+                    </div>
+                    <!-- Player 2 Area -->
+                    <div id="player2-container" class="p-3 rounded-lg bg-rose-50 border-2 border-rose-200 transition-all duration-500">
+                        <h3 id="player2-name-display" class="text-lg font-bold text-rose-800 text-center mb-2">Player 2</h3>
+                        <div id="answer-options-p2" class="grid grid-cols-2 gap-2"></div>
+                        <div id="feedback-p2" class="mt-2 font-semibold text-center min-h-[24px] text-base"></div>
+                    </div>
+                </div>
+                <div id="round-winner-feedback" class="mt-3 font-bold text-xl text-center text-amber-600 min-h-[30px]"></div>
+            </div>
+        </div>
+
+        <!-- View: Game Over -->
+        <div id="game-over-view" class="view-container hidden text-center">
+            <div class="flex flex-col h-full">
+                <div class="flex-shrink-0">
+                    <h2 class="text-3xl sm:text-4xl font-extrabold text-sky-800 mb-1">Game Over!</h2>
+                    <p id="game-over-winner" class="text-xl font-bold text-amber-600 mb-4"></p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <!-- P1 Final Score -->
+                        <div class="bg-sky-100 p-4 rounded-lg">
+                            <h3 id="final-player1-name" class="text-lg font-bold text-sky-800">Player 1</h3>
+                            <p class="text-3xl font-bold text-sky-900"><span id="final-score-p1">0</span></p>
+                            <p class="text-sm text-slate-600">Score</p>
+                            <div id="final-badges-p1" class="flex flex-wrap gap-2 justify-center mt-2 min-h-[30px]"></div>
+                        </div>
+                        <!-- P2 Final Score -->
+                        <div class="bg-rose-100 p-4 rounded-lg">
+                            <h3 id="final-player2-name" class="text-lg font-bold text-rose-800">Player 2</h3>
+                            <p class="text-3xl font-bold text-rose-900"><span id="final-score-p2">0</span></p>
+                            <p class="text-sm text-slate-600">Score</p>
+                            <div id="final-badges-p2" class="flex flex-wrap gap-2 justify-center mt-2 min-h-[30px]"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="review-section" class="mt-4 text-left flex-grow min-h-0">
+                    <h4 class="text-lg sm:text-xl font-semibold text-sky-700 mb-2">Review Incorrect Answers</h4>
+                    <div id="incorrect-answers-list" class="space-y-3 h-full overflow-y-auto p-3 bg-slate-50 rounded-lg"></div>
+                </div>
+
+                <div class="mt-4 flex-shrink-0">
+                    <button id="play-again-button" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 w-full">Play Another Level</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Badge Unlocked Alert -->
+        <div id="badge-alert" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 p-4 bg-gradient-to-br from-amber-400 to-orange-500 text-white rounded-2xl shadow-2xl text-center z-50 pointer-events-none">
+            <div id="badge-alert-icon" class="text-5xl mb-2"></div>
+            <h3 class="text-xl font-bold">Badge Unlocked!</h3>
+            <p id="badge-alert-name" class="text-lg font-medium"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM ELEMENT CACHE ---
+            const dom = {
+                appContainer: document.getElementById('app-container'),
+                coinContainer: document.getElementById('coin-animation-container'),
+                levelSelectionView: document.getElementById('level-selection-view'),
+                levelSelectionPrompt: document.getElementById('level-selection-prompt'),
+                gameView: document.getElementById('game-view'),
+                gameOverView: document.getElementById('game-over-view'),
+                player1NameInput: document.getElementById('player1-name'),
+                player2NameInput: document.getElementById('player2-name'),
+                startGameButton: document.getElementById('start-game-button'),
+                
+                player1Container: document.getElementById('player1-container'),
+                player2Container: document.getElementById('player2-container'),
+                player1NameDisplay: document.getElementById('player1-name-display'),
+                player2NameDisplay: document.getElementById('player2-name-display'),
+                player1ScoreBox: document.getElementById('player1-score-box'),
+                player2ScoreBox: document.getElementById('player2-score-box'),
+                player1ScoreDisplay: document.getElementById('player1-score-display'),
+                player2ScoreDisplay: document.getElementById('player2-score-display'),
+                player1NameScore: document.getElementById('player1-name-score'),
+                player2NameScore: document.getElementById('player2-name-score'),
+
+                answerOptionsP1: document.getElementById('answer-options-p1'),
+                answerOptionsP2: document.getElementById('answer-options-p2'),
+                feedbackP1: document.getElementById('feedback-p1'),
+                feedbackP2: document.getElementById('feedback-p2'),
+                progressBar: document.getElementById('progress-bar'),
+
+                questionCountDisplay: document.getElementById('question-count'),
+                questionTotalDisplay: document.getElementById('question-total'),
+                gameCountdownDisplay: document.getElementById('game-countdown-display'),
+                questionTimer: document.getElementById('question-timer'),
+                audioVisualizer: document.getElementById('audio-visualizer'),
+                roundWinnerFeedback: document.getElementById('round-winner-feedback'),
+                repeatButton: document.getElementById('repeat-button'),
+                
+                gameOverWinner: document.getElementById('game-over-winner'),
+                finalPlayer1Name: document.getElementById('final-player1-name'),
+                finalPlayer2Name: document.getElementById('final-player2-name'),
+                finalScoreP1: document.getElementById('final-score-p1'),
+                finalScoreP2: document.getElementById('final-score-p2'),
+                finalBadgesP1: document.getElementById('final-badges-p1'),
+                finalBadgesP2: document.getElementById('final-badges-p2'),
+
+                reviewSection: document.getElementById('review-section'),
+                incorrectAnswersList: document.getElementById('incorrect-answers-list'),
+                playAgainButton: document.getElementById('play-again-button'),
+                badgeAlert: document.getElementById('badge-alert'),
+                badgeAlertIcon: document.getElementById('badge-alert-icon'),
+                badgeAlertName: document.getElementById('badge-alert-name'),
+            };
+
+            // --- GAME CONFIGURATION ---
+            const config = {
+                QUESTIONS_PER_GAME: 25,
+                TIME_PER_QUESTION_SECONDS: 15,
+                GAME_DURATION_SECONDS: 600, // 10 minutes
+                POINTS_PER_CORRECT: 2,
+            };
+            
+            // --- BADGES CONFIGURATION ---
+            const badgeData = {
+                'STREAK_5': { name: 'On a Roll', icon: '👍'},
+                'STREAK_10': { name: 'In the Zone', icon: '🔥' }, 
+                'PERFECT_LEVEL': { name: 'Perfect Game', icon: '🎯' },
+                'QUICK_THINKER': { name: 'On the Dot', icon: '⏰' }
+            };
+
+            const correctFeedback = ["That's right!", "You got it!", "Excellent!", "Perfect!", "Great listening!", "You're on fire!"];
+            const incorrectFeedback = ["Not quite!", "Listen carefully!", "Keep trying!", "Don't give up!", "You'll get the next one!"];
+            const backgroundColors = ['#f0f9ff', '#f5f3ff', '#f0fff0', '#fff5f0', '#fff0f5', '#f0ffff'];
+            let bgColorIndex = 0;
+            let bgInterval = null;
+            
+            const people = ["Alex", "Ben", "Chloe", "David", "Emma", "Frank", "Grace", "Henry", "Isla", "Jack", "Kate", "Leo", "Mia", "Noah", "Olivia", "Penelope", "Quinn", "Ryan", "Sophia", "Tom", "Uma", "Victor", "Willow", "Xavier", "Yara"];
+            const jobs = [
+                { name: "Chef", description: (name) => `${name} is switching careers! They won't be just baking bread or serving tables. They'll be in charge of the entire kitchen, creating new recipes for the menu, and managing a team to prepare meals in a busy restaurant.`, distractors: ["Baker", "Waiter"] },
+                { name: "Teacher", description: (name) => `${name} has a new role. It's not about library science or administration. They will be in a classroom, preparing lesson plans, grading assignments, and helping students understand new subjects.`, distractors: ["Librarian", "Administrator"] },
+                { name: "Doctor", description: (name) => `Big news for ${name}! They're not a nurse or a researcher in a lab. They'll be at the hospital, diagnosing illnesses, prescribing treatments, and sometimes performing surgery on patients.`, distractors: ["Nurse", "Scientist"] },
+                { name: "Firefighter", description: (name) => `After much training, ${name} will now be responding to emergencies, putting out fires, and helping people in dangerous situations. They won't be driving an ambulance.`, distractors: ["Paramedic", "Police Officer"] },
+                { name: "Police Officer", description: (name) => `A career change for ${name}: they'll be patrolling the community, enforcing laws, and ensuring public safety, not working as a private detective.`, distractors: ["Detective", "Security Guard"] },
+                { name: "Artist", description: (name) => `${name} is following their passion. They will be creating paintings and sculptures to be displayed in a gallery, rather than designing buildings.`, distractors: ["Architect", "Graphic Designer"] },
+                { name: "Musician", description: (name) => `${name} has a new gig. They'll be playing an instrument on stage and recording music in a studio, not just teaching it.`, distractors: ["Music Teacher", "DJ"] },
+                { name: "Writer", description: (name) => `A new chapter for ${name}! They will be crafting stories, writing articles, and working with publishers, which is different from being an editor.`, distractors: ["Editor", "Journalist"] },
+                { name: "Pilot", description: (name) => `Get ready for takeoff! ${name} will now be flying commercial airplanes and ensuring passengers get to their destinations safely, not working as cabin crew.`, distractors: ["Flight Attendant", "Air Traffic Controller"] },
+                { name: "Mechanic", description: (name) => `${name} is starting a new job. They'll be inspecting, diagnosing, and fixing problems with cars in a garage, not selling them.`, distractors: ["Car Salesperson", "Engineer"] },
+                { name: "Librarian", description: (name) => `A quiet new role for ${name}. They will be organizing books, helping people find information, and managing a public collection of resources, not teaching history.`, distractors: ["Historian", "Archivist"] },
+                { name: "Farmer", description: (name) => `${name} is moving to the countryside. They'll be planting crops and raising animals, a big change from their old job in landscape gardening.`, distractors: ["Gardener", "Botanist"] },
+                { name: "Architect", description: (name) => `A new design for ${name}'s career. They will be drafting blueprints and designing buildings, not creating sculptures for a gallery.`, distractors: ["Artist", "Interior Designer"] },
+                { name: "Software Developer", description: (name) => `A digital change for ${name}. They'll be writing code and developing applications for a tech company, not designing the user interface.`, distractors: ["UI/UX Designer", "IT Support"] },
+                { name: "Veterinarian", description: (name) => `${name} has a new calling. They will be treating sick animals and advising pet owners at a clinic, which is different from being a doctor for humans.`, distractors: ["Doctor", "Zoologist"] },
+                { name: "Electrician", description: (name) => `Sparks are flying for ${name}'s new career! They'll be installing and maintaining electrical systems in homes, not fixing leaky pipes.`, distractors: ["Plumber", "Construction Worker"] },
+                { name: "Plumber", description: (name) => `${name}'s career is no longer a pipe dream. They will be installing and repairing pipes and drainage systems, not wiring buildings.`, distractors: ["Electrician", "Handyman"] },
+                { name: "Journalist", description: (name) => `Here's the scoop on ${name}'s new job. They'll be investigating stories and reporting the news for a major newspaper, not just taking photos.`, distractors: ["Photographer", "Writer"] },
+                { name: "Photographer", description: (name) => `${name} is focusing on a new career. They'll be taking pictures at events and editing photos, a different field from news reporting.`, distractors: ["Journalist", "Videographer"] },
+                { name: "Graphic Designer", description: (name) => `A new look for ${name}'s career. They'll be creating logos and websites for clients, not painting on canvas.`, distractors: ["Artist", "Web Developer"] },
+                { name: "Lawyer", description: (name) => `${name} will now be arguing cases and advising clients on legal matters, a shift from their previous role as a paralegal.`, distractors: ["Paralegal", "Judge"] },
+                { name: "Scientist", description: (name) => `${name} is starting a new experiment. They'll be conducting research and analyzing data in a laboratory, not treating patients in a hospital.`, distractors: ["Doctor", "Lab Technician"] },
+                { name: "Accountant", description: (name) => `It all adds up for ${name}. They'll be preparing financial reports and managing budgets, which is more specialized than general financial advising.`, distractors: ["Financial Advisor", "Bookkeeper"] },
+                { name: "Florist", description: (name) => `A blooming new career for ${name}. They will be arranging flowers and creating bouquets, not landscaping large outdoor spaces.`, distractors: ["Gardener", "Botanist"] },
+                { name: "Gardener", description: (name) => `${name} is turning over a new leaf. They'll be planting flowers and maintaining beautiful outdoor spaces, a different skill set from arranging them in a shop.`, distractors: ["Florist", "Farmer"] },
+            ];
+
+            // --- STATE MANAGEMENT ---
+            let state = {
+                gameState: null,
+                currentQuestionData: {},
+                timers: { question: null, game: null },
+                audio: { synth: null, voices: [], preferredVoices: [], isTtsEnabled: true, isReady: false },
+                shuffledQuestions: [],
+                questionStartTime: 0,
+                isRoundOver: false,
+            };
+
+            // --- UI & DISPLAY ---
+            function switchView(viewToShow) {
+                [dom.levelSelectionView, dom.gameView, dom.gameOverView].forEach(view => view.classList.add('hidden'));
+                if (viewToShow) viewToShow.classList.remove('hidden');
+            }
+
+            function updateGameStatsDisplay() {
+                if (!state.gameState) return;
+                dom.questionCountDisplay.textContent = state.gameState.questionsAnswered + 1;
+                dom.questionTotalDisplay.textContent = config.QUESTIONS_PER_GAME;
+                dom.player1ScoreDisplay.textContent = state.gameState.player1.score;
+                dom.player2ScoreDisplay.textContent = state.gameState.player2.score;
+            }
+
+            function showBadgeAlert(badgeKey, playerName) {
+                const badge = badgeData[badgeKey];
+                if (!badge) return;
+                dom.badgeAlertIcon.textContent = badge.icon;
+                dom.badgeAlertName.textContent = `${badge.name} (${playerName})`;
+                dom.badgeAlert.classList.remove('hidden', 'badge-alert-exit');
+                dom.badgeAlert.classList.add('badge-alert-enter');
+                setTimeout(() => {
+                    dom.badgeAlert.classList.remove('badge-alert-enter');
+                    dom.badgeAlert.classList.add('badge-alert-exit');
+                }, 2500);
+            }
+
+            function changeBackgroundColor() {
+                bgColorIndex = (bgColorIndex + 1) % backgroundColors.length;
+                dom.appContainer.style.backgroundColor = backgroundColors[bgColorIndex];
+            }
+
+            // --- AUDIO ---
+            function initAudio() {
+                if (typeof Tone !== 'undefined') state.audio.synth = new Tone.Synth().toDestination();
+            }
+
+            function populateVoiceList() {
+                if (state.audio.voices.length > 0) return;
+                const allVoices = speechSynthesis.getVoices();
+                if (allVoices.length > 0) {
+                    const preferredVoiceNames = [
+                        'Microsoft Aria Online (Natural) - English (United States)',
+                        'Google US English',
+                        'Microsoft Sonia Online (Natural) - English (United Kingdom)',
+                        'Google UK English Female',
+                        'Microsoft Catherine Online (Natural) - English (Australia)',
+                    ];
+
+                    let foundVoices = preferredVoiceNames.map(name => allVoices.find(v => v.name === name)).filter(Boolean);
+
+                    if (foundVoices.length < 5) {
+                        const qualityKeywords = ["neural", "premium", "enhanced", "google", "microsoft"];
+                        const fallbackVoices = allVoices
+                            .filter(v => (v.lang.startsWith('en-US') || v.lang.startsWith('en-GB') || v.lang.startsWith('en-AU')) && !foundVoices.includes(v))
+                            .sort((a, b) => {
+                                const aQuality = qualityKeywords.some(kw => a.name.toLowerCase().includes(kw));
+                                const bQuality = qualityKeywords.some(kw => b.name.toLowerCase().includes(kw));
+                                if (aQuality && !bQuality) return -1;
+                                if (!aQuality && bQuality) return 1;
+                                return 0;
+                            });
+                        foundVoices.push(...fallbackVoices);
+                    }
+                    
+                    state.audio.preferredVoices = [...new Set(foundVoices)].slice(0, 5); // Unique voices, max 5
+                    
+                    state.audio.isReady = true;
+                    dom.levelSelectionPrompt.textContent = 'Enter player names and start the game!';
+                    dom.startGameButton.disabled = false;
+                }
+            }
+
+            function initSpeechSynthesis() {
+                if ('speechSynthesis' in window) {
+                    if (speechSynthesis.getVoices().length > 0) populateVoiceList();
+                    else speechSynthesis.onvoiceschanged = populateVoiceList;
+                } else {
+                    dom.levelSelectionPrompt.textContent = 'Text-to-speech not supported.';
+                    dom.startGameButton.disabled = false;
+                    state.audio.isTtsEnabled = false;
+                }
+            }
+
+            function speak(text, voice, callback) {
+                if (!state.audio.isTtsEnabled || !('speechSynthesis' in window) || !text) {
+                    if (callback) setTimeout(callback, 0);
+                    return;
+                }
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.voice = voice;
+                
+                let wasCalled = false;
+                const onceCallback = () => {
+                    if (!wasCalled) {
+                        wasCalled = true;
+                        if(dom.audioVisualizer) dom.audioVisualizer.classList.add('hidden');
+                        if(dom.repeatButton) dom.repeatButton.disabled = false;
+                        if (callback) callback();
+                    }
+                };
+                
+                utterance.onend = onceCallback;
+                utterance.onerror = (event) => { 
+                    console.error(`Speech Error: ${event.error}`);
+                    onceCallback(); // Ensure callback fires even on error to prevent hangs
+                };
+
+                if(dom.audioVisualizer) dom.audioVisualizer.classList.remove('hidden');
+                if(dom.repeatButton) dom.repeatButton.disabled = true;
+                
+                speechSynthesis.speak(utterance);
+            }
+
+            // --- GAME LOGIC ---
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+            
+            function getUniqueRandomElements(arr, num) {
+                const shuffled = [...arr].sort(() => 0.5 - Math.random());
+                return shuffled.slice(0, num);
+            }
+
+            function generateQuestions() {
+                const questions = [];
+                const shuffledPeople = shuffleArray([...people]);
+                const shuffledJobs = shuffleArray([...jobs]);
+
+                for (let i = 0; i < config.QUESTIONS_PER_GAME; i++) {
+                    const person = shuffledPeople[i % shuffledPeople.length];
+                    const correctJob = shuffledJobs[i % shuffledJobs.length];
+                    
+                    const sentence = correctJob.description(person);
+                    
+                    const spokenDistractors = correctJob.distractors; 
+                    const otherDistractor = getUniqueRandomElements(
+                        jobs.filter(j => j.name !== correctJob.name && !spokenDistractors.includes(j.name)), 
+                        1
+                    ).map(j => j.name);
+
+                    const allDistractors = [...spokenDistractors, ...otherDistractor];
+                    
+                    const options = shuffleArray([correctJob.name, ...allDistractors]);
+
+                    questions.push({
+                        sentence: sentence,
+                        correctAnswer: correctJob.name,
+                        options: options,
+                    });
+                }
+                return shuffleArray(questions);
+            }
+
+            function createPlayerState(name) {
+                return { name, score: 0, correctAnswers: 0, incorrectAnswers: [], hasAnswered: false, streak: 0, badges: [] };
+            }
+
+            function resetGameData() {
+                state.shuffledQuestions = generateQuestions();
+                state.gameState = {
+                    player1: createPlayerState(dom.player1NameInput.value.trim() || "Player 1"),
+                    player2: createPlayerState(dom.player2NameInput.value.trim() || "Player 2"),
+                    questionsAnswered: 0,
+                };
+                dom.player1NameDisplay.textContent = state.gameState.player1.name;
+                dom.player2NameDisplay.textContent = state.gameState.player2.name;
+                dom.player1NameScore.textContent = state.gameState.player1.name;
+                dom.player2NameScore.textContent = state.gameState.player2.name;
+                updateGameStatsDisplay();
+            }
+
+            async function startGame() {
+                if (!dom.player1NameInput.value.trim() || !dom.player2NameInput.value.trim()) {
+                    dom.player1NameInput.classList.toggle('border-red-500', !dom.player1NameInput.value.trim());
+                    dom.player2NameInput.classList.toggle('border-red-500', !dom.player2NameInput.value.trim());
+                    return;
+                }
+                dom.player1NameInput.classList.remove('border-red-500');
+                dom.player2NameInput.classList.remove('border-red-500');
+                if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') await Tone.start();
+                if ('speechSynthesis' in window && speechSynthesis.paused) speechSynthesis.resume();
+                resetGameData();
+                if (bgInterval) clearInterval(bgInterval);
+                bgInterval = setInterval(changeBackgroundColor, 5000);
+                startOverallGameTimer();
+                switchView(dom.gameView);
+                startNewQuestionRound();
+            }
+
+            function startOverallGameTimer() {
+                clearInterval(state.timers.game);
+                let timeLeft = config.GAME_DURATION_SECONDS;
+                state.timers.game = setInterval(() => {
+                    timeLeft--;
+                    const percent = (timeLeft / config.GAME_DURATION_SECONDS) * 100;
+                    dom.progressBar.style.width = `${percent}%`;
+                    // Hue goes from 120 (green) to 0 (red)
+                    dom.progressBar.style.backgroundColor = `hsl(${percent * 1.2}, 80%, 50%)`;
+
+                    const minutes = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+                    const seconds = String(timeLeft % 60).padStart(2, '0');
+                    dom.gameCountdownDisplay.textContent = `${minutes}:${seconds}`;
+                    if (timeLeft <= 0) endGame();
+                }, 1000);
+            }
+
+            function startNewQuestionRound() {
+                if (!state.gameState || state.gameState.questionsAnswered >= config.QUESTIONS_PER_GAME) {
+                    endGame();
+                    return;
+                }
+                state.isRoundOver = false;
+                state.gameState.player1.hasAnswered = false;
+                state.gameState.player2.hasAnswered = false;
+                updateGameStatsDisplay();
+
+                dom.player1Container.classList.remove('round-winner');
+                dom.player2Container.classList.remove('round-winner');
+
+                state.currentQuestionData = state.shuffledQuestions[state.gameState.questionsAnswered];
+                
+                const voiceIndex = state.gameState.questionsAnswered % state.audio.preferredVoices.length;
+                const voiceForThisQuestion = state.audio.preferredVoices.length > 0 ? state.audio.preferredVoices[voiceIndex] : null;
+                state.currentQuestionData.voice = voiceForThisQuestion;
+                
+                speechSynthesis.cancel();
+                speak(state.currentQuestionData.sentence, voiceForThisQuestion, () => {
+                    displayQuestionOptions();
+                });
+            }
+
+            function displayQuestionOptions() {
+                const { correctAnswer, options } = state.currentQuestionData;
+                const shuffledOptions = shuffleArray([...options]);
+                
+                [dom.answerOptionsP1, dom.answerOptionsP2].forEach((container, index) => {
+                    const playerId = index + 1;
+                    container.innerHTML = '';
+                    shuffledOptions.forEach(optionText => {
+                        const btn = document.createElement('button');
+                        btn.className = 'w-full p-3 sm:p-4 text-base sm:text-lg font-semibold bg-white border-2 border-slate-300 rounded-lg hover:bg-gray-100 transition-all duration-200 disabled:opacity-50';
+                        btn.textContent = optionText;
+                        btn.onclick = () => handleAnswer(optionText, correctAnswer, btn, playerId);
+                        container.appendChild(btn);
+                    });
+                });
+                
+                dom.feedbackP1.textContent = '';
+                dom.feedbackP2.textContent = '';
+                dom.roundWinnerFeedback.textContent = '';
+                startQuestionTimer();
+            }
+            
+            function startQuestionTimer() {
+                clearInterval(state.timers.question);
+                let timeLeft = config.TIME_PER_QUESTION_SECONDS;
+                dom.questionTimer.textContent = timeLeft;
+                state.questionStartTime = Date.now();
+                state.timers.question = setInterval(() => {
+                    timeLeft--;
+                    dom.questionTimer.textContent = timeLeft;
+                    if (timeLeft <= 0) {
+                        endRound(null); // Timeout
+                    }
+                }, 1000);
+            }
+            
+            function handleAnswer(selected, correct, button, playerId) {
+                if (state.isRoundOver) return;
+
+                const player = state.gameState[`player${playerId}`];
+                if (player.hasAnswered) return;
+
+                player.hasAnswered = true;
+                const answerTime = (Date.now() - state.questionStartTime) / 1000;
+                const isCorrect = selected === correct;
+
+                if (isCorrect) {
+                    endRound(player, { selected, correct, button, answerTime });
+                } else {
+                    const playerOptionContainer = dom[`answerOptionsP${playerId}`];
+                    Array.from(playerOptionContainer.children).forEach(btn => btn.disabled = true);
+                    button.classList.add('!bg-rose-500', '!text-white', '!border-rose-600');
+                    dom[`feedbackP${playerId}`].textContent = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    dom[`feedbackP${playerId}`].className = 'mt-2 font-semibold text-center min-h-[24px] text-base text-rose-600';
+                    player.incorrectAnswers.push({ ...state.currentQuestionData, selectedAnswer: selected });
+                    player.streak = 0;
+                    
+                    const otherPlayer = state.gameState[`player${playerId === 1 ? 2 : 1}`];
+                    if (otherPlayer.hasAnswered) {
+                        endRound(null);
+                    }
+                }
+            }
+
+            function endRound(winningPlayer, answerDetails = null) {
+                if (state.isRoundOver) return;
+                state.isRoundOver = true;
+                clearInterval(state.timers.question);
+
+                [dom.answerOptionsP1, dom.answerOptionsP2].forEach(container => {
+                     Array.from(container.children).forEach(btn => btn.disabled = true);
+                });
+                
+                const proceedToNextRound = () => {
+                    state.gameState.questionsAnswered++;
+                    updateGameStatsDisplay();
+                    setTimeout(startNewQuestionRound, 3000);
+                };
+
+                if (winningPlayer) {
+                    const { button, answerTime } = answerDetails;
+                    const winnerContainer = winningPlayer === state.gameState.player1 ? dom.player1Container : dom.player2Container;
+                    winnerContainer.classList.add('round-winner');
+
+                    if (state.audio.synth) state.audio.synth.triggerAttackRelease("C5", "8n");
+                    
+                    winningPlayer.score += config.POINTS_PER_CORRECT;
+                    winningPlayer.correctAnswers++;
+                    winningPlayer.streak++;
+                    button.classList.add('flash-correct', '!bg-green-500', '!text-white', '!border-green-600');
+                    
+                    const randomPraise = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    dom.roundWinnerFeedback.textContent = `${randomPraise} ${winningPlayer.name} is correct!`;
+                    
+                    checkAndAwardBadges(answerTime, winningPlayer);
+                    
+                    const praiseVoiceIndex = (state.gameState.questionsAnswered + 1) % state.audio.preferredVoices.length;
+                    const praiseVoice = state.audio.preferredVoices[praiseVoiceIndex];
+                    
+                    triggerCoinAnimation(winningPlayer === state.gameState.player1 ? 1 : 2);
+                    speak(randomPraise, praiseVoice, proceedToNextRound);
+
+
+                } else {
+                    if (state.audio.synth) state.audio.synth.triggerAttackRelease("C3", "8n");
+                    dom.roundWinnerFeedback.textContent = `Nobody was correct. The answer was "${state.currentQuestionData.correctAnswer}".`;
+                    state.gameState.player1.streak = 0;
+                    state.gameState.player2.streak = 0;
+                    if (!state.gameState.player1.hasAnswered) state.gameState.player1.incorrectAnswers.push({ ...state.currentQuestionData, selectedAnswer: 'N/A' });
+                    if (!state.gameState.player2.hasAnswered) state.gameState.player2.incorrectAnswers.push({ ...state.currentQuestionData, selectedAnswer: 'N/A' });
+                    proceedToNextRound();
+                }
+                
+                [dom.answerOptionsP1, dom.answerOptionsP2].forEach(container => {
+                     Array.from(container.children).forEach(btn => {
+                        if (btn.textContent === state.currentQuestionData.correctAnswer && !btn.classList.contains('flash-correct')) {
+                             btn.classList.add('!bg-green-200', '!border-green-400');
+                        }
+                    });
+                });
+            }
+
+            function triggerCoinAnimation(playerId) {
+                const scoreBox = playerId === 1 ? dom.player1ScoreBox : dom.player2ScoreBox;
+                const rect = scoreBox.getBoundingClientRect();
+                const appRect = dom.appContainer.getBoundingClientRect();
+
+                const targetX = rect.left - appRect.left + (rect.width / 2);
+                const targetY = rect.top - appRect.top + (rect.height / 2);
+                
+                document.documentElement.style.setProperty('--p1-score-top', `${targetY}px`);
+                document.documentElement.style.setProperty('--p1-score-left', `${targetX}px`);
+                document.documentElement.style.setProperty('--p2-score-top', `${targetY}px`);
+                document.documentElement.style.setProperty('--p2-score-left', `${targetX}px`);
+
+                for (let i = 0; i < 5; i++) {
+                    setTimeout(() => {
+                        const coin = document.createElement('div');
+                        coin.className = 'coin';
+                        dom.coinContainer.appendChild(coin);
+                        coin.style.animation = `fly-to-p${playerId} 1s ease-in forwards`;
+                        setTimeout(() => coin.remove(), 1000);
+                    }, i * 100);
+                }
+            }
+
+            function checkAndAwardBadges(answerTime, player) {
+                const award = (badgeKey) => {
+                    if (!player.badges.includes(badgeKey)) {
+                        player.badges.push(badgeKey);
+                        showBadgeAlert(badgeKey, player.name);
+                    }
+                };
+                if (answerTime < 4) award('QUICK_THINKER');
+                if (player.streak === 5) award('STREAK_5');
+                if (player.streak === 10) award('STREAK_10');
+            }
+
+            function endGame() {
+                clearInterval(state.timers.game);
+                clearInterval(bgInterval);
+                
+                const { player1, player2 } = state.gameState;
+                
+                [player1, player2].forEach(p => {
+                    const totalAnswered = p.correctAnswers + p.incorrectAnswers.length;
+                    if (totalAnswered === config.QUESTIONS_PER_GAME) {
+                        const accuracy = Math.round((p.correctAnswers / totalAnswered) * 100);
+                        if (accuracy === 100) {
+                            p.badges.push('PERFECT_LEVEL');
+                        }
+                    }
+                });
+
+                let winnerMessage = "";
+                if (player1.score > player2.score) winnerMessage = `${player1.name} wins!`;
+                else if (player2.score > player1.score) winnerMessage = `${player2.name} wins!`;
+                else winnerMessage = "It's a tie!";
+                dom.gameOverWinner.textContent = winnerMessage;
+
+                dom.finalPlayer1Name.textContent = player1.name;
+                dom.finalScoreP1.textContent = player1.score;
+                dom.finalPlayer2Name.textContent = player2.name;
+                dom.finalScoreP2.textContent = player2.score;
+
+                dom.finalBadgesP1.innerHTML = player1.badges.map(key => `<div class="text-2xl" title="${badgeData[key].name}">${badgeData[key].icon}</div>`).join('') || '<p class="text-xs text-slate-500">No badges</p>';
+                dom.finalBadgesP2.innerHTML = player2.badges.map(key => `<div class="text-2xl" title="${badgeData[key].name}">${badgeData[key].icon}</div>`).join('') || '<p class="text-xs text-slate-500">No badges</p>';
+                
+                const allIncorrect = [...player1.incorrectAnswers.map(a => ({...a, player: player1.name})), ...player2.incorrectAnswers.map(a => ({...a, player: player2.name}))];
+                if (allIncorrect.length > 0) {
+                    dom.reviewSection.classList.remove('hidden');
+                    dom.incorrectAnswersList.innerHTML = allIncorrect.map(item => `
+                        <div class="p-2 sm:p-3 bg-white border border-slate-200 rounded-md">
+                            <p class="text-slate-500 text-xs sm:text-sm"><strong>${item.player}</strong>: ${item.sentence}</p>
+                            <p class="mt-1 text-xs sm:text-sm">Answer: <span class="font-semibold text-rose-600">${item.selectedAnswer}</span> | Correct: <span class="font-semibold text-green-600">${item.correctAnswer}</span></p>
+                        </div>
+                    `).join('');
+                } else {
+                    dom.reviewSection.classList.add('hidden');
+                    dom.incorrectAnswersList.innerHTML = '';
+                }
+                switchView(dom.gameOverView);
+            }
+
+            // --- EVENT LISTENERS ---
+            function setupEventListeners() {
+                dom.startGameButton.addEventListener('click', () => { if (!dom.startGameButton.disabled) startGame() });
+                dom.playAgainButton.addEventListener('click', () => {
+                    switchView(dom.levelSelectionView)
+                    if (!state.audio.isReady) {
+                        dom.startGameButton.disabled = true;
+                        dom.levelSelectionPrompt.textContent = 'Loading audio resources...';
+                        initSpeechSynthesis();
+                    }
+                });
+                dom.repeatButton.addEventListener('click', () => {
+                    if (state.currentQuestionData?.sentence && state.currentQuestionData?.voice) {
+                        speak(state.currentQuestionData.sentence, state.currentQuestionData.voice, null);
+                    }
+                });
+            }
+
+            // --- INITIALIZATION ---
+            function main() {
+                setupEventListeners();
+                initAudio();
+                initSpeechSynthesis();
+            }
+
+            main();
+        });
+    </script>
+</body>
+</html>

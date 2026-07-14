@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Eater Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
+    <style>
+        html {
+            height: 100%;
+        }
+        body {
+            height: 100vh; /* Use viewport height */
+            width: 100%;
+            overflow: hidden; /* Prevents scrolling on the entire page */
+            font-family: 'Poppins', sans-serif;
+            overscroll-behavior-y: contain;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            max-width: 800px; /* Max-width for laptops */
+            margin: 0 auto;
+            background-color: white;
+            padding: 0.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        #game-container {
+            display: grid;
+            grid-template-rows: auto 1fr; /* Stats, Canvas container (flexible) */
+            height: 100%;
+            gap: 0.5rem;
+        }
+        #canvas-container {
+            position: relative;
+            min-height: 0; /* Critical for flex/grid children to shrink */
+            cursor: grab;
+            touch-action: none; /* Disables all browser touch actions (pan, zoom) on this element */
+        }
+         #canvas-container:active {
+            cursor: grabbing;
+        }
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem;
+            background-color: #e2e8f0;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 90%;
+            width: 450px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .stat-box {
+            background-color: #f1f5f9; /* slate-100 */
+            border: 1px solid #e2e8f0; /* slate-200 */
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div id="game-container">
+            <!-- Game Stats Display & Controls -->
+            <div class="grid grid-cols-5 gap-2 items-center">
+                <div class="stat-box">
+                    <h2 class="font-semibold text-xs sm:text-sm text-slate-500">SCORE</h2>
+                    <div id="score-display" class="font-bold text-lg sm:text-xl text-indigo-600">0</div>
+                </div>
+                <div class="stat-box">
+                    <h2 class="font-semibold text-xs sm:text-sm text-slate-500">TIME</h2>
+                    <div id="timer-display" class="font-bold text-lg sm:text-xl text-rose-600">03:00</div>
+                </div>
+                 <div class="stat-box col-span-2">
+                    <h2 class="font-semibold text-xs sm:text-sm text-slate-500">OBJECTIVE</h2>
+                    <div id="objective-display" class="font-bold text-sm sm:text-base text-indigo-600 truncate">&nbsp;</div>
+                </div>
+                <div class="flex items-center justify-center">
+                    <button id="btn-restart" aria-label="Restart Game" class="bg-white h-10 w-10 hover:bg-slate-100 rounded-full shadow-md flex items-center justify-center p-1">
+                        <img src="https://raw.githubusercontent.com/teachstudents/EFL/main/round.jpg" alt="Restart" class="h-full w-full object-cover rounded-full">
+                    </button>
+                </div>
+            </div>
+
+            <!-- Canvas Container is now the main swipe area -->
+            <div id="canvas-container">
+                <canvas id="gameCanvas"></canvas>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal for Messages -->
+    <div id="message-modal" class="modal-backdrop hidden">
+        <div id="modal-content" class="modal-content">
+            <h2 id="modal-title" class="text-2xl font-bold mb-4"></h2>
+            <div id="modal-body" class="text-slate-600 mb-6"></div>
+            <div class="flex justify-center gap-4 mt-6">
+                 <button id="leaderboard-btn" class="bg-amber-500 text-white font-semibold py-2 px-6 rounded-lg shadow-md hover:bg-amber-600 transition-colors">Leaderboard</button>
+                 <button id="modal-button" class="bg-indigo-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md hover:bg-indigo-700 transition-colors">Next Round</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Start Game Modal -->
+    <div id="start-modal" class="modal-backdrop flex">
+        <div class="modal-content">
+            <h2 class="text-3xl font-bold mb-2 text-indigo-600">Word Eater</h2>
+            <p class="text-slate-600 mb-4">Collect the right words to win!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="w-full p-2 border border-slate-300 rounded-md mb-4 text-center">
+            <button id="start-game-btn" class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-indigo-700 transition-transform transform hover:scale-105">
+                PLAY
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvas-container');
+        const scoreDisplay = document.getElementById('score-display');
+        const objectiveDisplay = document.getElementById('objective-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const messageModal = document.getElementById('message-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+        const modalButton = document.getElementById('modal-button');
+        const leaderboardBtn = document.getElementById('leaderboard-btn');
+        const startModal = document.getElementById('start-modal');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const playerNameInput = document.getElementById('player-name-input');
+
+        // --- Game Config ---
+        const GRID_SIZE = 8;
+        const ROUND_DURATION = 180;
+        let cellSize;
+
+        // --- Audio Setup (Tone.js & Speech Synthesis) ---
+        let soundsReady = false;
+        const synth = new Tone.Synth().toDestination();
+        const winSynth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.05, decay: 0.2, sustain: 0.3, release: 1 } }).toDestination();
+        const sounds = {
+            collect: () => { if(soundsReady) synth.triggerAttackRelease("C5", "8n") },
+            bonus: () => { if(soundsReady) synth.triggerAttackRelease("G5", "8n") },
+            wrong: () => { if(soundsReady) synth.triggerAttackRelease("C3", "8n") },
+            win: () => {
+                if(!soundsReady) return;
+                const now = Tone.now();
+                winSynth.triggerAttackRelease("C4", "8n", now);
+                winSynth.triggerAttackRelease("E4", "8n", now + 0.2);
+                winSynth.triggerAttackRelease("G4", "8n", now + 0.4);
+                winSynth.triggerAttackRelease("C5", "8n", now + 0.6);
+            },
+            lose: () => { if(soundsReady) synth.triggerAttackRelease("C4", "4n") }
+        };
+        
+        let speech = {
+            voices: [],
+            loadVoices: function() {
+                if(typeof speechSynthesis === 'undefined') return;
+                this.voices = speechSynthesis.getVoices();
+            },
+            speak: function(text) {
+                if(typeof speechSynthesis === 'undefined' || !soundsReady || speechSynthesis.speaking) return;
+                const utterance = new SpeechSynthesisUtterance(text);
+                const preferredVoices = ['Google US English', 'Microsoft Zira - English (United States)', 'Samantha', 'Alex'];
+                let selectedVoice = this.voices.find(voice => preferredVoices.includes(voice.name));
+                if (!selectedVoice) {
+                    selectedVoice = this.voices.find(voice => voice.lang === 'en-US');
+                }
+                utterance.voice = selectedVoice || this.voices[0];
+                utterance.pitch = 1.2;
+                utterance.rate = 1.1;
+                speechSynthesis.speak(utterance);
+            }
+        };
+
+        if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = () => speech.loadVoices();
+        }
+
+
+        // --- Game State ---
+        const player = { name: "Player", x: 4, y: 4, color: '#3b82f6', direction: 'right', mouthOpen: true };
+        const wordTypes = {
+            Noun: ['house', 'tree', 'cat', 'car', 'book', 'sun', 'star', 'ball', 'friend', 'city', 'water', 'music', 'idea', 'job', 'world', 'hand', 'apple', 'river', 'chair', 'phone', 'road', 'bird'],
+            Verb: ['run', 'jump', 'eat', 'sleep', 'read', 'write', 'swim', 'fly', 'think', 'give', 'find', 'tell', 'work', 'play', 'help', 'move', 'build', 'call', 'ask', 'feel', 'grow', 'learn'],
+            Adjective: ['big', 'red', 'happy', 'sad', 'fast', 'slow', 'warm', 'cold', 'young', 'great', 'small', 'long', 'dark', 'good', 'new', 'old', 'bright', 'calm', 'deep', 'flat', 'high', 'kind']
+        };
+        const praiseWords = ['Awesome!', 'Great job!', 'Super!', 'Wow!', 'Nice!', 'Marvelous!'];
+        const encouragingWords = ['Try again!', 'Almost!', 'Keep going!', 'You can do it!', 'Don’t give up!'];
+        
+        let score = 0;
+        let currentObjective = { type: 'Verb', count: 10 };
+        let collectedCount = 0;
+        let boardItems = [];
+        let floatingTexts = [];
+        let particles = [];
+        let gameOver = false;
+        let timerId = null;
+        let timeRemaining = ROUND_DURATION;
+        let gameReady = false;
+        let personalBestTime = localStorage.getItem('wordEaterBestTime') || Infinity;
+        let leaderboard = JSON.parse(localStorage.getItem('wordEaterLeaderboard')) || [];
+        
+        let pointerStartX = 0;
+        let pointerStartY = 0;
+        let isSwiping = false;
+
+        // --- Game Initialization ---
+        function init() {
+            handleResize();
+            showLoading();
+            addEventListeners();
+        }
+        
+        async function startGame() {
+            if (soundsReady) return;
+
+            player.name = playerNameInput.value.trim() || "Player";
+            
+            await Tone.start();
+            soundsReady = true;
+            speech.loadVoices();
+            startModal.classList.add('hidden');
+            
+            Promise.race([
+                document.fonts.ready,
+                new Promise(resolve => setTimeout(resolve, 1000))
+            ]).then(() => {
+                startGameIfReady();
+            });
+        }
+        
+        function startGameIfReady() {
+            if (gameReady) return;
+            gameReady = true;
+            setupNewRound();
+            gameLoop();
+        }
+
+        function showLoading() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#64748b';
+            ctx.font = `bold ${Math.min(canvas.clientWidth, canvas.clientHeight) / 10}px Poppins, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Loading...', canvas.clientWidth / 2, canvas.clientHeight / 2);
+        }
+
+        function setupNewRound() {
+            gameOver = false;
+            collectedCount = 0;
+            boardItems = [];
+            
+            const types = Object.keys(wordTypes);
+            const randomType = types[Math.floor(Math.random() * types.length)];
+            currentObjective = { type: randomType, count: 10 };
+
+            player.x = Math.floor(Math.random() * GRID_SIZE);
+            player.y = Math.floor(Math.random() * GRID_SIZE);
+
+            const occupiedCells = new Set([`${player.x},${player.y}`]);
+            const allWords = Object.entries(wordTypes).flatMap(([type, words]) => words.map(word => ({ itemType: 'word', word, type })));
+            
+            const objectiveWords = allWords.filter(w => w.type === currentObjective.type);
+            for (let i = 0; i < currentObjective.count + 2; i++) {
+                placeItem(objectiveWords[Math.floor(Math.random() * objectiveWords.length)], occupiedCells);
+            }
+            
+            const numOtherWords = Math.floor(GRID_SIZE * GRID_SIZE * 0.4);
+            const otherWords = allWords.filter(w => w.type !== currentObjective.type);
+            for (let i = 0; i < numOtherWords; i++) {
+                placeItem(otherWords[Math.floor(Math.random() * otherWords.length)], occupiedCells);
+            }
+
+            for (let i = 0; i < 2; i++) {
+                placeItem({ itemType: 'bonus', type: 'star' }, occupiedCells);
+            }
+
+            startTimer();
+            updateUI();
+        }
+        
+        function placeItem(item, occupiedCells) {
+            if (!item) return;
+            let x, y, key;
+            let attempts = 0;
+            do {
+                x = Math.floor(Math.random() * GRID_SIZE);
+                y = Math.floor(Math.random() * GRID_SIZE);
+                key = `${x},${y}`;
+                attempts++;
+            } while (occupiedCells.has(key) && attempts < 50);
+            
+            if (!occupiedCells.has(key)) {
+                 boardItems.push({ ...item, x, y });
+                 occupiedCells.add(key);
+            }
+        }
+
+        // --- Timer ---
+        function startTimer() {
+            if (timerId) clearInterval(timerId);
+            timeRemaining = ROUND_DURATION;
+            updateTimerDisplay();
+            timerId = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+                if (timeRemaining <= 0) {
+                    clearInterval(timerId);
+                    gameOver = true;
+                    sounds.lose();
+                    showEndModal("Time's Up!", `You didn't collect 10 ${currentObjective.type}s in time.`);
+                }
+            }, 1000);
+        }
+
+        // --- Game Loop & Drawing ---
+        let frameCount = 0;
+        function gameLoop() {
+            if (!gameReady) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            frameCount++;
+            if (frameCount % 12 === 0) {
+                player.mouthOpen = !player.mouthOpen;
+            }
+            
+            updateParticles();
+            updateFloatingTexts();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            boardItems.forEach(item => {
+                const itemX = item.x * cellSize + cellSize / 2;
+                const itemY = item.y * cellSize + cellSize / 2;
+                if (item.itemType === 'word') {
+                    ctx.fillStyle = '#334155';
+                    ctx.font = `600 ${cellSize / 3.5}px Poppins, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(item.word, itemX, itemY);
+                } else if (item.itemType === 'bonus') {
+                    drawStar(itemX, itemY, 5, cellSize/3, cellSize/6);
+                }
+            });
+
+            drawPlayer();
+            particles.forEach(p => drawParticle(p));
+            floatingTexts.forEach(t => drawFloatingText(t));
+        }
+        
+        function drawPlayer() {
+            const centerX = player.x * cellSize + cellSize / 2;
+            const centerY = player.y * cellSize + cellSize / 2;
+            
+            const minRadius = cellSize * 0.25;
+            const maxRadius = cellSize * 0.4;
+            const growth = (maxRadius - minRadius) / currentObjective.count;
+            const radius = minRadius + (collectedCount * growth);
+
+            let startAngle = 0, endAngle = 2 * Math.PI;
+            const mouthAngle = (Math.PI / 4) * (player.mouthOpen ? 1 : 0);
+            switch (player.direction) {
+                case 'right': startAngle = mouthAngle; endAngle = -mouthAngle; break;
+                case 'left': startAngle = Math.PI + mouthAngle; endAngle = Math.PI - mouthAngle; break;
+                case 'down': startAngle = 0.5 * Math.PI + mouthAngle; endAngle = 0.5 * Math.PI - mouthAngle; break;
+                case 'up': startAngle = 1.5 * Math.PI + mouthAngle; endAngle = 1.5 * Math.PI - mouthAngle; break;
+            }
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, startAngle, endAngle, false);
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        function drawStar(cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = Math.PI / 2 * 3;
+            let x = cx;
+            let y = cy;
+            let step = Math.PI / spikes;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy - outerRadius)
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                ctx.lineTo(x, y)
+                rot += step
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                ctx.lineTo(x, y)
+                rot += step
+            }
+            ctx.lineTo(cx, cy - outerRadius)
+            ctx.closePath();
+            ctx.fillStyle = '#22c55e';
+            ctx.fill();
+        }
+
+        // --- Effects ---
+        function createParticles(x, y, color) {
+            for (let i = 0; i < 12; i++) {
+                particles.push({
+                    x: x * cellSize + cellSize / 2,
+                    y: y * cellSize + cellSize / 2,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    size: Math.random() * 3 + 1,
+                    life: 30,
+                    color: color
+                });
+            }
+        }
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+        function drawParticle(p) {
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        function createFloatingText(text, x, y, color) {
+            floatingTexts.push({ text, x, y, life: 50, color });
+        }
+        function updateFloatingTexts() {
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const t = floatingTexts[i];
+                t.y -= 0.5;
+                t.life--;
+                if (t.life <= 0) floatingTexts.splice(i, 1);
+            }
+        }
+        function drawFloatingText(t) {
+            ctx.fillStyle = `rgba(${t.color}, ${t.life / 50})`;
+            ctx.font = `bold ${cellSize / 3}px Poppins, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.fillText(t.text, t.x * cellSize + cellSize / 2, t.y * cellSize + cellSize / 2);
+        }
+
+        // --- Player Logic ---
+        function movePlayer(dx, dy) {
+            if (gameOver || !gameReady) return;
+            if (dx === 1) player.direction = 'right';
+            if (dx === -1) player.direction = 'left';
+            if (dy === 1) player.direction = 'down';
+            if (dy === -1) player.direction = 'up';
+
+            const newX = player.x + dx;
+            const newY = player.y + dy;
+            if (newX < 0 || newX >= GRID_SIZE || newY < 0 || newY >= GRID_SIZE) return;
+            player.x = newX;
+            player.y = newY;
+
+            const itemIndex = boardItems.findIndex(w => w.x === player.x && w.y === player.y);
+            if (itemIndex > -1) {
+                const collected = boardItems.splice(itemIndex, 1)[0];
+                handleCollection(collected);
+            }
+        }
+        
+        function handleCollection(item) {
+            if (item.itemType === 'word') {
+                if (item.type === currentObjective.type) {
+                    collectedCount++;
+                    score += 2;
+                    sounds.collect();
+                    const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                    createFloatingText(praise, item.x, item.y, '16, 185, 129');
+                    speech.speak(praise);
+                    checkObjectiveComplete();
+                } else {
+                    score -= 5;
+                    sounds.wrong();
+                    createParticles(item.x, item.y, '#ef4444');
+                    const encouragement = encouragingWords[Math.floor(Math.random() * encouragingWords.length)];
+                    createFloatingText(encouragement, item.x, item.y, '239, 68, 68');
+                }
+            } else if (item.itemType === 'bonus') {
+                score += 10;
+                sounds.bonus();
+                createParticles(item.x, item.y, '#22c55e');
+                createFloatingText('+10!', item.x, item.y, '34, 197, 94');
+            }
+            updateUI();
+        }
+
+        function checkObjectiveComplete() {
+            if (collectedCount >= currentObjective.count) {
+                gameOver = true;
+                clearInterval(timerId);
+                
+                const timeTaken = ROUND_DURATION - timeRemaining;
+                let bonusMessage = "";
+                if (timeTaken < personalBestTime) {
+                    score += 50; // Personal best bonus
+                    personalBestTime = timeTaken;
+                    localStorage.setItem('wordEaterBestTime', personalBestTime);
+                    bonusMessage = `<p class="text-green-500 font-bold mt-2">New Personal Best! +50 points!</p>`;
+                }
+                
+                score += timeRemaining;
+                sounds.win();
+                updateLeaderboard(player.name, score);
+                updateUI();
+                setTimeout(() => {
+                    showEndModal('Objective Complete!', `You collected 10 ${currentObjective.type}s!` + bonusMessage);
+                }, 500);
+            }
+        }
+
+        function updateLeaderboard(name, finalScore) {
+            leaderboard.push({ name, score: finalScore });
+            leaderboard.sort((a, b) => b.score - a.score);
+            leaderboard = leaderboard.slice(0, 10); // Keep top 10
+            localStorage.setItem('wordEaterLeaderboard', JSON.stringify(leaderboard));
+        }
+
+        // --- UI Updates ---
+        function updateUI() {
+            scoreDisplay.textContent = score;
+            objectiveDisplay.innerHTML = `Eat <span class="font-bold">${collectedCount}/${currentObjective.count}</span> ${currentObjective.type}s`;
+        }
+        
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeRemaining / 60).toString().padStart(2, '0');
+            const seconds = (timeRemaining % 60).toString().padStart(2, '0');
+            timerDisplay.textContent = `${minutes}:${seconds}`;
+        }
+
+        function showEndModal(title, messageHTML) {
+            modalTitle.textContent = title;
+            modalBody.innerHTML = messageHTML;
+            modalButton.textContent = 'Next Round';
+            modalButton.onclick = restartRound;
+            leaderboardBtn.classList.remove('hidden');
+            messageModal.classList.remove('hidden');
+        }
+        
+        function showLeaderboard() {
+            modalTitle.textContent = 'Leaderboard';
+            let leaderboardHTML = '<ol class="text-left space-y-2">';
+            if (leaderboard.length === 0) {
+                leaderboardHTML = '<p>No scores yet. Be the first!</p>';
+            } else {
+                leaderboard.forEach((entry, index) => {
+                    leaderboardHTML += `<li class="flex justify-between p-2 rounded-md ${index === 0 ? 'bg-amber-100' : 'bg-slate-100'}"><span class="font-semibold">${index + 1}. ${entry.name}</span> <span class="font-bold text-indigo-600">${entry.score}</span></li>`;
+                });
+            }
+            leaderboardHTML += '</ol>';
+            modalBody.innerHTML = leaderboardHTML;
+            modalButton.textContent = 'Close';
+            leaderboardBtn.classList.add('hidden');
+            modalButton.onclick = () => showEndModal('Objective Complete!', 'Keep playing to improve your score!');
+        }
+        
+        function hideModal() {
+            messageModal.classList.add('hidden');
+        }
+
+        function handleResize() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            cellSize = Math.min(canvas.clientWidth, canvas.clientHeight) / GRID_SIZE;
+            if(gameReady) {
+                draw();
+            } else {
+                showLoading();
+            }
+        }
+
+        const restartRound = () => {
+            hideModal();
+            if (timerId) clearInterval(timerId);
+            setupNewRound();
+        };
+
+        // --- Event Listeners ---
+        function addEventListeners() {
+            window.addEventListener('resize', handleResize);
+            startGameBtn.addEventListener('click', startGame);
+            leaderboardBtn.addEventListener('click', showLeaderboard);
+
+            window.addEventListener('keydown', e => {
+                if (gameOver) return;
+                switch (e.key) {
+                    case 'ArrowUp': case 'w': movePlayer(0, -1); break;
+                    case 'ArrowDown': case 's': movePlayer(0, 1); break;
+                    case 'ArrowLeft': case 'a': movePlayer(-1, 0); break;
+                    case 'ArrowRight': case 'd': movePlayer(1, 0); break;
+                }
+            });
+            
+            canvasContainer.addEventListener('pointerdown', e => {
+                e.preventDefault();
+                isSwiping = true;
+                pointerStartX = e.clientX;
+                pointerStartY = e.clientY;
+                canvasContainer.setPointerCapture(e.pointerId);
+            });
+
+            canvasContainer.addEventListener('pointermove', e => {
+                // We prevent default to stop scrolling, but don't process the move here.
+                // The logic is in pointerup to register a complete swipe.
+                if (isSwiping) {
+                    e.preventDefault();
+                }
+            });
+
+            canvasContainer.addEventListener('pointerup', e => {
+                e.preventDefault();
+                if (!isSwiping) return;
+                isSwiping = false;
+                const pointerEndX = e.clientX;
+                const pointerEndY = e.clientY;
+                handleSwipe(pointerEndX, pointerEndY);
+                canvasContainer.releasePointerCapture(e.pointerId);
+            });
+
+            function handleSwipe(endX, endY) {
+                const diffX = endX - pointerStartX;
+                const diffY = endY - pointerStartY;
+                const swipeThreshold = 30; // Minimum distance for a swipe
+
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    // Horizontal swipe
+                    if (Math.abs(diffX) > swipeThreshold) {
+                        movePlayer(diffX > 0 ? 1 : -1, 0);
+                    }
+                } else {
+                    // Vertical swipe
+                    if (Math.abs(diffY) > swipeThreshold) {
+                        movePlayer(0, diffY > 0 ? 1 : -1);
+                    }
+                }
+            }
+            
+            document.getElementById('btn-restart').addEventListener('click', () => {
+                if(!gameReady || gameOver) return;
+                restartRound();
+            });
+        }
+
+        // --- Start the game ---
+        init();
+    </script>
+
+</body>
+</html>

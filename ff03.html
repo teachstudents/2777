@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joel Mitchell's ESL - Friends & Family 3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; touch-action: manipulation; overflow-y: auto; }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        /* Timer Bar */
+        #timer-bar-container { background-color: #e5e7eb; border-radius: 9999px; overflow: hidden; height: 12px; width: 100%; }
+        #timer-bar { background-color: #34d399; height: 100%; transition: width 0.5s linear; }
+        /* Memory Match Styles */
+        .memory-card { perspective: 1000px; }
+        .memory-card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s, opacity 0.5s; transform-style: preserve-3d; }
+        .memory-card.flipped .memory-card-inner { transform: rotateY(180deg); }
+        .memory-card.matched { pointer-events: none; }
+        .memory-card.matched .memory-card-inner { transform: scale(1.1) rotateY(180deg); box-shadow: 0 0 20px rgba(22, 163, 74, 0.7); border: 2px solid #16a34a; border-radius: 0.5rem;}
+        .memory-card.disappear .memory-card-inner { opacity: 0; transform: scale(0.5) rotateY(180deg); }
+        .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; -webkit-backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 0.5rem; }
+        .card-front { background-color: #2dd4bf; color: white; font-size: 2.5rem; }
+        .card-back { background-color: #ffffff; transform: rotateY(180deg); flex-direction: column; padding: 0.25rem; line-height: 1.1; }
+        .card-back-emoji { font-size: 2rem; }
+        .card-back-text { font-size: 0.65rem; }
+        @media (max-width: 640px) {
+            .card-back-emoji { font-size: 1.5rem; }
+            .card-back-text { font-size: 0.55rem; }
+        }
+        /* Drag & Drop and Tap Styles */
+        .draggable-word { touch-action: none; cursor: grab; transition: transform 0.2s, box-shadow 0.2s; }
+        .draggable-word:active, .draggable-word.selected { cursor: grabbing; transform: scale(1.1); z-index: 100; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .drop-zone { position: relative; }
+        .drop-zone.drag-over { transform: scale(1.1); border: 2px dashed #3b82f6; }
+        .drop-zone.correct { background-color: #10b981 !important; color: white; animation: pop 0.3s ease-out; }
+        .drop-zone.incorrect { animation: shake 0.5s; background-color: #ef4444; }
+        /* Game Selection Progress */
+        .game-select-btn { position: relative; transition: transform 0.2s; }
+        .game-select-btn:active { transform: scale(0.95); }
+        .completion-check { position: absolute; top: 10px; right: 10px; color: white; background-color: #10b981; border-radius: 50%; width: 30px; height: 30px; display: none; align-items: center; justify-content: center; }
+        .completion-check.completed { display: flex; }
+        /* Certificate */
+        #certificate { border: 10px solid #a78bfa; background-color: #f5f3ff; }
+        @media print { body * { visibility: hidden; } #certificate-modal, #certificate-modal * { visibility: visible; } #certificate-modal { position: absolute; left: 0; top: 0; width: 100%; } #print-cert-btn, #close-cert-btn { display: none; } }
+        /* General Animation & Effects */
+        @keyframes pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .pop-in { animation: pop 0.3s ease-out forwards; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+        
+        .flying-token {
+            position: fixed;
+            background: radial-gradient(circle, #fde047, #f59e0b);
+            color: #ca8a04;
+            font-weight: bold;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 10px #f59e0b;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: transform 1s cubic-bezier(0.5, -0.5, 0.5, 1.5), opacity 1s linear;
+        }
+
+        #fireworks-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
+        @keyframes badge-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .badge-shimmer { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); background-size: 200% 100%; animation: badge-shimmer 3s infinite; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <canvas id="fireworks-canvas"></canvas>
+
+    <div id="app-container" class="w-full max-w-6xl mx-auto p-4">
+
+        <!-- Header with Score, Timer, Badges -->
+        <div id="hud" class="hidden sticky top-0 bg-white/80 backdrop-blur-sm z-50 p-4 rounded-b-xl shadow-lg mb-4 flex flex-col gap-3">
+            <div class="flex justify-between items-center w-full">
+                <button id="back-to-menu" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg">Topics</button>
+                <div class="flex items-center gap-4 md:gap-8 text-lg font-semibold text-gray-700">
+                    <div>🏆 Score: <span id="score-display" class="font-bold text-indigo-600">0</span></div>
+                    <div>⏳ Time: <span id="timer-display" class="font-bold text-red-600">0</span></div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="tts-toggle" class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full"></button>
+                    <button id="badges-button" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-lg">Badges (<span id="badges-count">0</span>)</button>
+                </div>
+            </div>
+            <div id="timer-bar-container"><div id="timer-bar"></div></div>
+        </div>
+
+        <!-- Main Menu Screen -->
+        <div id="main-menu" class="screen active">
+            <h1 class="text-4xl font-bold text-center text-indigo-800 mb-2" onclick="speechService.speak(this.textContent)">ESL Game Hub: Family & Friends 3</h1>
+            <p class="text-center text-gray-600 mb-6" onclick="speechService.speak(this.textContent)">Select a topic to start learning!</p>
+            <div id="topic-buttons" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></div>
+        </div>
+
+        <!-- Game Hub Screen -->
+        <div id="game-hub" class="screen">
+            <h2 id="topic-title" class="text-3xl font-bold text-center text-indigo-800 mb-6" onclick="speechService.speak(this.textContent)"></h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button data-game="memory" class="game-select-btn bg-teal-500 hover:bg-teal-600 text-white p-6 rounded-lg shadow-lg text-center">
+                    <div class="completion-check">✓</div><div class="text-4xl">🧠</div><h3 class="text-xl font-bold mt-2">Memory Match</h3>
+                </button>
+                <button data-game="drop" class="game-select-btn bg-sky-500 hover:bg-sky-600 text-white p-6 rounded-lg shadow-lg text-center">
+                    <div class="completion-check">✓</div><div class="text-4xl">🎯</div><h3 class="text-xl font-bold mt-2">Emoji Drop</h3>
+                </button>
+                <button data-game="scramble" class="game-select-btn bg-purple-500 hover:bg-purple-600 text-white p-6 rounded-lg shadow-lg text-center">
+                    <div class="completion-check">✓</div><div class="text-4xl">✍️</div><h3 class="text-xl font-bold mt-2">Sentence Scramble</h3>
+                </button>
+                <button data-game="listen" class="game-select-btn bg-rose-500 hover:bg-rose-600 text-white p-6 rounded-lg shadow-lg text-center">
+                    <div class="completion-check">✓</div><div class="text-4xl">🎧</div><h3 class="text-xl font-bold mt-2">Listen & Match</h3>
+                </button>
+            </div>
+             <div id="topic-feedback" class="text-center mt-8"></div>
+        </div>
+
+        <!-- Game Screens -->
+        <div id="memory-game" class="screen game-screen"></div>
+        <div id="drop-game" class="screen game-screen"></div>
+        <div id="scramble-game" class="screen game-screen"></div>
+        <div id="listen-game" class="screen game-screen"></div>
+
+        <!-- Modals -->
+        <div id="completion-modal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center pop-in">
+                <h2 id="completion-title" class="text-4xl font-bold text-green-600 mb-4"></h2>
+                <div class="text-lg space-y-2 text-gray-700">
+                    <p>Time Bonus: <span id="time-bonus" class="font-bold"></span></p>
+                    <p>Points Earned: <span id="points-earned" class="font-bold"></span></p>
+                    <hr class="my-4">
+                    <p class="text-xl">Total Score: <span id="final-score" class="font-bold text-indigo-600"></span></p>
+                </div>
+                <button id="next-btn" class="mt-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg">Continue</button>
+            </div>
+        </div>
+
+        <div id="badges-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+            <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl text-center relative">
+                <button id="close-modal" class="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-3xl">&times;</button>
+                <h2 class="text-3xl font-bold text-amber-600 mb-4">Your Badges</h2>
+                <div id="badges-grid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4 max-h-96 overflow-y-auto"></div>
+            </div>
+        </div>
+        
+        <div id="certificate-modal" class="fixed inset-0 bg-black/80 z-50 hidden items-center justify-center p-4">
+            <div class="w-full max-w-4xl text-center pop-in">
+                <div id="certificate" class="p-8 relative">
+                    <h1 class="text-5xl font-bold text-purple-800" style="font-family: 'Brush Script MT', cursive;">Certificate of Achievement</h1>
+                    <p class="text-xl mt-6">This certificate is proudly presented to</p>
+                    <input id="cert-name" type="text" placeholder="Enter Your Name Here" class="text-4xl font-semibold text-center bg-transparent border-b-2 border-purple-400 w-3/4 my-4 focus:outline-none">
+                    <p class="text-xl">for successfully completing all topics in the</p>
+                    <p class="text-3xl font-bold text-indigo-700 mt-2">ESL Game Hub</p>
+                    <p class="mt-8">Date: <span id="cert-date"></span></p>
+                </div>
+                <div class="flex justify-center gap-4">
+                    <button id="print-cert-btn" class="mt-6 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg">Print Certificate</button>
+                    <button id="close-cert-btn" class="mt-6 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+        // --- UPGRADED SPEECH SERVICE (v6.2) ---
+        class SpeechService {
+            constructor() {
+                this.synth = window.speechSynthesis;
+                this.enabled = true;
+                this.utteranceQueue = [];
+                this.isSpeaking = false;
+            }
+
+            speak(text, options = {}) {
+                if (!this.enabled || !text) return;
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = options.rate || 0.85; // Default slow rate
+                utterance.pitch = options.pitch || 1;
+                
+                utterance.onend = () => {
+                    this.isSpeaking = false;
+                    this.processQueue();
+                };
+
+                this.utteranceQueue.push(utterance);
+                if (!this.isSpeaking) {
+                    this.processQueue();
+                }
+            }
+            
+            processQueue() {
+                if (this.utteranceQueue.length > 0 && !this.isSpeaking) {
+                    this.isSpeaking = true;
+                    const utterance = this.utteranceQueue.shift();
+                    this.synth.speak(utterance);
+                }
+            }
+
+            toggle() {
+                this.enabled = !this.enabled;
+                if (!this.enabled) {
+                    this.utteranceQueue = [];
+                    this.synth.cancel();
+                }
+                return this.enabled;
+            }
+
+            isEnabled() {
+                return this.enabled;
+            }
+        }
+        const speechService = new SpeechService();
+
+
+        // --- UPGRADED AUDIO & SOUND EFFECTS ENGINE ---
+        let audioReady = false;
+        let toneSynth;
+
+        async function initAudio() {
+            if (!audioReady) {
+                await Tone.start();
+                toneSynth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 }
+                }).toDestination();
+                audioReady = true;
+            }
+        }
+        
+        function playSound(type) {
+            if (!audioReady) return;
+            const now = Tone.now();
+            switch (type) {
+                case 'correct':
+                    toneSynth.triggerAttackRelease(["C5", "E5", "G5"], "8n", now);
+                    break;
+                case 'incorrect':
+                    toneSynth.triggerAttackRelease("A2", "8n", now);
+                    break;
+                case 'flip':
+                    toneSynth.triggerAttackRelease("A4", "16n", now);
+                    break;
+                case 'win':
+                    toneSynth.triggerAttackRelease("C4", "8n", now);
+                    toneSynth.triggerAttackRelease("E4", "8n", now + 0.1);
+                    toneSynth.triggerAttackRelease("G4", "8n", now + 0.2);
+                    toneSynth.triggerAttackRelease("C5", "8n", now + 0.3);
+                    break;
+                case 'badge':
+                    toneSynth.triggerAttackRelease(["C5", "G5", "C6"], "4n", now);
+                    break;
+            }
+        }
+        
+        document.body.addEventListener('click', initAudio, { once: true });
+
+
+        // --- DATA STRUCTURE ---
+        const praiseWords = ["Awesome!", "Great job!", "Excellent!", "Well done!", "Perfect!", "Amazing!"];
+        const topics = {
+            "Starter Unit: My family": { 
+                emoji: "👨‍👩‍👧‍👦", 
+                words: { "family": "👨‍👩‍👧‍👦", "grandpa": "👴", "grandma": "👵", "mum": "👩", "dad": "👨", "happy": "😊", "sad": "😢", "thirteen": "1️⃣3️⃣", "thirty": "3️⃣0️⃣", "fourteen": "1️⃣4️⃣", "forty": "4️⃣0️⃣", "fifteen": "1️⃣5️⃣" }, 
+                sentences: ["My grandpa is kind.", "I love my mum.", "My family is happy.", "The boy is sad.", "She is thirteen years old.", "My dad is forty years old.", "There are fifteen cookies.", "I have sixty stickers.", "My grandma tells stories.", "Count from one to one hundred."], 
+                questions: [{ q: "What number is 13?", a: "thirteen" }, { q: "What number is 30?", a: "thirty" }, { q: "What number is 14?", a: "fourteen" }, { q: "What number is 40?", a: "forty" }, { q: "What number is 15?", a: "fifteen" }, { q: "What number is 50?", a: "fifty" }, { q: "What number is 16?", a: "sixteen" }, { q: "What number is 60?", a: "sixty" }, { q: "What number is 17?", a: "seventeen" }, { q: "What number is 70?", a: "seventy" }, { q: "What number is 18?", a: "eighteen" }, { q: "What number is 80?", a: "eighty" }, { q: "What number is 19?", a: "nineteen" }, { q: "What number is 90?", a: "ninety" }] 
+            },
+            "Unit 1: They're from Australia!": { 
+                emoji: "🇦🇺", 
+                words: { "Egypt": "🇪🇬", "UK": "🇬🇧", "Russia": "🇷🇺", "Spain": "🇪🇸", "Australia": "🇦🇺", "USA": "🇺🇸", "Brazil": "🇧🇷", "spring": "🌸", "summer": "☀️", "autumn": "🍂", "winter": "❄️", "garden": "🪴" }, 
+                sentences: ["They're from Australia.", "The USA is a big country.", "It's spring and the flowers are out.", "It is cold in winter.", "I am from Spain.", "Russia is very cold.", "My favorite season is summer.", "Leaves fall in autumn.", "I like to draw with a crayon.", "I like to play in the garden."], 
+                questions: [{ q: "Which country has a kangaroo?", a: "Australia" }, { q: "In which season do you build a snowman?", a: "winter" }, { q: "What season is hot?", a: "summer" }, { q: "Which country is very big and cold?", a: "Russia" }, { q: "In which season do flowers grow?", a: "spring" }, { q: "What do you use to color?", a: "crayon" }, { q: "Where can you see pyramids?", a: "Egypt" }, { q: "Which country is famous for flamenco dancing?", a: "Spain" }, { q: "What animal slithers?", a: "snake" }, { q: "Where do you grow flowers?", a: "garden" }] 
+            },
+            "Unit 2: My weekend": { 
+                emoji: "🎨", 
+                words: { "read comics": "🦸", "skateboard": "🛹", "gymnastics": "🤸‍♀️", "play chess": "♟️", "fish": "🎣", "play basketball": "🏀", "take photos": "📸", "play volleyball": "🏐", "play guitar": "🎸", "shop": "🛍️", "cook": "🍳", "paint": "🎨" }, 
+                sentences: ["He likes to play chess on the weekend.", "She can play the guitar.", "My hobby is basketball.", "I like to take photos of animals.", "We play volleyball at the beach.", "Skateboarding is fun on the weekend.", "I like to cook with my mum.", "I fly my kite at the park.", "I like to read comics about superheroes.", "She is good at gymnastics."], 
+                questions: [{ q: "What do you do with a camera?", a: "take photos" }, { q: "Which hobby uses a black and white board?", a: "play chess" }, { q: "What has a string and flies in the wind?", a: "kite" }, { q: "What instrument has six strings?", a: "play guitar" }, { q: "What do you do on a board with wheels?", a: "skateboard" }, { q: "What do you do in a kitchen?", a: "cook" }, { q: "What is a shape with six square sides?", a: "cube" }, { q: "What do you try to catch in a river?", a: "fish" }, { q: "What instrument has black and white keys?", a: "play piano" }, { q: "What do you do with a paintbrush?", a: "paint" }] 
+            },
+            "Unit 3: My things": { 
+                emoji: "💻", 
+                words: { "computer": "💻", "TV": "📺", "camera": "📷", "turn on": "💡", "turn off": "🚫", "stickers": "🌟", "posters": "🖼️", "comics": "💥", "postcards": "🏞️", "badges": "🎖️", "shells": "🐚", "car": "🚗" }, 
+                sentences: ["I watch shows on the TV.", "My computer is fast.", "Please turn on the light.", "I collect shells from the beach.", "He has many comics.", "She sends postcards from her trips.", "Don't forget to turn off the TV.", "I have stickers on my book.", "I take photos with my camera.", "I wear a scarf in the winter."], 
+                questions: [{ q: "What do you use to watch movies at home?", a: "TV" }, { q: "What can you find on a beach?", a: "shells" }, { q: "What do you do to a light when you enter a dark room?", a: "turn on" }, { q: "What do you drive?", a: "car" }, { q: "What has pictures and stories?", a: "comics" }, { q: "What do you do to a TV when you go to sleep?", a: "turn off" }, { q: "What can you pin on your jacket?", a: "badges" }, { q: "What do you put on a wall for decoration?", a: "posters" }, { q: "What is a big fish with sharp teeth?", a: "shark" }, { q: "What do you send in the mail?", a: "postcards" }] 
+            },
+            "Unit 4: We're having fun at the beach!": { 
+                emoji: "🏖️", 
+                words: { "swim": "🏊", "sail": "⛵", "dive": "🤿", "surf": "🏄", "kayak": "🛶", "windsurf": "🌬️🏄", "snorkel": "🐠", "waterski": "🎿", "polluted": "🏭", "clean": "🧼", "dangerous": "⚠️", "beautiful": "😍" }, 
+                sentences: ["We're having fun at the beach!", "The water is clean and beautiful.", "He likes to surf.", "It is safe to swim here.", "A kayak is a small boat.", "She is good at sailing.", "That old boat is ugly.", "I want to learn to waterski.", "The polluted river is dangerous.", "A giraffe is tall."], 
+                questions: [{ q: "What do you do on big waves?", a: "surf" }, { q: "What is a small boat for one person?", a: "kayak" }, { q: "What is the opposite of safe?", a: "dangerous" }, { q: "What do you play with?", a: "ball" }, { q: "What sport uses a sail and a board?", a: "windsurf" }, { q: "What is the opposite of beautiful?", a: "ugly" }, { q: "What is the opposite of short?", a: "tall" }, { q: "What sport uses a boat and a sail?", a: "sail" }, { q: "What is the opposite of polluted?", a: "clean" }, { q: "Which sport uses skis on water?", a: "waterski" }] 
+            },
+            "Unit 5: A naughty monkey!": { 
+                emoji: "🐒", 
+                words: { "penguin": "🐧", "zebra": "🦓", "monkey": "🐒", "kangaroo": "🦘", "camel": "🐪", "lizard": "🦎", "flamingo": "🦩", "crocodile": "🐊", "angry": "😠", "scared": "😨", "funny": "😂", "kind": "🤗" }, 
+                sentences: ["A naughty monkey eats bananas.", "The zebra is black and white.", "The monkey was funny.", "A horse eats straw.", "The flamingo is pink.", "I am sorry I am late.", "Don't be scared of the lizard.", "The kind girl helped the penguin.", "My dad was angry at the monkey.", "The dog has a big paw."], 
+                questions: [{ q: "Which animal is black and white?", a: "zebra" }, { q: "Which animal is pink?", a: "flamingo" }, { q: "What do you eat corn with?", a: "fork" }, { q: "Which animal has a pouch?", a: "kangaroo" }, { q: "How do you feel when you see a monster?", a: "scared" }, { q: "What do you say when you make a mistake?", a: "sorry" }, { q: "What is a word for mad?", a: "angry" }, { q: "Which animal lives in cold places?", a: "penguin" }, { q: "What do you do when you are tired?", a: "yawn" }, { q: "A person who helps others is...", a: "kind" }] 
+            },
+            "Unit 6: Jim's day": { 
+                emoji: "⏰", 
+                words: { "have a shower": "🚿", "brush my teeth": "🦷", "get dressed": "👕", "have breakfast": "🥞", "brush my hair": "👱‍♀️", "get up": "⏰", "catch the bus": "🚌", "walk to school": "🚶", "first": "1️⃣", "then": "➡️", "next": "⏭️", "finally": "🏁" }, 
+                sentences: ["Jim gets up at seven.", "First, he brushes his teeth.", "He has a shower in the morning.", "Then, he has breakfast with his family.", "He gets dressed for school.", "Next, he brushes his hair.", "The boy has a new toy.", "Finally, he walks to school.", "I found a coin on the ground.", "What time do you get up?"], 
+                questions: [{ q: "What do you do in the morning?", a: "get up" }, { q: "What do you do to keep your teeth clean?", a: "brush my teeth" }, { q: "What is the first meal of the day?", a: "breakfast" }, { q: "What do you play with?", a: "toy" }, { q: "What do you put on in the morning?", a: "get dressed" }, { q: "How do you go to school if you don't have a car?", a: "walk to school or catch the bus" }, { q: "What word means number one in a list?", a: "first" }, { q: "What is a young male child?", a: "boy" }, { q: "What word means last?", a: "finally" }, { q: "What do you do to make your hair look nice?", a: "brush my hair" }] 
+            },
+            "Unit 7: Places to go!": { 
+                emoji: "🏢", 
+                words: { "cafe": "☕", "library": "📚", "museum": "🏛️", "playground": "🛝", "shopping mall": "🛍️", "sports centre": "🏟️", "swimming pool": "🏊‍♀️", "cinema": "🎬", "play": "🎭", "theatre": "🎟️", "concert": "🎤", "actor": "🧑‍🎤" }, 
+                sentences: ["Let's go to the cinema to see a film.", "I read books at the library.", "The playground is fun.", "We can buy clothes at the shopping mall.", "The museum has old things.", "I like to see a play at the theatre.", "A clown has a red nose.", "I am going to the swimming pool.", "The singer is at the concert.", "A cow lives on a farm."], 
+                questions: [{ q: "Where do you go to read books?", a: "library" }, { q: "Where do you go to watch a movie?", a: "cinema" }, { q: "Where do you go to play on a slide?", a: "playground" }, { q: "Where do you go to buy many things?", a: "shopping mall" }, { q: "Who is a person in a movie?", a: "actor" }, { q: "Where do you go to swim?", a: "swimming pool" }, { q: "What animal says 'moo'?", a: "cow" }, { q: "Where can you play sports?", a: "sports centre" }, { q: "Who sings songs at a concert?", a: "singer" }, { q: "What is another word for movie?", a: "film" }] 
+            },
+            "Unit 8: I'd like a melon!": { 
+                emoji: "🍈", 
+                words: { "pasta": "🍝", "bread": "🍞", "cereal": "🥣", "melon": "🍈", "cucumber": "🥒", "onion": "🧅", "lemon": "🍋", "potato": "🥔", "butter": "🧈", "cheese": "🧀", "salt": "🧂", "pepper": "🌶️" }, 
+                sentences: ["I'd like a melon, please.", "Pasta is from Italy.", "A lemon is sour.", "I like cheese and butter on my bread.", "A potato can be a chip.", "The child is in the field.", "A cucumber is green.", "I eat cereal with milk.", "Please be quiet in the library.", "I don't like peas."], 
+                questions: [{ q: "Which food is yellow and sour?", a: "lemon" }, { q: "Which food comes from Italy?", a: "pasta" }, { q: "What do you put on a sandwich?", a: "cheese" }, { q: "What is a young person?", a: "child" }, { q: "What do you eat in the morning with milk?", a: "cereal" }, { q: "What do you make toast from?", a: "bread" }, { q: "What is a big, round, sweet fruit?", a: "melon" }, { q: "What can you make chips from?", a: "potato" }, { q: "What do you put on bread?", a: "butter" }, { q: "What vegetable can make you cry?", a: "onion" }] 
+            },
+            "Unit 9: The fastest animal in the world": { 
+                emoji: "🐆", 
+                words: { "lake": "🏞️", "jungle": "🌴", "river": "💧", "waterfall": "🌊", "ocean": "🌎", "wide": "↔️", "big": "🐘", "deep": "🏊‍♂️", "high": "🔼", "building": "🏢", "bridge": "🌉", "long": "📏" }, 
+                sentences: ["The mountain is very high.", "The cheetah is the fastest animal.", "The ocean is deep and wide.", "The giraffe is the tallest animal.", "The waterfall is beautiful.", "We put up a tent on the sand.", "The lake is calm today.", "The old bridge is very long.", "I need a lamp to read.", "Many animals live in the jungle."], 
+                questions: [{q: "What is very high?", a: "mountain"}, {q: "What is the fastest animal?", a: "cheetah"}, {q: "What is a very large body of water?", a: "ocean"}, {q: "What is a very big forest called?", a: "jungle"}, {q: "What do you sleep in when you camp?", a: "tent"}, {q: "What is the opposite of narrow?", a: "wide"}, {q: "What is the opposite of shallow?", a: "deep"}, {q: "What goes over a river?", a: "bridge"}, {q: "What is the opposite of new?", a: "old"}, {q: "What gives you light?", a: "lamp"}] 
+            },
+            "Unit 10: In the park!": { 
+                emoji: "🌳", 
+                words: { "path": "🛤️", "grass": "🌿", "flowers": "🌸", "bin": "🗑️", "trees": "🌳", "playground": "🛝", "fountain": "⛲", "litter": "🚮", "shout": "🗣️", "chase": "🏃‍♂️", "catch": "🥎", "laugh": "😂" }, 
+                sentences: ["Don't walk on the grass.", "There are many trees in the park.", "Throw the litter in the bin.", "The flowers are beautiful.", "Don't shout in the park.", "We play on the playground.", "I like to sit on the grass.", "I see a train in the rain.", "We laugh at funny jokes.", "Who won the race?"], 
+                questions: [{ q: "What should you put in the bin?", a: "litter" }, { q: "What is green and grows on the ground?", a: "grass" }, { q: "What is tall and has leaves?", a: "trees" }, { q: "What is colorful and grows in a garden?", a: "flowers" }, { q: "Where do children play?", a: "playground" }, { q: "What falls from the sky?", a: "rain" }, { q: "What do you do when something is funny?", a: "laugh" }, { q: "What do you do with your voice when you are angry?", a: "shout" }, { q: "What do you do when you see a friend?", a: "meet" }, { q: "What verb means to run after something?", a: "chase" }] 
+            },
+            "Unit 11: In the museum": { 
+                emoji: "🏛️", 
+                words: { "ferry": "⛴️", "bus": "🚌", "helicopter": "🚁", "motorbike": "🏍️", "plane": "✈️", "taxi": "🚕", "train": "🚆", "tram": "🚊", "along": "➡️", "through": "🔀", "at the top of": "🔼", "inside": "📥" }, 
+                sentences: ["I saw an old plane in the museum.", "The ferry goes along the river.", "The train was fast.", "I had a dream about a queen.", "The helicopter was at the top of the building.", "The car is between the bus and the tram.", "My dad had a motorbike.", "My favorite color is green.", "The train went through the tunnel.", "I like to eat ice cream."], 
+                questions: [{ q: "Which transport flies in the sky?", a: "plane" }, { q: "Which transport runs on tracks?", a: "train" }, { q: "What is a female ruler?", a: "queen" }, { q: "What is a word for in the center?", a: "in the middle of" }, { q: "Which transport has spinning blades on top?", a: "helicopter" }, { q: "What is a cold, sweet treat?", a: "ice cream" }, { q: "What is the opposite of outside?", a: "inside" }, { q: "Which transport is very long?", a: "train" }, { q: "What do you ride to go to another country?", a: "plane" }, { q: "Which transport travels on water?", a: "ferry" }] 
+            },
+            "Unit 12: A clever baby!": { 
+                emoji: "👶", 
+                words: { "clever": "💡", "old": "👴", "young": "👶", "handsome": "🤵", "pretty": "👰", "short": "📏", "tall": "🦒", "shy": "😊", "friendly": "🤗", "cheerful": "😄", "miserable": "😫", "generous": "🎁" }, 
+                sentences: ["My teacher is friendly and clever.", "The baby is young.", "He is a tall, handsome boy.", "The girl is pretty.", "My grandpa is old.", "The mean man was miserable.", "The sky is beautiful at night.", "My sister is shy.", "The generous person gives gifts.", "I feel relaxed and cheerful."], 
+                questions: [{ q: "What is the opposite of old?", a: "young" }, { q: "What is a word for a nice person?", a: "friendly" }, { q: "What is the opposite of short?", a: "tall" }, { q: "What do you see in the sky at night?", a: "stars" }, { q: "What is a word for a good-looking woman?", a: "pretty" }, { q: "How do you feel when you don't want to talk?", a: "shy" }, { q: "What is another word for smart?", a: "clever" }, { q: "What is the opposite of cheerful?", a: "miserable" }, { q: "What is the opposite of wet?", a: "dry" }, { q: "A generous person likes to...", a: "give" }] 
+            },
+            "Unit 13: The Ancient Egyptians": { 
+                emoji: "🏺", 
+                words: { "carry": "💪", "start": "▶️", "finish": "🏁", "love": "❤️", "hate": "💔", "want": "🙏", "use": "🔧", "laugh": "😂", "live": "🏠", "heavy": "🏋️", "hard": "🧱", "soft": "🧸" }, 
+                sentences: ["The Egyptians had to carry heavy stones.", "It was difficult to build the pyramids.", "They started a new dynasty.", "I love learning about history.", "It is easy to wash with soap.", "A rock is hard.", "I like to eat toast for breakfast.", "This puzzle is difficult.", "The bed is soft.", "It is cold in the snow."], 
+                questions: [{ q: "What is the opposite of light?", a: "heavy" }, { q: "What is the opposite of easy?", a: "difficult" }, { q: "What is a rock?", a: "hard" }, { q: "What is a pillow?", a: "soft" }, { q: "What do you do with a heavy box?", a: "carry" }, { q: "What is the opposite of love?", a: "hate" }, { q: "What is another word for begin?", a: "start" }, { q: "What do you use to wash your hands?", a: "soap" }, { q: "What do you do when something is funny?", a: "laugh" }, { q: "Where do you do this action: live?", a: "in a house" }] 
+            },
+            "Unit 14: Did you have a good day?": { 
+                emoji: "🎒", 
+                words: { "paintbrush": "🖌️", "calculator": "🧮", "lunch box": "🍱", "dictionary": "📖", "PE kit": "👕", "backpack": "🎒", "apron": "👩‍🍳", "compass": "🧭", "tent": "⛺", "sleeping bag": "🛌", "frying pan": "🍳", "matches": "🔥" }, 
+                sentences: ["Did you have a good day at school?", "I used a calculator for math.", "What was in your lunch box?", "We used a paintbrush in art class.", "We went camping and slept in a tent.", "A dictionary tells you words.", "My PE kit is in my backpack.", "My sleeping bag was warm.", "I wear an apron to cook.", "The moon is bright tonight."], 
+                questions: [{ q: "What do you use for math problems?", a: "calculator" }, { q: "What do you carry your books in?", a: "backpack" }, { q: "What do you sleep in when you go camping?", a: "tent" }, { q: "What do you use to find word meanings?", a: "dictionary" }, { q: "What do you use to start a fire?", a: "matches" }, { q: "What do you use with paint?", a: "paintbrush" }, { q: "What do you wear for sports class?", a: "PE kit" }, { q: "What keeps you warm at night when camping?", a: "sleeping bag" }, { q: "What shows you which way is north?", a: "compass" }, { q: "What holds your sandwich?", a: "lunch box" }] 
+            },
+            "Unit 15: Our holiday!": { 
+                emoji: "✈️", 
+                words: { "suitcase": "🧳", "sun cream": "🧴", "towel": "🧖", "soap": "🧼", "shampoo": "🚿", "hairbrush": "🪮", "toothbrush": "🪥", "car": "🚗", "tonight": "🌃", "this afternoon": "☀️", "soon": "⏳", "next week": "🗓️" }, 
+                sentences: ["We are going to pack our suitcase for our holiday.", "I will need a towel for the beach.", "Don't forget your toothbrush.", "We're going to the beach by car.", "I will use sun cream this afternoon.", "I am going to wash my hands with soap.", "I will see you soon.", "My suitcase is big.", "I like to cook with wood.", "I will brush my hair with a hairbrush."], 
+                questions: [{ q: "What do you pack your clothes in for a holiday?", a: "suitcase" }, { q: "How will you travel on your holiday?", a: "car" }, { q: "What do you use to clean your teeth?", a: "toothbrush" }, { q: "What are you going to use to wash your hands?", a: "soap" }, { q: "What do you use to dry yourself?", a: "towel" }, { q: "What will you use to wash your hair?", a: "shampoo" }, { q: "What protects you from the sun?", a: "sun cream" }, { q: "What has four wheels and an engine?", a: "car" }, { q: "What is at the end of your leg?", a: "foot" }, { q: "What do you take to the beach?", a: "towel" }] 
+            },
+            "Unit 16: World Tour": { 
+                emoji: "🌎", 
+                words: { "United States": "🇺🇸", "Brazil": "🇧🇷", "Argentina": "🇦🇷", "Canada": "🇨🇦", "Mexico": "🇲🇽", "Colombia": "🇨🇴", "United Kingdom": "🇬🇧", "France": "🇫🇷", "Germany": "🇩🇪", "Spain": "🇪🇸", "Italy": "🇮🇹", "Portugal": "🇵🇹", "Netherlands": "🇳🇱", "Ukraine": "🇺🇦", "Russia": "🇷🇺", "China": "🇨🇳", "Japan": "🇯🇵", "South Korea": "🇰🇷", "India": "🇮🇳", "Saudi Arabia": "🇸🇦", "United Arab Emirates": "🇦🇪", "Israel": "🇮🇱", "Türkiye": "🇹🇷", "Indonesia": "🇮🇩", "South Africa": "🇿🇦", "Egypt": "🇪🇬", "Nigeria": "🇳🇬", "Morocco": "🇲🇦", "Kenya": "🇰🇪", "Australia": "🇦🇺", "New Zealand": "🇳🇿", "Fiji": "🇫🇯" }, 
+                sentences: ["Canada has a maple leaf on its flag.", "Pizza is from Italy.", "The capital of Japan is Tokyo.", "The Eiffel Tower is in France.", "You can see pyramids in Egypt.", "The Great Wall is in China.", "Tango dancing started in Argentina.", "Brazil is famous for the Amazon rainforest.", "Kangaroos live in Australia.", "K-Pop music is from South Korea."], 
+                questions: [{ q: "Where is the Eiffel Tower?", a: "France" }, { q: "Which country has a maple leaf on its flag?", a: "Canada" }, { q: "Where can you see pyramids?", a: "Egypt" }, { q: "Which country is famous for kangaroos?", a: "Australia" }, { q: "Where did pizza come from?", a: "Italy" }, { q: "Where is the Taj Mahal?", a: "India" }, { q: "Which country is south of the USA?", a: "Mexico" }, { q: "Where did the Tango dance start?", a: "Argentina" }, { q: "Which country is famous for K-Pop music?", a: "South Korea" }, { q: "In which country can you find the Great Wall?", a: "China" }] 
+            },
+        };
+
+
+        // --- GAME STATE ---
+        let score = 0;
+        let timer;
+        let timeLeft = 0;
+        let initialTime = 0;
+        let currentTopic = null;
+        let currentGame = null;
+        let badges = new Set();
+        let topicScores = {};
+        let topicProgress = {};
+
+        // --- DOM ELEMENTS ---
+        const screens = document.querySelectorAll('.screen');
+        const hud = document.getElementById('hud');
+        const scoreDisplay = document.getElementById('score-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const timerBar = document.getElementById('timer-bar');
+        const topicButtonsContainer = document.getElementById('topic-buttons');
+        const topicTitle = document.getElementById('topic-title');
+        
+        // --- INITIALIZATION ---
+        function init() {
+            loadState();
+            generateTopicButtons();
+            document.getElementById('back-to-menu').addEventListener('click', showMainMenu);
+            document.querySelectorAll('.game-select-btn').forEach(btn => btn.addEventListener('click', startGame));
+            document.getElementById('badges-button').addEventListener('click', showBadges);
+            document.getElementById('close-modal').addEventListener('click', () => document.getElementById('badges-modal').style.display = 'none');
+            document.getElementById('tts-toggle').addEventListener('click', handleTtsToggle);
+            updateTtsButton();
+            document.getElementById('next-btn').addEventListener('click', handleCompletionContinue);
+            document.getElementById('print-cert-btn').addEventListener('click', () => window.print());
+            document.getElementById('close-cert-btn').addEventListener('click', () => {
+                document.getElementById('certificate-modal').style.display = 'none';
+                stopFireworks();
+            });
+            updateBadgesDisplay();
+        }
+        
+        function handleTtsToggle() {
+            speechService.toggle();
+            updateTtsButton();
+        }
+        
+        function updateTtsButton() {
+            const button = document.getElementById('tts-toggle');
+            if (!speechService.isEnabled()) {
+                button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" d="M17 14l-4-4m0 4l4-4" /></svg>`;
+            } else {
+                button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z" /></svg>`;
+            }
+        }
+
+        function generateTopicButtons() {
+            topicButtonsContainer.innerHTML = '';
+            for (const topicName in topics) {
+                const topic = topics[topicName];
+                const button = document.createElement('button');
+                button.className = 'topic-btn bg-white p-4 rounded-lg shadow-md text-center hover:shadow-xl hover:scale-105 transition-all duration-300 flex flex-col items-center justify-center min-h-[120px]';
+                button.dataset.topic = topicName;
+                button.innerHTML = `
+                    <div class="text-4xl mb-2">${topic.emoji}</div>
+                    <div class="font-semibold text-gray-700 text-sm leading-tight">${topicName}</div>
+                `;
+                button.addEventListener('click', () => {
+                    speechService.speak(topicName);
+                    selectTopic(topicName);
+                });
+                topicButtonsContainer.appendChild(button);
+            }
+        }
+
+        // --- SCREEN MANAGEMENT ---
+        function showScreen(screenId) {
+            screens.forEach(screen => screen.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            hud.style.display = (screenId.includes('game') && screenId !== 'game-hub') ? 'flex' : 'none';
+            if (screenId === 'game-hub') {
+                hud.style.display = 'flex'; // Show HUD on game hub too
+            }
+        }
+
+        function showMainMenu() {
+            stopTimer();
+            hud.style.display = 'none';
+            showScreen('main-menu');
+        }
+
+        function selectTopic(topicName) {
+            currentTopic = topicName;
+            topicTitle.textContent = topicName;
+            updateTopicFeedback();
+            updateGameCompletionChecks();
+            showScreen('game-hub');
+        }
+
+        function updateGameCompletionChecks() {
+            const progress = topicProgress[currentTopic] || new Set();
+            document.querySelectorAll('.game-select-btn').forEach(btn => {
+                const game = btn.dataset.game;
+                const check = btn.querySelector('.completion-check');
+                check.classList.toggle('completed', progress.has(game));
+            });
+        }
+        
+        // --- GAME LOGIC ---
+        function startGame(e) {
+            currentGame = e.currentTarget.dataset.game;
+            const gameScreen = document.getElementById(`${currentGame}-game`);
+            showScreen(`${currentGame}-game`);
+
+            switch (currentGame) {
+                case 'memory': setupMemoryGame(gameScreen); startTimer(60); break;
+                case 'drop': setupDropGame(gameScreen); startTimer(90); break;
+                case 'scramble': setupScrambleGame(gameScreen); startTimer(120); break;
+                case 'listen': setupListenGame(gameScreen); startTimer(120); break;
+            }
+        }
+        
+        function updateScore(points) {
+            score += points;
+            scoreDisplay.textContent = score;
+        }
+
+        function startTimer(duration) {
+            stopTimer(); // Ensure no multiple timers run
+            initialTime = duration;
+            timeLeft = duration;
+            timerDisplay.textContent = timeLeft;
+            timerBar.style.width = '100%';
+            timer = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = timeLeft;
+                timerBar.style.width = `${(timeLeft / initialTime) * 100}%`;
+                if (timeLeft <= 0) {
+                    stopTimer();
+                    endGame(false, 'Time is up!');
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            clearInterval(timer);
+        }
+
+        function endGame(isWin, message) {
+            stopTimer();
+            let pointsEarned = isWin ? Math.ceil(timeLeft * 0.1) + 5 : 0;
+            
+            if (isWin) {
+                if (!topicProgress[currentTopic]) {
+                    topicProgress[currentTopic] = new Set();
+                }
+                topicProgress[currentTopic].add(currentGame);
+                
+                const isLevelComplete = topicProgress[currentTopic].size === 4;
+
+                playSound('win');
+                speechService.speak('You win!');
+                showCompletionModal(isLevelComplete, pointsEarned);
+                
+                const currentTopicScore = (topicScores[currentTopic] || 0) + pointsEarned;
+                topicScores[currentTopic] = currentTopicScore;
+                
+                if(isLevelComplete && !badges.has(currentTopic)) {
+                    badges.add(currentTopic);
+                    playSound('badge');
+                    const badgeMessage = `New Badge Unlocked: ${currentTopic} Master!`;
+                    setTimeout(() => { 
+                        speechService.speak(badgeMessage); 
+                    }, 1000);
+                    updateBadgesDisplay();
+                    if (badges.size === Object.keys(topics).length) {
+                        setTimeout(showCertificate, 2000);
+                    }
+                }
+            } else {
+                speechService.speak(message, { pitch: 0.8 });
+                setTimeout(() => selectTopic(currentTopic), 2000); // Go back to game hub
+            }
+            updateScore(pointsEarned); // Update score after all calculations
+            saveState();
+            updateTopicFeedback();
+        }
+        
+        // --- MEMORY GAME ---
+        function setupMemoryGame(container) {
+            const words = topics[currentTopic].words;
+            const wordEntries = Object.entries(words).sort(() => 0.5 - Math.random()).slice(0, 8);
+            const items = [...wordEntries, ...wordEntries].sort(() => Math.random() - 0.5);
+
+            container.innerHTML = `<div class="grid grid-cols-4 gap-1 md:gap-2 max-w-2xl mx-auto"></div>`;
+            const grid = container.querySelector('.grid');
+
+            items.forEach(([word, emoji]) => {
+                const card = document.createElement('div');
+                card.className = 'memory-card aspect-square';
+                card.dataset.word = word;
+                card.innerHTML = `
+                    <div class="memory-card-inner">
+                        <div class="card-face card-front shadow-lg">?</div>
+                        <div class="card-face card-back shadow-lg">
+                            <div class="card-back-emoji">${emoji}</div>
+                            <div class="card-back-text font-semibold text-center mt-1">${word}</div>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            let flippedCards = [];
+            let matchedPairs = 0;
+            let canFlip = true;
+            grid.addEventListener('click', e => {
+                const card = e.target.closest('.memory-card');
+                if (!card || !canFlip || card.classList.contains('flipped') || flippedCards.length >= 2) return;
+                
+                playSound('flip');
+                speechService.speak(card.dataset.word);
+                card.classList.add('flipped');
+                flippedCards.push(card);
+
+                if (flippedCards.length === 2) {
+                    canFlip = false;
+                    if (flippedCards[0].dataset.word === flippedCards[1].dataset.word) {
+                        playSound('correct');
+                        animatePointsToScore(flippedCards[0], 1);
+                        setTimeout(() => updateScore(1), 1000);
+
+                        flippedCards.forEach(c => {
+                            c.classList.add('matched');
+                            setTimeout(() => c.classList.add('disappear'), 500);
+                        });
+                        flippedCards = [];
+                        matchedPairs++;
+                        canFlip = true;
+                        if (matchedPairs === wordEntries.length) endGame(true, 'You found all matches!');
+                    } else {
+                        setTimeout(() => {
+                            flippedCards.forEach(c => c.classList.remove('flipped'));
+                            flippedCards = [];
+                            canFlip = true;
+                        }, 1200);
+                    }
+                }
+            });
+        }
+
+        // --- UPGRADED REWARD ANIMATION SYSTEM ---
+        function animatePointsToScore(targetElement, points) {
+            const scoreEl = document.getElementById('score-display');
+            const startRect = targetElement.getBoundingClientRect();
+            const endRect = scoreEl.getBoundingClientRect();
+
+            for (let i = 0; i < points; i++) {
+                setTimeout(() => {
+                    const token = document.createElement('div');
+                    token.className = 'flying-token';
+                    token.textContent = '+1';
+                    token.style.width = '30px';
+                    token.style.height = '30px';
+                    token.style.left = `${startRect.left + startRect.width / 2 - 15}px`;
+                    token.style.top = `${startRect.top + startRect.height / 2 - 15}px`;
+                    document.body.appendChild(token);
+
+                    requestAnimationFrame(() => {
+                        token.style.transform = `translate(${endRect.left - startRect.left}px, ${endRect.top - startRect.top}px) scale(0.5)`;
+                        token.style.opacity = '0';
+                    });
+
+                    token.addEventListener('transitionend', () => {
+                        token.remove();
+                        scoreEl.classList.add('pop-in');
+                        setTimeout(() => scoreEl.classList.remove('pop-in'), 300);
+                    });
+                }, i * 100);
+            }
+        }
+
+
+        // --- EMOJI DROP GAME ---
+        function setupDropGame(container) {
+             const words = topics[currentTopic].words;
+             const wordEntries = Object.entries(words);
+             const alphabetizedWords = Object.keys(words).sort();
+             const shuffledEntries = [...wordEntries].sort(() => Math.random() - 0.5);
+             let matchedCount = 0;
+             let selectedWordEl = null;
+
+             container.innerHTML = `
+                <p class="text-center text-lg text-gray-600 mb-4" onclick="speechService.speak(this.textContent)">Drag & Drop or Tap the word then the emoji.</p>
+                <div id="drop-zone-container" class="grid grid-cols-3 md:grid-cols-4 gap-4 max-w-2xl mx-auto mb-8"></div>
+                <div id="drop-word-bank" class="flex flex-wrap gap-3 p-4 bg-gray-200 rounded-lg justify-center"></div>
+             `;
+             const dropZoneContainer = container.querySelector('#drop-zone-container');
+             const wordBank = container.querySelector('#drop-word-bank');
+
+             function handleMatch(zone, word) {
+                playSound('correct');
+                speechService.speak("Correct!", { pitch: 1.2 });
+                animatePointsToScore(zone, 1);
+                setTimeout(() => updateScore(1), 1000);
+                
+                zone.classList.add('correct');
+                zone.innerHTML = `<div class="text-sm font-bold">${word}</div>`;
+                const wordEl = document.getElementById(`word-${word.replace(/\s/g, '-')}`);
+                if(wordEl) wordEl.style.display = 'none';
+                matchedCount++;
+                if (matchedCount === wordEntries.length) endGame(true, 'Great job!');
+             }
+
+             shuffledEntries.forEach(([word, emoji]) => {
+                const zone = document.createElement('div');
+                zone.className = 'drop-zone bg-sky-200 text-4xl p-2 md:p-4 rounded-lg shadow-md flex items-center justify-center transition-colors duration-300 min-h-[80px]';
+                zone.textContent = emoji;
+                zone.dataset.word = word;
+                zone.addEventListener('dragover', e => { e.preventDefault(); e.target.classList.add('drag-over'); });
+                zone.addEventListener('dragleave', e => e.target.classList.remove('drag-over'));
+                zone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    e.target.classList.remove('drag-over');
+                    const droppedWord = e.dataTransfer.getData('text/plain');
+                    if (droppedWord === zone.dataset.word) {
+                        handleMatch(zone, droppedWord);
+                    } else {
+                        playSound('incorrect');
+                        speechService.speak("Incorrect.", { pitch: 0.8 });
+                        zone.classList.add('incorrect');
+                        setTimeout(() => zone.classList.remove('incorrect'), 500);
+                    }
+                });
+                zone.addEventListener('click', () => {
+                    if (selectedWordEl && selectedWordEl.dataset.word === zone.dataset.word) {
+                        handleMatch(zone, selectedWordEl.dataset.word);
+                        selectedWordEl.classList.remove('selected', 'bg-yellow-300');
+                        selectedWordEl = null;
+                    } else if (selectedWordEl) {
+                        playSound('incorrect');
+                        speechService.speak("Incorrect.", { pitch: 0.8 });
+                        zone.classList.add('incorrect');
+                        setTimeout(() => zone.classList.remove('incorrect'), 500);
+                    }
+                });
+                dropZoneContainer.appendChild(zone);
+             });
+
+             alphabetizedWords.forEach(word => {
+                const wordEl = document.createElement('div');
+                wordEl.id = `word-${word.replace(/\s/g, '-')}`;
+                wordEl.className = 'draggable-word bg-white text-sm font-bold py-1 px-2 rounded-lg shadow-md';
+                wordEl.textContent = word;
+                wordEl.dataset.word = word;
+                wordEl.draggable = true;
+                wordEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', word));
+                wordEl.addEventListener('click', () => {
+                    if (selectedWordEl) {
+                        selectedWordEl.classList.remove('selected', 'bg-yellow-300');
+                    }
+                    selectedWordEl = wordEl;
+                    selectedWordEl.classList.add('selected', 'bg-yellow-300');
+                });
+                wordBank.appendChild(wordEl);
+             });
+        }
+
+        // --- SENTENCE SCRAMBLE GAME ---
+        function setupScrambleGame(container) {
+            const sentences = [...topics[currentTopic].sentences].sort(() => 0.5 - Math.random());
+            let currentSentenceIndex = 0;
+
+            container.innerHTML = `
+                <div id="scramble-feedback" class="text-center text-xl font-bold h-8 mb-4"></div>
+                <div id="scramble-drop-zone" class="sentence-drop-zone flex flex-wrap gap-2 p-4 bg-purple-200 rounded-lg justify-center mb-6 border-2 border-dashed border-purple-400 min-h-[50px]"></div>
+                <div id="scramble-word-bank" class="flex flex-wrap gap-2 p-4 bg-gray-200 rounded-lg justify-center"></div>
+            `;
+            const dropZone = container.querySelector('#scramble-drop-zone');
+            const wordBank = container.querySelector('#scramble-word-bank');
+            const feedbackEl = container.querySelector('#scramble-feedback');
+
+            function nextSentence() {
+                if (currentSentenceIndex >= sentences.length) {
+                    endGame(true, 'You completed all sentences!');
+                    return;
+                }
+                feedbackEl.textContent = `Sentence ${currentSentenceIndex + 1} of ${sentences.length}`;
+                const sentence = sentences[currentSentenceIndex];
+                speechService.speak(sentence);
+                const words = sentence.replace(/[.!?]/g, '').split(' ');
+                const punctuation = sentence.match(/[.!?]/g) || [];
+                const itemsToScramble = [...words, ...punctuation];
+                const shuffledWords = itemsToScramble.sort(() => Math.random() - 0.5);
+
+                wordBank.innerHTML = '';
+                dropZone.innerHTML = '';
+                shuffledWords.forEach((word, index) => {
+                    const wordEl = document.createElement('div');
+                    wordEl.id = `scramble-word-${index}`;
+                    wordEl.className = 'sentence-word bg-white p-2 px-4 rounded shadow font-semibold cursor-pointer';
+                    wordEl.textContent = word;
+                    wordEl.draggable = true;
+                    wordEl.addEventListener('dragstart', e => e.dataTransfer.setData('text/plain', e.target.id));
+                    wordEl.addEventListener('click', () => {
+                        dropZone.appendChild(wordEl);
+                        checkSentence();
+                    });
+                    wordBank.appendChild(wordEl);
+                });
+            }
+            
+            function checkSentence() {
+                const correctSentence = sentences[currentSentenceIndex];
+                const wordsInSentence = correctSentence.replace(/[.!?]/g, '').split(' ');
+                const punctuation = correctSentence.match(/[.!?]/g) || [];
+                const totalItems = wordsInSentence.length + punctuation.length;
+                
+                const wordsInDropZone = Array.from(dropZone.children);
+                if (wordsInDropZone.length !== totalItems) return;
+
+                const userAnswer = wordsInDropZone.map(child => child.textContent).join(' ').replace(/\s+([.!?])/g, '$1');
+                if (userAnswer === correctSentence) {
+                    playSound('correct');
+                    const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                    feedbackEl.textContent = praise;
+                    speechService.speak(praise, { pitch: 1.2 });
+                    
+                    animatePointsToScore(dropZone, 2);
+                    setTimeout(() => updateScore(2), 1000);
+                    
+                    currentSentenceIndex++;
+                    setTimeout(nextSentence, 1500);
+                } else {
+                    playSound('incorrect');
+                    speechService.speak('Not quite right, try again!', { pitch: 0.8 });
+                    feedbackEl.textContent = "Try again!";
+                    dropZone.classList.add('incorrect');
+                    setTimeout(() => {
+                        dropZone.classList.remove('incorrect');
+                        wordsInDropZone.forEach(word => wordBank.appendChild(word));
+                    }, 1000);
+                }
+            }
+
+            const dropHandler = e => {
+                e.preventDefault();
+                const wordId = e.dataTransfer.getData('text/plain');
+                const wordEl = document.getElementById(wordId);
+                if (wordEl && e.currentTarget.contains(wordEl) === false) {
+                    e.currentTarget.appendChild(wordEl);
+                    if (e.currentTarget.id === 'scramble-drop-zone') {
+                        checkSentence();
+                    }
+                }
+            };
+            
+            dropZone.addEventListener('dragover', e => e.preventDefault());
+            dropZone.addEventListener('drop', dropHandler);
+            wordBank.addEventListener('dragover', e => e.preventDefault());
+            wordBank.addEventListener('drop', dropHandler);
+
+            nextSentence();
+        }
+
+        // --- LISTEN & MATCH GAME ---
+        function setupListenGame(container) {
+            const allQuestions = topics[currentTopic].questions;
+            if (!allQuestions || allQuestions.length === 0) {
+                container.innerHTML = `<p class="text-center text-red-500">No listening questions available for this topic.</p>`;
+                setTimeout(() => selectTopic(currentTopic), 2000);
+                return;
+            }
+            const questions = [...allQuestions].sort(() => 0.5 - Math.random()).slice(0, 10);
+            let currentQuestionIndex = 0;
+
+            container.innerHTML = `
+                <div id="listen-feedback" class="text-center text-xl font-bold h-8 mb-4"></div>
+                <div class="text-center mb-8">
+                    <button id="play-question-btn" class="bg-rose-500 hover:bg-rose-600 text-white p-6 rounded-full shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" viewBox="0 0 20 20" fill="currentColor"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" /></svg>
+                    </button>
+                </div>
+                <div id="answer-options" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto"></div>
+            `;
+            
+            const feedbackEl = container.querySelector('#listen-feedback');
+            const playBtn = container.querySelector('#play-question-btn');
+            const optionsContainer = container.querySelector('#answer-options');
+
+            function nextQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true, 'You answered all questions!');
+                    return;
+                }
+                feedbackEl.textContent = `Question ${currentQuestionIndex + 1} of ${questions.length}`;
+                const qData = questions[currentQuestionIndex];
+                
+                speechService.speak(qData.q);
+                playBtn.onclick = () => speechService.speak(qData.q);
+                
+                optionsContainer.innerHTML = '';
+                
+                const allAnswers = allQuestions.map(q => q.a);
+                let options = [qData.a];
+                while (options.length < 3) {
+                    const randomAnswer = allAnswers[Math.floor(Math.random() * allAnswers.length)];
+                    if (!options.includes(randomAnswer)) {
+                        options.push(randomAnswer);
+                    }
+                }
+                options.sort(() => Math.random() - 0.5);
+
+                options.forEach(option => {
+                    const btn = document.createElement('button');
+                    btn.className = 'answer-btn bg-white text-lg font-semibold p-4 rounded-lg shadow-md hover:bg-gray-100 transition-colors';
+                    btn.textContent = option;
+                    btn.onclick = () => {
+                        if (option === qData.a) {
+                            playSound('correct');
+                            speechService.speak('Correct!', { pitch: 1.2 });
+                            animatePointsToScore(btn, 2);
+                            setTimeout(() => updateScore(2), 1000);
+                            
+                            btn.classList.add('bg-green-500', 'text-white');
+                            currentQuestionIndex++;
+                            setTimeout(nextQuestion, 1000);
+                        } else {
+                            playSound('incorrect');
+                            speechService.speak('Try again.', { pitch: 0.8 });
+                            btn.classList.add('bg-red-500', 'text-white');
+                            setTimeout(() => btn.classList.remove('bg-red-500', 'text-white'), 500);
+                        }
+                    };
+                    optionsContainer.appendChild(btn);
+                });
+            }
+            
+            nextQuestion();
+        }
+
+        // --- LEVEL COMPLETE & BADGES ---
+        function showCompletionModal(isLevelComplete, points) {
+            const modal = document.getElementById('completion-modal');
+            document.getElementById('completion-title').textContent = isLevelComplete ? "Topic Complete!" : "Game Complete!";
+            document.getElementById('time-bonus').textContent = Math.ceil(timeLeft * 0.1);
+            document.getElementById('points-earned').textContent = points;
+            document.getElementById('final-score').textContent = score;
+            modal.dataset.isLevelComplete = isLevelComplete;
+            modal.style.display = 'flex';
+            if (isLevelComplete) {
+                startFireworks();
+            }
+        }
+        
+        function handleCompletionContinue() {
+            const modal = document.getElementById('completion-modal');
+            const isLevelComplete = modal.dataset.isLevelComplete === 'true';
+            modal.style.display = 'none';
+            stopFireworks();
+            if (isLevelComplete) {
+                showMainMenu();
+            } else {
+                selectTopic(currentTopic);
+            }
+        }
+
+        function showCertificate() {
+            document.getElementById('cert-date').textContent = new Date().toLocaleDateString();
+            document.getElementById('certificate-modal').style.display = 'flex';
+            startFireworks();
+        }
+
+        function showBadges() {
+            const modal = document.getElementById('badges-modal');
+            const grid = document.getElementById('badges-grid');
+            grid.innerHTML = '';
+            for (const topicName in topics) {
+                const topic = topics[topicName];
+                const hasBadge = badges.has(topicName);
+                const badgeEl = document.createElement('div');
+                badgeEl.className = `p-2 text-center rounded-lg relative overflow-hidden ${hasBadge ? 'bg-amber-400' : 'bg-gray-200'}`;
+                badgeEl.innerHTML = `
+                    <div class="text-4xl ${hasBadge ? '' : 'opacity-30'}">${topic.emoji}</div>
+                    <div class="text-xs font-semibold mt-1">${topicName}</div>
+                    ${hasBadge ? '<div class="absolute inset-0 badge-shimmer"></div>' : ''}
+                `;
+                grid.appendChild(badgeEl);
+            }
+            modal.style.display = 'flex';
+        }
+        
+        function updateBadgesDisplay() {
+            document.getElementById('badges-count').textContent = badges.size;
+        }
+
+        function updateTopicFeedback() {
+             const feedbackEl = document.getElementById('topic-feedback');
+             const score = topicScores[currentTopic] || 0;
+             const hasBadge = badges.has(currentTopic);
+             feedbackEl.innerHTML = `
+                <p class="font-semibold">Topic Score: ${score}</p>
+                ${hasBadge ? '<p class="text-amber-600 font-bold">🏅 Badge Earned!</p>' : ''}
+             `;
+        }
+
+        // --- STATE MANAGEMENT ---
+        function saveState() {
+            localStorage.setItem('ff3GameScore', score);
+            localStorage.setItem('ff3GameBadges', JSON.stringify(Array.from(badges)));
+            localStorage.setItem('ff3GameTopicScores', JSON.stringify(topicScores));
+            const progressToSave = {};
+            for (const key in topicProgress) {
+                progressToSave[key] = Array.from(topicProgress[key]);
+            }
+            localStorage.setItem('ff3GameTopicProgress', JSON.stringify(progressToSave));
+        }
+
+        function loadState() {
+            score = parseInt(localStorage.getItem('ff3GameScore')) || 0;
+            const savedBadges = JSON.parse(localStorage.getItem('ff3GameBadges')) || [];
+            badges = new Set(savedBadges);
+            topicScores = JSON.parse(localStorage.getItem('ff3GameTopicScores')) || {};
+            const savedProgress = JSON.parse(localStorage.getItem('ff3GameTopicProgress')) || {};
+            for (const key in savedProgress) {
+                topicProgress[key] = new Set(savedProgress[key]);
+            }
+            scoreDisplay.textContent = score;
+        }
+        
+        // --- FIREWORKS ---
+        const fireworksCanvas = document.getElementById('fireworks-canvas');
+        const ctx = fireworksCanvas.getContext('2d');
+        let fireworks = [];
+        let particles = [];
+        let fireworksAnimationId;
+
+        function startFireworks() {
+            fireworksCanvas.width = window.innerWidth;
+            fireworksCanvas.height = window.innerHeight;
+            function loop() {
+                if (Math.random() < 0.05) fireworks.push(new Firework());
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+                ctx.globalCompositeOperation = 'lighter';
+                
+                for (let i = fireworks.length - 1; i >= 0; i--) {
+                    fireworks[i].update();
+                    fireworks[i].draw();
+                    if (fireworks[i].done()) fireworks.splice(i, 1);
+                }
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    particles[i].update();
+                    particles[i].draw();
+                    if (particles[i].done()) particles.splice(i, 1);
+                }
+                fireworksAnimationId = requestAnimationFrame(loop);
+            }
+            if(fireworksAnimationId) cancelAnimationFrame(fireworksAnimationId);
+            loop();
+        }
+
+        function stopFireworks() {
+            if (fireworksAnimationId) {
+                cancelAnimationFrame(fireworksAnimationId);
+                fireworksAnimationId = null;
+            }
+            fireworks = [];
+            particles = [];
+            ctx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+        }
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 2 + 1;
+                this.alpha = 1; this.decay = Math.random() * 0.015 + 0.015;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 5;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+            }
+            update() { this.x += this.vx; this.y += this.vy; this.alpha -= this.decay; }
+            done() { return this.alpha <= this.decay; }
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Firework {
+            constructor() {
+                this.x = Math.random() * fireworksCanvas.width;
+                this.y = fireworksCanvas.height;
+                this.targetY = Math.random() * (fireworksCanvas.height / 2);
+                this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                this.exploded = false;
+            }
+            update() {
+                if (!this.exploded) {
+                    this.y -= 3;
+                    if (this.y < this.targetY) {
+                        this.exploded = true;
+                        for (let i = 0; i < 30; i++) particles.push(new Particle(this.x, this.y, this.color));
+                    }
+                }
+            }
+            done() { return this.exploded; }
+            draw() {
+                if (!this.exploded) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, 2, 0, Math.PI * 2, false);
+                    ctx.fillStyle = this.color;
+                    ctx.fill();
+                }
+            }
+        }
+
+        init();
+    });
+    </script>
+</body>
+</html>

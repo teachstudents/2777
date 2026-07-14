@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Audio Quizzes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        .speaking {
+            background-color: #dbeafe; /* A light blue highlight */
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="start-page" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+        <div class="bg-white rounded-xl shadow-lg p-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-900 mb-6">Audio Quizzes</h1>
+            <p class="text-gray-600 mb-8">Please select a quiz to begin.</p>
+            <div id="quiz-menu" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Quiz buttons will be dynamically inserted here by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz Template (used by JS to generate quiz pages) -->
+    <div id="quiz-template" class="hidden">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+             <div class="p-6 border-b border-gray-200">
+                <button class="back-btn font-semibold flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                    </svg>
+                    Back to Quizzes
+                </button>
+            </div>
+            <!-- Audio Player Section -->
+            <div class="p-6 border-b border-gray-200 bg-gray-50">
+                <div class="flex items-center gap-4">
+                    <button class="playPauseBtn w-12 h-12 flex items-center justify-center rounded-full text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 flex-shrink-0">
+                        <svg class="playIcon w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" /></svg>
+                        <svg class="pauseIcon w-6 h-6 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-6-13.5v13.5" /></svg>
+                    </button>
+                    <div class="timer text-lg font-mono text-gray-700">00:00</div>
+                </div>
+            </div>
+            <!-- Quiz Content -->
+            <div class="p-6">
+                <p class="quiz-instruction text-gray-600 mb-6"></p>
+                <h2 class="quiz-title text-xl font-bold text-gray-900 mb-4"></h2>
+                <div class="quiz-questions space-y-4 text-lg"></div>
+            </div>
+            <!-- Answer & Audioscript Section -->
+            <div class="px-6 pb-6">
+                <button class="toggleAnswerBtn w-full text-left px-4 py-3 bg-gray-100 hover:bg-gray-200 rounded-lg focus:outline-none focus:ring-2 transition-colors">
+                    <div class="flex justify-between items-center"><span class="font-semibold text-lg text-gray-800">Answer & Audioscript</span><svg class="chevronIcon w-6 h-6 transform transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" /></svg></div>
+                </button>
+                <div class="answerContent accordion-content mt-4">
+                    <div class="answer-key p-6 rounded-lg border">
+                        <h3 class="text-lg font-bold mb-4">Answers</h3>
+                        <div class="answer-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2"></div>
+                    </div>
+                    <div class="mt-6">
+                        <h3 class="text-lg font-bold text-gray-900 mb-4">Audioscript</h3>
+                        <div class="audioscriptText prose max-w-none text-gray-700 leading-relaxed"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    // --- AUDIO & SPEECH ---
+    const synth = window.speechSynthesis;
+    let correctSound, incorrectSound, celebrationSound;
+    let isAudioUnlocked = false; // Flag to ensure audio context is only unlocked once
+
+    const praiseWords = ["Awesome!", "Great job!", "Superstar!", "You got it!", "Well done!", "Fantastic!", "Excellent!"];
+    const encouragementWords = ["Almost!", "So close!", "Give it another shot!", "Don't give up!", "Nice try!"];
+
+    let voices = [];
+    let voiceIndex = 0;
+
+    function loadVoices() {
+        if (!('speechSynthesis' in window)) return;
+        voices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en'));
+    }
+
+    if ('speechSynthesis' in window) {
+        speechSynthesis.onvoiceschanged = loadVoices;
+        loadVoices(); // Initial attempt
+    }
+
+    function getFemaleVoice() {
+        if (voices.length === 0) {
+            loadVoices();
+            if (voices.length === 0) return null;
+        }
+
+        const femaleKeywords = ['female', 'zira', 'susan', 'samantha', 'vanessa', 'tessa', 'fiona', 'karen', 'moira', 'serena', 'eva', 'laura', 'sonia'];
+
+        const femaleVoices = voices.filter(v => {
+            const nameLower = v.name.toLowerCase();
+            return femaleKeywords.some(keyword => nameLower.includes(keyword));
+        });
+
+        let voicePool = femaleVoices.length > 0 ? femaleVoices : voices; // Fallback to all voices if no specific female found
+
+        // Prioritize higher quality voices within the selected pool
+        const preferredVoices = voicePool.filter(v => v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('Microsoft'));
+        if (preferredVoices.length > 0) {
+            voicePool = preferredVoices;
+        }
+
+        if (voicePool.length === 0) return null;
+
+        voiceIndex = (voiceIndex + 1) % voicePool.length;
+        return voicePool[voiceIndex];
+    }
+
+    // Function to unlock audio context on the first user gesture
+    function unlockAudio() {
+        if (isAudioUnlocked) return;
+        if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+            Tone.start().catch(e => console.error("Tone.js could not start:", e));
+        }
+        isAudioUnlocked = true;
+    }
+
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Moved Tone.js initialization inside DOMContentLoaded to prevent errors
+        try {
+            correctSound = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            incorrectSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.2 } }).toDestination();
+            celebrationSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle8' }, envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+        } catch (e) { console.error("Could not initialize Tone.js synths:", e); }
+
+        const quizData = [
+            // Quiz 1
+            {
+                instruction: "You will hear a student giving a review of a new video game to his class.",
+                title: "Video Game Review",
+                questions: `<p>Action takes place in: a (14) ........................................</p><p>Players answer questions about: (15) ........................................</p><p>Name of most difficult level of game: the (16) ........................................</p><p>Best thing about the game: the (17) ........................................</p><p>Maximum number of players: (18) ........................................</p><p>Website for more details: www.(19) ........................................ .com</p>`,
+                answers: `<p><span class="font-semibold">14</span> rainforest</p><p><span class="font-semibold">15</span> insects</p><p><span class="font-semibold">16</span> (the) monkey</p><p><span class="font-semibold">17</span> characters</p><p><span class="font-semibold">18</span> six/6</p><p><span class="font-semibold">19</span> L-O-M-B-A-R-D-I-O</p>`,
+                audioscript: `<p>Hi everyone. I’m going to tell you about a new video game that I’ve played a lot recently, called Sky Jam. It’s produced by the same company that made Road Jam a few years ago, which was set in a city of course. Instead of streets and huge buildings, though, you’ll find yourself living in a rainforest in this game.</p><p>It’s an unusual game because you have to answer questions in order to make progress, as well as by moving through the environment. You’ll be asked all sorts of things regarding insects, which you have to learn on the way from the many helpful creatures you meet, such as butterflies and bats.</p><p>There are 30 levels in the whole game, which are supposed to become more and more challenging as you go on. I found the one called ‘the monkey’ almost impossible, even though it comes well before the last level, called ‘the frog’, which didn’t seem so difficult.</p><p>There are lots of things to love about this game. The story you learn about as you continue through the game is fantastic, second only to the characters you can play, who are lovely, and extremely interesting too. Learning to play the game is easy and fun, too.</p><p>Unfortunately, unlike the eight players who could play against each other in Road Jam, six people at the most can join in this game at any one time. I found this to be a few too many, though, and preferred playing in a group of four.</p><p>You can find out more about the game online. If you’re interested, visit the company’s website www.lombardio.com. I’ll spell that for you: it’s L-O-M-B-A-R-D-I-O.</p>`,
+                theme: 'blue'
+            },
+            // Quiz 2
+            {
+                instruction: "You will hear a teacher giving some information about a school photography competition.",
+                title: "Photography Competition",
+                questions: `<p>The subject of this year’s competition is (14) ............................ .</p><p>Photos must show some (15) ............................ .</p><p>A local (16) ............................ will judge the competition.</p><p>First prize is a photography (17) ............................ .</p><p>Send your entries in by (18) ............................ at the latest.</p><p>School secretary’s email address is (19) k. ............................ @school.com</p>`,
+                answers: `<p><span class="font-semibold">14</span> (the) environment</p><p><span class="font-semibold">15</span> wildlife</p><p><span class="font-semibold">16</span> writer</p><p><span class="font-semibold">17</span> course</p><p><span class="font-semibold">18</span> 15th February</p><p><span class="font-semibold">19</span> M-I-T-C-H-E-L-L</p>`,
+                audioscript: `<p>Listen, everyone! I’ve got some information about this year’s school photography competition. As you’ll probably remember, last year’s competition asked you to focus on the topic of travel, but photos should have something to do with the environment this time.</p><p>As in previous years, there are certain things that we want the photographs to include. We want all the pictures to have wildlife in them, so we’re not looking for photos that only show landscapes or people.</p><p>The head teacher has decided to ask someone from outside the school to judge the competition this year. She was hoping that local artist Sally Graves would be able to judge the entries, but she’s actually away at that time. Writer James McKay has agreed to help us instead. I’m sure many of you have heard of him, as he’s quite famous and was born not far away from here, too.</p><p>It was felt that most keen photographers already have the photography books or equipment they need, so the organisers have decided that the winner will receive a photography course run by Central College instead. The College was also hoping to have a small photography exhibition for winners of all the school photography competitions in the area, but their gallery’s too busy putting on other shows, I’m afraid.</p><p>The winner of the competition will be announced on 11th March. If you wish to enter, please make sure we receive your photos by 15th February, as the judging will take place on 19th February.</p><p>So if you’re interested, send your entry to the school secretary, Mrs Mitchell, not to me or the head teacher. I’ll give you her email address – it’s k dot Mitchell, that’s spelt M-I-T-C-H-E-double-L at school dot com. Good luck!</p>`,
+                theme: 'green'
+            },
+            // Quiz 3
+            {
+                instruction: "You will hear a student giving some information to his class about an acting club he’s a member of.",
+                title: "Acting Club",
+                questions: `<p>Teacher:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">Appeared on TV as a (14) ………………………………</li><li class="pl-2">Has mostly appeared in (15) ……………………………… shows</li></ul><p>Sessions:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">First part – using your (16) ……………………………… well</li><li class="pl-2">Second part – practising performance skills</li><li class="pl-2">Take place at the (17) ………………………………</li></ul><p>Acting Club play:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">Called (18) ………………………………</li><li class="pl-2">First performance – on (19) ………………………………</li></ul>`,
+                answers: `<p><span class="font-semibold">14</span> farmer</p><p><span class="font-semibold">15</span> comedy</p><p><span class="font-semibold">16</span> voice</p><p><span class="font-semibold">17</span> university</p><p><span class="font-semibold">18</span> (The) Passenger</p><p><span class="font-semibold">19</span> 20th / twentieth July</p>`,
+                audioscript: `<p>Hello, everyone! I’d like to tell you about this wonderful acting club I joined recently. The best thing about it is the teacher. We’re really lucky to have someone who’s actually quite famous. Her name’s Alice Fisher, and she’s appearing in a play at the big theatre in town at the moment. She plays a policewoman in that, but you’ll probably know her better as the farmer in the series ‘Green Valley’ that was on last year.</p><p>She’s worked as a professional theatre actor for about 10 years. As well as having three years’ experience of appearing in serious drama, she’s also spent seven years working in comedy productions, so has lots of different talents.</p><p>The sessions are always fun and are split into two sections. In the first part, rather than practising anything to do with movement of the body, we focus instead on improving how to control the voice as an actor. In the second part, we practise our performance skills.</p><p>If you’re interested in coming to the drama club, you’ll need to know where to come, of course. The club actually hires a room from the university to run the classes. It’s much cheaper to do it there than at the college or the acting school. The sessions are on Wednesday evenings.</p><p>At the moment, we’re practising for a play, which will be on at the Town Theatre soon. Its name is ‘The Passenger’ and we’re hoping that this latest one will be as popular as the last production the club did, which was called ‘Reality’. It was a big success, apparently.</p><p>We’ve got our last practice for the new play on the thirteenth of July, with audiences able to come and see it from twentieth of July for one week.</p><p>Thanks for listening.</p>`,
+                theme: 'purple'
+            },
+             // Quiz 4
+            {
+                instruction: "You will hear a student called Matilde giving a presentation to her class about a science museum she visited.",
+                title: "Science Museum Visit",
+                questions: `<p>Matilde’s favourite room contained displays about (14) ……………………………… .</p><p>The (15) ……………………………… exhibition is currently closed.</p><p>Matilde made a (16) ……………………………… at the museum.</p><p>The shop had a really good range of (17) ……………………………… .</p><p>The guided tour lasts for (18) ……………………………… minutes.</p><p>Visitors must use the entrance on (19) ……………………………… Road.</p>`,
+                answers: `<p><span class="font-semibold">14</span> energy</p><p><span class="font-semibold">15</span> health</p><p><span class="font-semibold">16</span> rocket</p><p><span class="font-semibold">17</span> chemistry sets</p><p><span class="font-semibold">18</span> 80 / eighty</p><p><span class="font-semibold">19</span> L-O-C-K-H-A-R-T</p>`,
+                audioscript: `<p>Hi everyone. I’m going to tell you about my trip to the new science museum last week. I went with my family and we looked around the whole museum. There are loads of different rooms and each one contains displays about a particular topic. We spent ages looking around the room that was all about space’ and even longer in the one with loads of stuff on ‘energy’, which I thought was the best bit.</p><p>The museum’s free, but there are also two special exhibitions that you have to pay for. You can’t go into the one on ’health’ yet because it doesn’t open for another couple of weeks. I’d like to go back and see that. The other exhibition on ‘computers’ was good, though.</p><p>As well as the displays, there are lots of things you can actually do there too. My brother made this fantastic car that went quite fast, using only power from the sun, while I created a rocket that used gas to fly. It went really high!</p><p>As well as the interesting things to see and do, there’s a nice shop. My mum and dad let me get something because it was my birthday. There were so many chemistry sets to choose from, it took me ages to decide which one I wanted. They have the usual toys and games, and a few nice books there, too.</p><p>You can also take a tour of the museum with a guide. When we arrived, they said we’d have to wait for at least sixty minutes for the eighty-minute tour because it was so popular, so we decided against it.</p><p>If you want to go, the entrance is on Lockhart Road. I’ll spell that for you, it’s L-O-C-K-H-A-R-T Road.</p><p>Thanks for listening.</p>`,
+                theme: 'yellow'
+            },
+            // Quiz 5
+            {
+                instruction: "You will hear a teacher giving his students information about a school trip to a farm.",
+                title: "School Trip to Farm",
+                questions: `<p>Meeting place:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">8 a.m. next to the(14) ………………………………</li></ul><p>Need to bring:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">a (15) ………………………………</li></ul><p>Morning activity:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">feeding the (16) ………………………………</li></ul><p>Afternoon activity:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">(17) ………………………………</li></ul><p>Return to school at:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">(18) ………………………………</li></ul><p>For more information:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">(19) www. ……………………………… .farm.com</li></ul>`,
+                answers: `<p><span class="font-semibold">14</span> (school) gate</p><p><span class="font-semibold">15</span> drink</p><p><span class="font-semibold">16</span> lambs</p><p><span class="font-semibold">17</span> climbing (wall)</p><p><span class="font-semibold">18</span> 4.15 / four fifteen</p><p><span class="font-semibold">19</span> C-A-F-F-E-R-T-Y-S</p>`,
+                audioscript: `<p>Good morning everyone. I’m going to tell you about the school trip to the farm tomorrow. As I told you last week, you need to wait for the bus by the school gate, so don’t go to the bus stop or come straight into the playground like you usually do.</p><p>The farm is providing us all with a nice packed lunch, so there’s no need to bring one yourself. It’d be great if you could make sure you’ve got a drink, though, as it can get quite hot on the bus.</p><p>There are lots of different animals on the farm. You’re all going to have a go at brushing the horses just after we arrive there at about 9 a.m. Shortly after this, you’ll learn what farmers give lambs to eat, and you’ll be able to give them their breakfast, too.</p><p>As well as the animals, the farm has lots of activities students can take part in. We’re going to do some climbing on the special wall they have there after lunch, and maybe next time we can try one of the other activities like fishing or playing baseball.</p><p>We’ll be setting off back to school at about 3.30 p.m., and will be back here at 4.15, so 45 minutes after the usual school finish time of 3.30. Please could you let your parents know, especially if they usually come to the school to pick you up.</p><p>If you or your parents want to find out more about the farm before we go, you can visit their website and there’s loads of information about it on there. I’ll give you the website address: it’s www dot caffertys dot farm dot com. I’ll spell that for you: it’s C-A-double F-E-R-T-Y-S dot farm dot com.</p><p>OK, see you all tomorrow.</p>`,
+                theme: 'red'
+            },
+            // Quiz 6
+            {
+                instruction: "You will hear a music teacher giving some information to students about Saturday music classes.",
+                title: "Saturday Music Classes",
+                questions: `<p>Classes available</p><ul class="list-disc list-inside ml-4"><li class="pl-2">drums</li><li class="pl-2">(14) …………………</li><li class="pl-2">guitar</li></ul><p>On arrival</p><ul class="list-disc list-inside ml-4"><li class="pl-2">go to the (15) ………………… to pick up your instrument</li></ul><p>Cost</p><ul class="list-disc list-inside ml-4"><li class="pl-2">(16) £ ………………… per class</li></ul><p>End-of-term concert</p><ul class="list-disc list-inside ml-4"><li class="pl-2">on (17) …………………</li><li class="pl-2">play alone or with the (18) …………………</li><li class="pl-2">friends and family welcome</li></ul><p>For more information</p><ul class="list-disc list-inside ml-4"><li class="pl-2">contact music teacher on (19) …………………@school.net</li></ul>`,
+                answers: `<p><span class="font-semibold">14</span> flute</p><p><span class="font-semibold">15</span> drama room</p><p><span class="font-semibold">16</span> 7.75</p><p><span class="font-semibold">17</span> 24th June</p><p><span class="font-semibold">18</span> orchestra</p><p><span class="font-semibold">19</span> D-R-I-S-C-O-L-L</p>`,
+                audioscript: `<p>Listen, everyone. I know some of you are interested in learning to play a musical instrument so I have some information about Saturday morning music classes that are starting this week.</p><p>There are many classes to choose from for a range of different instruments. You can learn anything from the drums to the guitar. The violin teacher the school usually uses can’t make it on Saturdays, but why not have a go at the flute if you prefer classical music.</p><p>When you arrive at the school, you’ll need to collect your instruments. You probably know that these are normally kept in the large cupboard next to the technology room but we’ll make sure they’re all ready for you in the drama room so go straight there, please.</p><p>You’ll need to tell your parents about the cost, of course. They can pay in two different ways: if they decide to pay for each individual class, it’ll be £7.75, or they can pay per term, in which case it works out a little cheaper at £72.</p><p>There’ll be an end of term concert for all students, which will take place on 24th June, and not on 7th July as it says on the school website. You’ll be able to play solo, that’s by yourself, or with others. Last year, there were several students who joined together in a band and they played together at the concert. This year, though, we’d like to include more people and have an orchestra that students can play in. Family and friends are welcome to come and listen.</p><p>If you or your parents want more information, you’ll need to email Mr Driscoll, the music teacher on driscoll at school dot net. I’ll spell that for you: it’s D-R-I-S-C-O-double-L at school dot net.</p>`,
+                theme: 'indigo'
+            },
+            // Quiz 7
+            {
+                instruction: "You will hear a radio presenter called Erica talking about how we can help the environment.",
+                title: "Help the Environment",
+                questions: `<p>Remember that when we’re (14) ……………….. . we always have the choice to buy something somewhere else.</p><p>Take (15) ……………….. with you the next time you go shopping.</p><p>Recycle unwanted things by giving them to (16) ………………..</p><p>See how you might be able to help with (17) ……………….. problems where you live.</p><p>Ask your friends to help you clear rubbish and litter from (18) ……………….. and streets in your area.</p><p>Try car-sharing with your (19) ……………….. if you work in the same area.</p>`,
+                answers: `<p><span class="font-semibold">14</span> shopping</p><p><span class="font-semibold">15</span> plastic bags</p><p><span class="font-semibold">16</span> charity shops</p><p><span class="font-semibold">17</span> environmental</p><p><span class="font-semibold">18</span> rivers</p><p><span class="font-semibold">19</span> neighbour</p>`,
+                audioscript: `<p>This morning we’re continuing to look at environmental problems to see what we can do to help. And we can make a difference if we try. We often forget that as people who go shopping, we have a lot of power. If one company does something we don’t like we can always shop somewhere else.</p><p>Then there’s the amount of plastic that comes with the goods we buy. Try buying things that aren’t wrapped in it. And if you’re offered a bag and you don’t need one, just say ‘no thanks’. And any plastic bags you have at home, don’t throw them away. Put them away somewhere until your next shopping trip and use them then.</p><p>On the subject of throwing stuff away, I try to keep things that other people might be able to use. There are always charity shops which are very happy to help you recycle your old clothes or things in the house. Knowing that someone else is getting pleasure from something you no longer need is a lovely feeling.</p><p>Pollution is of course a big problem, and we often feel that as individuals we have no power to make any difference. But that’s not true. Find out what some of the local environmental problems are and see how you can help. Get together with friends and help to clear the rubbish from local rivers or collect litter from the streets around your home to keep the area looking tidy.</p><p>Finally, let’s turn to energy. Cars are here to stay for the moment, and it would be difficult to ask people not to use them at all. But we should all try to avoid making unnecessary car journeys. Go by bike or public transport sometimes or, if you work in the same area as your neighbour, try car-sharing. Take it in turns to drive to work.</p>`,
+                theme: 'pink'
+            },
+            // Quiz 8
+            {
+                instruction: "You will hear a radio presenter called Jonathan talking about the programmes on during the week.",
+                title: "Radio Programmes",
+                questions: `<p>There are (14) …………………. to some of our programmes this week.</p><p>The wildlife documentary looks at (15) …………………. and how to identify them.</p><p>In Writers’ World, discover how to get your work (16) …………………. by using the web.</p><p>On Sports Night, there will be no discussions on last week’s matches as they were (17) ………………….</p><p>Join Sally at the new time of (18) …………………. to ask questions on Money Matters.</p><p>You’ll find Sally at the entrance to the (19) …………………. on Friday.</p>`,
+                answers: `<p><span class="font-semibold">14</span> changes</p><p><span class="font-semibold">15</span> wild flowers</p><p><span class="font-semibold">16</span> published</p><p><span class="font-semibold">17</span> cancelled</p><p><span class="font-semibold">18</span> 10.00/10 am</p><p><span class="font-semibold">19</span> library</p>`,
+                audioscript: `<p>Before tonight’s news let me tell you about some of the shows we have for you this week so you can make a note of them in your diary. There are a few changes to our regular programmes so listen carefully to make sure you don’t miss any of your favourites.</p><p>Tonight at 8.30 John Seymour will present this week’s wildlife documentary. John entertained us all previously with his trip to the safari park when he went along to meet the elephants. This time John will be telling us about how we can recognise the wildflowers in our gardens.</p><p>Then our first change of schedule. Apologies to listeners looking forward to Writers’ World and our interview with Francis Selhurst, on how to get ideas for your next novel. We’ve had to rearrange this interview for next week as Francis is attending a conference. Instead, we’ll be talking with an expert about how you can make use of the internet to get your next book published.</p><p>On Thursday at 8.00 we have Sports Night as usual, with a look at next Weekend’s football. Most of the games from last Saturday were cancelled due to the terrible weather, so there are no reports on those matches. But our experts will be looking forward to seeing some action this Saturday and will be trying to predict results as usual. Join our team at 8.00.</p><p>And finally, our reporter Sally Williams will be in town next Friday morning. She’ll be interviewing people for our weekly programme Money Matters, starting from 10.00, not the usual 9.00. If you’d like the chance to speak to her and share your views of your experiences and any problems you may have, meet Sally at the main door of the library, not the normal meeting place at the Town Hall, which is closed due to building work.</p>`,
+                theme: 'gray'
+            },
+            // Quiz 9
+            {
+                instruction: "You will hear a manager called Sandra talking about a company training day.",
+                title: "Company Training Day",
+                questions: `<p>Some of the training sessions may take place in a (14) ………….. to the one in the programme.</p><p>Your training sessions will be confirmed by email on (15) …………..</p><p>Please complete the (16) ………….. in the materials before you come to the training event.</p><p>Please give your completed questionnaire to the (17) ………….. after the training day.</p><p>The (18) ………….. will be closed on the training day.</p><p>Remember to check the noticeboard outside room (19) ………….. for any last-minute changes.</p>`,
+                answers: `<p><span class="font-semibold">14</span> different building</p><p><span class="font-semibold">15</span> 13 September</p><p><span class="font-semibold">16</span> exercises</p><p><span class="font-semibold">17</span> training manager</p><p><span class="font-semibold">18</span> (company) restaurant</p><p><span class="font-semibold">19</span> 134</p>`,
+                audioscript: `<p>Can I just say something about the training day next week. You should all receive your programme by email shortly. We’ve had to make changes to rooms and even now some of the training sessions may have to be held in a different building. But we’ll let you know if this happens.</p><p>Some of you have asked about changing to a different session than the one you signed up for. We’ve tried to do this when it’s been possible but as some training sessions are full it will sometimes not be possible. We will let you know by email on 13 September the full list of names of people going to each session.</p><p>The trainers will email you the materials they’ll be using during the sessions for you to have a look at before the training day. There are some tasks for you to complete in preparation for your session. Please make sure you print out these materials and complete the exercises before you attend.</p><p>At the end of the training day you will all be given a questionnaire for your comments on each of the sessions you attended. Could you please make sure you complete this and give it to the training manager? We are using a new company for this event and are keen to see how well the day goes.</p><p>Because staff in the company restaurant will also be attending training sessions, the restaurant will not be open. We are arranging cold food, teas and coffee for everyone. Could you email the restaurant manager before the end of this week and let him know if you have any special dietary requirements.</p><p>Finally, can I remind you to check the noticeboard outside room 134 for any last-minute changes. Yes, we’ll email you all important information but several of you have complained that you haven’t received our messages, so to be absolutely sure you’re up to date, check the noticeboard.</p>`,
+                theme: 'orange'
+            },
+            // Quiz 10
+            {
+                instruction: "You will hear a student called Andreana giving a presentation to her class about her father’s job.",
+                title: "Fly High",
+                questions: `<p>Andreana’s project is about (14) ………………… .</p><p>After university, her father worked as a teacher in a (15) ………………… .</p><p>On his first flight (16) ………………… passengers were travelling to Italy on his plane.</p><p>Difficult passengers and bad (17) ………………… are problems that a pilot has to deal with.</p><p>Andreana’s father says that some plane travellers feel that they lose (18) ………………… of their life when flying.</p><p>She says that he drinks a cup of (19) ………………… just after his plane has taken off.</p>`,
+                answers: `<p><span class="font-semibold">14</span> jobs</p><p><span class="font-semibold">15</span> primary school</p><p><span class="font-semibold">16</span> 80 (eighty)</p><p><span class="font-semibold">17</span> weather</p><p><span class="font-semibold">18</span> control</p><p><span class="font-semibold">19</span> coffee</p>`,
+                audioscript: `<p>Hi everyone. I have chosen to tell you about my father’s job for the project we had for today. I chose the first project which focuses on jobs. I found the other topic on the environment a bit difficult.</p><p>My father is a pilot for an international airline company. He’s been flying people around the world for the last sixteen years and he loves his job. After he graduated from university, he became a teacher. He taught in a primary school and he really enjoyed it. However, he’d always had a dream that one day he would fly, so he decided to go for an important career change and train as a pilot.</p><p>He will never forget his first flight when he was responsible for a plane with 80 happy holiday-makers on their way to Italy. Six more people were working on the plane. He was very nervous. Everything went well though and he was so pleased when his first flight was behind him.</p><p>He often gets nervous people asking him questions about how dangerous flying really is. He tells them that it is the safest way to travel. However, sometimes unexpected things happen during a flight, such as bad weather or difficult passengers, but he says that the most important thing a pilot can do is to always stay calm.</p><p>My father believes that what nervous passengers have in common is that they need to be in control of their life and when they get on a plane they have to give up that control.</p><p>He always does his best to make passengers feel relaxed on the flight. Once he has taken off and he is cruising in the sky, he always has a coffee to make him feel extra awake and ready for anything.</p>`,
+                theme: 'teal'
+            },
+            // Quiz 11
+            {
+                instruction: "You will hear a radio presenter called William talking about a photography course he did.",
+                title: "How to Take a Great Photo",
+                questions: `<p>The photography course lasted (14) ………………. and was for beginners.</p><p>Useful tips:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">Make sure the camera is at the same (15) ………………. as the person.</li><li class="pl-2">Stand the person in front of a (16) ………………. background.</li><li class="pl-2">Taking photos in daylight can help make sure colours are (17) ……………….</li><li class="pl-2">Take a photo of your subject when they are (18) ………………. or looking out of the window.</li><li class="pl-2">Try to take at least (19) ………………. of people every day.</li></ul>`,
+                answers: `<p><span class="font-semibold">14</span> two days</p><p><span class="font-semibold">15</span> height</p><p><span class="font-semibold">16</span> plain</p><p><span class="font-semibold">17</span> accurate</p><p><span class="font-semibold">18</span> reading</p><p><span class="font-semibold">19</span> three photos</p>`,
+                audioscript: `<p>I had a great time away on holiday and one of the things I did was go on a two-day photography course about taking photos of people. It was for beginners and I was given quite a few tips, some of which I think are really useful.</p><p>For example, getting your position correct is really important. They said a common mistake is to stand too far away from the person. You get a much better result if you get close to them as they take up more of the photo. It’s also important to make sure the camera is at the same height as the person, especially if you’re taking one of a child.</p><p>A really useful tip was to pay attention to the background. The person will stand out much more if the background is as plain as possible. This will help you to focus on the subject of your photo.</p><p>Although most smartphones come with a flash to provide extra light, they suggested we try to make as much use as possible of daylight. Doing this will make the colours more accurate and the photo will appear more natural.</p><p>We’re all used to asking someone to ‘say cheese’ when we’re about to take their photo. To get a more interesting picture, they recommended taking a photo of the person when they don’t know you’re about to do it. Perhaps they’re reading or looking out of the window.</p><p>Finally, they told us to take plenty of photos so we can practise our skills. They said we should aim to take at least three photos of people every day. These can be of friends and family or even strangers, if you ask their permission.</p>`,
+                theme: 'cyan'
+            },
+            // Quiz 12
+            {
+                instruction: "You will hear a radio presenter called Ellen talking about activities taking place over the summer.",
+                title: "Summer Activities",
+                questions: `<p>For a full programme of events, text (14) ………………….</p><p>The Activity Centre is running indoor (15) …………………. sessions for beginners.</p><p>There are also walks along the (16) …………………. to learn about the local wildlife.</p><p>The Activity Centre is running an open day on (17) …………………. June.</p><p>On the History Group walk you can learn about a famous (18) …………………. who was born in the area.</p><p>If you’re interested in writing (19) …………………. don’t forget to book a place with the Arts Centre.</p>`,
+                answers: `<p><span class="font-semibold">14</span> 1576</p><p><span class="font-semibold">15</span> climbing</p><p><span class="font-semibold">16</span> coast path</p><p><span class="font-semibold">17</span> 13/13th</p><p><span class="font-semibold">18</span> celebrity</p><p><span class="font-semibold">19</span> poetry</p>`,
+                audioscript: `<p>If you’re looking for things to do over the summer, there’s lots going on in the area. I’ll give you an idea of what you can do now, but for a full programme of events text 1576 and we’ll send you a link to all the information you need.</p><p>To give you a taste of what’s on offer, the Activity Centre is running a wide range of activities for all the family. There’s climbing for beginners. This is indoors and will be led by experienced teachers. The centre has also organised a walk along the coast path for a look at some of the creatures you can find there. The centre is open seven days a week, with a special open day on the thirteenth of June to give you an idea of what else is on offer.</p><p>As you know, our town has a very long history, and those with an interest in the past can sign up for one of the guided walks the History Group has organised. Find out where a very well-known celebrity was born and learn about local industry in the past. You can find out more at the History Centre, which is located in the central library.</p><p>For film lovers, the Arts Centre has a full programme of films running throughout the summer months. And the Book Festival, which starts on the fourteenth of August, has several speakers on its programme and book readings by some well-known authors. This year they’ll be organising a question and answer session for anyone interested in writing poetry. The Arts Centre expects this to be quite popular, so you should call them first to book a place.</p>`,
+                theme: 'lime'
+            },
+            // Quiz 13
+            {
+                instruction: "You will hear an announcement in a supermarket.",
+                title: "Milburn’s Stores",
+                questions: `<p>At this Thursday’s ‘Special Buy’ day you can get something for your (14) ……………………</p><p>There are jobs available for trainee managers and (15) ……………………</p><p>Collect a (16) …………………… by the exit for information about how to apply.</p><p>On Friday the supermarket will open until (17) ……………………</p><p>This month Milburn’s are supporting the local Arts Project and (18) …………………… Group.</p><p>You will be given a (19) …………………… when you pay to show your support.</p>`,
+                answers: `<p><span class="font-semibold">14</span> pet</p><p><span class="font-semibold">15</span> cleaners</p><p><span class="font-semibold">16</span> magazine</p><p><span class="font-semibold">17</span> 10.30 / 10.30 pm</p><p><span class="font-semibold">18</span> Children’s Theatre</p><p><span class="font-semibold">19</span> ticket</p>`,
+                audioscript: `<p>Welcome to Milburn’s. If you’re looking for a sale or for something unusual, don’t forget our Thursday ‘Special Buy’ day where you’ll find some great offers. These change every week and are removed from the shelves at the end of the day. This Thursday you’ll be able to buy a special gift for your pet with lots of items at low. low prices. Come early and don’t miss our offers.</p><p>Are you interested in a career with Milburn’s? we’re looking for new staff in various areas of the business. There are now opportunities to join our trainee manager programme and several jobs for cleaners. We are proud of our staff and like to think they’re proud to be part of the Milburn family. Why not speak to our manager today if you’re interested in joining us? Or pick up our magazine at the exit for details about how to apply.</p><p>As the New Year approaches we know you’ll need to get your shopping done ready for all the celebrations. We’ll be opening until 10.30 on Friday evening to give you time to get ready for the big day. Don’t forget we’ll be closed on the first but open again on the second, when we return to normal opening hours.</p><p>We value our local community and are always looking for the chance to help out where we can. This month we’re supporting the local Arts Project and the Children’s Theatre Group. When you pay for your shopping you’ll be given a ticket. To show your support, choose which of the organisations you would like to give this to by putting it in the box by the exit. We’ll turn these into cash when they are counted up at the end of the month.</p>`,
+                theme: 'rose'
+            },
+            // Quiz 14
+            {
+                instruction: "You will hear a radio presenter telling new students about the first week at university.",
+                title: "First Week at University",
+                questions: `<p>Make sure you bring information about your course and (14) ………………..</p><p>Tell someone if you find anything that is (15) ………………..</p><p>The first place to meet new people is the (16) ………………..</p><p>Clubs and societies are a great way to meet people who are studying (17) ………………..</p><p>Avoid signing up for more than (18) ……………….. groups.</p><p>Register with the (19) ……………….. soon after you arrive.</p>`,
+                answers: `<p><span class="font-semibold">14</span> accommodation</p><p><span class="font-semibold">15</span> damaged</p><p><span class="font-semibold">16</span> kitchen</p><p><span class="font-semibold">17</span> different subjects</p><p><span class="font-semibold">18</span> five/5</p><p><span class="font-semibold">19</span> local doctor</p>`,
+                audioscript: `<p>This will be a very exciting time for you. You’ve got the grades you needed and you’re off to university. For many of you this will be the first time away from home. Write a list of things you should take with you, for example, your passport if you’re planning to go travelling. You’ll certainly need all the documentation the university has sent you about your course or accommodation. Don’t bring too many household items with you. You’ll be able to buy a lot of things at university.</p><p>When you arrive and go to your room, check that everything is as it should be and in good condition. Report anything that looks damaged. You don’t want to be blamed for this and be asked to pay any costs involved. This is also the time to get to meet new people. Don’t lock yourself away in your room, but go to the kitchen as this is always the first place to introduce yourself to other students.</p><p>During your first week you can enjoy Freshers· Week. This is the time to find out about all the clubs and societies you can join at university. These are great ways to get to know students doing different subjects. These people will help you forget about your studies when you need to relax and not talk about work. It’s sensible to limit yourself to signing up to a maximum of five groups or you’ll be receiving emails for weeks to come.</p><p>Don’t forget the important things like registering with the local doctor as soon as you can. And think about your weekly shopping list. Don’t spend too much but at the same time make sure you don’t go hungry. And remember to put your name on your food. A shared fridge sometimes leads to arguments!</p>`,
+                theme: 'fuchsia'
+            },
+            // Quiz 15
+            {
+                instruction: "You will hear a man talking to a class of students about a language course.",
+                title: "French for Beginners",
+                questions: `<p>Class numbers:</p><ul class="list-disc list-inside ml-4"><li class="pl-2">– Minimum 8 students</li><li class="pl-2">– Maximum (14) …………………… students</li></ul><p>Day and time: Tuesday, 7.30 p.m. – (15) …………………… p.m.</p><p>Place: Room 26, second floor (opposite the (16) ……………………)</p><p>Coursebook title: (17) …………………… French</p><p>Price: £8 (if you order now, it will arrive on 1st (18) ……………………)</p><p>International evening: Each class will provide some (19) ……………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> 15/ fifteen</p><p><span class="font-semibold">15</span> 9.30</p><p><span class="font-semibold">16</span> art room</p><p><span class="font-semibold">17</span> Starting</p><p><span class="font-semibold">18</span> October</p><p><span class="font-semibold">19</span> food</p>`,
+                audioscript: `<p>Hello, everybody and welcome to the class. I’m pleased to see so many of you here today. But don’t worry, there won’t be any more of you! There’s always a maximum of 15 in the class, and a minimum of eight. Before we start, I’d like to tell you about the course. Some of the information you’ll probably know already, but some of it has changed.</p><p>Your class will still be on Tuesday evenings, but it won’t start at seven o’clock. It will start at the later time of 7.30, and will end at 9.30, not nine o’clock. I hope that change is OK for everyone. Unfortunately I can’t be here any earlier than that. Another change is the room. Next week we need to move to the second floor to the room opposite the art room. That’s Room 26. Today is the only time we’ll be here in Room 12.</p><p>The coursebook will be the same as before, that is Starting French. I see some of you have already bought it – that’s good. However, if you want to buy it from us, it costs £8. You can order it today, but it takes two weeks so you won’t have it until 1st October.</p><p>One more thing … during the last week of term, there is an International Evening at the college. There will be traditional dancing from different countries and every class is asked to provide some food. I thought we could take some French cheese, but any other suggestions are welcome.</p><p>And finally, let me remind you that most of your lessons will be completely in French. So, let’s begin …</p>`,
+                theme: 'violet'
+            },
+            // Quiz 16
+            {
+                instruction: "You will hear a boy talking about his hobby, which is looking after an aquarium.",
+                title: "My Aquarium",
+                questions: `<p>The aquarium contains water from the (14) ………………</p><p>The boy cleans the aquarium once a (15) ………………</p><p>The most attractive fish are the ones with (16) ……………… and yellow stripes.</p><p>The fish hide behind a rock and a plastic (17) ………………</p><p>The boy would like to have some (18) ……………… in the aquarium.</p><p>The boy gets information about fish from the (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> river</p><p><span class="font-semibold">15</span> month</p><p><span class="font-semibold">16</span> red</p><p><span class="font-semibold">17</span> castle</p><p><span class="font-semibold">18</span> plants</p><p><span class="font-semibold">19</span> internet</p>`,
+                audioscript: `<p>I’ve always wanted to have a pet, but my mum says we don’t have enough space for a dog or a cat. So, last year for my birthday, I got an aquarium. It’s quite big, and it’s full of water from the river, not the sea, because I’ve got freshwater fish. It’s a bit of work to look after. I have to clean it once a month, which takes a couple of hours. But it’s worth it. I love watching the fish swim around. I’ve got about ten different kinds. My favourites are the ones with bright red and yellow stripes. They’re so beautiful. I’ve put a big rock in the middle of the aquarium and a plastic castle, so the fish have places to hide. It’s funny to see them disappear and then come out again. I’d like to add some plants to the aquarium next, to make it look more natural. I spend a lot of time on the internet, reading about different types of fish and how to look after them. There’s so much to learn.</p>`,
+                theme: 'amber'
+            },
+            // Quiz 17
+            {
+                instruction: "You will hear a girl talking about a trip to a wildlife park.",
+                title: "Wildlife Park Trip",
+                questions: `<p>The girl went to the wildlife park with her (14) ………………</p><p>They saw the lions being fed at (15) ……………… o’clock.</p><p>The girl’s favourite animals were the (16) ………………</p><p>She was surprised that the giraffes were very (17) ………………</p><p>They had lunch at a (18) ……………… near the lake.</p><p>The girl bought a (19) ……………… in the gift shop.</p>`,
+                answers: `<p><span class="font-semibold">14</span> family</p><p><span class="font-semibold">15</span> two / 2</p><p><span class="font-semibold">16</span> penguins</p><p><span class="font-semibold">17</span> friendly</p><p><span class="font-semibold">18</span> café / cafe</p><p><span class="font-semibold">19</span> postcard</p>`,
+                audioscript: `<p>Last weekend, I went to a wildlife park with my family. It was a brilliant day out. We got there when it opened at 10 am. The first thing we did was go and see the lions. There’s a special time when they feed them, which is at two o’clock in the afternoon, so we made sure we were there for that. It was amazing to see them so close up. We saw lots of other animals, like tigers and monkeys. But my favourite animals were the penguins. They were so funny, waddling around and diving into the water. I was surprised by the giraffes. I thought they would be shy, but they were actually very friendly and came right up to the fence. For lunch, we went to a café near the lake. It was nice to sit outside and watch the ducks. Before we left, I went to the gift shop. I didn’t have much money, but I bought a postcard with a picture of a baby elephant on it to send to my friend.</p>`,
+                theme: 'emerald'
+            },
+            // Quiz 18
+            {
+                instruction: "You will hear a teacher telling students about a school trip.",
+                title: "School Trip Announcement",
+                questions: `<p>The trip is to a (14) ………………</p><p>The date of the trip is Friday, 21st (15) ………………</p><p>The coach will leave the school at (16) ……………… a.m.</p><p>Students should bring a packed lunch and a (17) ………………</p><p>One of the activities will be making (18) ………………</p><p>The cost of the trip is (19) £………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> museum</p><p><span class="font-semibold">15</span> June</p><p><span class="font-semibold">16</span> 9.15 / nine fifteen</p><p><span class="font-semibold">17</span> drink</p><p><span class="font-semibold">18</span> models</p><p><span class="font-semibold">19</span> 12 / twelve</p>`,
+                audioscript: `<p>Okay everyone, can I have your attention, please? I want to tell you about the school trip we have planned. We’re going to the City Museum. It’s a fantastic place with lots of interesting things to see. The trip will be on Friday, the 21st of June. Please make a note of that date. We’ll be travelling by coach. It will leave the school car park at 9.15 a.m. so please don’t be late. You’ll need to bring a packed lunch with you, and also a drink. We’ll have a picnic in the museum gardens if the weather is good. There are lots of activities planned for the day. In the morning, we’ll have a guided tour, and in the afternoon there’s a workshop where you’ll be making models of historical buildings. The trip will cost £12 per student. Please bring the money to the school office by next Monday. Any questions?</p>`,
+                theme: 'sky'
+            },
+            // Quiz 19
+            {
+                instruction: "You will hear a boy leaving a message for his friend about a football match.",
+                title: "Football Match Message",
+                questions: `<p>The match is against the (14) ……………… team.</p><p>The match is at the (15) ……………… Centre.</p><p>They should meet at the (16) ……………… at 10.30 a.m.</p><p>The boy reminds his friend to bring his football shirt and (17) ………………</p><p>After the match, they are going to a (18) ………………</p><p>The boy’s phone number is 07700 900 (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> Northwood</p><p><span class="font-semibold">15</span> Sports</p><p><span class="font-semibold">16</span> bus station</p><p><span class="font-semibold">17</span> shorts</p><p><span class="font-semibold">18</span> pizza restaurant</p><p><span class="font-semibold">19</span> 351</p>`,
+                audioscript: `<p>Hi Alex, it’s Tom. I’m just calling about the football match on Saturday. It’s against the Northwood team, so it should be a good game. It’s not at our usual place, it’s at the main Sports Centre in town. Let’s meet at the bus station at 10.30 a.m. and we can get the bus there together. Don’t forget to bring your football shirt and your shorts. I’ve got the ball. My dad said he’ll pick us up after the match, and he suggested we could all go to that new pizza restaurant to celebrate – hopefully! Give me a call back to let me know you got this message. My number is 07700 900 351. That’s three-five-one at the end. Talk to you later, bye.</p>`,
+                theme: 'rose'
+            },
+            // Quiz 20
+            {
+                instruction: "You will hear a girl talking about her experience of learning to play the guitar.",
+                title: "Learning the Guitar",
+                questions: `<p>The girl has been learning the guitar for (14) ………………</p><p>Her guitar lessons are at the local (15) ……………… centre.</p><p>The most difficult thing to learn was the (16) ………………</p><p>She practises for (17) ……………… minutes every day.</p><p>She is going to play in a (18) ……………… next month.</p><p>Her teacher’s name is Mr (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> six months</p><p><span class="font-semibold">15</span> community</p><p><span class="font-semibold">16</span> chords</p><p><span class="font-semibold">17</span> 30 / thirty</p><p><span class="font-semibold">18</span> concert</p><p><span class="font-semibold">19</span> Davies</p>`,
+                audioscript: `<p>I started learning to play the guitar about six months ago, and I absolutely love it. I have lessons once a week at the local community centre. My teacher is really good. At first, my fingers really hurt from pressing on the strings, but I got used to it. The hardest thing to learn was the chords. There are so many of them to remember! But now I know quite a few, and I can play some of my favourite songs. I try to practise for thirty minutes every day, usually after I’ve done my homework. It’s really important to be consistent. Next month, I’m going to be in a concert with some of the other students. I’m a bit nervous, but also really excited. My teacher, Mr Davies, says it will be good experience for me. That’s D-A-V-I-E-S. He’s organizing the whole thing.</p>`,
+                theme: 'slate'
+            },
+            // Quiz 21
+            {
+                instruction: "You will hear a manager giving information about a new sports centre.",
+                title: "New Sports Centre",
+                questions: `<p>The centre is located opposite the (14) ………………</p><p>The swimming pool has a special section for (15) ………………</p><p>The gym has over 50 different (16) ………………</p><p>Membership costs (17) £……………… per month.</p><p>The centre is open from 6 a.m. to (18) ……………… p.m. on weekdays.</p><p>The website address is www.citysports.(19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> park</p><p><span class="font-semibold">15</span> children</p><p><span class="font-semibold">16</span> machines</p><p><span class="font-semibold">17</span> 35</p><p><span class="font-semibold">18</span> 10</p><p><span class="font-semibold">19</span> com</p>`,
+                audioscript: `<p>Good morning, everyone. I’m here to tell you about our fantastic new sports centre, which opens next week. We’re located just opposite the main park, so it’s very easy to get to. We have a wide range of facilities. Our swimming pool is state-of-the-art, with a special shallow section for children. The gym is fully equipped with over 50 different machines, so you’ll never have to wait to work out. We offer a variety of membership options. The standard monthly membership is £35, which gives you access to the gym and pool. We’re open from 6 a.m. to 10 p.m. on weekdays, and 8 a.m. to 8 p.m. at weekends. You can find out more and sign up online at our website: www.citysports.com. That's C-O-M at the end.</p>`,
+                theme: 'fuchsia'
+            },
+            // Quiz 22
+            {
+                instruction: "You will hear a woman leaving a message about her lost cat.",
+                title: "Lost Cat",
+                questions: `<p>The cat’s name is (14) ………………</p><p>He has been missing since (15) ……………… afternoon.</p><p>He is black with white (16) ………………</p><p>He was last seen near the (17) ………………</p><p>He is wearing a blue (18) ………………</p><p>The owner’s name is (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> Leo</p><p><span class="font-semibold">15</span> yesterday</p><p><span class="font-semibold">16</span> paws</p><p><span class="font-semibold">17</span> school</p><p><span class="font-semibold">18</span> collar</p><p><span class="font-semibold">19</span> Sarah</p>`,
+                audioscript: `<p>Hello, I’m calling to report my lost cat. His name is Leo. He went out yesterday afternoon and hasn’t come back, which is very unusual for him. He’s a very friendly cat. He’s mostly black, but he has white paws, like he’s wearing little socks. He was last seen in the area near the local primary school. He’s wearing a blue collar with a small bell on it. We miss him terribly and are very worried. If you have seen him or have any information, please could you call me? My name is Sarah. My number is on the tag on his collar. Thank you.</p>`,
+                theme: 'cyan'
+            },
+            // Quiz 23
+            {
+                instruction: "You will hear a radio announcement about a summer festival.",
+                title: "Summer Festival",
+                questions: `<p>The festival will take place in (14) ……………… Park.</p><p>It is on Saturday, 10th of (15) ………………</p><p>There will be live music from several local (16) ………………</p><p>For children, there will be a bouncy castle and a (17) ………………</p><p>You should bring your own (18) ……………… to sit on.</p><p>The event is free, but donations are welcome for a local (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> Central</p><p><span class="font-semibold">15</span> August</p><p><span class="font-semibold">16</span> bands</p><p><span class="font-semibold">17</span> magician</p><p><span class="font-semibold">18</span> blanket</p><p><span class="font-semibold">19</span> charity</p>`,
+                audioscript: `<p>Get ready for the event of the summer! The annual Summer Festival is back, and this year it’s bigger and better than ever. Join us in Central Park on Saturday, the 10th of August, for a day of fun for the whole family. We’ll have live music all day on the main stage, featuring some of the best local bands. For the kids, there’s a huge bouncy castle and a magician performing tricks throughout the afternoon. There will be lots of food stalls, but feel free to bring a picnic. Don’t forget to bring a blanket to sit on. The event is completely free to attend, but we will be collecting donations for a local children’s charity, so please give generously if you can.</p>`,
+                theme: 'lime'
+            },
+            // Quiz 24
+            {
+                instruction: "You will hear a student talking about a school project on recycling.",
+                title: "Recycling Project",
+                questions: `<p>The project is about the importance of recycling (14) ………………</p><p>The student found information in books and on the (15) ………………</p><p>The student was surprised to learn that recycling saves energy and reduces (16) ………………</p><p>The student made a (17) ……………… to show the recycling process.</p><p>The project will be displayed in the school (18) ………………</p><p>The student’s teacher is called Mrs (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> plastic</p><p><span class="font-semibold">15</span> internet</p><p><span class="font-semibold">16</span> pollution</p><p><span class="font-semibold">17</span> poster</p><p><span class="font-semibold">18</span> library</p><p><span class="font-semibold">19</span> Evans</p>`,
+                audioscript: `<p>For my science project, I decided to learn about recycling. I focused on the importance of recycling plastic, because we use so much of it every day. I did a lot of research. I read some books from the library and also found lots of useful information on the internet. I learned some really interesting things. I was surprised to find out that recycling not only saves raw materials, but it also saves a lot of energy and reduces pollution. To present my findings, I made a large poster that explains the whole recycling process, from putting a bottle in the recycling bin to it being made into a new product. My project is going to be displayed in the school library for everyone to see. My teacher, Mrs Evans, was really pleased with it. That’s E-V-A-N-S.</p>`,
+                theme: 'amber'
+            },
+            // Quiz 25
+            {
+                instruction: "You will hear a tour guide talking to a group of visitors in a historic house.",
+                title: "Historic House Tour",
+                questions: `<p>The house was built in the (14) ……………… century.</p><p>The tour will start in the (15) ………………</p><p>The guide asks visitors not to touch the (16) ………………</p><p>In the dining room, there is a famous painting of a (17) ………………</p><p>The tour will last for approximately (18) ……………… minutes.</p><p>After the tour, visitors can explore the (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> 18th / eighteenth</p><p><span class="font-semibold">15</span> library</p><p><span class="font-semibold">16</span> furniture</p><p><span class="font-semibold">17</span> king</p><p><span class="font-semibold">18</span> 45 / forty-five</p><p><span class="font-semibold">19</span> gardens</p>`,
+                audioscript: `<p>Welcome, everyone, to Blackwood Manor. My name is David, and I’ll be your guide today. This magnificent house was built in the 18th century and has a very rich history. We’re going to start our tour here in the library, which contains over five thousand books. As we go through the house, please feel free to ask any questions. However, I must ask you not to touch any of the antique furniture, as it is very delicate. Next, we will move into the dining room. Look out for the magnificent portrait above the fireplace – it’s a very famous painting of a king, though I’ll let you guess which one! The whole tour should take about 45 minutes. Afterwards, you are free to wander around our beautiful gardens at your leisure. So, shall we begin?</p>`,
+                theme: 'violet'
+            },
+            // Quiz 26
+            {
+                instruction: "You will hear a radio announcement about a new bookshop.",
+                title: "New Bookshop",
+                questions: `<p>The bookshop is called ‘The Reading (14) ………………’.</p><p>It is located next to the (15) ………………</p><p>The shop sells new books and second-hand (16) ………………</p><p>There is a special section for (17) ……………… books.</p><p>On Saturday, a famous (18) ……………… will be visiting the shop.</p><p>The shop is open until 7 p.m. on (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> Corner</p><p><span class="font-semibold">15</span> post office</p><p><span class="font-semibold">16</span> novels</p><p><span class="font-semibold">17</span> children's</p><p><span class="font-semibold">18</span> author</p><p><span class="font-semibold">19</span> Thursdays</p>`,
+                audioscript: `<p>Book lovers of our town, I have some exciting news for you! A new independent bookshop, called ‘The Reading Corner’, has opened its doors. You can find it on the high street, right next to the post office. It’s a wonderful little shop, with a fantastic selection of books. They sell all the latest bestsellers, as well as a great range of second-hand novels at bargain prices. There’s also a lovely special section just for children’s books. To celebrate their opening, they have a special event this Saturday. The famous author, Jane Potter, will be there to sign copies of her new book. The shop’s opening hours are 9 a.m. to 6 p.m. most days, but they have late-night opening on Thursdays, until 7 p.m.</p>`,
+                theme: 'emerald'
+            },
+            // Quiz 27
+            {
+                instruction: "You will hear a woman talking about her hobby, which is baking.",
+                title: "Baking Hobby",
+                questions: `<p>The woman started baking when she was a (14) ………………</p><p>Her favourite thing to bake is (15) ………………</p><p>She says the most important ingredient is good quality (16) ………………</p><p>She often gives her cakes to her friends and (17) ………………</p><p>She finds baking very (18) ………………</p><p>She gets new recipes from (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> teenager</p><p><span class="font-semibold">15</span> chocolate cake</p><p><span class="font-semibold">16</span> flour</p><p><span class="font-semibold">17</span> neighbours</p><p><span class="font-semibold">18</span> relaxing</p><p><span class="font-semibold">19</span> magazines</p>`,
+                audioscript: `<p>My favourite hobby is baking. I started doing it when I was a teenager, and I’ve loved it ever since. I bake all sorts of things – bread, biscuits, pastries – but my absolute favourite thing to make is chocolate cake. There’s nothing better than the smell of it cooking in the oven. I think the secret to good baking is using the best ingredients. You can really taste the difference if you use good quality flour and fresh eggs. I bake a couple of times a week, and I always make too much, so I give a lot of it away to my friends and neighbours. They seem to enjoy it! For me, baking is a very relaxing activity. It helps me to switch off after a busy day. I’m always looking for new things to try. I often get ideas and new recipes from cooking magazines.</p>`,
+                theme: 'sky'
+            },
+            // Quiz 28
+            {
+                instruction: "You will hear a man giving a talk about a volunteer programme.",
+                title: "Volunteer Programme",
+                questions: `<p>The programme is for a charity that helps the (14) ………………</p><p>Volunteers are needed to help in the charity’s (15) ………………</p><p>The main task is sorting (16) ………………</p><p>Volunteers must be able to work for at least four (17) ……………… a week.</p><p>No special (18) ……………… are needed.</p><p>To apply, you need to complete a form on the charity’s (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> homeless</p><p><span class="font-semibold">15</span> shops</p><p><span class="font-semibold">16</span> donations</p><p><span class="font-semibold">17</span> hours</p><p><span class="font-semibold">18</span> skills</p><p><span class="font-semibold">19</span> website</p>`,
+                audioscript: `<p>Thank you for coming today. I’m here to talk to you about our volunteer programme. We are a charity that provides support for the homeless in our city. We are currently looking for more volunteers to help us out. We need people to work in our charity shops. The main job involves sorting through the donations that people bring us, like clothes and books, and getting them ready to be sold. We are looking for people who can give us at least four hours of their time a week, on a regular basis. You don’t need any special skills or experience to be a volunteer, just a willingness to help and a friendly attitude. If you are interested in joining our team, please visit our website and complete the online application form. We’d love to hear from you.</p>`,
+                theme: 'red'
+            },
+            // Quiz 29
+            {
+                instruction: "You will hear a student leaving a message for a friend about a study group.",
+                title: "Study Group",
+                questions: `<p>The study group is for the (14) ……………… exam.</p><p>They are meeting at the (15) ………………</p><p>The meeting is at (16) ……………… p.m.</p><p>The friend should bring their (17) ………………</p><p>They will be studying Chapter (18) ………………</p><p>The student’s name is (19) ………………</p>`,
+                answers: `<p><span class="font-semibold">14</span> history</p><p><span class="font-semibold">15</span> library</p><p><span class="font-semibold">16</span> 4 / four</p><p><span class="font-semibold">17</span> textbook</p><p><span class="font-semibold">18</span> 7 / seven</p><p><span class="font-semibold">19</span> Mark</p>`,
+                audioscript: `<p>Hi Chloe, it’s Mark. I’m just calling about the study group for the history exam. A few of us are getting together this afternoon to do some revision. We’re meeting in the library, in one of the group study rooms on the second floor. We’re planning to meet at 4 p.m. Can you make it? Don’t forget to bring your textbook and any notes you have. We’re going to focus on Chapter 7, the one about the industrial revolution. I think it’s going to be a really useful session. Let me know if you can come. You can just text me back. See you later, I hope. Bye.</p>`,
+                theme: 'blue'
+            },
+            // Quiz 30
+            {
+                instruction: "You will hear an announcement at a train station.",
+                title: "Train Station Announcement",
+                questions: `<p>The announcement is for passengers travelling to (14) ………………</p><p>The train is delayed by approximately (15) ……………… minutes.</p><p>The delay is due to a problem with the (16) ………………</p><p>The train will now depart from platform (17) ………………</p><p>Passengers are advised to check the (18) ……………… for updates.</p><p>The station (19) ……………… is now open.</p>`,
+                answers: `<p><span class="font-semibold">14</span> London</p><p><span class="font-semibold">15</span> 20 / twenty</p><p><span class="font-semibold">16</span> signal</p><p><span class="font-semibold">17</span> 9 / nine</p><p><span class="font-semibold">18</span> departure boards</p><p><span class="font-semibold">19</span> coffee shop</p>`,
+                audioscript: `<p>May I have your attention please. This is an announcement for passengers on the 10:30 service to London King's Cross. We regret to announce that this service is delayed by approximately 20 minutes. This is due to a signal failure on the line ahead. The 10:30 service to London will now depart from platform 9. I repeat, that is platform 9. Please check the departure boards for any further updates. We apologize for the delay and any inconvenience this may cause to your journey. For passengers waiting, the station coffee shop on platform 1 is now open, serving a range of hot and cold drinks and snacks.</p>`,
+                theme: 'green'
+            }
+        ];
+
+        const startPage = document.getElementById('start-page');
+        const quizMenu = document.getElementById('quiz-menu');
+        const quizTemplate = document.getElementById('quiz-template');
+
+        // --- Generate Menu and Quiz Containers ---
+        quizData.forEach((data, index) => {
+            const quizNum = index + 1;
+            const theme = data.theme;
+
+            // Create Menu Button
+            const button = document.createElement('button');
+            button.dataset.quiz = quizNum;
+            button.className = `quiz-select-btn text-left p-6 bg-${theme}-50 hover:bg-${theme}-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-${theme}-500`;
+            button.innerHTML = `<h2 class="text-xl font-bold text-${theme}-800 mb-2">Quiz ${quizNum}: ${data.title}</h2><p class="text-${theme}-700">${data.instruction.substring(0,60)}...</p>`;
+            quizMenu.appendChild(button);
+
+            // Create Quiz Page from Template
+            const newQuiz = quizTemplate.cloneNode(true);
+            newQuiz.id = `quiz-container-${quizNum}`;
+            newQuiz.classList.remove('hidden'); 
+            
+            const container = document.createElement('div');
+            container.id = `quiz-wrapper-${quizNum}`;
+            container.className = 'hidden max-w-4xl mx-auto p-4 sm:p-6 md:p-8';
+            container.appendChild(newQuiz);
+            document.body.appendChild(container);
+
+            // Populate content
+            newQuiz.querySelector('.quiz-instruction').textContent = data.instruction;
+            newQuiz.querySelector('.quiz-title').textContent = data.title;
+            newQuiz.querySelector('.quiz-questions').innerHTML = data.questions;
+            newQuiz.querySelector('.answer-grid').innerHTML = data.answers;
+            newQuiz.querySelector('.audioscriptText').innerHTML = data.audioscript;
+
+            // Apply theme colors
+            newQuiz.querySelector('.back-btn').classList.add(`text-${theme}-600`, `hover:text-${theme}-800`);
+            const playBtn = newQuiz.querySelector('.playPauseBtn');
+            playBtn.classList.add(`bg-${theme}-500`, `hover:bg-${theme}-600`, `focus:ring-${theme}-500`);
+            const answerKey = newQuiz.querySelector('.answer-key');
+            answerKey.classList.add(`bg-${theme}-50`, `border-${theme}-200`);
+            answerKey.querySelector('h3').classList.add(`text-${theme}-800`);
+            answerKey.querySelector('.answer-grid').classList.add(`text-${theme}-700`);
+            newQuiz.querySelector('.toggleAnswerBtn').classList.add(`focus:ring-${theme}-500`);
+        });
+        quizTemplate.remove();
+
+
+        const quizContainers = document.querySelectorAll('[id^="quiz-wrapper-"]');
+        const quizSelectBtns = document.querySelectorAll('.quiz-select-btn');
+        
+        // --- Navigation & Autoplay ---
+        quizSelectBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // This is the first user gesture, unlock audio here.
+                unlockAudio();
+
+                const quizNum = btn.getAttribute('data-quiz');
+                startPage.classList.add('hidden');
+                
+                quizContainers.forEach(container => container.classList.add('hidden'));
+                
+                const quizWrapper = document.getElementById(`quiz-wrapper-${quizNum}`);
+                quizWrapper.classList.remove('hidden');
+
+                // Autoplay the audio
+                setTimeout(() => {
+                    const playBtn = quizWrapper.querySelector('.playPauseBtn');
+                    if (playBtn) {
+                        // Ensure any currently playing audio is stopped before starting the new one
+                        speechSynthesis.cancel();
+                        playBtn.click();
+                    }
+                }, 150); // Slightly increased delay for stability
+            });
+        });
+
+        document.querySelectorAll('.back-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                speechSynthesis.cancel();
+                quizContainers.forEach(container => container.classList.add('hidden'));
+                startPage.classList.remove('hidden');
+            });
+        });
+
+        // --- TTS Setup ---
+        if (!('speechSynthesis' in window)) {
+            const modal = document.createElement('div');
+            modal.innerHTML = `<div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000;"><div style="background: white; padding: 2rem; border-radius: 0.5rem; text-align: center;"><p>Sorry, your browser doesn't support text-to-speech.</p><button onclick="this.parentElement.parentElement.remove()" style="margin-top: 1rem; padding: 0.5rem 1rem; border-radius: 0.25rem; background: #333; color: white;">Close</button></div></div>`;
+            document.body.appendChild(modal);
+            return;
+        }
+
+        const initQuiz = (quizNum) => {
+            const container = document.getElementById(`quiz-wrapper-${quizNum}`);
+            if (!container) return;
+
+            const playPauseBtn = container.querySelector('.playPauseBtn');
+            const playIcon = container.querySelector('.playIcon');
+            const pauseIcon = container.querySelector('.pauseIcon');
+            const timerEl = container.querySelector('.timer');
+            const toggleAnswerBtn = container.querySelector('.toggleAnswerBtn');
+            const answerContent = container.querySelector('.answerContent');
+            const chevronIcon = container.querySelector('.chevronIcon');
+            const audioscriptTextEl = container.querySelector('.audioscriptText');
+
+            let utterance = new SpeechSynthesisUtterance();
+            let timerInterval;
+            let seconds = 0;
+            let words = [];
+            let charIndexToWordMap = {};
+
+            function prepareAudioscript() {
+                const originalText = audioscriptTextEl.innerText;
+                utterance.text = originalText;
+                let charCount = 0;
+                audioscriptTextEl.querySelectorAll('p').forEach(p => {
+                    let pText = p.innerText;
+                    let pWords = pText.split(/\s+/);
+                    let phtml = '';
+                    pWords.forEach(word => {
+                        if (word.trim() === '') return;
+                        const wordId = `word-${quizNum}-${words.length}`;
+                        words.push({ id: wordId, text: word });
+                        charIndexToWordMap[charCount] = words.length - 1;
+                        phtml += `<span id="${wordId}">${word}</span> `;
+                        charCount += word.length + 1;
+                    });
+                    p.innerHTML = phtml.trim();
+                });
+            }
+
+            function formatTime(sec) {
+                const minutes = Math.floor(sec / 60).toString().padStart(2, '0');
+                const seconds = (sec % 60).toString().padStart(2, '0');
+                return `${minutes}:${seconds}`;
+            }
+
+            function resetPlayerUI() {
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+                clearInterval(timerInterval);
+                seconds = 0;
+                timerEl.textContent = formatTime(seconds);
+                const highlighted = audioscriptTextEl.querySelector('.speaking');
+                if (highlighted) highlighted.classList.remove('speaking');
+            }
+
+            playPauseBtn.addEventListener('click', () => {
+                const voice = getFemaleVoice();
+                if (voice) {
+                    utterance.voice = voice;
+                }
+
+                if (speechSynthesis.speaking && utterance.text === audioscriptTextEl.innerText) {
+                       if (speechSynthesis.paused) {
+                            speechSynthesis.resume();
+                       } else {
+                            speechSynthesis.pause();
+                       }
+                } else {
+                    speechSynthesis.cancel();
+                    setTimeout(() => {
+                        utterance.text = audioscriptTextEl.innerText;
+                        speechSynthesis.speak(utterance);
+                    }, 100);
+                }
+            });
+
+            utterance.onstart = () => {
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+                clearInterval(timerInterval);
+                timerInterval = setInterval(() => { seconds++; timerEl.textContent = formatTime(seconds); }, 1000);
+            };
+            utterance.onpause = () => {
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+                clearInterval(timerInterval);
+            };
+            utterance.onresume = () => {
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+                 clearInterval(timerInterval);
+                 timerInterval = setInterval(() => { seconds++; timerEl.textContent = formatTime(seconds); }, 1000);
+            };
+            utterance.onboundary = (event) => {
+                if (event.name === 'word') {
+                    const highlighted = audioscriptTextEl.querySelector('.speaking');
+                    if (highlighted) highlighted.classList.remove('speaking');
+                    
+                    let wordIdx = -1;
+                    let closestCharIndex = Object.keys(charIndexToWordMap).reduce((prev, curr) => (Math.abs(curr - event.charIndex) < Math.abs(prev - event.charIndex) ? curr : prev), 0);
+                    wordIdx = charIndexToWordMap[closestCharIndex];
+                    if (wordIdx >= 0 && wordIdx < words.length) {
+                        const wordEl = document.getElementById(words[wordIdx].id);
+                        if(wordEl) wordEl.classList.add('speaking');
+                    }
+                }
+            };
+            utterance.onend = () => { resetPlayerUI(); };
+            toggleAnswerBtn.addEventListener('click', () => {
+                if (answerContent.style.maxHeight && answerContent.style.maxHeight !== '0px') {
+                    answerContent.style.maxHeight = '0px';
+                    chevronIcon.classList.remove('rotate-180');
+                } else {
+                    answerContent.style.maxHeight = answerContent.scrollHeight + 'px';
+                    chevronIcon.classList.add('rotate-180');
+                }
+            });
+            
+            prepareAudioscript();
+            // Set speech rate to 100% (natural speed)
+            utterance.rate = 1; 
+        };
+
+        for (let i = 1; i <= quizData.length; i++) {
+            initQuiz(i);
+        }
+
+        window.addEventListener('resize', () => {
+            document.querySelectorAll('.accordion-content').forEach(content => {
+                if (content.style.maxHeight && content.style.maxHeight !== '0px') {
+                    content.style.maxHeight = content.scrollHeight + 'px';
+                }
+            });
+        });
+    });
+    </script>
+
+</body>
+</html>

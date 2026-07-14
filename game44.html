@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamified Audio Quizzes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .feedback-modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.6);
+        }
+        @keyframes fly-to-score {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--translateX), var(--translateY)) scale(0.2); opacity: 0; }
+        }
+        .score-token {
+            position: absolute;
+            animation: fly-to-score 1s ease-in-out forwards;
+            z-index: 100;
+            pointer-events: none;
+        }
+        @keyframes badge-unlocked {
+            0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+            50% { transform: scale(1.2) rotate(10deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .badge-unlocked-animation {
+            animation: badge-unlocked 0.5s ease-out;
+        }
+        /* Ensure the game page takes up the full view height on mobile */
+        #game-page {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        #quiz-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        #questions-container {
+            flex-grow: 1;
+            overflow-y: auto; /* Allow questions to scroll if they overflow on small screens */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Start Page -->
+    <div id="start-page" class="max-w-lg mx-auto p-4 sm:p-6 md:p-8 flex items-center justify-center min-h-screen">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 text-center w-full">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-4">Audio Quiz Challenge</h1>
+            <p class="text-gray-600 mb-8">Enter your name to begin your quest!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name..." class="w-full px-4 py-3 border border-gray-300 rounded-lg mb-6 text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+            <button id="start-game-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-xl transition-transform transform hover:scale-105 shadow-lg">Start Game</button>
+        </div>
+    </div>
+
+    <!-- Game Page -->
+    <div id="game-page" class="hidden max-w-5xl mx-auto p-2 sm:p-4 md:p-6 w-full">
+        <!-- Header -->
+        <div class="bg-white rounded-2xl shadow-lg p-4 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-0 z-10">
+            <div class="text-center sm:text-left">
+                <h2 class="text-2xl font-bold text-gray-900" id="player-name-display">Player</h2>
+                <p class="text-gray-500 text-sm sm:text-base">Reach 50 correct answers to win!</p>
+            </div>
+            <div class="flex items-center gap-4 sm:gap-6">
+                <div id="badges-container" class="flex items-center gap-2">
+                    <!-- Badges will be added here -->
+                </div>
+                <div id="score-container" class="text-center relative">
+                    <div class="text-sm font-semibold text-gray-500">SCORE</div>
+                    <div id="score" class="text-3xl sm:text-4xl font-extrabold text-blue-600" aria-live="polite">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quiz Container -->
+        <div id="quiz-container" class="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <!-- Audio Player & Timer -->
+            <div class="p-4 sm:p-6 border-b border-gray-200 bg-gray-50">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-4 w-full">
+                        <button id="playPauseBtn" class="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center rounded-full text-white bg-blue-500 hover:bg-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex-shrink-0">
+                            <svg id="playIcon" class="w-6 h-6 sm:w-7 sm:h-7" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" /></svg>
+                            <svg id="pauseIcon" class="w-6 h-6 sm:w-7 sm:h-7 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25v13.5m-6-13.5v13.5" /></svg>
+                        </button>
+                        <div class="text-left flex-grow">
+                             <div id="quiz-title" class="text-lg sm:text-xl font-bold text-gray-900">Quiz Title</div>
+                             <p id="quiz-instruction" class="text-gray-600 text-xs sm:text-sm">Listen carefully to the audio.</p>
+                        </div>
+                    </div>
+                    <div id="timer-container" class="text-center hidden flex-shrink-0">
+                         <div class="text-sm font-semibold text-gray-500">TIME LEFT</div>
+                         <div id="timer" class="text-3xl sm:text-4xl font-extrabold text-red-600">3:00</div>
+                    </div>
+                </div>
+            </div>
+            <!-- Questions -->
+            <div id="questions-container" class="p-4 sm:p-6 space-y-4">
+                <!-- MCQ will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden" role="dialog" aria-modal="true">
+        <div class="feedback-modal-backdrop fixed inset-0"></div>
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg relative text-center">
+            <h3 id="game-over-title" class="text-4xl font-extrabold text-green-500 mb-4">Congratulations!</h3>
+            <p id="game-over-subtitle" class="text-lg text-gray-700 mb-6">You've completed the challenge!</p>
+            <div class="mb-6">
+                <div class="text-lg font-semibold text-gray-500">FINAL SCORE</div>
+                <div id="final-score" class="text-5xl font-black text-blue-600">0</div>
+            </div>
+            <div id="final-badges-container" class="flex items-center justify-center gap-4 mb-6">
+                 <!-- Final badges will be shown here -->
+            </div>
+            <!-- Mistake Summary -->
+            <div id="mistake-summary-container" class="mb-8"></div>
+            <button id="play-again-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg text-xl transition-transform transform hover:scale-105 shadow-lg">Play Again</button>
+        </div>
+    </div>
+
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- DATA ---
+        const WIN_CONDITION = 50; // Set win condition to 50 correct answers
+        const quizData = [
+            // Quiz 16
+            {
+                instruction: "You will hear a boy talking about his hobby, which is looking after an aquarium.",
+                title: "My Aquarium",
+                audioscript: `<p>I’ve always wanted to have a pet, but my mum says we don’t have enough space for a dog or a cat. So, last year for my birthday, I got an aquarium. It’s quite big, and it’s full of water from the river, not the sea, because I’ve got freshwater fish. It’s a bit of work to look after. I have to clean it once a month, which takes a couple of hours. But it’s worth it. I love watching the fish swim around. I’ve got about ten different kinds. My favourites are the ones with bright red and yellow stripes. They’re so beautiful. I’ve put a big rock in the middle of the aquarium and a plastic castle, so the fish have places to hide. It’s funny to see them disappear and then come out again. I’d like to add some plants to the aquarium next, to make it look more natural. I spend a lot of time on the internet, reading about different types of fish and how to look after them. There’s so much to learn.</p>`,
+                mcqs: [
+                    { question: "What kind of water is in the aquarium?", options: ["Sea water", "Tap water", "River water", "Bottled water"], answer: "River water", feedback: "Correct! The boy says, 'it’s full of water from the river, not the sea...'" },
+                    { question: "How often does the boy clean the aquarium?", options: ["Once a week", "Every day", "Once a month", "Twice a month"], answer: "Once a month", feedback: "That's right. He says, 'I have to clean it once a month...'" },
+                    { question: "What has the boy put in the aquarium for the fish to hide behind?", options: ["A rock and a castle", "Only a rock", "Only plants", "A shipwreck and a rock"], answer: "A rock and a castle", feedback: "Correct. He says, 'I’ve put a big rock in the middle of the aquarium and a plastic castle...'" },
+                    { question: "Where does the boy get information about his hobby?", options: ["From his mum", "From books", "From the pet shop", "From the internet"], answer: "From the internet", feedback: "Correct! He says, 'I spend a lot of time on the internet, reading about different types of fish...'" }
+                ]
+            },
+            // Quiz 17
+            {
+                instruction: "You will hear a girl talking about a trip to a wildlife park.",
+                title: "Wildlife Park Trip",
+                audioscript: `<p>Last weekend, I went to a wildlife park with my family. It was a brilliant day out. We got there when it opened at 10 am. The first thing we did was go and see the lions. There’s a special time when they feed them, which is at two o’clock in the afternoon, so we made sure we were there for that. It was amazing to see them so close up. We saw lots of other animals, like tigers and monkeys. But my favourite animals were the penguins. They were so funny, waddling around and diving into the water. I was surprised by the giraffes. I thought they would be shy, but they were actually very friendly and came right up to the fence. For lunch, we went to a café near the lake. It was nice to sit outside and watch the ducks. Before we left, I went to the gift shop. I didn’t have much money, but I bought a postcard with a picture of a baby elephant on it to send to my friend.</p>`,
+                mcqs: [
+                    { question: "What time did the girl and her family arrive at the wildlife park?", options: ["2 o'clock", "In the afternoon", "10 am", "11 am"], answer: "10 am", feedback: "Correct! The girl says, 'We got there when it opened at 10 am.'" },
+                    { question: "Which animals were the girl's favourite?", options: ["Lions", "Tigers", "Monkeys", "Penguins"], answer: "Penguins", feedback: "That's right. She says, 'But my favourite animals were the penguins.'" },
+                    { question: "What surprised the girl about the giraffes?", options: ["How tall they were", "How shy they were", "How friendly they were", "What they were eating"], answer: "How friendly they were", feedback: "Correct. She says, 'I was surprised by the giraffes... they were actually very friendly...'" },
+                    { question: "What did the girl buy in the gift shop?", options: ["A toy elephant", "A book about penguins", "A postcard", "A T-shirt"], answer: "A postcard", feedback: "Correct! She says, '...I bought a postcard with a picture of a baby elephant on it...'" }
+                ]
+            },
+            // Quiz 18
+            {
+                instruction: "You will hear a teacher telling students about a school trip.",
+                title: "School Trip Announcement",
+                audioscript: `<p>Okay everyone, can I have your attention, please? I want to tell you about the school trip we have planned. We’re going to the City Museum. It’s a fantastic place with lots of interesting things to see. The trip will be on Friday, the 21st of June. Please make a note of that date. We’ll be travelling by coach. It will leave the school car park at 9.15 a.m. so please don’t be late. You’ll need to bring a packed lunch with you, and also a drink. We’ll have a picnic in the museum gardens if the weather is good. There are lots of activities planned for the day. In the morning, we’ll have a guided tour, and in the afternoon there’s a workshop where you’ll be making models of historical buildings. The trip will cost £12 per student. Please bring the money to the school office by next Monday. Any questions?</p>`,
+                mcqs: [
+                    { question: "Where are the students going for their school trip?", options: ["A farm", "A museum", "A wildlife park", "A historical building"], answer: "A museum", feedback: "Correct! The teacher says, 'We’re going to the City Museum.'" },
+                    { question: "When is the school trip?", options: ["Friday, 12th of June", "Monday, 21st of June", "Friday, 21st of June", "Next Monday"], answer: "Friday, 21st of June", feedback: "That's right. The trip is on 'Friday, the 21st of June.'" },
+                    { question: "What activity is planned for the afternoon?", options: ["A guided tour", "A picnic in the gardens", "Making models", "Travelling by coach"], answer: "Making models", feedback: "Correct. In the afternoon, '...there’s a workshop where you’ll be making models of historical buildings.'" },
+                    { question: "How much does the trip cost per student?", options: ["£9.15", "£15", "£21", "£12"], answer: "£12", feedback: "Correct! The teacher states, 'The trip will cost £12 per student.'" }
+                ]
+            },
+            // Quiz 19
+            {
+                instruction: "You will hear a boy leaving a message for his friend about a football match.",
+                title: "Football Match Message",
+                audioscript: `<p>Hi Alex, it’s Tom. I’m just calling about the football match on Saturday. It’s against the Northwood team, so it should be a good game. It’s not at our usual place, it’s at the main Sports Centre in town. Let’s meet at the bus station at 10.30 a.m. and we can get the bus there together. Don’t forget to bring your football shirt and your shorts. I’ve got the ball. My dad said he’ll pick us up after the match, and he suggested we could all go to that new pizza restaurant to celebrate – hopefully! Give me a call back to let me know you got this message. My number is 07700 900 351. That’s three-five-one at the end. Talk to you later, bye.</p>`,
+                mcqs: [
+                    { question: "Where is the football match being held?", options: ["At their usual place", "At Northwood", "At the Sports Centre", "At the bus station"], answer: "At the Sports Centre", feedback: "Correct! Tom says, '...it’s at the main Sports Centre in town.'" },
+                    { question: "What time should they meet?", options: ["10:00 a.m.", "10:30 a.m.", "After the match", "On Saturday morning"], answer: "10:30 a.m.", feedback: "That's right. He suggests, 'Let’s meet at the bus station at 10.30 a.m...'" },
+                    { question: "What does Tom have for the match?", options: ["The shorts", "The football shirts", "The ball", "The pizza"], answer: "The ball", feedback: "Correct. Tom says, 'I’ve got the ball.'" },
+                    { question: "What might they do after the match?", options: ["Go to Tom's house", "Get the bus home", "Go to a pizza restaurant", "Meet Tom's dad"], answer: "Go to a pizza restaurant", feedback: "Correct! Tom's dad suggested '...we could all go to that new pizza restaurant...'" }
+                ]
+            },
+            // Quiz 20
+            {
+                instruction: "You will hear a girl talking about her experience of learning to play the guitar.",
+                title: "Learning the Guitar",
+                audioscript: `<p>I started learning to play the guitar about six months ago, and I absolutely love it. I have lessons once a week at the local community centre. My teacher is really good. At first, my fingers really hurt from pressing on the strings, but I got used to it. The hardest thing to learn was the chords. There are so many of them to remember! But now I know quite a few, and I can play some of my favourite songs. I try to practise for thirty minutes every day, usually after I’ve done my homework. It’s really important to be consistent. Next month, I’m going to be in a concert with some of the other students. I’m a bit nervous, but also really excited. My teacher, Mr Davies, says it will be good experience for me. That’s D-A-V-I-E-S. He’s organizing the whole thing.</p>`,
+                mcqs: [
+                    { question: "Where does the girl have her guitar lessons?", options: ["At school", "At home", "At the community centre", "With Mr Davies"], answer: "At the community centre", feedback: "Correct! She says, 'I have lessons once a week at the local community centre.'" },
+                    { question: "What did she find most difficult about learning the guitar?", options: ["Her fingers hurting", "Practising every day", "Learning the chords", "Playing her favourite songs"], answer: "Learning the chords", feedback: "That's right. She states, 'The hardest thing to learn was the chords.'" },
+                    { question: "How long does she practise each day?", options: ["One hour", "Six months", "Thirty minutes", "After her homework"], answer: "Thirty minutes", feedback: "Correct. She says, 'I try to practise for thirty minutes every day...'" },
+                    { question: "What is happening next month?", options: ["She is getting a new teacher", "She is learning new songs", "She is performing in a concert", "She is starting lessons"], answer: "She is performing in a concert", feedback: "Correct! She says, 'Next month, I’m going to be in a concert...'" }
+                ]
+            },
+            // Quiz 21
+            {
+                instruction: "You will hear a manager giving information about a new sports centre.",
+                title: "New Sports Centre",
+                audioscript: `<p>Good morning, everyone. I’m here to tell you about our fantastic new sports centre, which opens next week. We’re located just opposite the main park, so it’s very easy to get to. We have a wide range of facilities. Our swimming pool is state-of-the-art, with a special shallow section for children. The gym is fully equipped with over 50 different machines, so you’ll never have to wait to work out. We offer a variety of membership options. The standard monthly membership is £35, which gives you access to the gym and pool. We’re open from 6 a.m. to 10 p.m. on weekdays, and 8 a.m. to 8 p.m. at weekends. You can find out more and sign up online at our website: www.citysports.com. That's C-O-M at the end.</p>`,
+                mcqs: [
+                    { question: "What is located opposite the new sports centre?", options: ["A school", "The main park", "A supermarket", "The train station"], answer: "The main park", feedback: "Correct! The manager says, 'We’re located just opposite the main park...'" },
+                    { question: "What special feature does the swimming pool have?", options: ["A high diving board", "A wave machine", "A section for children", "A water slide"], answer: "A section for children", feedback: "That's right. The pool has 'a special shallow section for children.'" },
+                    { question: "How much is a standard monthly membership?", options: ["£50", "£35", "£10", "£6"], answer: "£35", feedback: "Correct. The speaker states, 'The standard monthly membership is £35...'" },
+                    { question: "What time does the centre close on a Saturday?", options: ["10 p.m.", "6 a.m.", "8 a.m.", "8 p.m."], answer: "8 p.m.", feedback: "Correct! The centre is open '8 a.m. to 8 p.m. at weekends.'" }
+                ]
+            },
+            // Quiz 22
+            {
+                instruction: "You will hear a woman leaving a message about her lost cat.",
+                title: "Lost Cat",
+                audioscript: `<p>Hello, I’m calling to report my lost cat. His name is Leo. He went out yesterday afternoon and hasn’t come back, which is very unusual for him. He’s a very friendly cat. He’s mostly black, but he has white paws, like he’s wearing little socks. He was last seen in the area near the local primary school. He’s wearing a blue collar with a small bell on it. We miss him terribly and are very worried. If you have seen him or have any information, please could you call me? My name is Sarah. My number is on the tag on his collar. Thank you.</p>`,
+                mcqs: [
+                    { question: "What is the cat's name?", options: ["Sarah", "Leo", "Socks", "Blue"], answer: "Leo", feedback: "Correct! The owner says, 'His name is Leo.'" },
+                    { question: "What colour are the cat's paws?", options: ["Black", "Blue", "White", "Brown"], answer: "White", feedback: "That's right. The cat 'has white paws, like he’s wearing little socks.'" },
+                    { question: "Where was the cat last seen?", options: ["In the owner's garden", "Near the primary school", "At the park", "In a shop"], answer: "Near the primary school", feedback: "Correct. 'He was last seen in the area near the local primary school.'" },
+                    { question: "What is on the cat's collar?", options: ["The owner's address", "A small bell", "The cat's name", "A GPS tracker"], answer: "A small bell", feedback: "Correct! He's wearing 'a blue collar with a small bell on it.'" }
+                ]
+            },
+            // Quiz 23
+            {
+                instruction: "You will hear a radio announcement about a summer festival.",
+                title: "Summer Festival",
+                audioscript: `<p>Get ready for the event of the summer! The annual Summer Festival is back, and this year it’s bigger and better than ever. Join us in Central Park on Saturday, the 10th of August, for a day of fun for the whole family. We’ll have live music all day on the main stage, featuring some of the best local bands. For the kids, there’s a huge bouncy castle and a magician performing tricks throughout the afternoon. There will be lots of food stalls, but feel free to bring a picnic. Don’t forget to bring a blanket to sit on. The event is completely free to attend, but we will be collecting donations for a local children’s charity, so please give generously if you can.</p>`,
+                mcqs: [
+                    { question: "Where is the Summer Festival taking place?", options: ["On the main stage", "At a local charity", "In Central Park", "On August 10th"], answer: "In Central Park", feedback: "Correct! The announcement says, 'Join us in Central Park...'" },
+                    { question: "What kind of music will be at the festival?", options: ["Music from famous bands", "Music from local bands", "Classical music", "Children's music"], answer: "Music from local bands", feedback: "That's right. There will be 'live music all day on the main stage, featuring some of the best local bands.'" },
+                    { question: "What entertainment is mentioned for children?", options: ["A bouncy castle and a magician", "Only a bouncy castle", "Only a magician", "Face painting"], answer: "A bouncy castle and a magician", feedback: "Correct. For the kids, 'there’s a huge bouncy castle and a magician...'" },
+                    { question: "What is the cost to attend the event?", options: ["A small fee", "A donation is required", "It is free", "The price of a blanket"], answer: "It is free", feedback: "Correct! The announcer states, 'The event is completely free to attend...'" }
+                ]
+            },
+            // Quiz 24
+            {
+                instruction: "You will hear a student talking about a school project on recycling.",
+                title: "Recycling Project",
+                audioscript: `<p>For my science project, I decided to learn about recycling. I focused on the importance of recycling plastic, because we use so much of it every day. I did a lot of research. I read some books from the library and also found lots of useful information on the internet. I learned some really interesting things. I was surprised to find out that recycling not only saves raw materials, but it also saves a lot of energy and reduces pollution. To present my findings, I made a large poster that explains the whole recycling process, from putting a bottle in the recycling bin to it being made into a new product. My project is going to be displayed in the school library for everyone to see. My teacher, Mrs Evans, was really pleased with it. That’s E-V-A-N-S.</p>`,
+                mcqs: [
+                    { question: "What material did the student's project focus on?", options: ["Paper", "Glass", "Metal", "Plastic"], answer: "Plastic", feedback: "Correct! The student says, 'I focused on the importance of recycling plastic...'" },
+                    { question: "Besides saving raw materials, what is another benefit of recycling?", options: ["It is easy to do", "It saves energy", "It is a fun activity", "It creates jobs"], answer: "It saves energy", feedback: "That's right. The student learned that 'recycling not only saves raw materials, but it also saves a lot of energy...'" },
+                    { question: "How did the student present their findings?", options: ["With a speech", "With a video", "With a large poster", "With a model"], answer: "With a large poster", feedback: "Correct. The student says, 'I made a large poster that explains the whole recycling process...'" },
+                    { question: "Where will the project be displayed?", options: ["In the classroom", "In the science lab", "In the school library", "At home"], answer: "In the school library", feedback: "Correct! The project 'is going to be displayed in the school library...'" }
+                ]
+            },
+            // Quiz 25
+            {
+                instruction: "You will hear a tour guide talking to a group of visitors in a historic house.",
+                title: "Historic House Tour",
+                audioscript: `<p>Welcome, everyone, to Blackwood Manor. My name is David, and I’ll be your guide today. This magnificent house was built in the 18th century and has a very rich history. We’re going to start our tour here in the library, which contains over five thousand books. As we go through the house, please feel free to ask any questions. However, I must ask you not to touch any of the antique furniture, as it is very delicate. Next, we will move into the dining room. Look out for the magnificent portrait above the fireplace – it’s a very famous painting of a king, though I’ll let you guess which one! The whole tour should take about 45 minutes. Afterwards, you are free to wander around our beautiful gardens at your leisure. So, shall we begin?</p>`,
+                mcqs: [
+                    { question: "In which century was the house built?", options: ["The 17th century", "The 18th century", "The 19th century", "The 20th century"], answer: "The 18th century", feedback: "Correct! The guide says, 'This magnificent house was built in the 18th century...'" },
+                    { question: "What are visitors specifically asked not to do?", options: ["Ask questions", "Take photos", "Touch the furniture", "Enter the library"], answer: "Touch the furniture", feedback: "That's right. The guide says, '...I must ask you not to touch any of the antique furniture...'" },
+                    { question: "What famous painting is in the dining room?", options: ["A painting of the house", "A portrait of a queen", "A painting of a king", "A landscape painting"], answer: "A painting of a king", feedback: "Correct. There is a 'very famous painting of a king.'" },
+                    { question: "What can visitors do after the guided tour?", options: ["Have a cup of tea", "Visit the gift shop", "Explore the gardens", "Meet the owner"], answer: "Explore the gardens", feedback: "Correct! 'Afterwards, you are free to wander around our beautiful gardens...'" }
+                ]
+            },
+            // Quiz 26
+            {
+                instruction: "You will hear a radio announcement about a new bookshop.",
+                title: "New Bookshop",
+                audioscript: `<p>Book lovers of our town, I have some exciting news for you! A new independent bookshop, called ‘The Reading Corner’, has opened its doors. You can find it on the high street, right next to the post office. It’s a wonderful little shop, with a fantastic selection of books. They sell all the latest bestsellers, as well as a great range of second-hand novels at bargain prices. There’s also a lovely special section just for children’s books. To celebrate their opening, they have a special event this Saturday. The famous author, Jane Potter, will be there to sign copies of her new book. The shop’s opening hours are 9 a.m. to 6 p.m. most days, but they have late-night opening on Thursdays, until 7 p.m.</p>`,
+                mcqs: [
+                    { question: "What is the name of the new bookshop?", options: ["The High Street Bookshop", "Jane Potter's Books", "The Reading Corner", "The Post Office Books"], answer: "The Reading Corner", feedback: "Correct! The announcement says it's 'called ‘The Reading Corner’.'" },
+                    { question: "What kind of second-hand books does the shop sell?", options: ["Children's books", "Textbooks", "Novels", "Magazines"], answer: "Novels", feedback: "That's right. They sell 'a great range of second-hand novels at bargain prices.'" },
+                    { question: "What is happening at the shop on Saturday?", options: ["A sale", "A visit from a famous author", "A children's story time", "Late-night opening"], answer: "A visit from a famous author", feedback: "Correct. 'The famous author, Jane Potter, will be there to sign copies of her new book.'" },
+                    { question: "On which day is the shop open late?", options: ["Saturday", "Friday", "Every day", "Thursdays"], answer: "Thursdays", feedback: "Correct! They have 'late-night opening on Thursdays, until 7 p.m.'" }
+                ]
+            },
+            // Quiz 27
+            {
+                instruction: "You will hear a woman talking about her hobby, which is baking.",
+                title: "Baking Hobby",
+                audioscript: `<p>My favourite hobby is baking. I started doing it when I was a teenager, and I’ve loved it ever since. I bake all sorts of things – bread, biscuits, pastries – but my absolute favourite thing to make is chocolate cake. There’s nothing better than the smell of it cooking in the oven. I think the secret to good baking is using the best ingredients. You can really taste the difference if you use good quality flour and fresh eggs. I bake a couple of times a week, and I always make too much, so I give a lot of it away to my friends and neighbours. They seem to enjoy it! For me, baking is a very relaxing activity. It helps me to switch off after a busy day. I’m always looking for new things to try. I often get ideas and new recipes from cooking magazines.</p>`,
+                mcqs: [
+                    { question: "What is the woman's favourite thing to bake?", options: ["Bread", "Biscuits", "Chocolate cake", "Pastries"], answer: "Chocolate cake", feedback: "Correct! She says, '...my absolute favourite thing to make is chocolate cake.'" },
+                    { question: "What does she believe is the secret to good baking?", options: ["A good oven", "Using the best ingredients", "Baking every day", "Following a recipe exactly"], answer: "Using the best ingredients", feedback: "That's right. She says, 'I think the secret to good baking is using the best ingredients.'" },
+                    { question: "What does she do with the things she bakes?", options: ["She sells them", "She eats them all herself", "She gives a lot away", "She enters competitions"], answer: "She gives a lot away", feedback: "Correct. She says, 'I always make too much, so I give a lot of it away to my friends and neighbours.'" },
+                    { question: "How does baking make her feel?", options: ["Hungry", "Tired", "Creative", "Relaxed"], answer: "Relaxed", feedback: "Correct! She says, 'For me, baking is a very relaxing activity.'" }
+                ]
+            },
+            // Quiz 28
+            {
+                instruction: "You will hear a man giving a talk about a volunteer programme.",
+                title: "Volunteer Programme",
+                audioscript: `<p>Thank you for coming today. I’m here to talk to you about our volunteer programme. We are a charity that provides support for the homeless in our city. We are currently looking for more volunteers to help us out. We need people to work in our charity shops. The main job involves sorting through the donations that people bring us, like clothes and books, and getting them ready to be sold. We are looking for people who can give us at least four hours of their time a week, on a regular basis. You don’t need any special skills or experience to be a volunteer, just a willingness to help and a friendly attitude. If you are interested in joining our team, please visit our website and complete the online application form. We’d love to hear from you.</p>`,
+                mcqs: [
+                    { question: "Who does the charity provide support for?", options: ["Animals", "The homeless", "Children", "The elderly"], answer: "The homeless", feedback: "Correct! The speaker says, 'We are a charity that provides support for the homeless...'" },
+                    { question: "What is the main task for volunteers in the charity shops?", options: ["Serving customers", "Sorting donations", "Cleaning the shop", "Working on the till"], answer: "Sorting donations", feedback: "That's right. 'The main job involves sorting through the donations that people bring us...'" },
+                    { question: "What is the minimum time commitment per week for volunteers?", options: ["One hour", "Two hours", "Four hours", "A full day"], answer: "Four hours", feedback: "Correct. They are looking for people who can give 'at least four hours of their time a week...'" },
+                    { question: "How should someone apply to be a volunteer?", options: ["Call the charity", "Visit a shop", "Send a letter", "Complete a form on the website"], answer: "Complete a form on the website", feedback: "Correct! The instruction is to 'visit our website and complete the online application form.'" }
+                ]
+            },
+            // Quiz 29
+            {
+                instruction: "You will hear a student leaving a message for a friend about a study group.",
+                title: "Study Group",
+                audioscript: `<p>Hi Chloe, it’s Mark. I’m just calling about the study group for the history exam. A few of us are getting together this afternoon to do some revision. We’re meeting in the library, in one of the group study rooms on the second floor. We’re planning to meet at 4 p.m. Can you make it? Don’t forget to bring your textbook and any notes you have. We’re going to focus on Chapter 7, the one about the industrial revolution. I think it’s going to be a really useful session. Let me know if you can come. You can just text me back. See you later, I hope. Bye.</p>`,
+                mcqs: [
+                    { question: "Which subject is the study group for?", options: ["Science", "Maths", "English", "History"], answer: "History", feedback: "Correct! Mark says it's 'about the study group for the history exam.'" },
+                    { question: "Where is the study group meeting?", options: ["At Mark's house", "In the library", "In the classroom", "At the cafe"], answer: "In the library", feedback: "That's right. He says, 'We’re meeting in the library...'" },
+                    { question: "What time are they meeting?", options: ["At 7 p.m.", "In the morning", "At 4 p.m.", "After the exam"], answer: "At 4 p.m.", feedback: "Correct. 'We’re planning to meet at 4 p.m.'" },
+                    { question: "What specific topic will they focus on?", options: ["Chapter 4", "The whole textbook", "Their notes", "Chapter 7"], answer: "Chapter 7", feedback: "Correct! Mark says, 'We’re going to focus on Chapter 7...'" }
+                ]
+            },
+            // Quiz 30
+            {
+                instruction: "You will hear an announcement at a train station.",
+                title: "Train Station Announcement",
+                audioscript: `<p>May I have your attention please. This is an announcement for passengers on the 10:30 service to London King's Cross. We regret to announce that this service is delayed by approximately 20 minutes. This is due to a signal failure on the line ahead. The 10:30 service to London will now depart from platform 9. I repeat, that is platform 9. Please check the departure boards for any further updates. We apologize for the delay and any inconvenience this may cause to your journey. For passengers waiting, the station coffee shop on platform 1 is now open, serving a range of hot and cold drinks and snacks.</p>`,
+                mcqs: [
+                    { question: "What is the final destination of the delayed train?", options: ["King's Cross", "Platform 9", "London", "Platform 1"], answer: "London", feedback: "Correct! The announcement is for the 'service to London King's Cross.'" },
+                    { question: "How long is the train delayed for?", options: ["10 minutes", "30 minutes", "20 minutes", "9 minutes"], answer: "20 minutes", feedback: "That's right. The service is 'delayed by approximately 20 minutes.'" },
+                    { question: "What is the reason for the delay?", options: ["Bad weather", "A staff shortage", "A problem with the train", "A signal failure"], answer: "A signal failure", feedback: "Correct. The delay is 'due to a signal failure on the line ahead.'" },
+                    { question: "Which platform will the train now depart from?", options: ["Platform 1", "Platform 10", "Platform 30", "Platform 9"], answer: "Platform 9", feedback: "Correct! The announcement states, 'The 10:30 service to London will now depart from platform 9.'" }
+                ]
+            }
+        ];
+
+        // --- GAME STATE ---
+        let playerName = "";
+        let score = 0;
+        let correctAnswersCount = 0;
+        let currentQuizIndex = 0;
+        let timerInterval;
+        let timeLeft = 180; // 3 minutes in seconds
+        let questionsAnswered = 0;
+        let mistakes = [];
+
+        // --- DOM ELEMENTS ---
+        const startPage = document.getElementById('start-page');
+        const gamePage = document.getElementById('game-page');
+        const playerNameInput = document.getElementById('player-name-input');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const playerNameDisplay = document.getElementById('player-name-display');
+        const scoreDisplay = document.getElementById('score');
+        const badgesContainer = document.getElementById('badges-container');
+        const quizContainer = document.getElementById('quiz-container');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIcon');
+        const pauseIcon = document.getElementById('pauseIcon');
+        const quizTitle = document.getElementById('quiz-title');
+        const quizInstruction = document.getElementById('quiz-instruction');
+        const timerContainer = document.getElementById('timer-container');
+        const timerDisplay = document.getElementById('timer');
+        const questionsContainer = document.getElementById('questions-container');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const gameOverTitle = document.getElementById('game-over-title');
+        const gameOverSubtitle = document.getElementById('game-over-subtitle');
+        const finalScore = document.getElementById('final-score');
+        const finalBadgesContainer = document.getElementById('final-badges-container');
+        const mistakeSummaryContainer = document.getElementById('mistake-summary-container');
+        const playAgainBtn = document.getElementById('play-again-btn');
+
+        // --- TTS SETUP ---
+        const utterance = new SpeechSynthesisUtterance();
+        let voicesLoaded = false;
+
+        function loadVoices() {
+            if (voicesLoaded) return;
+            let allVoices = speechSynthesis.getVoices();
+            if (allVoices.length === 0) {
+                return; // Voices not ready yet
+            }
+            voicesLoaded = true;
+        }
+        speechSynthesis.onvoiceschanged = loadVoices;
+
+        // --- GAME LOGIC ---
+        function startGame() {
+            playerName = playerNameInput.value.trim();
+            if (playerName === "") {
+                playerName = "Player";
+            }
+            playerNameDisplay.textContent = playerName;
+            startPage.classList.add('hidden');
+            gamePage.classList.remove('hidden');
+            resetGame();
+            loadQuiz(currentQuizIndex);
+        }
+
+        function resetGame() {
+            speechSynthesis.cancel();
+            score = 0;
+            correctAnswersCount = 0;
+            currentQuizIndex = 0;
+            mistakes = [];
+            updateScore();
+            badgesContainer.innerHTML = '';
+            finalBadgesContainer.innerHTML = '';
+        }
+
+        function loadQuiz(index) {
+            speechSynthesis.cancel(); // Stop any previous audio
+            clearInterval(timerInterval); // Ensure previous timer is cleared
+            const quiz = quizData[index];
+            quizTitle.textContent = `Quiz ${index + 16}: ${quiz.title}`;
+            quizInstruction.textContent = quiz.instruction;
+            questionsContainer.innerHTML = '';
+            questionsAnswered = 0;
+            playPauseBtn.disabled = false;
+            
+            // Reset player UI
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            timerContainer.classList.add('hidden');
+
+            quiz.mcqs.forEach((mcq, i) => {
+                const questionEl = document.createElement('div');
+                questionEl.id = `question-${i}`;
+                const shuffledOptions = [...mcq.options].sort(() => Math.random() - 0.5);
+                questionEl.innerHTML = `
+                    <p class="font-bold text-lg mb-3">${i + 1}. ${mcq.question}</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        ${shuffledOptions.map(option => `
+                            <button class="option-btn w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:bg-gray-100 hover:border-blue-400 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                                ${option}
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                questionsContainer.appendChild(questionEl);
+            });
+
+            questionsContainer.querySelectorAll('.option-btn').forEach(btn => {
+                btn.addEventListener('click', handleAnswer);
+            });
+            
+            utterance.text = new DOMParser().parseFromString(quiz.audioscript, "text/html").documentElement.textContent;
+            setVoiceForQuiz(index);
+        }
+
+        function setVoiceForQuiz(index) {
+             let allVoices = speechSynthesis.getVoices();
+             if (allVoices.length === 0) return;
+             let usUkVoices = allVoices.filter(v => v.lang.startsWith('en-US') || v.lang.startsWith('en-GB'));
+             const preferredVoiceNames = [
+                'Microsoft Andrew Online (Natural) - English (United States)', 'Microsoft Ava Online (Natural) - English (United States)',
+                'Microsoft Brian Online (Natural) - English (United States)', 'Microsoft Emma Online (Natural) - English (United States)'
+             ];
+             let preferredVoices = preferredVoiceNames.map(name => usUkVoices.find(v => v.name === name)).filter(Boolean);
+             let msNaturalVoices = usUkVoices.filter(v => v.name.includes('Microsoft') && v.name.includes('Natural') && !preferredVoiceNames.includes(v.name));
+             const isApple = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+             let applePremiumVoices = isApple ? usUkVoices.filter(v => (v.name.includes('(Enhanced)') || v.name.includes('Premium'))) : [];
+             let chosenVoiceList = [...preferredVoices, ...msNaturalVoices, ...applePremiumVoices];
+             if (chosenVoiceList.length > 0) {
+                utterance.voice = chosenVoiceList[index % chosenVoiceList.length];
+             } else {
+                utterance.voice = usUkVoices.find(v => v.name.includes('Neural')) || usUkVoices.find(v => v.name.includes('Google')) || usUkVoices.find(v => v.lang.startsWith('en-GB')) || usUkVoices[0];
+             }
+        }
+
+        function startTimer() {
+            timeLeft = 180;
+            timerDisplay.textContent = '3:00';
+            timerDisplay.classList.remove('text-yellow-500', 'text-red-600');
+            timerContainer.classList.remove('hidden');
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                if (timeLeft <= 60 && timeLeft > 10) timerDisplay.classList.add('text-yellow-500');
+                if (timeLeft <= 10) timerDisplay.classList.add('text-red-600');
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    disableAllOptions();
+                    setTimeout(advanceToNextQuiz, 1500); // Auto-advance after a delay
+                }
+            }, 1000);
+        }
+
+        function handleAnswer(e) {
+            const selectedBtn = e.target;
+            const questionContainer = selectedBtn.closest('[id^="question-"]');
+            const questionIndex = parseInt(questionContainer.id.split('-')[1]);
+            const correctAnswer = quizData[currentQuizIndex].mcqs[questionIndex].answer;
+            const isCorrect = selectedBtn.textContent.trim() === correctAnswer.trim();
+            
+            questionContainer.querySelectorAll('.option-btn').forEach(btn => {
+                btn.disabled = true;
+                if (btn.textContent.trim() === correctAnswer.trim()) {
+                    btn.classList.add('bg-green-200', 'border-green-500');
+                }
+            });
+
+            if (isCorrect) {
+                score++;
+                correctAnswersCount++;
+                selectedBtn.classList.add('bg-green-200', 'border-green-500');
+                showFlyingToken(selectedBtn);
+                checkBadges();
+                if (correctAnswersCount >= WIN_CONDITION) {
+                    endGame(true);
+                }
+            } else {
+                score = Math.max(0, score - 1);
+                selectedBtn.classList.add('bg-red-200', 'border-red-500');
+                mistakes.push({
+                    quizTitle: quizData[currentQuizIndex].title,
+                    question: quizData[currentQuizIndex].mcqs[questionIndex].question,
+                    yourAnswer: selectedBtn.textContent.trim(),
+                    correctAnswer: correctAnswer
+                });
+            }
+            updateScore();
+            questionsAnswered++;
+            if (questionsAnswered >= 4) {
+                clearInterval(timerInterval);
+                setTimeout(advanceToNextQuiz, 1200); // Auto-advance after a short delay
+            }
+        }
+        
+        function disableAllOptions() {
+             questionsContainer.querySelectorAll('.option-btn').forEach(btn => btn.disabled = true);
+        }
+
+        function updateScore() {
+            scoreDisplay.textContent = score;
+        }
+
+        function showFlyingToken(buttonEl) {
+            const scoreContainerRect = scoreDisplay.getBoundingClientRect();
+            const buttonRect = buttonEl.getBoundingClientRect();
+            const token = document.createElement('div');
+            token.textContent = '+1';
+            token.className = 'score-token absolute text-2xl font-bold text-green-500';
+            token.style.left = `${buttonRect.left + buttonRect.width / 2 - 10}px`;
+            token.style.top = `${buttonRect.top}px`;
+            token.style.setProperty('--translateX', `${scoreContainerRect.left - buttonRect.left}px`);
+            token.style.setProperty('--translateY', `${scoreContainerRect.top - buttonRect.top}px`);
+            document.body.appendChild(token);
+            setTimeout(() => token.remove(), 1000);
+        }
+
+        function checkBadges() {
+            const badges = [
+                { count: 10, name: 'Bronze Star', icon: '⭐' },
+                { count: 25, name: 'Silver Ear', icon: '🥈' },
+                { count: 40, name: 'Golden Listener', icon: '🏆' }
+            ];
+            badges.forEach(badge => {
+                if (correctAnswersCount === badge.count && !document.getElementById(`badge-${badge.count}`)) {
+                    const badgeEl = document.createElement('div');
+                    badgeEl.id = `badge-${badge.count}`;
+                    badgeEl.className = `badge-unlocked-animation text-4xl`;
+                    badgeEl.innerHTML = `<span title="${badge.name}">${badge.icon}</span>`;
+                    badgesContainer.appendChild(badgeEl);
+                }
+            });
+        }
+        
+        function endGame(isWinner) {
+            clearInterval(timerInterval);
+            finalScore.textContent = score;
+            finalBadgesContainer.innerHTML = badgesContainer.innerHTML;
+
+            if (isWinner) {
+                gameOverTitle.textContent = "Congratulations!";
+                gameOverSubtitle.textContent = "You've completed the challenge!";
+            } else {
+                gameOverTitle.textContent = "Game Over";
+                gameOverSubtitle.textContent = "You've completed all the quizzes!";
+            }
+
+            if (mistakes.length > 0) {
+                let summaryHTML = `<h4 class="text-xl font-bold mb-2 text-left">Mistake Summary</h4><div class="text-left text-sm max-h-48 overflow-y-auto border p-2 rounded-lg bg-gray-50"><ul class="space-y-2">`;
+                mistakes.forEach(mistake => {
+                    summaryHTML += `<li class="border-b pb-2"><strong>Q:</strong> ${mistake.question}<br><span class="text-red-600"><strong>You said:</strong> ${mistake.yourAnswer}</span><br><span class="text-green-600"><strong>Correct:</strong> ${mistake.correctAnswer}</span></li>`;
+                });
+                summaryHTML += '</ul></div>';
+                mistakeSummaryContainer.innerHTML = summaryHTML;
+            } else {
+                mistakeSummaryContainer.innerHTML = `<p class="text-green-600 font-semibold">You made no mistakes. Perfect score!</p>`;
+            }
+
+            gameOverModal.classList.remove('hidden');
+        }
+
+        function advanceToNextQuiz() {
+            currentQuizIndex++;
+            if (currentQuizIndex < quizData.length) {
+                loadQuiz(currentQuizIndex);
+            } else {
+                endGame(false); // Game ends because quizzes ran out
+            }
+        }
+
+        // --- EVENT LISTENERS ---
+        startGameBtn.addEventListener('click', startGame);
+        
+        playPauseBtn.addEventListener('click', () => {
+             loadVoices(); 
+             if (!utterance.voice) {
+                setTimeout(() => { 
+                    loadVoices();
+                    setVoiceForQuiz(currentQuizIndex);
+                }, 100);
+             }
+
+             if (speechSynthesis.speaking) {
+                if (speechSynthesis.paused) {
+                    speechSynthesis.resume();
+                } else {
+                    speechSynthesis.pause();
+                }
+             } else {
+                speechSynthesis.cancel();
+                speechSynthesis.speak(utterance);
+             }
+        });
+
+        utterance.onstart = () => {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+            playPauseBtn.disabled = true;
+        };
+
+        utterance.onpause = () => {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            playPauseBtn.disabled = false;
+        };
+        
+        utterance.onresume = () => {
+            playIcon.classList.add('hidden');
+            pauseIcon.classList.remove('hidden');
+        };
+
+        utterance.onend = () => {
+            playIcon.classList.remove('hidden');
+            pauseIcon.classList.add('hidden');
+            playPauseBtn.disabled = false;
+            startTimer();
+        };
+        
+        playAgainBtn.addEventListener('click', () => {
+            gameOverModal.classList.add('hidden');
+            resetGame();
+            loadQuiz(currentQuizIndex);
+        });
+
+        // Initial voice load
+        loadVoices();
+    });
+    </script>
+
+</body>
+</html>
