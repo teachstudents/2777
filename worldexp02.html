@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Great Barrier Reef Vocabulary Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Tahoma', sans-serif;
+            overscroll-behavior: none;
+            /* New Aquatic Color Scheme */
+            background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
+        }
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: flex;
+        }
+        /* Adjusted glass card for new theme */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.6); /* Darker for contrast */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        #timer-bar-inner {
+            transition: width 1s linear;
+        }
+        .badge-unlocked {
+             animation: popIn 0.5s ease-out;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+         #badge-modal {
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        /* Higher contrast buttons for the new theme */
+        .mcq-option {
+            background-color: rgba(17, 94, 89, 0.7); /* teal-800/70 */
+        }
+        .mcq-option:hover {
+            background-color: rgba(19, 78, 74, 0.9); /* teal-900/90 */
+        }
+        .mcq-option:disabled {
+            opacity: 0.8;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="w-screen h-screen flex items-center justify-center p-4 overflow-hidden">
+
+    <div id="game-container" class="w-full max-w-lg mx-auto">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active flex-col items-center justify-center text-white text-center p-6 md:p-8">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4">Great Barrier Reef Challenge</h1>
+            <p class="text-lg md:text-xl mb-8 text-cyan-200">Test your knowledge of this natural wonder.</p>
+            <button id="start-game-btn" class="bg-white text-teal-600 font-bold py-4 px-10 text-lg rounded-full shadow-lg hover:bg-cyan-100 transition-all transform hover:scale-105 focus:outline-none">Start Game</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen flex-col w-full glass-card rounded-2xl p-6 md:p-8">
+            <div class="flex justify-between items-center mb-4">
+                <div class="text-white text-lg font-bold">Score: <span id="score">0</span></div>
+                <div class="text-white text-lg font-bold">Question <span id="question-counter">1</span>/<span id="total-questions">50</span></div>
+            </div>
+            <div id="timer-bar" class="w-full bg-white/20 rounded-full h-2.5 mb-4">
+                <div id="timer-bar-inner" class="bg-green-400 h-2.5 rounded-full" style="width: 100%"></div>
+            </div>
+            
+            <div id="question-area" class="text-center mb-6 h-24 flex items-center justify-center">
+                <p id="question-text" class="text-white text-xl md:text-2xl font-semibold"></p>
+            </div>
+
+            <div id="options-area" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                <!-- Options will be populated by JS -->
+            </div>
+
+            <div id="feedback-area" class="mt-4 text-center h-8">
+                <p id="feedback-text" class="text-xl font-bold"></p>
+            </div>
+             <div id="badge-display" class="mt-4 flex justify-center gap-4 h-12">
+                <!-- Badges will be shown here -->
+             </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="screen flex-col items-center justify-center text-white text-center p-6 md:p-8">
+            <h2 class="text-3xl md:text-4xl font-bold mb-2">Game Over!</h2>
+            <p class="text-xl md:text-2xl mb-4">Final Score: <span id="final-score" class="font-bold"></span></p>
+            <div id="final-badges" class="mb-8 flex flex-wrap justify-center gap-4">
+                <!-- Final badges earned -->
+            </div>
+            <button id="play-again-btn" class="bg-white text-teal-600 font-bold py-4 px-10 text-lg rounded-full shadow-lg hover:bg-cyan-100 transition-all transform hover:scale-105 focus:outline-none">Play Again</button>
+        </div>
+    </div>
+    
+    <!-- Badge Unlocked Modal -->
+    <div id="badge-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 opacity-0 pointer-events-none transform scale-95">
+        <div class="glass-card text-white text-center p-8 rounded-2xl max-w-sm w-full">
+            <h3 id="badge-modal-title" class="text-3xl font-bold text-yellow-300">Badge Unlocked!</h3>
+            <p id="badge-modal-name" class="text-xl mt-2"></p>
+            <p id="badge-modal-desc" class="text-cyan-200 mt-1"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const vocabulary = [
+                { keyword: 'coral reef', definition: 'An underwater ecosystem characterized by reef-building corals.' },
+                { keyword: 'kaleidoscope', definition: 'A constantly changing pattern or sequence of elements.' },
+                { keyword: 'biodiversity', definition: 'The variety of plant and animal life in the world or in a particular habitat.' },
+                { keyword: 'coral polyps', definition: 'Tiny, soft-bodied organisms related to sea anemones and jellyfish that build reefs.' },
+                { keyword: 'metropolis', definition: 'A very large and densely populated industrial and commercial city.' },
+                { keyword: 'dugongs', definition: 'Large marine mammals, also known as sea cows, that feed on seagrass.' },
+                { keyword: 'Aboriginal', definition: 'Inhabiting or existing in a land from the earliest times; relating to the original peoples of Australia.' },
+                { keyword: 'existential threat', definition: 'A threat to something\'s very existence.' },
+                { keyword: 'coral bleaching', definition: 'The process when corals turn white after expelling the algae living in their tissues.' },
+                { keyword: 'agricultural runoff', definition: 'Water from farm fields due to irrigation, rain, or melted snow that can contain pollutants.' },
+                { keyword: 'crown-of-thorns starfish', definition: 'A large, predatory starfish that preys upon coral polyps.' },
+                { keyword: 'paramount', definition: 'More important than anything else; supreme.' },
+                { keyword: 'conservation', definition: 'The protection of animals, plants, and natural resources.' },
+                { keyword: 'indigenous', definition: 'Originating or occurring naturally in a particular place; native.' },
+                { keyword: 'ecosystem', definition: 'A biological community of interacting organisms and their physical environment.' },
+                { keyword: 'Captain James Cook', definition: 'The British explorer who was the first European to map the eastern coast of Australia.' },
+                { keyword: 'pollutants', definition: 'Substances that pollute something, especially water or the atmosphere.' },
+                { keyword: 'symbiotic', definition: 'Involving interaction between two different organisms living in close physical association.' },
+                { keyword: 'UNESCO', definition: 'An organization that designates and protects places of great natural or cultural value.' },
+                { keyword: 'peril', definition: 'Serious and immediate danger.' }
+            ];
+            
+            const readingQuestions = [
+                { type: 'mcq', text: "What is the single biggest threat to the Great Barrier Reef mentioned in the passage?", options: ["Overfishing", "Tourism", "Climate change", "Crown-of-thorns starfish"], answer: "Climate change" },
+                { type: 'mcq', text: "What are the tiny organisms that build the coral reefs called?", options: ["Algae", "Dugongs", "Plankton", "Coral polyps"], answer: "Coral polyps" },
+                { type: 'mcq', text: "What does coral bleaching cause the coral to do?", options: ["Grow faster", "Change color", "Turn white", "Attract more fish"], answer: "Turn white" },
+                { type: 'tf', text: "True or False: The Great Barrier Reef is so small it can only be seen with a microscope.", options: ["True", "False"], answer: "False" },
+                { type: 'tf', text: "True or False: Captain James Cook was the first human to ever see the reef.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "Approximately how many species of fish does the reef support?", options: ["Over 1,500", "About 100", "Exactly 500", "Less than 50"], answer: "Over 1,500" },
+                { type: 'tf', text: "True or False: Agricultural runoff helps the reef by providing extra nutrients.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "The knowledge of which group is now being used in modern conservation strategies?", options: ["European explorers", "Tourists", "Aboriginal and Torres Strait Islander peoples", "Fishermen"], answer: "Aboriginal and Torres Strait Islander peoples" },
+                { type: 'tf', text: "True or False: Dugongs are a type of predatory starfish.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "What happens during coral bleaching?", options: ["The coral gets cleaned", "The coral gains new colors", "The coral expels its algae", "The water gets colder"], answer: "The coral expels its algae" }
+            ];
+
+            const fillInBlankQuestions = [
+                 { type: 'mcq', text: "When corals expel their algae and turn white, it's called ____.", options: ["conservation", "coral bleaching", "biodiversity", "runoff"], answer: "coral bleaching" },
+                 { type: 'mcq', text: "A relationship where two different organisms live closely together is ____.", options: ["paramount", "symbiotic", "indigenous", "peril"], answer: "symbiotic" },
+                 { type: 'mcq', text: "The variety of life, or ____, is incredibly high in the reef.", options: ["ecosystem", "metropolis", "biodiversity", "kaleidoscope"], answer: "biodiversity" },
+                 { type: 'mcq', text: "For the reef's survival, global action on climate change is ____.", options: ["peril", "paramount", "Aboriginal", "symbiotic"], answer: "paramount" },
+                 { type: 'mcq', text: "The entire community of interacting organisms is called an ____.", options: ["ecosystem", "metropolis", "runoff", "polyps"], answer: "ecosystem" },
+                 { type: 'mcq', text: "Tiny animals called ____ are the builders of the reef.", options: ["dugongs", "starfish", "coral polyps", "plankton"], answer: "coral polyps" },
+                 { type: 'mcq', text: "Harmful substances that enter the water are known as ____.", options: ["pollutants", "ecosystems", "polyps", "reefs"], answer: "pollutants" },
+                 { type: 'mcq', text: "The ____ people have a deep cultural connection to the reef.", options: ["European", "Cook", "Aboriginal", "Indigenous"], answer: "Aboriginal" },
+                 { type: 'mcq', text: "The protection of natural resources is a key part of ____.", options: ["peril", "conservation", "bleaching", "runoff"], answer: "conservation" },
+                 { type: 'mcq', text: "Climate change poses an ____ to the reef's future.", options: ["existential threat", "ecosystem", "agricultural runoff", "indigenous knowledge"], answer: "existential threat" },
+                 { type: 'mcq', text: "The underwater world was a ____ of color and life.", options: ["peril", "kaleidoscope", "metropolis", "dugong"], answer: "kaleidoscope" },
+                 { type: 'mcq', text: "Water flowing from farms, known as ____, can harm the reef.", options: ["agricultural runoff", "coral bleaching", "conservation", "biodiversity"], answer: "agricultural runoff" },
+                 { type: 'mcq', text: "The large, predatory ____ is a natural enemy of the coral.", options: ["dugong", "crown-of-thorns starfish", "sea turtle", "dolphin"], answer: "crown-of-thorns starfish" },
+                 { type: 'mcq', text: "The gentle marine mammals called ____ feed on seagrass.", options: ["dugongs", "starfish", "sharks", "polyps"], answer: "dugongs" },
+                 { type: 'mcq', text: "Being native to a place means you are ____ to it.", options: ["paramount", "perilous", "indigenous", "symbiotic"], answer: "indigenous" },
+                 { type: 'mcq', text: "The vast reef system is like an underwater ____.", options: ["metropolis", "dugong", "polyps", "peril"], answer: "metropolis" },
+                 { type: 'mcq', text: "The sailors knew their ship was in great ____ as the storm hit.", options: ["peril", "conservation", "biodiversity", "symbiosis"], answer: "peril" },
+                 { type: 'mcq', text: "A large underwater structure made by tiny animals is a ____.", options: ["coral reef", "sandbar", "kelp forest", "trench"], answer: "coral reef" },
+                 { type: 'mcq', text: "The Great Barrier Reef is a ____ World Heritage site.", options: ["UNESCO", "NASA", "WHO", "UNICEF"], answer: "UNESCO" },
+                 { type: 'mcq', text: "____ was the first European to chart the reef.", options: ["Christopher Columbus", "Ferdinand Magellan", "Vasco da Gama", "Captain James Cook"], answer: "Captain James Cook" }
+            ];
+
+            const badges = {
+                quickThinker: { name: 'Quick Thinker', desc: 'Answer 5 questions with over half the time remaining.', icon: '⚡️', earned: false },
+                perfectStreak: { name: 'Perfect Streak', desc: 'Answer 10 questions correctly in a row.', icon: '🎯', earned: false },
+                virtuoso: { name: 'Reef Virtuoso', desc: 'Score 90 points or more in a single game.', icon: '🏆', earned: false },
+            };
+
+            const positivePraises = ["Correct!", "Excellent!", "Great job!", "You got it!", "Awesome!"];
+
+            // DOM Elements
+            const startScreen = document.getElementById('start-screen');
+            const gameScreen = document.getElementById('game-screen');
+            const endScreen = document.getElementById('end-screen');
+            const startGameBtn = document.getElementById('start-game-btn');
+            const playAgainBtn = document.getElementById('play-again-btn');
+
+            const scoreDisplay = document.getElementById('score');
+            const questionCounterDisplay = document.getElementById('question-counter');
+            const totalQuestionsDisplay = document.getElementById('total-questions');
+            const timerBarInner = document.getElementById('timer-bar-inner');
+            const questionText = document.getElementById('question-text');
+            const optionsArea = document.getElementById('options-area');
+            const feedbackText = document.getElementById('feedback-text');
+
+            const finalScoreDisplay = document.getElementById('final-score');
+            const badgeDisplay = document.getElementById('badge-display');
+            const finalBadgesDisplay = document.getElementById('final-badges');
+            const badgeModal = document.getElementById('badge-modal');
+            const badgeModalTitle = document.getElementById('badge-modal-title');
+            const badgeModalName = document.getElementById('badge-modal-name');
+            const badgeModalDesc = document.getElementById('badge-modal-desc');
+
+            // Game State
+            let score = 0;
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let timer;
+            let timeLeft;
+
+            let correctStreak = 0;
+            let quickAnswerCount = 0;
+            
+            // Audio State
+            let correctSound, incorrectSound;
+            let feedbackVoice = null;
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+            
+            async function initializeAudio() {
+                if (Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+                correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.5 } }).toDestination();
+                incorrectSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+                
+                if ('speechSynthesis' in window) {
+                     if (speechSynthesis.onvoiceschanged !== undefined) {
+                        speechSynthesis.onvoiceschanged = getFeedbackVoice;
+                    }
+                    getFeedbackVoice();
+                }
+            }
+
+            function getFeedbackVoice() {
+                const voices = speechSynthesis.getVoices();
+                feedbackVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Emma')) ||
+                                voices.find(v => v.lang === 'en-US' && v.name.includes('Ava')) ||
+                                voices.find(v => v.lang.startsWith('en') && (v.name.includes('Female') || v.name.includes('Google') || v.name.includes('Zira')));
+            }
+            
+            function generateQuestions() {
+                const vocabQuestions = vocabulary.map((item) => {
+                    const distractors = vocabulary
+                        .filter(d => d.keyword !== item.keyword)
+                        .slice(0, 3)
+                        .map(d => d.keyword);
+
+                    const options = [item.keyword, ...distractors];
+                    shuffleArray(options);
+                    
+                    return {
+                        type: 'mcq',
+                        text: `Which word means: "${item.definition}"`,
+                        options: options,
+                        answer: item.keyword
+                    };
+                });
+                
+                questions = [...vocabQuestions, ...readingQuestions, ...fillInBlankQuestions];
+                shuffleArray(questions);
+                totalQuestionsDisplay.textContent = questions.length;
+            }
+
+            function startGame() {
+                score = 0;
+                currentQuestionIndex = 0;
+                correctStreak = 0;
+                quickAnswerCount = 0;
+                Object.values(badges).forEach(b => b.earned = false);
+                
+                generateQuestions();
+                
+                startScreen.classList.remove('active');
+                endScreen.classList.remove('active');
+                gameScreen.classList.add('active');
+                badgeDisplay.innerHTML = '';
+                
+                showNextQuestion();
+            }
+
+            function showNextQuestion() {
+                resetState();
+                if (currentQuestionIndex >= questions.length) {
+                    endGame();
+                    return;
+                }
+
+                const question = questions[currentQuestionIndex];
+                questionText.textContent = question.text;
+                
+                if (question.options.length <= 2) {
+                    optionsArea.classList.remove('md:grid-cols-2');
+                    optionsArea.classList.add('md:grid-cols-1', 'max-w-sm', 'mx-auto');
+                } else {
+                    optionsArea.classList.remove('md:grid-cols-1', 'max-w-sm', 'mx-auto');
+                    optionsArea.classList.add('md:grid-cols-2');
+                }
+
+                question.options.forEach(option => {
+                    const button = document.createElement('button');
+                    button.textContent = option;
+                    button.classList.add('mcq-option', 'text-white', 'py-3', 'px-4', 'rounded-lg', 'text-base', 'md:text-lg', 'transition-colors', 'duration-200');
+                    button.addEventListener('click', () => selectAnswer(option, question.answer));
+                    optionsArea.appendChild(button);
+                });
+
+                questionCounterDisplay.textContent = `${currentQuestionIndex + 1}`;
+                scoreDisplay.textContent = score;
+
+                timeLeft = 15;
+                startTimer();
+            }
+
+            function startTimer() {
+                timerBarInner.style.transition = 'none';
+                timerBarInner.style.width = '100%';
+                timerBarInner.style.backgroundColor = '#4ade80'; 
+                
+                setTimeout(() => {
+                    timerBarInner.style.transition = `width ${timeLeft}s linear`;
+                    timerBarInner.style.width = '0%';
+                }, 100);
+
+                timer = setInterval(() => {
+                    timeLeft--;
+                     if (timeLeft < 8) {
+                        timerBarInner.style.backgroundColor = '#facc15';
+                    }
+                    if (timeLeft < 4) {
+                        timerBarInner.style.backgroundColor = '#f87171';
+                    }
+                    if (timeLeft <= 0) {
+                        clearInterval(timer);
+                        selectAnswer(null, questions[currentQuestionIndex].answer);
+                    }
+                }, 1000);
+            }
+
+            function selectAnswer(selected, correct) {
+                clearInterval(timer);
+                const isCorrect = selected === correct;
+
+                optionsArea.childNodes.forEach(button => {
+                    button.disabled = true;
+                    if (button.textContent === correct) {
+                        button.classList.add('!bg-green-500', 'border-2', 'border-white');
+                    }
+                    if (button.textContent === selected && !isCorrect) {
+                        button.classList.add('!bg-red-500');
+                    }
+                });
+
+                if (isCorrect) {
+                    score += 2;
+                    feedbackText.textContent = 'Correct!';
+                    feedbackText.classList.add('text-green-300');
+                    correctStreak++;
+                    if (timeLeft > 7) { 
+                        quickAnswerCount++;
+                    }
+                    
+                    correctSound?.triggerAttackRelease("C5", "8n");
+                    
+                    if (feedbackVoice && speechSynthesis.speaking === false) {
+                        const praise = positivePraises[Math.floor(Math.random() * positivePraises.length)];
+                        const utterance = new SpeechSynthesisUtterance(praise);
+                        utterance.voice = feedbackVoice;
+                        speechSynthesis.speak(utterance);
+                    }
+
+                } else {
+                    feedbackText.textContent = `Correct: "${correct}"`;
+                    feedbackText.classList.add('text-red-300');
+                    correctStreak = 0;
+                    
+                    incorrectSound?.triggerAttackRelease("A2", "8n", Tone.now() + 0.1);
+                }
+                
+                checkBadges();
+
+                scoreDisplay.textContent = score;
+                currentQuestionIndex++;
+                
+                setTimeout(showNextQuestion, 2000);
+            }
+            
+            function checkBadges() {
+                if (quickAnswerCount >= 5 && !badges.quickThinker.earned) {
+                    badges.quickThinker.earned = true;
+                    showBadge(badges.quickThinker);
+                }
+                if (correctStreak >= 10 && !badges.perfectStreak.earned) {
+                    badges.perfectStreak.earned = true;
+                    showBadge(badges.perfectStreak);
+                }
+                if (score >= 90 && !badges.virtuoso.earned) {
+                    badges.virtuoso.earned = true;
+                    showBadge(badges.virtuoso);
+                }
+            }
+
+            function showBadge(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.textContent = badge.icon;
+                badgeEl.title = `${badge.name}: ${badge.desc}`;
+                badgeEl.classList.add('text-3xl', 'badge-unlocked');
+                badgeDisplay.appendChild(badgeEl);
+                
+                badgeModalName.textContent = badge.name;
+                badgeModalDesc.textContent = badge.desc;
+                badgeModal.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+                badgeModal.classList.add('opacity-100', 'scale-100');
+                
+                setTimeout(() => {
+                    badgeModal.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+                    badgeModal.classList.remove('opacity-100', 'scale-100');
+                }, 3000);
+            }
+
+            function resetState() {
+                clearInterval(timer);
+                optionsArea.innerHTML = '';
+                feedbackText.textContent = '';
+                feedbackText.classList.remove('text-green-300', 'text-red-300');
+            }
+
+            function endGame() {
+                gameScreen.classList.remove('active');
+                endScreen.classList.add('active');
+                finalScoreDisplay.textContent = score;
+                
+                finalBadgesDisplay.innerHTML = '';
+                Object.values(badges).forEach(badge => {
+                    if (badge.earned) {
+                        const badgeEl = document.createElement('div');
+                        badgeEl.classList.add('text-center', 'p-2');
+                        badgeEl.innerHTML = `<div class="text-4xl">${badge.icon}</div><div class="font-semibold">${badge.name}</div>`;
+                        finalBadgesDisplay.appendChild(badgeEl);
+                    }
+                });
+            }
+
+            startGameBtn.addEventListener('click', () => {
+                initializeAudio().then(() => {
+                    startGame();
+                });
+            });
+            playAgainBtn.addEventListener('click', startGame);
+
+        });
+    </script>
+</body>
+</html>

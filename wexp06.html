@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unit 6: AI for Global Good</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Using a system font stack for broad compatibility and performance -->
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            overscroll-behavior: none;
+            /* Dynamic Background Animation */
+            transition: background-color 2s ease-in-out;
+            background-color: #eef2ff; /* Initial color for Unit 6 */
+        }
+
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes correctBounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        .menu-button, .nav-button, .action-button {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        .menu-button:hover, .nav-button:hover, .action-button:hover {
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+        .menu-button:active, .nav-button:active, .action-button:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+
+        .quiz-option {
+            transition: all 0.2s ease-in-out;
+            border: 2px solid #e5e7eb;
+        }
+        .quiz-option:hover:not(:disabled) {
+            background-color: #e0e7ff; /* light indigo */
+            border-color: #6366f1; /* indigo */
+            transform: scale(1.02);
+        }
+        .feedback-modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .feedback-modal.show {
+            display: flex;
+        }
+        .feedback-modal-content.correct {
+            animation: correctBounce 0.5s ease;
+        }
+        .matching-line {
+            stroke: #60a5fa; /* blue-400 */
+            stroke-width: 3;
+            stroke-dasharray: 5;
+            animation: drawLine 0.8s ease-out forwards;
+            transition: all 0.3s ease;
+        }
+        @keyframes drawLine {
+            from { stroke-dashoffset: 1000; }
+            to { stroke-dashoffset: 0; }
+        }
+        .point-token {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            width: 20px;
+            height: 20px;
+            background-color: #facc15; /* amber-400 */
+            border-radius: 50%;
+            border: 2px solid #ca8a04; /* amber-600 */
+            z-index: 200;
+            transition: all 1s cubic-bezier(0.5, -0.5, 0.5, 1.5);
+            pointer-events: none;
+            opacity: 1;
+        }
+
+        /* --- Styles for Drag and Drop --- */
+        .draggable-word {
+            cursor: grab;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            user-select: none;
+        }
+        .dragging {
+            opacity: 0.5;
+            transform: scale(1.1);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            cursor: grabbing;
+        }
+        .drop-zone {
+            border: 2px dashed #cbd5e1; /* gray-300 */
+            min-height: 44px;
+            min-width: 150px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+            vertical-align: middle;
+        }
+        .drop-zone.drag-over {
+            background-color: #e0e7ff; /* indigo-100 */
+            border-color: #6366f1; /* indigo-500 */
+        }
+        .drop-zone.correct {
+            border: 2px solid #4338ca; /* indigo-700 */
+            background-color: #eef2ff; /* indigo-50 */
+        }
+        .drop-zone .draggable-word {
+            cursor: default;
+        }
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+
+    <!-- Tone.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <!-- Navigation Header -->
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm shadow-sm" style="display: none;">
+        <div class="max-w-4xl mx-auto p-2 flex justify-between items-center">
+            <button onclick="goBack()" class="nav-button bg-white text-gray-700 font-bold py-2 px-4 rounded-full hover:bg-gray-200 flex items-center gap-2 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+            Back
+            </button>
+            <div class="font-bold text-xl text-indigo-600">
+                Score: <span id="score-display">0</span>
+            </div>
+            <button onclick="navigateTo(1)" class="nav-button bg-gray-800 text-white font-bold py-2 px-4 rounded-full hover:bg-gray-900 flex items-center gap-2 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L10 4.414l5.293 5.293a1 1 0 001.414-1.414l-7-7z" /><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm0 2a10 10 0 100-20 10 10 0 000 20z" /></svg>
+              Home
+            </button>
+            <button onclick="goNext()" class="nav-button bg-indigo-500 text-white font-bold py-2 px-4 rounded-full hover:bg-indigo-600 flex items-center gap-2 text-lg">
+            Next
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+            </button>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8 pt-20">
+
+        <!-- Page 0: Title Screen -->
+        <section id="page-0" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 class="text-5xl md:text-6xl font-bold text-indigo-700 mb-4">Unit 6: AI for Global Good</h1>
+                <p class="text-xl md:text-2xl text-gray-600 mb-8">Code for a Better World</p>
+                <svg viewBox="0 0 600 300" class="rounded-lg shadow-md mb-8 w-full max-w-lg mx-auto" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="skyGradient6" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#e0e7ff;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#eef2ff;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <rect width="600" height="300" fill="url(#skyGradient6)"/>
+                    <!-- Brain/Chip -->
+                    <text x="260" y="170" font-size="100">🧠</text>
+                    <!-- Globe -->
+                    <circle cx="300" cy="150" r="120" fill="none" stroke="#4f46e5" stroke-width="4" stroke-dasharray="10 5"/>
+                    <!-- Icons for social good -->
+                    <text x="100" y="100" font-size="40">❤️</text>
+                    <text x="450" y="120" font-size="40">🌿</text>
+                    <text x="120" y="230" font-size="40">🌍</text>
+                    <text x="480" y="250" font-size="40">🤝</text>
+                    <!-- Data streams -->
+                    <path d="M 130 110 C 200 120, 250 120, 280 140" stroke="#818cf8" stroke-width="2" fill="none"/>
+                    <path d="M 460 140 C 400 150, 350 160, 320 160" stroke="#818cf8" stroke-width="2" fill="none"/>
+                    <path d="M 150 220 C 220 200, 260 180, 290 165" stroke="#818cf8" stroke-width="2" fill="none"/>
+                    <path d="M 490 230 C 420 210, 360 180, 310 165" stroke="#818cf8" stroke-width="2" fill="none"/>
+                </svg>
+                <button onclick="startApp()" class="action-button bg-indigo-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-indigo-700">
+                    START LESSON
+                </button>
+            </div>
+        </section>
+
+        <!-- Page 1: Main Menu -->
+        <section id="page-1" class="page">
+            <div class="bg-white rounded-2xl shadow-lg p-8">
+                <h2 class="text-4xl font-bold text-center text-indigo-700 mb-8">Main Menu</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <button onclick="navigateTo(201)" class="menu-button bg-indigo-500 text-white p-6 rounded-xl text-xl font-semibold">💡 Vocabulary</button>
+                    <button onclick="navigateTo(212)" class="menu-button bg-blue-500 text-white p-6 rounded-xl text-xl font-semibold">📖 Reading</button>
+                    <button onclick="navigateTo(217)" class="menu-button bg-violet-500 text-white p-6 rounded-xl text-xl font-semibold">🗣️ Conversation</button>
+                    <button onclick="navigateTo(220)" class="menu-button bg-purple-500 text-white p-6 rounded-xl text-xl font-semibold">🎙️ Podcast</button>
+                    <button onclick="navigateTo(240)" class="menu-button bg-sky-500 text-white p-6 rounded-xl text-xl font-semibold">🎤 Lecture</button>
+                    <button onclick="navigateTo(225)" class="menu-button bg-red-500 text-white p-6 rounded-xl text-xl font-semibold">🍲 AI for Food Aid Dilemma</button>
+                    <button onclick="navigateTo(230)" class="menu-button bg-orange-500 text-white p-6 rounded-xl text-xl font-semibold">💊 AI for Cure Dilemma</button>
+                    <button onclick="navigateTo(253)" class="menu-button bg-fuchsia-500 text-white p-6 rounded-xl text-xl font-semibold">🎯 Mission</button>
+                    <button onclick="navigateTo(250)" class="menu-button bg-rose-500 text-white p-6 rounded-xl text-xl font-semibold">📜 Unit Plan</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Container for ALL lesson pages -->
+        <div id="dynamic-pages-container">
+            
+            <!-- Unit 6 Vocabulary Flashcards (Pages 201-210) -->
+            <section id="page-201" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 1 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Artificial Intelligence (AI)</h2><p class="text-2xl text-gray-600 mb-4">The ability of computer systems to perform tasks that normally require human intelligence.</p><p class="text-xl text-gray-500 italic">"Artificial Intelligence is used to power self-driving cars."</p></div></div></section>
+            <section id="page-202" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 2 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Algorithm</h2><p class="text-2xl text-gray-600 mb-4">A process or set of rules to be followed by a computer.</p><p class="text-xl text-gray-500 italic">"A recommendation algorithm suggests movies you might like."</p></div></div></section>
+            <section id="page-203" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 3 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Machine Learning</h2><p class="text-2xl text-gray-600 mb-4">An application of AI that allows systems to automatically learn from experience.</p><p class="text-xl text-gray-500 italic">"Through machine learning, a computer can learn to identify cats in photos."</p></div></div></section>
+            <section id="page-204" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 4 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Data Set</h2><p class="text-2xl text-gray-600 mb-4">A collection of related sets of information.</p><p class="text-xl text-gray-500 italic">"The AI was trained on a huge data set of medical images."</p></div></div></section>
+            <section id="page-205" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 5 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Ethical</h2><p class="text-2xl text-gray-600 mb-4">Relating to moral principles.</p><p class="text-xl text-gray-500 italic">"It is not ethical to use AI to create fake videos of people."</p></div></div></section>
+            <section id="page-206" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 6 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Bias</h2><p class="text-2xl text-gray-600 mb-4">A prejudice in favor of or against one thing, person, or group.</p><p class="text-xl text-gray-500 italic">"If the data is biased, the AI’s decisions will also have a bias."</p></div></div></section>
+            <section id="page-207" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 7 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Automation</h2><p class="text-2xl text-gray-600 mb-4">The use of largely automatic equipment in a system.</p><p class="text-xl text-gray-500 italic">"Automation can increase efficiency but may also lead to job losses."</p></div></div></section>
+            <section id="page-208" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 8 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Prediction</h2><p class="text-2xl text-gray-600 mb-4">A statement about what you think will happen in the future.</p><p class="text-xl text-gray-500 italic">"AI can be used for the prediction of earthquakes based on seismic data."</p></div></div></section>
+            <section id="page-209" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 9 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Diagnosis</h2><p class="text-2xl text-gray-600 mb-4">The identification of the nature of an illness or other problem.</p><p class="text-xl text-gray-500 italic">"An AI-powered diagnosis helped the doctor identify the disease earlier."</p></div></div></section>
+            <section id="page-210" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-indigo-600 mb-2">Vocabulary Word 10 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Optimization</h2><p class="text-2xl text-gray-600 mb-4">The action of making the best or most effective use of a situation or resource.</p><p class="text-xl text-gray-500 italic">"The company used AI for the optimization of its delivery routes."</p></div></div></section>
+
+            <!-- Unit 6 Vocabulary Quiz (Page 211) -->
+            <section id="page-211" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 relative"><h3 class="text-2xl font-bold text-indigo-600 mb-6 text-center">Vocabulary Practice: Matching Definitions</h3><div class="grid grid-cols-2 gap-x-8 relative"><div class="space-y-4 flex flex-col items-start"><div id="term-u6-1" class="bg-blue-100 p-3 rounded-lg w-full text-center">1. algorithm</div><div id="term-u6-2" class="bg-blue-100 p-3 rounded-lg w-full text-center">2. bias</div><div id="term-u6-3" class="bg-blue-100 p-3 rounded-lg w-full text-center">3. data set</div><div id="term-u6-4" class="bg-blue-100 p-3 rounded-lg w-full text-center">4. ethical</div><div id="term-u6-5" class="bg-blue-100 p-3 rounded-lg w-full text-center">5. diagnosis</div></div><div class="space-y-4 flex flex-col items-end"><div id="def-u6-A" class="bg-amber-100 p-3 rounded-lg w-full text-center">A. A collection of information.</div><div id="def-u6-B" class="bg-amber-100 p-3 rounded-lg w-full text-center">B. Relating to moral principles.</div><div id="def-u6-C" class="bg-amber-100 p-3 rounded-lg w-full text-center">C. Identifying an illness.</div><div id="def-u6-D" class="bg-amber-100 p-3 rounded-lg w-full text-center">D. A set of rules for a computer.</div><div id="def-u6-E" class="bg-amber-100 p-3 rounded-lg w-full text-center">E. An unfair prejudice.</div></div></div><svg id="matching-svg-u6" class="absolute top-0 left-0 w-full h-full pointer-events-none"></svg><div class="text-center mt-8"><button id="show-answers-btn-u6" onclick="showMatchingAnswersU6()" class="action-button bg-indigo-600 text-white font-bold py-2 px-6 rounded-full hover:bg-indigo-700">Show Answers</button></div></div></section>
+
+            <!-- Unit 6 Reading Section (Pages 212-216) -->
+            <section id="page-212" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-blue-700 mb-6">Reading: Pre-Reading 📖</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>What kind of information (data) would an AI need to predict where a wildfire might start?</li><li>How could a computer help a doctor do their job better?</li><li>What could go wrong if we let an AI make important decisions about people’s lives?</li></ol><h3 class="text-2xl font-bold text-blue-600 mt-6 mb-3">Reading Skill: Identifying Benefits and Risks</h3><p>As you read, try to list the positive applications (Benefits) of AI on one side of a T-chart and the potential problems (Risks) on the other.</p></div></div></section>
+            <section id="page-213" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-blue-700 mb-6">Reading Texts</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="font-bold text-2xl text-blue-600">AI: A Tool for Good</h3><p>Artificial Intelligence (AI) is when a computer can think like a person. AI can help us in many ways. For example, it can look at pictures of crops and tell a farmer if the plants are sick. This helps grow more food. In hospitals, AI can help doctors make a faster diagnosis of a disease. But we must be careful. Sometimes the algorithm an AI uses can have a bias. This means it can be unfair. We must make sure AI is safe and ethical.</p><h3 class="font-bold text-2xl text-blue-600 mt-6">Harnessing AI for Global Challenges</h3><p>Artificial Intelligence is rapidly changing our world, and it has huge potential to solve global problems. Through machine learning, an AI can analyze enormous data sets to find patterns that humans might miss. For example, AI algorithms can make a prediction about where a natural disaster might strike, giving people time to evacuate. In medicine, AI can analyze medical scans to help with the early diagnosis of cancers. However, using AI comes with serious ethical responsibilities. One of the biggest risks is bias. If an AI is trained on a biased data set (for example, medical data mostly from one group of people), its decisions may be unfair to other groups. As we use AI for more tasks, we must ensure it is used for good and does not create new problems of inequality.</p><h3 class="font-bold text-2xl text-blue-600 mt-6">The Promise and Peril of AI for Social Good</h3><p>Artificial Intelligence (AI), particularly machine learning, represents a paradigm shift in our ability to address complex global issues. By processing vast data sets, AI can achieve remarkable feats of optimization and prediction. For instance, AI models can optimize energy grids to reduce waste, predict famine by analyzing satellite imagery and crop data, and accelerate medical research by identifying promising molecules for new drugs. These applications are not just theoretical; they are actively being deployed by organizations worldwide. The transformative potential of AI, however, is matched by its ethical complexities. The most significant challenge is encoded bias. An algorithm is only as good as the data it learns from; if historical data reflects societal biases, the AI will perpetuate and even amplify them. This can lead to discriminatory outcomes in areas like loan applications or criminal justice. Furthermore, the push for automation raises concerns about job displacement and economic inequality. Therefore, developing AI for good requires a multi-disciplinary approach that integrates computer science with ethics, sociology, and public policy to ensure that these powerful tools are built and deployed responsibly.</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-blue-500 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-600">Read Aloud</button></div></div></section>
+            <section id="page-214" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-blue-600 mb-4 text-center">Comprehension: Drag & Drop</h3><div class="readable-content bg-gray-50 p-6 rounded-lg text-xl leading-relaxed space-y-4"><ol class="list-decimal list-inside space-y-4"><li class="flex items-center gap-2 flex-wrap">If an AI is trained with unfair data, its decisions will have a <div id="read-drop-u6-1" class="drop-zone" data-answer="bias"></div>.</li><li class="flex items-center gap-2 flex-wrap"><div id="read-drop-u6-2" class="drop-zone" data-answer="Machine Learning"></div> is a type of AI that allows computers to learn from experience.</li><li class="flex items-center gap-2 flex-wrap">An AI needs a large <div id="read-drop-u6-3" class="drop-zone" data-answer="data set"></div> to learn how to perform a task.</li><li class="flex items-center gap-2 flex-wrap">Using AI to help doctors make a faster <div id="read-drop-u6-4" class="drop-zone" data-answer="diagnosis"></div> can save lives.</li><li class="flex items-center gap-2 flex-wrap">The company used an AI <div id="read-drop-u6-5" class="drop-zone" data-answer="algorithm"></div> to improve the efficiency of its delivery schedule.</li></ol></div><div class="mt-6 text-center"><p class="font-semibold mb-2">Word Bank:</p><div id="read-word-bank-u6" class="flex flex-wrap justify-center gap-3 p-4 bg-gray-100 rounded-lg"><div id="drag-read-u6-1" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="bias">bias</div><div id="drag-read-u6-2" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="Machine Learning">Machine Learning</div><div id="drag-read-u6-3" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="data set">data set</div><div id="drag-read-u6-4" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="diagnosis">diagnosis</div><div id="drag-read-u6-5" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="algorithm">algorithm</div></div></div></div></section>
+            <section id="page-215" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-blue-600 mb-4 text-center">Comprehension: True/False</h3><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>1. AI can only be used for playing games.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>2. Bias in AI can lead to unfair decisions.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>3. Machine learning requires the computer to be programmed for every single step.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>4. Using AI in medicine has no ethical risks.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>5. An algorithm is a set of rules a computer follows.</p></div></div></div></section>
+            <section id="page-216" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-blue-600 mb-4 text-center">Comprehension: Multiple Choice</h3><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What is the main idea of the texts?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. AI is too dangerous and should be banned.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. AI has great potential to solve problems, but it also has serious ethical risks.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. AI will soon replace all human jobs.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Only scientists can understand how AI works.</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">2. What is “encoded bias” in AI?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. When the AI’s programming code has errors.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. When the AI learns from data that contains unfair human prejudices.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. When the AI intentionally tries to be unfair.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. When the AI works too slowly.</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">3. Which of the following is an example of AI for “optimization”?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. An AI creating a piece of art.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. An AI identifying a cat in a photo.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. An AI finding the most fuel-efficient route for a delivery truck.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. An AI chatting with a person online.</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">4. The texts suggest that developing ethical AI requires collaboration between computer scientists and...</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Only other computer scientists.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Only business leaders.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Experts in fields like ethics, sociology, and public policy.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Professional video gamers.</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">5. Germany’s focus on “explainable AI” means it values...</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. AI that can tell good jokes.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. AI systems whose decisions are secret and cannot be questioned.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. AI systems that can explain how they reached a conclusion.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. AI that can write its own code without humans.</button></div></div></div></div></section>
+
+            <!-- Unit 6 Conversation & Discussion (Pages 217-219) -->
+            <section id="page-217" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-violet-700 mb-6">Conversation Practice 🗣️</h2><div class="readable-content bg-gray-50 p-6 rounded-lg space-y-4 text-xl"><div class="flex gap-4"><span class="font-bold text-emerald-600">Mei:</span><p>The idea of AI predicting famines is incredible. It makes me realize how powerful this technology can be.</p></div><div class="flex gap-4"><span class="font-bold text-cyan-600">Tom:</span><p>Absolutely. But the part about bias is scary. It seems to me that we could accidentally build a very unfair system.</p></div><div class="flex gap-4"><span class="font-bold text-emerald-600">Mei:</span><p>That’s a valid concern. If the data is wrong, the AI’s decisions will be wrong. So, the question is, how do we find unbiased data?</p></div><div class="flex gap-4"><span class="font-bold text-cyan-600">Tom:</span><p>That’s the million-dollar question. Maybe it’s impossible to find perfectly unbiased data because humans are biased.</p></div><div class="flex gap-4"><span class="font-bold text-emerald-600">Mei:</span><p>That’s an interesting point. Perhaps the solution is to always have a human review the AI’s most important decisions.</p></div><div class="flex gap-4"><span class="font-bold text-cyan-600">Tom:</span><p>I think you’re onto something. We can’t just let the machine have full automation over people’s lives. We need human oversight.</p></div><div class="flex gap-4"><span class="font-bold text-emerald-600">Mei:</span><p>Exactly. We should use AI as a powerful tool to help humans make better decisions, not to replace human judgment entirely.</p></div><div class="flex gap-4"><span class="font-bold text-cyan-600">Tom:</span><p>I couldn’t agree more. It’s about finding the right balance between technology and human responsibility.</p></div></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-violet-500 text-white font-bold py-2 px-6 rounded-full hover:bg-violet-600">Read Aloud</button></div></div></section>
+            <section id="page-218" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-violet-700 mb-6">Discussion Questions</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-violet-600 mb-3">Higher-Order Thinking</h3><ul class="list-disc list-inside space-y-2"><li><b>Remembering:</b> What is machine learning?</li><li><b>Understanding:</b> Explain in your own words how biased data can lead to a biased AI.</li><li><b>Applying:</b> Choose a simple task (like sorting laundry into whites and colors). What “rules” (algorithm) would you teach a robot to do this task?</li><li><b>Analyzing:</b> Compare the ethical risks of using AI in healthcare versus using it for social media recommendations.</li><li><b>Evaluating:</b> Argue for or against the statement: “The benefits of AI in creating efficiency and solving problems outweigh the risks of job losses due to automation.”</li><li><b>Creating:</b> Imagine an AI designed to help new students feel less lonely when they move to a new country. What would it do? What data would it need?</li></ul></div></div></section>
+            <section id="page-219" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-violet-700 mb-6">Exam Practice (IELTS/TOEFL)</h2><div class="readable-content text-lg leading-relaxed space-y-6 bg-gray-50 p-6 rounded-lg"><div class="space-y-2"><h3 class="text-2xl font-bold text-violet-600">IELTS Part 1</h3><ul class="list-disc list-inside"><li>How often do you use a computer?</li><li>What do you use it for?</li><li>Do you think technology makes our lives easier or more complicated?</li></ul></div><div class="space-y-2"><h3 class="text-2xl font-bold text-violet-600">IELTS Part 2 (Cue Card)</h3><p>Describe a piece of technology you find difficult to use. You should say: what it is, what you tried to use it for, why it was difficult, and explain how you felt about it.</p></div><div class="space-y-2"><h3 class="text-2xl font-bold text-violet-600">IELTS Part 3</h3><ul class="list-disc list-inside"><li>What are the advantages and disadvantages of automation in the workplace?</li><li>Do you think artificial intelligence will one day be smarter than humans?</li><li>What should governments do to regulate new technologies?</li></ul></div><div class="space-y-2"><h3 class="text-2xl font-bold text-violet-600">TOEFL Independent Speaking</h3><p>Do you agree or disagree with the following statement? “It is more important for a government to spend money on technology than on the arts.” Use specific reasons and examples.</p></div></div></div></section>
+
+            <!-- Unit 6 Podcast (Pages 220-224) -->
+            <section id="page-220" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-purple-700 mb-6">Podcast: Warm-Up 🧠</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>What do you know about artificial intelligence (AI)? Can you name any examples?</li><li>How do you think AI could help society? What are some possible benefits?</li><li>What problems or risks might come with using AI?</li><li>Do you think AI could affect jobs in the future? Why or why not?</li><li>Should AI be controlled by governments, companies, or scientists? What do you think?</li></ol></div></div></section>
+            <section id="page-221" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-purple-700 mb-6">Podcast: Vocabulary</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ul class="space-y-3"><li><strong>AI (Artificial Intelligence):</strong> Technology that can think or learn like humans</li><li><strong>Social good:</strong> Something that helps society or people</li><li><strong>Optimize:</strong> Make something work better or more efficiently</li><li><strong>Encoded bias:</strong> Hidden unfairness in computer systems</li><li><strong>Ethical oversight:</strong> Watching carefully to make sure something is morally right</li><li><strong>Job displacement:</strong> Losing jobs because machines or technology take over</li><li><strong>Reskilling:</strong> Learning new skills for new types of jobs</li><li><strong>Governance:</strong> Rules and control over how something is used</li><li><strong>Accountability:</strong> Responsibility for actions or decisions</li><li><strong>Fair dinkum (Australian slang):</strong> Honest, real, serious</li></ul></div></div></section>
+            <section id="page-222" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-purple-700 mb-6">Podcast: Transcript 🎙️</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong class="text-blue-800">Alex:</strong> Hey everyone, I've been thinking about AI lately—specifically its role in social good. It feels like it holds so much promise, doesn't it? Like optimizing energy grids—that could have a huge positive impact.</p><p><strong class="text-purple-800">Sarah:</strong> Oh, absolutely, Alex. The potential is truly exciting. Imagine AI helping to predict famine and allocate resources more effectively, or accelerating medical research at an unprecedented pace. The possibilities seem endless, frankly.</p><p><strong class="text-green-800">Chris:</strong> G’Day, Alex and Sarah. I agree the promise is huge, but we’ve got to be fair dinkum about the perils too, eh? What about encoded bias in the algorithms? If the data we train AI on is biased, the AI will just perpetuate and even amplify those biases. That’s a ripper problem—especially in areas like healthcare or justice.</p><p><strong class="text-purple-800">Sarah:</strong> That's a critical point, Chris. The bias issue is deeply concerning. It could worsen existing inequalities. But surely with careful development and oversight, we can mitigate that?</p><p><strong class="text-blue-800">Alex:</strong> We can't let the fear of bias stop us from pursuing the incredible benefits. It's a balance. We need robust ethical frameworks and diverse teams building these AI systems.</p><p><strong class="text-green-800">Chris:</strong> Yeah, the job situation is a real worry. If AI can do tasks more efficiently, it could leave a lot of people behind. It’s not just about replacing manual labor anymore—it’s affecting skilled jobs too. We need to think about reskilling and social safety nets, not just the tech itself.</p><p><strong class="text-blue-800">Alex:</strong> It’s a complex societal shift, no doubt. But maybe AI for social good can also create new types of jobs—like in AI development, maintenance, and ethical oversight. And if AI helps economies grow by optimizing things like energy grids or supply chains, that could lead to new opportunities elsewhere.</p><p><strong class="text-purple-800">Sarah:</strong> That’s a hopeful perspective, Alex. And I think it highlights the need for proactive planning. We can’t just let this unfold—we need to shape the future of work.</p><p><strong class="text-green-800">Chris:</strong> And returning to the promise—think about AI’s ability to process vast amounts of data to identify patterns that humans simply cannot. For climate change research or tracking infectious diseases, that’s an invaluable tool for social good.</p></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-purple-500 text-white font-bold py-2 px-6 rounded-full hover:bg-purple-600">Read Aloud</button></div></div></section>
+            <section id="page-223" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-purple-700 mb-6">Podcast Quiz: Multiple Choice ✅</h2><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What initial example does Alex give to illustrate AI’s potential for social good?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Predicting famine</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Accelerating medical research</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Optimizing energy grids</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Tracking infectious diseases</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">2. According to Sarah, which of the following is not mentioned as a benefit of AI?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Predicting famine</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Allocating resources</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Enhancing entertainment algorithms</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Accelerating medical research</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">3. What concern does Chris raise about AI systems?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Lack of computing power</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Encoded bias in algorithms</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. High development costs</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Limited scalability</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">4. What solution does Sarah suggest to address bias in AI?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Avoid using AI in sensitive fields</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Use only government-approved datasets</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Careful development and oversight</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Replace biased data with synthetic data</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">5. What does Alex propose as a way AI might create jobs?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Through manual labor automation</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. By reducing global unemployment</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. In AI development, maintenance, and ethical oversight</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. By replacing skilled workers with machines</button></div></div></div></div></section>
+            <section id="page-224" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-purple-700 mb-6">Podcast Quiz: True / False / Not Given 🔍</h2><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. AI has already eliminated bias in healthcare algorithms.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. Chris believes AI could help track infectious diseases.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. Sarah argues that AI should not be used in climate change research.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. Alex suggests that AI might help economies grow by improving supply chains.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. The panel agrees that AI should be banned until ethical issues are resolved.</p></div></div></div></section>
+            
+            <!-- Dilemmas -->
+            <section id="page-225" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-600 mb-6">AI for Food Aid Dilemma: Transcript 🍲</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong class="text-blue-800">Olivia:</strong> So, uh moving on to another scenario. This one about the AI for food aid, choosing between the 99% accurate but biased algorithm or the 80% accurate but unbiased one. This is, this is a really difficult ethical choice.</p><p><strong class="text-purple-800">Ethan:</strong> Indeed. A classic fairness versus efficiency tradeoff. As the person designing the AI, I suppose, thinking about it, in my opinion, the best course of action is to deploy the 99% accurate algorithm.</p><p><strong class="text-green-800">Isabella:</strong> Yeah, I see your point, Ethan, about reaching more people overall, but I have a different perspective. I believe we should choose the perfectly unbiased algorithm. This is justified because, from my perspective, the most ethical choice is ensuring fairness and not discriminating against any specific group, even if it means fewer people overall receive aid initially.</p><p><strong class="text-blue-800">Olivia:</strong> Hmm, I understand why you say that, Isabella. The principle of non-discrimination is huge. But um, while it is true that the 99% accurate algorithm has a bias, I still believe that maximizing the number of people who receive aid is more critical right now. The evidence suggests that in a food aid crisis, getting as much help to as many people as possible is paramount.</p><p><strong class="text-purple-800">Ethan:</strong> Precisely, Olivia. And could you please explain what you mean by fairness, Isabella? I'm not sure I fully understand the moral imperative to sacrifice overall accuracy for perfect unbiasedness when lives are at stake.</p><p><strong class="text-green-800">Isabella:</strong> Right. Well, it's about dignity, you know, and trust. If a specific group is systematically left out, it erodes trust in the system and can perpetuate existing inequalities. Furthermore, we must consider the long-term social impact on that ethnic minority if they are consistently underserved.</p><p><strong class="text-blue-800">Olivia:</strong> That's a great point. On the one hand, the immediate need to help as many people as possible is compelling. But on the other hand, the ethical imperative of fairness. What if we tried to use the 99% algorithm but implement a separate process to review and manually address potential cases from the affected ethnic minority?</p></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-red-500 text-white font-bold py-2 px-6 rounded-full hover:bg-red-600">Read Full Transcript</button></div></div></section>
+            <section id="page-226" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-600 mb-6">AI for Food Aid Dilemma: Questions</h2><div class="readable-content text-xl leading-relaxed space-y-6 bg-gray-50 p-6 rounded-lg"><div class="space-y-2"><h3 class="text-2xl font-bold text-red-700 mb-3">✏️ Conceptual Gap Fill</h3><ol class="list-decimal list-inside space-y-2"><li>Ethan supports the 99% accurate algorithm because it maximizes __________.</li><li>Isabella argues that using a biased algorithm can erode __________ in the system.</li><li>Olivia suggests that deploying a biased algorithm may __________ existing inequalities.</li><li>The group discusses the trade-off between algorithmic __________ and fairness.</li><li>A proposed solution is to implement a __________ process to address bias manually.</li></ol></div><div class="space-y-2 border-t pt-6"><h3 class="text-2xl font-bold text-red-700 mb-3">✅ Ethical Reasoning Multiple Choice</h3><div class="question-group"><p class="font-semibold">1. What is Isabella’s main concern about the 99% accurate algorithm?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) It is too expensive to run</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) It excludes a specific group unfairly</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) It is not fast enough</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) It requires too much data</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">2. What does Ethan prioritize in his decision-making?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) Transparency</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) Long-term fairness</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">c) Immediate efficiency and reach</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) Algorithmic simplicity</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">3. What ethical principle does Olivia highlight when discussing the biased algorithm?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) Utilitarianism</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) Deontology</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">c) Equity and long-term impact</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) Legal compliance</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">4. What compromise does the group consider?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) Canceling the AI project</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) Using both algorithms in different regions</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">c) Improving the accurate algorithm’s fairness</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) Ignoring the bias for now</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">5. What does the group agree on at the end of the discussion?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) The biased algorithm should be banned</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) There is no perfect solution, but hybrid strategies may help</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) The unbiased algorithm is the only ethical choice</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) AI should not be used for food aid</button></div></div></div><div class="space-y-4 border-t pt-6"><h3 class="text-2xl font-bold text-red-700 mb-3">🔍 True / False / Justify</h3><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>1. Ethan believes fairness is more important than accuracy.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>2. Isabella argues that bias in AI can damage trust in humanitarian systems.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>3. Olivia suggests that the biased algorithm can be improved over time.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>4. The group agrees to use the 80% accurate algorithm.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>5. Dr. Chen is present during the discussion.</p></div></div></div><div class="text-center mt-8"><button onclick="navigateTo(228)" class="action-button bg-red-500 text-white font-bold py-2 px-6 rounded-full hover:bg-red-600">View Answer Key</button></div></div></section>
+            <section id="page-228" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-600 mb-6">AI for Food Aid Answer Key 🍲</h2><div class="readable-content text-lg leading-relaxed space-y-6"><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-red-700 mb-2">✏️ Conceptual Gap Fill Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>efficiency</b> – Ethan prioritizes helping the most people, which is a measure of efficiency.</li><li><b>trust</b> – Isabella is concerned that unfairness erodes trust in the aid system.</li><li><b>perpetuate</b> – Olivia and Isabella both worry that a biased algorithm will continue and worsen existing inequalities.</li><li><b>efficiency</b> – The core of the dilemma is the trade-off between efficiency (helping more people) and fairness.</li><li><b>review</b> – A manual review process is suggested as a way to mitigate the algorithm's bias.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-red-700 mb-2">✅ Ethical Reasoning Multiple Choice Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>b) It excludes a specific group unfairly</b> – Isabella's main point is about the principle of non-discrimination.</li><li><b>c) Immediate efficiency and reach</b> – Ethan's argument is focused on maximizing the number of people who receive aid right now.</li><li><b>c) Equity and long-term impact</b> – Olivia and Isabella discuss the long-term social impact and perpetuation of inequality.</li><li><b>c) Improving the accurate algorithm’s fairness</b> – They discuss a hybrid approach or adding a manual review process.</li><li><b>b) There is no perfect solution, but hybrid strategies may help</b> – The final consensus is that it's a complex problem with no easy answer.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-red-700 mb-2">🔍 True / False / Justify Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>False</b> – Ethan prioritizes accuracy and efficiency over perfect fairness, arguing it helps more people.</li><li><b>True</b> – Isabella states, "it erodes trust in the system."</li><li><b>True</b> – Olivia says, "We could potentially work to improve its accuracy over time."</li><li><b>False</b> – The group does not reach a final decision; they agree it's a complex issue.</li><li><b>False</b> – Dr. Chen is not mentioned in this dilemma.</li></ol></div></div></div></section>
+            <section id="page-230" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-600 mb-6">AI for Cure Dilemma: Transcript 💊</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong class="text-blue-800">Olivia:</strong> So, uh moving on to another scenario about the rival tech companies and the AI for curing a rare disease. This is, this is a heavy one. Share data and find a quick cure or risk delays and potential exploitation.</p><p><strong class="text-purple-800">Ethan:</strong> Indeed. A truly challenging ethical decision, blending business interests with human lives. As the head of research for my company, I suppose, thinking about it, in my opinion, the best course of action is to agree to share our data.</p><p><strong class="text-green-800">Isabella:</strong> Yeah, I see your point, Ethan, about finding a cure quickly, but I have a different perspective. I believe we should choose not to share our data without a binding agreement. This is justified because, from my perspective, the most ethical choice for our company is protecting our investment and ensuring we get a return on our research. We can't just give away our hard work.</p><p><strong class="text-blue-800">Olivia:</strong> Hmm, I understand why you say that, Isabella. Protecting the company's investment is a valid business concern. But um, while it is true that there's a risk of exploitation if we share and they don't, I still believe that saving lives by finding a cure quickly is more critical right now. The evidence suggests that for rare diseases, collaboration significantly speeds up research.</p><p><strong class="text-purple-800">Ethan:</strong> Precisely, Olivia. And could you please explain what you mean by binding agreement, Isabella? I'm not sure I fully understand the level of legal guarantee you would need from a rival company.</p><p><strong class="text-green-800">Isabella:</strong> Right. Well, it's about trust, you know, and consequences. If we share and they just use our data to get the patent, our company loses billions and we're out of the race. Furthermore, we must consider the impact on future research funding if our investors see us as being taken advantage of.</p><p><strong class="text-blue-800">Olivia:</strong> That's a great point. On the one hand, the risk of financial ruin is compelling. But on the other hand, the certainty of delayed cures. What if we tried to negotiate a joint patent or a licensing agreement before sharing the data?</p></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-orange-500 text-white font-bold py-2 px-6 rounded-full hover:bg-orange-600">Read Full Transcript</button></div></div></section>
+            <section id="page-231" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-600 mb-6">AI for Cure Dilemma: Questions</h2><div class="readable-content text-xl leading-relaxed space-y-6 bg-gray-50 p-6 rounded-lg"><div class="space-y-2"><h3 class="text-2xl font-bold text-orange-700 mb-3">✏️ Gap Fill Questions</h3><ol class="list-decimal list-inside space-y-2"><li>Olivia believes that sharing data could help find a cure more __________.</li><li>Ethan supports data sharing because it could save more __________.</li><li>Isabella is concerned that sharing data without a __________ agreement could harm the company.</li><li>Olivia warns that if neither company shares, the cure could be __________.</li><li>The group discusses a possible __________ approach to build trust between companies.</li></ol></div><div class="space-y-2 border-t pt-6"><h3 class="text-2xl font-bold text-orange-700 mb-3">✅ Multiple Choice Questions</h3><div class="question-group"><p class="font-semibold">1. What is Isabella’s main concern about sharing data?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) The data is not accurate</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) The rival company might steal the patent</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) The disease is not serious</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) The AI is not ready</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">2. What does Ethan suggest as a compromise?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) Cancel the project</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) Share all data immediately</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">c) Create a joint patent or licensing agreement</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) Wait for government approval</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">3. What ethical principle does Olivia emphasize?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) Business competition</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) Investor protection</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">c) Saving lives through cooperation</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) Data privacy</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">4. What does Isabella say could happen if their company is exploited?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) They will gain more funding</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) They will lose billions and investor trust</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) They will be praised for transparency</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) They will be bought by the rival</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">5. What does the group agree on at the end?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) The data should not be shared</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) A limited sharing agreement might be a good start</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) The rival company should lead the project</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) AI should not be used in medicine</button></div></div></div><div class="space-y-4 border-t pt-6"><h3 class="text-2xl font-bold text-orange-700 mb-3">🔍 True / False / Not Given</h3><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. Olivia is from San Francisco.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. Ethan believes the company should never share data.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. Isabella supports sharing data only with legal protection.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. The group agrees to share all data immediately.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. Dr. Chen is mentioned but not present in the discussion.</p></div></div></div><div class="text-center mt-8"><button onclick="navigateTo(233)" class="action-button bg-orange-500 text-white font-bold py-2 px-6 rounded-full hover:bg-orange-600">View Answer Key</button></div></div></section>
+            <section id="page-233" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-600 mb-6">AI for Cure Answer Key 💊</h2><div class="readable-content text-lg leading-relaxed space-y-6"><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-orange-700 mb-2">✏️ Gap Fill Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>quickly</b> – Olivia believes that sharing data could help find a cure more quickly.</li><li><b>lives</b> – Ethan emphasizes that sharing data could save more lives.</li><li><b>binding</b> – Isabella insists on a binding agreement to protect her company.</li><li><b>delayed</b> – Olivia warns that if neither company shares, the cure could be delayed.</li><li><b>limited sharing</b> – The group discusses a limited sharing approach to build trust.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-orange-700 mb-2">✅ Multiple Choice Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>b) The rival company might steal the patent</b> – Isabella’s main concern is protecting their intellectual property.</li><li><b>c) Create a joint patent or licensing agreement</b> – Ethan proposes a compromise to protect both companies.</li><li><b>c) Saving lives through cooperation</b> – Olivia focuses on the humanitarian outcome.</li><li><b>b) They will lose billions and investor trust</b> – Isabella explains the severe financial and reputational risks.</li><li><b>b) A limited sharing agreement might be a good start</b> – The group leans toward a phased approach.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-orange-700 mb-2">🔍 True / False / Not Given Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>True</b> – Olivia introduces herself as being from San Francisco, California.</li><li><b>False</b> – Ethan supports sharing data and suggests a joint agreement.</li><li><b>True</b> – Isabella supports sharing only if there is a binding legal agreement.</li><li><b>False</b> – The group does not agree to share all data immediately; they discuss a limited approach.</li><li><b>True</b> – Dr. Chen is mentioned as having previously suggested a phased approach.</li></ol></div></div></div></section>
+
+            <!-- Unit 6 Lecture Section (Pages 240-245) -->
+            <section id="page-240" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture: Warm-Up 🧠</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>What do you think “AI for social good” means?</li><li>Can you name some ways AI is used in daily life?</li><li>What are some problems AI might cause?</li><li>Do you think AI can help solve global problems like climate change or disease?</li><li>Should AI be controlled by governments, companies, or scientists? Why?</li></ol></div></div></section>
+            <section id="page-241" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture: Vocabulary</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ul class="space-y-3"><li><strong>AI (Artificial Intelligence):</strong> Technology that can think or learn like humans</li><li><strong>Social good:</strong> Something that helps society or people</li><li><strong>Pivotal moment:</strong> A very important time when big changes can happen</li><li><strong>Optimize:</strong> Make something work better or more efficiently</li><li><strong>Carbon emissions:</strong> Pollution from burning fuel</li><li><strong>Humanitarian aid:</strong> Help given to people in need</li><li><strong>Encoded bias:</strong> Hidden unfairness in computer systems</li><li><strong>Job displacement:</strong> Losing jobs because machines or technology take over</li><li><strong>Transparency:</strong> Being open and clear about how something works</li><li><strong>Accountability:</strong> Responsibility for actions or decisions</li></ul></div></div></section>
+            <section id="page-242" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture: Transcript 🎤</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong>Lecturer:</strong> Hello everyone and welcome. Today we're diving into a topic that sparks both incredible hope and significant caution: the promise and peril of AI for social good. It feels like we're at a pivotal moment in history, doesn't it? In this lecture, we will explore the dual nature of AI, its exciting potential to solve some of the world's most pressing problems, and the serious risks we must navigate carefully. First, we'll paint a picture of AI's potential to uplift society. Following that, we will critically examine the ethical pitfalls and unintended consequences. Finally, we will wrap up by considering how we can steer AI development towards a future that benefits everyone. Get ready for a thought-provoking journey.</p><p><strong>Sarah:</strong> Moving on to the promise. The potential of AI for social good is truly breathtaking. Imagine AI systems optimizing energy grids to reduce waste and lower carbon emissions, a vital step for our planet. Furthermore, think about AI's ability to predict famine and disease outbreaks with greater accuracy, allowing for more timely and effective humanitarian aid. This could save countless lives, which is an incredibly moving prospect. Additionally, AI is already accelerating medical research, helping us discover new drugs and treatments at an unprecedented pace. It feels like we're unlocking new frontiers in our ability to tackle global challenges, and that's genuinely inspiring.</p><p><strong>Alex:</strong> Indeed, Sarah, the potential is immense. However, and we must be brutally honest about this, the perils are just as significant. One of the most pressing concerns is encoded bias. If the data we train AI on reflects existing societal biases in race, gender, or socioeconomic status, the AI will unfortunately learn and perpetuate those biases. This could lead to unfair outcomes in areas like loan applications, hiring, or even criminal justice, which is a deeply troubling thought. Moreover, the potential for widespread job displacement is a serious worry. As AI automates tasks, what happens to the millions of people whose livelihoods are affected? It's a complex economic and social challenge we cannot afford to ignore.</p><p><strong>Sarah:</strong> That's a very real concern, Alex. But perhaps AI can also create new opportunities. Jobs in AI development, maintenance, and ethical oversight are emerging. And if AI helps economies become more efficient, could that free up resources for investment in education and social programs? It's a hopeful possibility, isn't it? We also need to consider the importance of transparency and explainability in AI. If we don't understand how an AI reached a decision, how can we trust it, especially in critical applications? This lack of clarity feels like a significant barrier to responsible deployment.</p><p><strong>Alex:</strong> Transparency is crucial, Sarah, and accountability is another massive piece of the puzzle. When an AI system makes a harmful decision, who is responsible? The developers, the users, the regulators? Establishing clear lines of accountability is absolutely vital for building trust and ensuring safety. Furthermore, the concentration of AI power in the hands of a few large corporations or governments is a potential peril. Could this lead to increased surveillance or control? These are frightening possibilities that demand our vigilance.</p><p><strong>Lecturer:</strong> To wrap up this lecture, let's quickly review what we've covered. We began by highlighting the incredible promise of AI for social good: its potential to optimize systems, predict crises, and accelerate scientific discovery, which truly offers a beacon of hope. We then critically examined the significant perils, including the insidious issue of encoded bias, the challenging prospect of job displacement, and the vital need for transparency, accountability, and careful governance. In conclusion, AI for social good is not a guaranteed outcome. It is a choice we must actively make through thoughtful design, robust ethical frameworks, and continuous societal dialogue. It feels like a heavy responsibility, but also an immense opportunity to shape a future where AI serves humanity and the planet. Thank you for joining me on this crucial exploration. What an exciting, yet challenging, time to be alive.</p></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-sky-500 text-white font-bold py-2 px-6 rounded-full hover:bg-sky-600">Read Aloud</button></div></div></section>
+            <section id="page-243" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture Quiz: Multiple Choice ✅</h2><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What is the main goal of the lecture?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. To teach how to build AI systems</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. To explore both the benefits and risks of AI for social good</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. To explain the history of AI</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. To promote AI products</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">2. Which of the following is not mentioned as a benefit of AI?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Predicting disease outbreaks</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Reducing carbon emissions</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Improving entertainment apps</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Accelerating medical research</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">3. What is a major ethical concern discussed in the lecture?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. AI is too expensive</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. AI can be hacked easily</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. AI may learn and repeat human biases</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. AI cannot be used in science</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">4. What does the speaker say about job displacement?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. It is not a serious issue</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. It only affects factory workers</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. It is a complex challenge that must be addressed</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. It will not happen if AI is used correctly</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">5. Why is transparency important in AI systems?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. To make AI faster</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. To reduce costs</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. To help people trust AI decisions</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. To make AI look more modern</button></div></div></div></div></section>
+            <section id="page-244" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture Quiz: True / False / Not Given 🔍</h2><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. AI can help reduce pollution by improving energy systems.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. The speaker believes AI should be banned because of its risks.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. AI is already used to help discover new medicines.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. The lecture says AI will definitely increase unemployment worldwide.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. The speaker says only governments should control AI.</p></div></div></div></section>
+            <section id="page-245" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture Answer Key</h2><div class="readable-content text-lg leading-relaxed space-y-6"><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-sky-600 mb-2">Multiple Choice Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>B</b> – The lecture focuses on both the promise and peril of AI.</li><li><b>C</b> – Entertainment apps are not mentioned; the focus is on humanitarian and scientific uses.</li><li><b>C</b> – Encoded bias is a key ethical issue discussed.</li><li><b>C</b> – Job displacement is described as a serious and complex challenge.</li><li><b>C</b> – Transparency helps build trust in AI decisions.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-sky-600 mb-2">True / False / Not Given Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>True</b> – AI optimizing energy grids is mentioned as reducing carbon emissions.</li><li><b>False</b> – The speaker does not suggest banning AI, only managing it responsibly.</li><li><b>True</b> – AI accelerating medical research is clearly stated.</li><li><b>Not Given</b> – The speaker discusses job displacement but does not say it will definitely increase unemployment worldwide.</li><li><b>Not Given</b> – Control of AI is discussed, but no specific group is said to be the only one who should control it.</li></ol></div></div></div></section>
+
+            <!-- Unit 6 Unit Plan & Mission (Pages 250-254) -->
+            <section id="page-250" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Stage 1: Desired Results (The “Why”)</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong class="text-rose-600">Topic:</strong> Artificial Intelligence for Solving Global Problems</p><p><strong class="text-rose-600">Theme:</strong> Technology and Ethical Innovation for Social Good</p><p><strong class="text-rose-600">Essential Question:</strong> How can artificial intelligence be harnessed as a tool to address the world’s most complex challenges, like climate change, health crises, and inequality?</p><p><strong class="text-rose-600">Learning Intention:</strong> We are learning to analyze how AI can be applied to global challenges and to design a proposal for an ethical, AI-driven solution.</p></div></div></section>
+            <section id="page-251" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Stage 2: Assessment Evidence</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-rose-600 mb-3">Primary Performance Task (GRASPS)</h3><ul class="list-disc list-inside space-y-2"><li><strong class="text-gray-700">Goal:</strong> Your goal is to secure funding from a United Nations technology fund for your innovative “AI for Good” project.</li><li><strong class="text-gray-700">Role:</strong> You are a team of tech-for-good innovators and project managers.</li><li><strong class="text-gray-700">Audience:</strong> A panel of experts from the United Nations Development Programme.</li><li><strong class="text-gray-700">Situation:</strong> The UN is seeking groundbreaking but ethical AI-driven solutions to help achieve its Sustainable Development Goals (e.g., Zero Hunger, Good Health, Climate Action).</li><li><strong class="text-gray-700">Product:</strong> A formal project proposal and a persuasive pitch (presentation) that outlines the global problem, your AI-powered solution, the data it would use, its potential impact, and a consideration of the ethical risks.</li></ul></div></div></section>
+            <section id="page-252" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Learning Goals & Rubric</h2><div class="readable-content max-w-4xl mx-auto"><div class="mb-8"><h3 class="text-2xl font-bold text-rose-600 mb-3">Success Criteria</h3><ul class="list-disc list-inside space-y-2 text-xl"><li>I can define Artificial Intelligence and give one example of how it is used to solve a problem.</li><li>I can explain one benefit and one ethical risk of using AI.</li><li>I can collaborate to brainstorm an AI solution for a specific global issue.</li></ul></div><div><h3 class="text-2xl font-bold text-rose-600 mb-3">Final Mission Rubric</h3><div class="overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-rose-50"><th class="border-b-2 p-2">Criterion</th><th class="border-b-2 p-2">5 - Exemplary</th></tr></thead><tbody><tr><td class="border-b p-2 font-semibold">K – Knowledge</td><td class="border-b p-2">The proposal demonstrates deep, comprehensive knowledge of both the chosen global problem and relevant AI concepts (e.g., machine learning, data sets).</td></tr><tr><td class="border-b p-2 font-semibold">A – Analysis</td><td class="border-b p-2">The proposal expertly analyzes the complexities of the problem and how the AI solution would realistically function, including a sophisticated discussion of potential biases and ethical challenges.</td></tr><tr><td class="border-b p-2 font-semibold">S – Structure</td><td class="border-b p-2">The proposal and presentation are exceptionally well-structured, logical, and coherent, guiding the audience through a compelling and easy-to-follow argument from problem to solution.</td></tr><tr><td class="border-b p-2 font-semibold">E – Evidence</td><td class="border-b p-2">All claims about the problem and the potential of the AI solution are supported by strong, relevant, and well-integrated evidence from credible sources (e.g., case studies, data).</td></tr><tr><td class="border-b p-2 font-semibold">C – Clarity</td><td class="border-b p-2">The language is exceptionally clear, precise, and persuasive. Complex technical and social ideas are explained in a way that is accessible and engaging for the audience.</td></tr></tbody></table></div></div></div></div></section>
+            <section id="page-253" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h2 class="text-4xl font-bold text-center text-fuchsia-700 mb-6">Your Final Mission 🚀</h2><div class="readable-content text-xl leading-relaxed max-w-2xl mx-auto bg-gray-50 p-6 rounded-lg"><p class="mb-4">Your task is to create a proposal for an "AI for Good" project to convince the United Nations to fund it.</p><p class="mb-4">Your proposal should outline:</p><ul class="list-disc list-inside text-left space-y-2"><li>The global problem you are solving.</li><li>Your AI-powered solution and the data it needs.</li><li>The potential impact and the ethical risks involved.</li></ul><p class="mt-6 font-bold">Be creative and use the vocabulary you've learned!</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-fuchsia-500 text-white font-bold py-2 px-6 rounded-full hover:bg-fuchsia-600">Read Aloud</button></div></div></section>
+            <section id="page-254" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h2 class="text-4xl font-bold text-indigo-600 mb-4">Congratulations!</h2><p class="text-xl text-gray-600 mb-6">You have completed the "AI for Global Good" unit.</p><div class="bg-indigo-50 border-4 border-dashed border-indigo-300 rounded-lg p-8 max-w-2xl mx-auto"><div class="flex justify-center mb-4"><span class="text-6xl">📜</span></div><h3 class="text-3xl font-bold text-indigo-800">Certificate of Completion</h3><p class="mt-4 text-lg">This certificate is awarded to</p><p id="certificate-name-u6" class="text-2xl font-bold text-indigo-600 my-2 border-b-2 border-gray-400 pb-2">[Enter Your Name Here]</p><p class="mt-4 text-lg">for successfully completing all challenges and demonstrating excellent knowledge of ethical AI solutions.</p><p class="mt-6 text-md"><strong>Final Score:</strong> <span id="certificate-score-u6" class="font-bold"></span> points</p><p class="text-sm mt-1"><strong>Date of Completion:</strong> <span id="certificate-date-u6"></span></p></div><div class="mt-6"><input type="text" id="name-input-u6" placeholder="Enter your name for the certificate" class="text-center p-2 border rounded-lg w-full max-w-md"><button onclick="generateCertificateU6()" class="action-button mt-4 bg-indigo-600 text-white font-bold py-2 px-6 rounded-full hover:bg-indigo-700">Generate Certificate</button></div></div></section>
+
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="feedback-modal">
+        <div id="modal-content" class="feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80">
+            <div id="modal-icon" class="mb-4 text-6xl flex justify-center"></div>
+            <h2 id="modal-title" class="text-4xl font-bold mb-4"></h2>
+            <p id="modal-message" class="text-gray-600"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Game State ---
+            let score = 0;
+            const scoreDisplay = document.getElementById('score-display');
+            let modalTimeout;
+
+            const correctFeedback = ["That's right!", "You got it!", "Excellent!", "Perfect!", "Great thinking!", "Awesome!", "Nailed it!", "Superb!"];
+            const incorrectFeedback = ["Not quite!", "Try again!", "Keep trying!", "You'll get the next one!"];
+            
+            // --- Dynamic Background ---
+            const backgroundColors = ['#e0f2fe', '#e0e7ff', '#dcfce7', '#fff7ed', '#fce7f3', '#cffafe'];
+            let bgColorIndex = 0;
+            setInterval(() => {
+                bgColorIndex = (bgColorIndex + 1) % backgroundColors.length;
+                document.body.style.backgroundColor = backgroundColors[bgColorIndex];
+            }, 5000);
+
+            // --- Score Animation ---
+            function animatePoints(points) {
+                const scoreEl = document.getElementById('score-display');
+                const rect = scoreEl.getBoundingClientRect();
+                const targetX = rect.left + rect.width / 2;
+                const targetY = rect.top + rect.height / 2;
+
+                for (let i = 0; i < points; i++) {
+                    const token = document.createElement('div');
+                    token.className = 'point-token';
+                    document.body.appendChild(token);
+                    
+                    const startX = window.innerWidth / 2 + (Math.random() - 0.5) * 100;
+                    const startY = window.innerHeight / 2 + (Math.random() - 0.5) * 100;
+                    token.style.transform = `translate(${startX - (window.innerWidth/2)}px, ${startY - (window.innerHeight/2)}px)`;
+
+                    setTimeout(() => {
+                        token.style.left = `${targetX}px`;
+                        token.style.top = `${targetY}px`;
+                        token.style.transform = 'scale(0.5)';
+                        token.style.opacity = '0';
+                    }, 50 + i * 30);
+
+                    setTimeout(() => {
+                        token.remove();
+                    }, 1050 + i * 30);
+                }
+            }
+
+            function updateScore(points) {
+                score += points;
+                animatePoints(points);
+                setTimeout(() => {
+                    scoreDisplay.textContent = score;
+                }, 800);
+            }
+
+            // --- Audio & TTS Initialization ---
+            let audioReady = false;
+            let ttsInitialized = false;
+            let synth;
+            const synthTTS = window.speechSynthesis;
+            let maleVoice = null;
+            let femaleVoice = null;
+            let australianMaleVoice = null; // New voice for Australian accent
+            let utteranceQueue = [];
+            let isSpeakingDialogue = false;
+
+            const voicesPromise = new Promise(resolve => {
+                let voices = synthTTS.getVoices();
+                if (voices.length > 0) {
+                    resolve(voices);
+                    return;
+                }
+
+                let timeoutId = null;
+                const onVoicesChanged = () => {
+                    voices = synthTTS.getVoices();
+                    if (voices.length > 0) {
+                        clearTimeout(timeoutId);
+                        resolve(voices);
+                        synthTTS.onvoiceschanged = null;
+                    }
+                };
+
+                synthTTS.onvoiceschanged = onVoicesChanged;
+
+                timeoutId = setTimeout(() => {
+                    console.warn("onvoiceschanged event did not fire in time. Trying getVoices() again.");
+                    voices = synthTTS.getVoices();
+                    resolve(voices);
+                    synthTTS.onvoiceschanged = null;
+                }, 1000); 
+            });
+
+            async function setupVoices() {
+                console.log("Attempting to set up voices...");
+                const voices = await voicesPromise;
+                console.log(`Found ${voices.length} voices.`);
+                if (voices.length === 0) {
+                    console.error("No speech synthesis voices available on this browser after waiting.");
+                    return;
+                }
+
+                const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+
+                // --- Standard Female Voice ---
+                femaleVoice =
+                    englishVoices.find(v => /ava|aria|zira|samantha|female/i.test(v.name) && /online/i.test(v.name)) ||
+                    englishVoices.find(v => /ava|aria|zira|samantha/i.test(v.name)) ||
+                    englishVoices.find(v => /google/i.test(v.name) && /female/i.test(v.name)) ||
+                    englishVoices.find(v => /microsoft/i.test(v.name) && /female/i.test(v.name)) ||
+                    englishVoices.find(v => /female/i.test(v.name)) ||
+                    englishVoices.find(v => v.default);
+
+                // --- Standard Male Voice ---
+                maleVoice =
+                    englishVoices.find(v => /brian|william|alloy|david|male/i.test(v.name) && /online/i.test(v.name)) ||
+                    englishVoices.find(v => /brian|willliam|alloy|david/i.test(v.name)) ||
+                    englishVoices.find(v => /google/i.test(v.name) && /male/i.test(v.name)) ||
+                    englishVoices.find(v => /microsoft/i.test(v.name) && /male/i.test(v.name)) ||
+                    englishVoices.find(v => /male/i.test(v.name)) ||
+                    englishVoices.find(v => v !== femaleVoice);
+
+                // --- Australian Male Voice ---
+                const australianVoices = englishVoices.filter(v => v.lang.startsWith('en-GB'));
+                australianMaleVoice = 
+                    australianVoices.find(v => /male/i.test(v.name)) ||
+                    australianVoices[0];
+
+
+                // --- Fallbacks ---
+                if (!femaleVoice && englishVoices.length > 0) femaleVoice = englishVoices[0];
+                if (!maleVoice && englishVoices.length > 1) maleVoice = englishVoices[1];
+                if (!maleVoice && englishVoices.length > 0) maleVoice = englishVoices[0];
+
+                console.log("Selected Female Voice:", femaleVoice ? femaleVoice.name : "None");
+                console.log("Selected Male Voice:", maleVoice ? maleVoice.name : "None");
+                console.log("Selected Australian Male Voice:", australianMaleVoice ? australianMaleVoice.name : "None (will use standard male)");
+            }
+
+            window.startApp = async function() {
+                if (!audioReady) {
+                    try {
+                        await Tone.start();
+                        synth = new Tone.PolySynth(Tone.Synth, {
+                            oscillator: { type: "sine" },
+                            envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 }
+                        }).toDestination();
+                        audioReady = true;
+                        console.log("Audio context started successfully.");
+                    } catch (e) {
+                        console.error("Could not start audio context:", e);
+                    }
+                }
+
+                if (!ttsInitialized && synthTTS) {
+                    try {
+                        const dummyUtterance = new SpeechSynthesisUtterance(' ');
+                        dummyUtterance.volume = 0;
+                        synthTTS.speak(dummyUtterance);
+                        synthTTS.cancel();
+                        await setupVoices();
+                        ttsInitialized = true;
+                        console.log("TTS Initialized by user action.");
+                    } catch (e) {
+                        console.error("Could not initialize TTS:", e);
+                    }
+                }
+                navigateTo(1);
+            }
+
+            window.playCorrectSound = function() {
+                if (!audioReady || !synth) return;
+                const now = Tone.now();
+                synth.triggerAttackRelease("C5", "8n", now);
+                synth.triggerAttackRelease("G5", "8n", now + 0.1);
+                synth.triggerAttackRelease("E6", "8n", now + 0.2);
+            }
+
+            window.playIncorrectSound = function() {
+                if (!audioReady || !synth) return;
+                const now = Tone.now();
+                synth.triggerAttackRelease("A2", "8n", now);
+            }
+
+            async function speak(text, gender = 'female') {
+                if (!ttsInitialized) {
+                    console.warn("TTS not initialized. Please click 'Start Lesson' first.");
+                    return;
+                }
+                
+                if (synthTTS.speaking) {
+                    synthTTS.cancel();
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                const utterance = new SpeechSynthesisUtterance(text);
+
+                utterance.voice = (gender === 'male' && maleVoice) ? maleVoice : femaleVoice;
+                
+                if (!utterance.voice) { // Fallback if preferred voice not found
+                     utterance.voice = femaleVoice || maleVoice || synthTTS.getVoices().find(v => v.lang.startsWith('en')) || synthTTS.getVoices()[0];
+                }
+
+                if (!utterance.voice) {
+                    console.error("Could not find a suitable voice to speak.");
+                    return;
+                }
+                utterance.rate = 0.85;
+                utterance.pitch = 1;
+                utterance.volume = 1;
+                synthTTS.speak(utterance);
+            }
+            
+            function speakNextInQueue() {
+                if (utteranceQueue.length > 0 && isSpeakingDialogue) {
+                    const utterance = utteranceQueue.shift();
+                    utterance.onend = speakNextInQueue;
+                    synthTTS.speak(utterance);
+                } else {
+                    isSpeakingDialogue = false;
+                }
+            }
+
+            window.readDialogue = async function(buttonElement) {
+                if (synthTTS.speaking) {
+                    isSpeakingDialogue = false;
+                    synthTTS.cancel();
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+                utteranceQueue = [];
+
+                const contentParent = buttonElement.closest('.page, .bg-white');
+                const readableContent = contentParent.querySelector('.readable-content');
+                if (!readableContent) return;
+
+                const speakerGenders = {
+                    'Tom': 'australian', 'Chris': 'australian',
+                    'Alex': 'male', 'Ethan': 'male', 'Lecturer': 'male',
+                    'Mei': 'female', 'Sarah': 'female', 'Olivia': 'female', 'Isabella': 'female'
+                };
+
+                const fullText = readableContent.innerText;
+                const lines = fullText.split('\n').filter(line => line.trim() !== '');
+
+                lines.forEach(lineText => {
+                    const parts = lineText.split(':');
+                    let textToSpeak = lineText;
+                    let gender = 'female'; // Default voice
+
+                    if (parts.length > 1) {
+                        const potentialSpeaker = parts[0].trim();
+                        if (speakerGenders.hasOwnProperty(potentialSpeaker)) {
+                            textToSpeak = parts.slice(1).join(':').trim();
+                            gender = speakerGenders[potentialSpeaker];
+                        }
+                    }
+                    
+                    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+
+                    // Assign voice based on gender type, with fallbacks
+                    if (gender === 'australian' && australianMaleVoice) {
+                        utterance.voice = australianMaleVoice;
+                    } else if (gender === 'male' || (gender === 'australian' && !australianMaleVoice)) {
+                        utterance.voice = maleVoice;
+                    } else {
+                        utterance.voice = femaleVoice;
+                    }
+
+                    // Final fallback if no voice was assigned
+                    if (!utterance.voice) {
+                         utterance.voice = femaleVoice || maleVoice || synthTTS.getVoices().find(v => v.lang.startsWith('en')) || synthTTS.getVoices()[0];
+                    }
+                    utterance.rate = 0.85;
+                    utterance.pitch = 1;
+                    utterance.volume = 1;
+
+                    utteranceQueue.push(utterance);
+                });
+
+                if (utteranceQueue.length > 0) {
+                    isSpeakingDialogue = true;
+                    speakNextInQueue();
+                }
+            }
+
+            window.readText = function(buttonElement) {
+                // Stop any ongoing speech first
+                if (synthTTS.speaking) {
+                    isSpeakingDialogue = false;
+                    synthTTS.cancel();
+                }
+                utteranceQueue = []; // also clear the dialogue queue
+
+                const contentParent = buttonElement.closest('.page, .bg-white');
+                const readableContent = contentParent.querySelector('.readable-content');
+                if (readableContent) {
+                    const textToSpeak = readableContent.innerText.replace(/________/g, 'blank');
+                    speak(textToSpeak, 'female'); // Use the default female voice for single blocks
+                }
+            }
+            
+            // --- State Management & Navigation ---
+            let currentPage = 0;
+            const pageSequence = [0, 1, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 228, 230, 231, 233, 240, 241, 242, 243, 244, 245, 250, 251, 252, 253, 254];
+            const pageHistory = [0];
+
+            window.navigateTo = function(pageNumber) {
+                const targetPage = document.getElementById(`page-${pageNumber}`);
+                if (!targetPage) {
+                    console.error(`Page with ID 'page-${pageNumber}' not found.`);
+                    return;
+                }
+                if (pageNumber === currentPage) return;
+
+                const currentPageEl = document.getElementById(`page-${currentPage}`);
+                if (currentPageEl) currentPageEl.classList.remove('active');
+                targetPage.classList.add('active');
+                currentPage = pageNumber;
+                if (pageHistory[pageHistory.length - 1] !== currentPage) {
+                        pageHistory.push(currentPage);
+                }
+                updateNavButtons();
+                window.scrollTo(0, 0);
+
+                if (targetPage.querySelector('.drop-zone')) {
+                    initializeDragAndDrop(targetPage);
+                }
+            }
+
+            window.goNext = function() {
+                const currentIndex = pageSequence.indexOf(currentPage);
+                if (currentIndex > -1 && currentIndex < pageSequence.length - 1) {
+                    navigateTo(pageSequence[currentIndex + 1]);
+                }
+            }
+
+            window.goBack = function() {
+                if (pageHistory.length > 1) {
+                    pageHistory.pop(); 
+                    const previousPage = pageHistory[pageHistory.length - 1];
+                    const currentPageEl = document.getElementById(`page-${currentPage}`);
+                    if(currentPageEl) currentPageEl.classList.remove('active');
+                    const previousPageEl = document.getElementById(`page-${previousPage}`);
+                    if(previousPageEl) previousPageEl.classList.add('active');
+                    currentPage = previousPage;
+                    updateNavButtons();
+                    window.scrollTo(0, 0);
+                }
+            }
+
+            function updateNavButtons() {
+                const navHeader = document.getElementById('nav-header');
+                if (!navHeader) return;
+                const backButton = navHeader.querySelector('button:first-child');
+                const nextButton = navHeader.querySelector('button:last-child');
+                
+                navHeader.style.display = (currentPage === 0) ? 'none' : 'flex';
+                backButton.disabled = pageHistory.length <= 1;
+                backButton.classList.toggle('opacity-50', backButton.disabled);
+                
+                const currentIndex = pageSequence.indexOf(currentPage);
+                const isLastPageOfSequence = currentIndex === -1 || currentIndex >= pageSequence.length - 1;
+                const isMainMenu = currentPage === 1;
+
+                nextButton.disabled = isLastPageOfSequence || isMainMenu;
+                nextButton.classList.toggle('opacity-50', nextButton.disabled);
+            }
+            
+            // --- Interactive Quiz & Modal Logic ---
+            const modal = document.getElementById('feedback-modal');
+            const modalContent = document.getElementById('modal-content');
+            const modalTitle = document.getElementById('modal-title');
+            const modalIcon = document.getElementById('modal-icon');
+            const modalMessage = document.getElementById('modal-message');
+
+            function showModal(title, message, type = 'info') {
+                modalContent.classList.remove('correct');
+                modalMessage.textContent = message || '';
+
+                if (type === 'correct') {
+                    playCorrectSound();
+                    modalIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                    modalTitle.textContent = title;
+                    modalTitle.className = 'text-4xl font-bold mb-4 text-green-500';
+                    modalContent.className = 'feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80 bg-green-50 correct';
+                } else if (type === 'error') {
+                    playIncorrectSound();
+                    modalIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                    modalTitle.textContent = title;
+                    modalTitle.className = 'text-4xl font-bold mb-4 text-red-500';
+                    modalContent.className = 'feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80 bg-red-50';
+                }
+                modal.classList.add('show');
+                
+                clearTimeout(modalTimeout);
+                modalTimeout = setTimeout(closeModal, 1500);
+             }
+             
+            window.showFeedback = function(isCorrect, buttonElement) {
+                const parent = buttonElement.parentElement;
+                const buttons = parent.querySelectorAll('button');
+                buttons.forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText, 'female');
+                    buttonElement.classList.remove('bg-blue-500', 'bg-red-500', 'bg-gray-500');
+                    buttonElement.classList.add('bg-green-500');
+                    buttonElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
+                    showModal('Correct!', `${feedbackText} (+10 points)`, 'correct');
+                    updateScore(10);
+                } else {
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText, 'female');
+                    buttonElement.classList.remove('bg-blue-500', 'bg-red-500', 'bg-gray-500');
+                    buttonElement.classList.add('bg-red-500');
+                    buttonElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+                    showModal('Try Again!', feedbackText, 'error');
+                }
+            }
+
+            window.checkAnswer = function(button, isCorrect) {
+                const questionGroup = button.closest('.question-group');
+                const options = questionGroup.querySelectorAll('.quiz-option');
+
+                options.forEach(opt => {
+                    opt.disabled = true;
+                });
+
+                if (isCorrect) {
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText, 'female');
+                    button.classList.remove('bg-white');
+                    button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                    button.innerHTML = `<span class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> ${button.textContent}</span>`;
+                    showModal('Correct!', `${feedbackText} (+10 points)`, 'correct');
+                    updateScore(10);
+                } else {
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText, 'female');
+                    button.classList.remove('bg-white');
+                    button.classList.add('bg-red-500', 'border-red-600', 'text-white');
+                    button.innerHTML = `<span class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg> ${button.textContent}</span>`;
+                    
+                    options.forEach(opt => {
+                        if (opt.getAttribute('onclick').includes('true')) {
+                            opt.classList.remove('bg-white');
+                            opt.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                        }
+                    });
+                    showModal('Try Again!', feedbackText, 'error');
+                }
+            }
+            
+            window.closeModal = function() {
+                clearTimeout(modalTimeout);
+                modal.classList.remove('show');
+            }
+            
+            // --- Drag and Drop Logic ---
+            function initializeDragAndDrop(pageElement) {
+                const draggables = pageElement.querySelectorAll('.draggable-word');
+                const dropZones = pageElement.querySelectorAll('.drop-zone');
+
+                draggables.forEach(draggable => {
+                    draggable.addEventListener('dragstart', handleDragStart);
+                    draggable.addEventListener('dragend', handleDragEnd);
+                });
+
+                dropZones.forEach(zone => {
+                    zone.addEventListener('dragover', handleDragOver);
+                    zone.addEventListener('dragleave', handleDragLeave);
+                    zone.addEventListener('drop', handleDrop);
+                });
+            }
+
+            function handleDragStart(e) {
+                e.dataTransfer.setData('text/plain', e.target.id);
+                setTimeout(() => { e.target.classList.add('dragging'); }, 0);
+            }
+            
+            function handleDragEnd(e) {
+                e.target.classList.remove('dragging');
+            }
+
+            function handleDragOver(e) {
+                e.preventDefault();
+                e.currentTarget.classList.add('drag-over');
+            }
+
+            function handleDragLeave(e) {
+                e.currentTarget.classList.remove('drag-over');
+            }
+
+            function handleDrop(e) {
+                e.preventDefault();
+                e.currentTarget.classList.remove('drag-over');
+                const id = e.dataTransfer.getData('text');
+                const draggableElement = document.getElementById(id);
+                const dropZone = e.currentTarget;
+
+                const correctAnswer = dropZone.dataset.answer;
+                const droppedWord = draggableElement.dataset.word;
+
+                if (correctAnswer === droppedWord) {
+                    if (dropZone.children.length > 0) {
+                        const originalBank = draggableElement.closest('.page').querySelector('.flex-wrap');
+                        originalBank.appendChild(dropZone.children[0]);
+                    }
+                    dropZone.innerHTML = '';
+                    dropZone.appendChild(draggableElement);
+                    draggableElement.classList.remove('dragging');
+                    draggableElement.setAttribute('draggable', 'false');
+                    dropZone.classList.add('correct');
+                    
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText, 'female');
+                    playCorrectSound();
+                    updateScore(10);
+
+                    const allZones = dropZone.closest('.page').querySelectorAll('.drop-zone');
+                    const allFilled = Array.from(allZones).every(zone => zone.children.length > 0);
+                    if (allFilled) {
+                        const completionText = 'Well Done! You matched all the words!';
+                        speak(completionText, 'female');
+                        setTimeout(() => showModal('Well Done!', completionText, 'correct'), 500);
+                    }
+                } else {
+                    draggableElement.classList.remove('dragging');
+                    draggableElement.classList.add('shake');
+                    setTimeout(() => draggableElement.classList.remove('shake'), 500);
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText, 'female');
+                    playIncorrectSound();
+                }
+            }
+
+            window.showMatchingAnswersU6 = function() {
+                speak("Here are the correct matches.", 'female');
+                const answers = {
+                    'term-u6-1': 'def-u6-D', // algorithm
+                    'term-u6-2': 'def-u6-E', // bias
+                    'term-u6-3': 'def-u6-A', // data set
+                    'term-u6-4': 'def-u6-B', // ethical
+                    'term-u6-5': 'def-u6-C'  // diagnosis
+                };
+
+                const svg = document.getElementById('matching-svg-u6');
+                svg.innerHTML = ''; 
+
+                setTimeout(() => {
+                    for (const termId in answers) {
+                        const defId = answers[termId];
+                        const termEl = document.getElementById(termId);
+                        const defEl = document.getElementById(defId);
+                        if (!termEl || !defEl) continue;
+
+                        const rect1 = termEl.getBoundingClientRect();
+                        const rect2 = defEl.getBoundingClientRect();
+                        const containerRect = svg.getBoundingClientRect();
+
+                        const x1 = (rect1.right - containerRect.left) + 5;
+                        const y1 = (rect1.top + rect1.height / 2) - containerRect.top;
+                        const x2 = (rect2.left - containerRect.left) - 5;
+                        const y2 = (rect2.top + rect2.height / 2) - containerRect.top;
+
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', x1);
+                        line.setAttribute('y1', y1);
+                        line.setAttribute('x2', x2);
+                        line.setAttribute('y2', y2);
+                        line.setAttribute('class', 'matching-line');
+                        svg.appendChild(line);
+                    }
+                }, 100);
+                
+                document.getElementById('show-answers-btn-u6').style.display = 'none';
+                playCorrectSound();
+            }
+
+            window.generateCertificateU6 = function() {
+                const name = document.getElementById('name-input-u6').value || "Ethical Innovator";
+                document.getElementById('certificate-name-u6').textContent = name;
+                document.getElementById('certificate-score-u6').textContent = score;
+                document.getElementById('certificate-date-u6').textContent = new Date().toLocaleDateString();
+                speak(`Congratulations, ${name}! You have completed the unit.`, 'female');
+            }
+
+            // --- Initial Setup ---
+            updateNavButtons();
+        });
+    </script>
+</body>
+</html>

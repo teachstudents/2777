@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unit 5: The Zero-Waste Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Using a system font stack for broad compatibility and performance -->
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            overscroll-behavior: none;
+            /* Dynamic Background Animation */
+            transition: background-color 2s ease-in-out;
+            background-color: #ecfdf5; /* Initial color for Unit 5 */
+        }
+
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes correctBounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        .menu-button, .nav-button, .action-button {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        .menu-button:hover, .nav-button:hover, .action-button:hover {
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+        .menu-button:active, .nav-button:active, .action-button:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+
+        .quiz-option {
+            transition: all 0.2s ease-in-out;
+            border: 2px solid #e5e7eb;
+        }
+        .quiz-option:hover:not(:disabled) {
+            background-color: #ccfbf1; /* light teal */
+            border-color: #14b8a6; /* teal */
+            transform: scale(1.02);
+        }
+        .feedback-modal {
+            display: none;
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .feedback-modal.show {
+            display: flex;
+        }
+        .feedback-modal-content.correct {
+            animation: correctBounce 0.5s ease;
+        }
+        .matching-line {
+            stroke: #60a5fa; /* blue-400 */
+            stroke-width: 3;
+            stroke-dasharray: 5;
+            animation: drawLine 0.8s ease-out forwards;
+            transition: all 0.3s ease;
+        }
+        @keyframes drawLine {
+            from { stroke-dashoffset: 1000; }
+            to { stroke-dashoffset: 0; }
+        }
+        .point-token {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            width: 20px;
+            height: 20px;
+            background-color: #facc15; /* amber-400 */
+            border-radius: 50%;
+            border: 2px solid #ca8a04; /* amber-600 */
+            z-index: 200;
+            transition: all 1s cubic-bezier(0.5, -0.5, 0.5, 1.5);
+            pointer-events: none;
+            opacity: 1;
+        }
+
+        /* --- Styles for Drag and Drop --- */
+        .draggable-word {
+            cursor: grab;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            user-select: none;
+        }
+        .dragging {
+            opacity: 0.5;
+            transform: scale(1.1);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            cursor: grabbing;
+        }
+        .drop-zone {
+            border: 2px dashed #cbd5e1; /* gray-300 */
+            min-height: 44px;
+            min-width: 150px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+            vertical-align: middle;
+        }
+        .drop-zone.drag-over {
+            background-color: #f0fdfa; /* teal-50 */
+            border-color: #14b8a6; /* teal-500 */
+        }
+        .drop-zone.correct {
+            border: 2px solid #0d9488; /* teal-600 */
+            background-color: #f0fdfa; /* teal-50 */
+        }
+        .drop-zone .draggable-word {
+            cursor: default;
+        }
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .shake {
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+
+    <!-- Tone.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <!-- Navigation Header -->
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm shadow-sm" style="display: none;">
+        <div class="max-w-4xl mx-auto p-2 flex justify-between items-center">
+            <button onclick="goBack()" class="nav-button bg-white text-gray-700 font-bold py-2 px-4 rounded-full hover:bg-gray-200 flex items-center gap-2 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+            Back
+            </button>
+            <div class="font-bold text-xl text-teal-600">
+                Score: <span id="score-display">0</span>
+            </div>
+            <button onclick="navigateTo(1)" class="nav-button bg-gray-800 text-white font-bold py-2 px-4 rounded-full hover:bg-gray-900 flex items-center gap-2 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L10 4.414l5.293 5.293a1 1 0 001.414-1.414l-7-7z" /><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm0 2a10 10 0 100-20 10 10 0 000 20z" /></svg>
+             Home
+            </button>
+            <button onclick="goNext()" class="nav-button bg-teal-500 text-white font-bold py-2 px-4 rounded-full hover:bg-teal-600 flex items-center gap-2 text-lg">
+            Next
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+            </button>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8 pt-20">
+
+        <!-- Page 0: Title Screen -->
+        <section id="page-0" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 class="text-5xl md:text-6xl font-bold text-teal-700 mb-4">Unit 5: The Zero-Waste Challenge</h1>
+                <p class="text-xl md:text-2xl text-gray-600 mb-8">Rethinking Our Rubbish</p>
+                <svg viewBox="0 0 600 300" class="rounded-lg shadow-md mb-8 w-full max-w-lg mx-auto" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="skyGradient5" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#ccfbf1;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#f0fdfa;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <rect width="600" height="300" fill="url(#skyGradient5)"/>
+                    <!-- Bins -->
+                    <rect x="50" y="180" width="80" height="100" fill="#2563eb" rx="5"/>
+                    <rect x="150" y="180" width="80" height="100" fill="#16a34a" rx="5"/>
+                    <rect x="250" y="180" width="80" height="100" fill="#ca8a04" rx="5"/>
+                    <rect x="350" y="180" width="80" height="100" fill="#4b5563" rx="5"/>
+                    <!-- Recycling Symbols -->
+                    <text x="75" y="240" font-size="40">📄</text>
+                    <text x="175" y="240" font-size="40">🌿</text>
+                    <text x="275" y="240" font-size="40">♻️</text>
+                    <text x="375" y="240" font-size="40">🗑️</text>
+                    <!-- Person -->
+                    <text x="480" y="250" font-size="70">🙋</text>
+                    <!-- Items -->
+                    <text x="470" y="150" font-size="40">🍌</text>
+                    <text x="520" y="120" font-size="40">🍾</text>
+                    <!-- Arrows -->
+                    <path d="M 485 170 Q 350 150 190 200" stroke="#0d9488" stroke-width="3" fill="none" stroke-dasharray="8, 4"/>
+                    <path d="M 535 140 Q 450 130 290 200" stroke="#0d9488" stroke-width="3" fill="none" stroke-dasharray="8, 4"/>
+                </svg>
+                <button onclick="startApp()" class="action-button bg-teal-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-teal-700">
+                    START LESSON
+                </button>
+            </div>
+        </section>
+
+        <!-- Page 1: Main Menu -->
+        <section id="page-1" class="page">
+            <div class="bg-white rounded-2xl shadow-lg p-8">
+                <h2 class="text-4xl font-bold text-center text-teal-700 mb-8">Main Menu</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <button onclick="navigateTo(201)" class="menu-button bg-teal-500 text-white p-6 rounded-xl text-xl font-semibold">💡 Vocabulary</button>
+                    <button onclick="navigateTo(212)" class="menu-button bg-cyan-500 text-white p-6 rounded-xl text-xl font-semibold">📖 Reading</button>
+                    <button onclick="navigateTo(217)" class="menu-button bg-emerald-500 text-white p-6 rounded-xl text-xl font-semibold">🗣️ Conversation</button>
+                    <button onclick="navigateTo(220)" class="menu-button bg-lime-600 text-white p-6 rounded-xl text-xl font-semibold">🎙️ Podcast</button>
+                    <button onclick="navigateTo(240)" class="menu-button bg-sky-500 text-white p-6 rounded-xl text-xl font-semibold">🎤 Lecture</button>
+                    <button onclick="navigateTo(225)" class="menu-button bg-red-500 text-white p-6 rounded-xl text-xl font-semibold">🚚 Runaway Truck Dilemma</button>
+                    <button onclick="navigateTo(230)" class="menu-button bg-orange-500 text-white p-6 rounded-xl text-xl font-semibold">🗑️ Roommate Challenge Dilemma</button>
+                    <button onclick="navigateTo(253)" class="menu-button bg-purple-500 text-white p-6 rounded-xl text-xl font-semibold">🎯 Mission</button>
+                    <button onclick="navigateTo(250)" class="menu-button bg-rose-500 text-white p-6 rounded-xl text-xl font-semibold">📜 Unit Plan</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Container for ALL lesson pages -->
+        <div id="dynamic-pages-container">
+            
+            <!-- Unit 5 Vocabulary Flashcards (Pages 201-210) -->
+            <section id="page-201" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 1 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Zero-waste</h2><p class="text-2xl text-gray-600 mb-4">A philosophy that encourages the redesign of resource life cycles so that all products are reused.</p><p class="text-xl text-gray-500 italic">"The zero-waste movement aims to send nothing to a landfill."</p></div></div></section>
+            <section id="page-202" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 2 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Consumption</h2><p class="text-2xl text-gray-600 mb-4">The action of using up a resource.</p><p class="text-xl text-gray-500 italic">"We need to reduce our consumption of single-use products."</p></div></div></section>
+            <section id="page-203" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 3 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Landfill</h2><p class="text-2xl text-gray-600 mb-4">A place where waste is buried under the ground.</p><p class="text-xl text-gray-500 italic">"Most of our city’s rubbish ends up in a landfill."</p></div></div></section>
+            <section id="page-204" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 4 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Upcycle</h2><p class="text-2xl text-gray-600 mb-4">To reuse discarded objects to create a product of higher quality or value.</p><p class="text-xl text-gray-500 italic">"She decided to upcycle old glass jars into beautiful lanterns."</p></div></div></section>
+            <section id="page-205" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 5 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Compost</h2><p class="text-2xl text-gray-600 mb-4">Decayed organic material used as a plant fertilizer.</p><p class="text-xl text-gray-500 italic">"Fruit and vegetable peels can be turned into compost."</p></div></div></section>
+            <section id="page-206" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 6 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Audit</h2><p class="text-2xl text-gray-600 mb-4">An official inspection or examination of something.</p><p class="text-xl text-gray-500 italic">"We conducted a waste audit to see what our school throws away most often."</p></div></div></section>
+            <section id="page-207" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 7 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Disposable</h2><p class="text-2xl text-gray-600 mb-4">Intended to be used once and then thrown away.</p><p class="text-xl text-gray-500 italic">"Disposable coffee cups create a huge amount of waste."</p></div></div></section>
+            <section id="page-208" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 8 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Resource</h2><p class="text-2xl text-gray-600 mb-4">A stock or supply of materials that can be used.</p><p class="text-xl text-gray-500 italic">"When you throw something away, you are wasting the resources used to make it."</p></div></div></section>
+            <section id="page-209" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 9 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Mindset</h2><p class="text-2xl text-gray-600 mb-4">The established set of attitudes held by someone.</p><p class="text-xl text-gray-500 italic">"Living with less waste requires a change in mindset."</p></div></div></section>
+            <section id="page-210" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-teal-600 mb-2">Vocabulary Word 10 / 10</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">Packaging</h2><p class="text-2xl text-gray-600 mb-4">Materials used to wrap or protect goods.</p><p class="text-xl text-gray-500 italic">"Try to buy products with minimal or no packaging."</p></div></div></section>
+
+            <!-- Unit 5 Vocabulary Quiz (Page 211) -->
+            <section id="page-211" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 relative"><h3 class="text-2xl font-bold text-teal-600 mb-6 text-center">Vocabulary Practice: Matching Definitions</h3><div class="grid grid-cols-2 gap-x-8 relative"><div class="space-y-4 flex flex-col items-start"><div id="term-u5-1" class="bg-cyan-100 p-3 rounded-lg w-full text-center">1. landfill</div><div id="term-u5-2" class="bg-cyan-100 p-3 rounded-lg w-full text-center">2. upcycle</div><div id="term-u5-3" class="bg-cyan-100 p-3 rounded-lg w-full text-center">3. consumption</div><div id="term-u5-4" class="bg-cyan-100 p-3 rounded-lg w-full text-center">4. audit</div><div id="term-u5-5" class="bg-cyan-100 p-3 rounded-lg w-full text-center">5. disposable</div></div><div class="space-y-4 flex flex-col items-end"><div id="def-u5-A" class="bg-amber-100 p-3 rounded-lg w-full text-center">A. To create a better product from old items.</div><div id="def-u5-B" class="bg-amber-100 p-3 rounded-lg w-full text-center">B. An official inspection.</div><div id="def-u5-C" class="bg-amber-100 p-3 rounded-lg w-full text-center">C. A place where trash is buried.</div><div id="def-u5-D" class="bg-amber-100 p-3 rounded-lg w-full text-center">D. Designed to be used only once.</div><div id="def-u5-E" class="bg-amber-100 p-3 rounded-lg w-full text-center">E. The act of using up a resource.</div></div></div><svg id="matching-svg-u5" class="absolute top-0 left-0 w-full h-full pointer-events-none"></svg><div class="text-center mt-8"><button id="show-answers-btn-u5" onclick="showMatchingAnswersU5()" class="action-button bg-teal-600 text-white font-bold py-2 px-6 rounded-full hover:bg-teal-700">Show Answers</button></div></div></section>
+
+            <!-- Unit 5 Reading Section (Pages 212-216) -->
+            <section id="page-212" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-cyan-700 mb-6">Reading: Pre-Reading 📖</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>What do you think the “5 Rs” of zero-waste might be? (Hint: Recycle is one of them).</li><li>Is it possible for a person to create absolutely no trash? Why or why not?</li><li>What are some challenges you might face if you tried to live a zero-waste lifestyle?</li></ol><h3 class="text-2xl font-bold text-cyan-600 mt-6 mb-3">Reading Skill: Sequencing and Prioritizing</h3><p>As you read, identify the order of importance in the “5 R” process. Which 'R' is the most important first step?</p></div></div></section>
+            <section id="page-213" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-cyan-700 mb-6">Reading Texts</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="font-bold text-2xl text-cyan-600">Living with Less Trash</h3><p>The zero-waste idea is simple: try to send no trash to the landfill. It starts with the 5 Rs. The first R is “Refuse.” This means saying “no” to things you don’t need, like a plastic bag at a shop. The next is “Reduce,” which means using less. Then “Reuse,” like using a water bottle again. The last two are “Recycle” and “Rot” (which means to compost food scraps). It is a new mindset about our stuff.</p><h3 class="font-bold text-2xl text-cyan-600 mt-6">An Introduction to the Zero-Waste Lifestyle</h3><p>The zero-waste movement is a lifestyle choice and a mindset focused on drastically reducing personal consumption and waste. The goal is not perfection, but to make conscious choices. The movement is guided by a hierarchy of five principles, known as the “5 Rs.” 1. Refuse: This is the most important step. Refuse what you do not need, such as freebies, plastic straws, and junk mail. 2. Reduce: Lower your consumption of goods. Think about what you truly need before you buy. 3. Reuse: Replace disposable items with reusable alternatives. For example, use cloth bags instead of plastic ones and bring your own coffee cup. You can also upcycle old items into something new. 4. Recycle: Recycle what you cannot refuse, reduce, or reuse. This should be seen as a last option, not the first. 5. Rot: Compost your organic waste, like food scraps. This turns waste into a valuable resource for soil. By following these steps, we can significantly decrease the amount of trash we send to the landfill.</p><h3 class="font-bold text-2xl text-cyan-600 mt-6">Systems Thinking and the Zero-Waste Philosophy</h3><p>The zero-waste philosophy is more than just a personal challenge; it’s a call to redesign our entire system of production and consumption. It challenges the linear “take-make-dispose” model and promotes a circular one where resources are never wasted. At its core is the 5R hierarchy: Refuse, Reduce, Reuse, Recycle, and Rot (compost). This order is critical; recycling, while important, is positioned near the end because it still consumes significant energy and is often inefficient. The primary focus is on “pre-cycling”—preventing waste from being created in the first place. This requires a fundamental mindset shift. For individuals, it means performing a personal waste audit to understand their impact and then systematically finding alternatives, such as buying food without packaging or learning to upcycle materials. For society, it means demanding that corporations take responsibility for the entire life cycle of their products. A zero-waste approach reveals that trash is not just a personal failing but a design flaw in our systems. By consciously refusing, reducing, and reusing, consumers send a powerful market signal for a world with less waste and more value.</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-cyan-500 text-white font-bold py-2 px-6 rounded-full hover:bg-cyan-600">Read Aloud</button></div></div></section>
+            <section id="page-214" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-cyan-600 mb-4 text-center">Comprehension: Drag & Drop</h3><div class="readable-content bg-gray-50 p-6 rounded-lg text-xl leading-relaxed space-y-4"><ol class="list-decimal list-inside space-y-4"><li class="flex items-center gap-2 flex-wrap">A waste <div id="read-drop-u5-1" class="drop-zone" data-answer="audit"></div> can help you understand what you throw away.</li><li class="flex items-center gap-2 flex-wrap">Instead of throwing away old t-shirts, you can <div id="read-drop-u5-2" class="drop-zone" data-answer="upcycle"></div> them into cleaning rags.</li><li class="flex items-center gap-2 flex-wrap">The zero-waste <div id="read-drop-u5-3" class="drop-zone" data-answer="mindset"></div> encourages people to think differently about their trash.</li><li class="flex items-center gap-2 flex-wrap">A lot of unnecessary waste comes from product <div id="read-drop-u5-4" class="drop-zone" data-answer="packaging"></div>.</li><li class="flex items-center gap-2 flex-wrap">Food scraps should not go to the <div id="read-drop-u5-5" class="drop-zone" data-answer="landfill"></div>; they can be turned into nutrient-rich compost.</li></ol></div><div class="mt-6 text-center"><p class="font-semibold mb-2">Word Bank:</p><div id="read-word-bank-u5" class="flex flex-wrap justify-center gap-3 p-4 bg-gray-100 rounded-lg"><div id="drag-read-u5-1" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="audit">audit</div><div id="drag-read-u5-2" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="upcycle">upcycle</div><div id="drag-read-u5-3" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="mindset">mindset</div><div id="drag-read-u5-4" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="packaging">packaging</div><div id="drag-read-u5-5" class="draggable-word bg-gray-200 px-3 py-1 rounded-full" draggable="true" data-word="landfill">landfill</div></div></div></div></section>
+            <section id="page-215" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-cyan-600 mb-4 text-center">Comprehension: True/False</h3><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>1. In the 5R hierarchy, recycling is the most important step.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>2. “Refuse” means buying more things than you need.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>3. A waste audit is a way to measure what you throw away.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>4. The zero-waste movement is only about recycling more.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>5. Upcycling gives old items a new, higher-value purpose.</p></div></div></div></section>
+            <section id="page-216" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-cyan-600 mb-4 text-center">Comprehension: Multiple Choice</h3><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What is the primary goal of the zero-waste philosophy?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. To make recycling more profitable.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. To encourage people to buy more things.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. To prevent waste from being created in the first place.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. To make landfills bigger and more efficient.</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">2. According to the 5R hierarchy, what should you try to do before you think about recycling?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">A. Refuse, Reduce, and Reuse.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Compost, Consume, and Create.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Audit, Package, and Dispose.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Buy, Use, and Throw Away.</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">3. The texts suggest that trash is not just a personal problem, but also a...</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Fun hobby.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Good business opportunity.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Design flaw in our systems.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Problem that will solve itself.</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">4. What is an example of “Refusing”?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Buying a coffee in a disposable cup.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Saying “no, thank you” to a plastic straw at a restaurant.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Putting a plastic bottle in the recycling bin.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Using a reusable water bottle.</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">5. Germany’s Mülltrennung system is a real-world example of...</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. A zero-waste society with no trash.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. A focus on the “Recycle” and “Rot” parts of the 5 Rs.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. A system with only one type of bin for everything.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. A way to encourage more consumption.</button></div></div></div></div></section>
+
+            <!-- Unit 5 Conversation & Discussion (Pages 217-219) -->
+            <section id="page-217" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-emerald-700 mb-6">Conversation Practice 🗣️</h2><div class="readable-content bg-gray-50 p-6 rounded-lg space-y-4 text-xl"><div class="flex gap-4"><span class="font-bold text-emerald-600">Yuki:</span><p>I tried to pay attention to my trash yesterday. It’s amazing how much packaging we throw away without thinking.</p></div><div class="flex gap-4"><span class="font-bold text-cyan-600">David:</span><p>Tell me about it! My lunch alone had three different plastic wrappers. It seems to me that it’s almost impossible to avoid.</p></div><div class="flex gap-4"><span class="font-bold text-emerald-600">Yuki:</span><p>I see your point, but I think the first step, “Refuse,” is the most powerful. Like bringing your own bag to the supermarket.</p></div><div class="flex gap-4"><span class="font-bold text-cyan-600">David:</span><p>That’s a good point. It’s a small change in habit. However, what about things like toothpaste or shampoo? They always come in plastic.</p></div><div class="flex gap-4"><span class="font-bold text-emerald-600">Yuki:</span><p>That’s a tricky one. I’ve seen some zero-waste shops that sell solid shampoo bars and toothpaste tablets. I wonder if those are good alternatives.</p></div><div class="flex gap-4"><span class="font-bold text-cyan-600">David:</span><p>That’s an interesting idea. It requires more effort than just going to the normal supermarket, though. It’s a change in mindset.</p></div><div class="flex gap-4"><span class="font-bold text-emerald-600">Yuki:</span><p>Exactly. But I believe if more people demand these products, they will become more common and easier to find.</p></div><div class="flex gap-4"><span class="font-bold text-cyan-600">David:</span><p>You’ve convinced me. I’m going to try the “Zero-Waste Week Challenge.” It sounds difficult but rewarding.</p></div></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-emerald-500 text-white font-bold py-2 px-6 rounded-full hover:bg-emerald-600">Read Aloud</button></div></div></section>
+            <section id="page-218" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-emerald-700 mb-6">Discussion Questions</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-emerald-600 mb-3">Higher-Order Thinking</h3><ul class="list-disc list-inside space-y-2"><li><b>Remembering:</b> List the 5 Rs in the correct order of priority.</li><li><b>Understanding:</b> Explain the difference between upcycling and recycling.</li><li><b>Applying:</b> Choose one room in your home (e.g., kitchen, bathroom) and identify three ways you could apply the 5 Rs to reduce waste there.</li><li><b>Analyzing:</b> Analyze the challenges a large, busy family might face when trying to adopt a zero-waste lifestyle compared to a single person.</li><li><b>Evaluating:</b> Defend or critique the statement: “Individual actions don’t matter; only large corporations and governments can solve the waste crisis.”</li><li><b>Creating:</b> Design a new, zero-waste packaging solution for a product that is currently sold in a lot of plastic (e.g., potato chips, laundry detergent).</li></ul></div></div></section>
+            <section id="page-219" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-emerald-700 mb-6">Exam Practice (IELTS/TOEFL)</h2><div class="readable-content text-lg leading-relaxed space-y-6 bg-gray-50 p-6 rounded-lg"><div class="space-y-2"><h3 class="text-2xl font-bold text-emerald-600">IELTS Part 1</h3><ul class="list-disc list-inside"><li>What do you usually do with things you don’t need anymore?</li><li>Do you think it’s important to recycle? Why or why not?</li><li>What did you do the last time you bought something in a lot of packaging?</li></ul></div><div class="space-y-2"><h3 class="text-2xl font-bold text-emerald-600">IELTS Part 2 (Cue Card)</h3><p>Describe something you did to help protect the environment. You should say: what you did, when and where you did it, who you did it with, and explain why you think it was important.</p></div><div class="space-y-2"><h3 class="text-2xl font-bold text-emerald-600">IELTS Part 3</h3><ul class="list-disc list-inside"><li>Why do some people think it is difficult to be environmentally friendly?</li><li>How can we encourage children to have good habits regarding the environment?</li><li>What is the role of advertising in people’s consumption habits?</li></ul></div><div class="space-y-2"><h3 class="text-2xl font-bold text-emerald-600">TOEFL Independent Speaking</h3><p>Some people prefer to buy new things, while others prefer to buy used things. Which do you prefer and why? Use specific reasons and examples to support your choice.</p></div></div></div></section>
+
+            <!-- Unit 5 Podcast (Pages 220-224) -->
+            <section id="page-220" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-lime-700 mb-6">Podcast: Warm-Up 🧠</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>What do you think “zero waste” means?</li><li>Is it possible to live without creating any waste? Why or why not?</li><li>What kinds of waste do you see in daily life?</li><li>How can businesses reduce waste?</li><li>What are some ways people can help protect the environment?</li></ol></div></div></section>
+            <section id="page-221" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-lime-700 mb-6">Podcast: Vocabulary</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ul class="space-y-3"><li><strong>Zero waste:</strong> A lifestyle or system that tries to produce no trash</li><li><strong>Circular economy:</strong> A system where products are reused, repaired, or recycled</li><li><strong>Resource efficiency:</strong> Using materials in a smart way to avoid waste</li><li><strong>Consumer behavior:</strong> How people buy and use products</li><li><strong>Sustainable option:</strong> A choice that is better for the environment</li><li><strong>Product life cycle:</strong> The journey of a product from creation to disposal</li><li><strong>Systemic change:</strong> Big changes in how society or industries work</li><li><strong>Marketing gimmick:</strong> A trick used to make something sound better than it is</li><li><strong>Refill store:</strong> A shop where you bring your own containers to reduce packaging</li><li><strong>Community composting:</strong> A local program to turn food waste into soil</li></ul></div></div></section>
+            <section id="page-222" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-lime-700 mb-6">Podcast: Transcript 🎙️</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong class="text-blue-800">Alex:</strong> Alright team, let's talk about this zero waste challenge everyone's buzzing about. Honestly, it sounds pretty unrealistic to me. Zero waste. In today's world, I'm not buying it.</p><p><strong class="text-purple-800">Sarah:</strong> Oh, I disagree Alex. While zero might be an ambitious target, I think the trend behind it is incredibly important. It forces us to rethink our consumption habits entirely. But I do wonder about the practicality for large businesses.</p><p><strong class="text-green-800">Chris:</strong> Yeah, fair point Sarah. G’Day both. I reckon the zero bit is a bit of a stretch for most folks and businesses too. It feels like a bit of a marketing gimmick sometimes, doesn't it? What about all the packaging and unavoidable by-products? It's a massive ask.</p><p><strong class="text-blue-800">Alex:</strong> Exactly Chris. It's like trying to bail out the ocean with a teacup. How can you possibly eliminate all waste? Think about manufacturing, healthcare, even just buying groceries. There's waste built into the system.</p><p><strong class="text-purple-800">Sarah:</strong> Perhaps the focus should be on drastically reducing waste and maximizing resource efficiency rather than absolute zero. It's about circularity, isn't it? Designing products that can be reused, repaired or easily recycled. That feels more achievable.</p><p><strong class="text-blue-800">Alex:</strong> That makes more sense, Sarah. A circular economy approach. That's something I can get behind. Less about feel-good slogans and more about practical design and infrastructure changes. But even with that, there's still the issue of consumer behavior. How do you get everyone on board?</p><p><strong class="text-green-800">Chris:</strong> Consumer behavior is a huge hurdle. People are used to convenience. Asking them to change deeply ingrained habits—that's tough. It requires education, incentives, and making the sustainable option the easiest option, which feels like a long way off.</p><p><strong class="text-purple-800">Sarah:</strong> It won't happen overnight, certainly. But I've seen some inspiring initiatives—local refill stores, community composting programs, businesses taking responsibility for their product life cycle. It shows that change is possible, even if it starts small. It gives me hope, honestly.</p><p><strong class="text-blue-800">Alex:</strong> Yeah, seeing those local efforts is encouraging. Maybe the zero waste challenge is less about hitting zero right away, and more about setting an ambitious goal to drive innovation and systemic change. It's about pushing the boundaries of what we thought was possible with waste management and production.</p><p><strong class="text-green-800">Chris:</strong> Righto, it's a fair dinkum challenge, but one worth tackling—designing for less waste from the get-go, sorting properly, supporting circular businesses. Every little bit helps. We might not hit zero, but aiming high is better than not trying at all, eh?</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-lime-600 text-white font-bold py-2 px-6 rounded-full hover:bg-lime-700">Read Aloud</button></div></div></section>
+            <section id="page-223" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-lime-700 mb-6">Podcast Quiz: Multiple Choice ✅</h2><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What is Alex’s first opinion about the zero waste challenge?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. It’s a great idea</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. It’s unrealistic</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. It’s already working</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. It’s easy to do</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">2. What does Sarah say is the value of the zero waste idea?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. It helps businesses make more money</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. It forces people to rethink consumption habits</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. It makes shopping more fun</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. It reduces food waste only</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">3. What does Chris compare the zero waste goal to?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Building a house</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Flying a plane</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Bailing out the ocean with a teacup</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Planting a tree</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">4. What is one solution the group agrees is more realistic than “zero”?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Buying more products</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Creating more packaging</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Designing for reuse and recycling</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Using more plastic</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">5. What do the speakers say is needed to move toward zero waste?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Only government action</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Only individual effort</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. A mix of policy, business, and personal action</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Nothing, it’s impossible</button></div></div></div></div></section>
+            <section id="page-224" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-lime-700 mb-6">Podcast Quiz: True / False / Not Given 🔍</h2><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. Sarah believes zero waste is a useful goal even if it’s hard to reach.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. Chris thinks zero waste is already working in most cities.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. The conversation mentions composting programs.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. Alex says zero waste is only for rich people.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. The speakers agree that aiming for zero waste can inspire innovation.</p></div></div></div></section>
+            
+            <!-- Dilemmas -->
+            <section id="page-225" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-600 mb-6">Runaway Truck Dilemma: Transcript 🚚</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong class="text-blue-800">Michael:</strong> So, uh moving on to another scenario about the runaway garbage truck. This is, this is a really tough one. Swerve into the noodle shop or go straight into the market?</p><p><strong class="text-purple-800">Sophie:</strong> Indeed. A truly awful choice between physical harm and economic devastation. As the driver, I suppose, thinking about it, in my opinion, the best course of action is to swerve and crash into the noodle shop.</p><p><strong class="text-green-800">Chris:</strong> Yeah, I see your point, Sophie, about avoiding physical injury, but I have a different perspective. I believe we should choose to continue straight into the market. This is justified because, from my perspective, the most ethical choice is not intentionally destroying someone's livelihood and only source of income. That noodle shop is everything to that family.</p><p><strong class="text-blue-800">Michael:</strong> Hmm, I understand why you say that, Chris. The impact on the family's livelihood is huge. But um, while it is true that swerving destroys the shop, I still believe that preventing physical injury to five people is more critical right now. The evidence suggests that physical harm has a more immediate and irreversible impact.</p><p><strong class="text-purple-800">Sophie:</strong> Precisely, Michael. And could you please explain what you mean by most ethical, Chris? I'm not sure I fully understand the moral calculation that leads to risking physical injury to five people over economic harm to one family.</p><p><strong class="text-green-800">Chris:</strong> Right. Well it's about responsibility, you know, and the nature of the harm. The brakes failing is an accident. Intentionally swerving and destroying a business is a direct action with a specific target. Furthermore, we must consider the long-term recovery from physical injuries versus rebuilding a business.</p><p><strong class="text-blue-800">Michael:</strong> That's a great point. On the one hand, the economic devastation to the family is compelling. But on the other hand, the certainty of physical injury to five people versus the potential economic recovery for the family.</p><p><strong class="text-purple-800">Sophie:</strong> Absolutely. It feels like a no-win situation. I respectfully disagree that the only real option is hitting the market though. Perhaps a utilitarian approach is the way to go, maximizing the number of people who are not physically harmed, in this case five, as Dr. Chen suggested previously.</p><p><strong class="text-green-800">Chris:</strong> Yeah, that makes sense from a numbers perspective. But I reckon ethical decisions aren't always about the numbers. Sometimes it's about the nature of the act itself. Is it ever right to intentionally destroy someone's livelihood?</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-red-500 text-white font-bold py-2 px-6 rounded-full hover:bg-red-600">Read Full Transcript</button></div></div></section>
+            <section id="page-226" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-600 mb-6">Runaway Truck Dilemma: Questions</h2><div class="readable-content text-xl leading-relaxed space-y-6 bg-gray-50 p-6 rounded-lg"><div class="space-y-2"><h3 class="text-2xl font-bold text-red-700 mb-3">✏️ Gap Fill Questions</h3><ol class="list-decimal list-inside space-y-2"><li>Sophie describes the choice as being between physical harm and __________ devastation.</li><li>Chris believes the most ethical choice is to avoid destroying the family's __________.</li><li>Michael argues that preventing physical __________ is the most critical priority.</li><li>Chris makes a distinction between an accident and a direct __________ with a specific target.</li><li>Sophie suggests a __________ approach, which focuses on the greatest good for the greatest number.</li></ol></div><div class="space-y-2 border-t pt-6"><h3 class="text-2xl font-bold text-red-700 mb-3">✅ Multiple Choice Questions</h3><div class="question-group"><p class="font-semibold">1. What is Sophie's initial proposed course of action?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">a) Swerve into the noodle shop</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) Continue straight into the market</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) Try to jump out of the truck</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) Honk the horn to warn everyone</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">2. What is Chris's main argument against swerving?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) The noodle shop is more expensive than the market stalls</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) It is an intentional act of destroying a family's only source of income</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) There might be people inside the noodle shop</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) The truck is not insured for that kind of damage</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">3. How many people are at risk of physical injury in the market?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) One</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) Two</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">c) Five</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) The transcript does not say</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">4. What ethical framework does Sophie mention by name?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">a) Utilitarian</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) Deontological</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) Virtue Ethics</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) Consequentialist</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">5. What does the group agree on at the end of the discussion?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) The driver should hit the market</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) The driver should hit the noodle shop</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">c) It is a no-win situation with no easy answer</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) The owner of the truck is responsible</button></div></div></div><div class="space-y-4 border-t pt-6"><h3 class="text-2xl font-bold text-red-700 mb-3">🔍 True / False / Not Given</h3><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. The truck's brakes failed by accident.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. Chris believes that economic harm is worse than physical injury.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. The family who owns the noodle shop has insurance.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. Dr. Chen is mentioned during the discussion.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. Michael is from Australia.</p></div></div></div><div class="text-center mt-8"><button onclick="navigateTo(228)" class="action-button bg-red-500 text-white font-bold py-2 px-6 rounded-full hover:bg-red-600">View Answer Key</button></div></div></section>
+            <section id="page-228" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-600 mb-6">Runaway Truck Answer Key 🚚</h2><div class="readable-content text-lg leading-relaxed space-y-6"><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-red-700 mb-2">✏️ Gap Fill Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>economic</b> – Sophie frames the choice as physical harm vs. economic devastation.</li><li><b>livelihood</b> – Chris focuses on not destroying the family's livelihood.</li><li><b>injury</b> – Michael believes preventing physical injury is the priority.</li><li><b>action</b> – Chris contrasts the accident with the direct action of swerving.</li><li><b>utilitarian</b> – Sophie suggests a utilitarian approach to minimize physical harm.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-red-700 mb-2">✅ Multiple Choice Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>a) Swerve into the noodle shop</b> – Sophie's initial choice is to avoid hitting people.</li><li><b>b) It is an intentional act of destroying a family's only source of income</b> – Chris's argument focuses on the deliberate nature of this choice.</li><li><b>c) Five</b> – Michael states that preventing injury to "five people" is critical.</li><li><b>a) Utilitarian</b> – Sophie explicitly mentions the utilitarian approach.</li><li><b>c) It is a no-win situation with no easy answer</b> – The group consensus is that the dilemma is complex and awful.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-red-700 mb-2">🔍 True / False / Not Given Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>True</b> – Chris states, "The brakes failing is an accident."</li><li><b>False</b> – Chris argues about the nature of the harm and responsibility, not that economic harm is inherently worse, but that causing it intentionally is a different ethical problem.</li><li><b>Not Given</b> – The transcript does not mention whether the family has insurance.</li><li><b>True</b> – Sophie mentions a suggestion previously made by Dr. Chen.</li><li><b>Not Given</b> – The introductions are not part of this specific dilemma transcript, but in other provided text Michael says he's from Seattle.</li></ol></div></div></div></section>
+            <section id="page-230" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-600 mb-6">Roommate Challenge Dilemma: Transcript 🗑️</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong class="text-blue-800">Michael:</strong> Okay everyone, it's 11 PM. I'm exhausted from studying. I know we all agreed to sort our trash every night for this 'Zero-Waste Week' prize, but... I'm just too tired to separate all these wrappers tonight.</p><p><strong class="text-purple-800">Sophie:</strong> I know it's late, Michael, but this is a test of our commitment and trust in each other. We all agreed. If we want to win, we all have to do our part, every single night.</p><p><strong class="text-green-800">Chris:</strong> Look, I'm with Michael on this one. It's just one bag of trash. One person not sorting for one night won't make much difference in the grand scheme of things. Prioritizing sleep seems more practical right now. And what if everyone else is thinking the same thing?</p><p><strong class="text-blue-800">Michael:</strong> That's a point. But if everyone thinks that, we definitely lose. I still think collective effort toward a shared goal is usually more rewarding in the long run. If we all defect, we get a guaranteed negative outcome.</p><p><strong class="text-purple-800">Sophie:</strong> Exactly! The problem with the "just one night" argument is that it undermines the whole agreement. If we start making exceptions, where do we stop? To make this work, we need accountability. Maybe we need a system of checks and balances, like we all do a quick bin check in the morning.</p><p><strong class="text-green-800">Chris:</strong> A morning bin check? That feels a bit like we don't trust each other. The whole point was to work together because we wanted to, not because we're being watched.</p><p><strong class="text-blue-800">Michael:</strong> True, it could feel like that. But maybe it's not about distrust, but about motivation. Knowing there's a check keeps us all on the same page when we're tired and tempted to skip. It's a complex issue with no easy answers, that's for sure.</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-orange-500 text-white font-bold py-2 px-6 rounded-full hover:bg-orange-600">Read Full Transcript</button></div></div></section>
+            <section id="page-231" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-600 mb-6">Roommate Challenge Dilemma: Questions</h2><div class="readable-content text-xl leading-relaxed space-y-6 bg-gray-50 p-6 rounded-lg"><div class="space-y-2"><h3 class="text-2xl font-bold text-orange-700 mb-3">✏️ Gap Fill Questions</h3><ol class="list-decimal list-inside space-y-2"><li>Sophie describes the situation as a test of __________ and trust.</li><li>Chris argues that the most practical choice is prioritizing __________.</li><li>Michael says that collective effort toward a shared goal is usually more __________.</li><li>Chris says one person not sorting one bag may not make much __________.</li><li>Sophie suggests adding a system of __________ to increase accountability.</li></ol></div><div class="space-y-2 border-t pt-6"><h3 class="text-2xl font-bold text-orange-700 mb-3">✅ Multiple Choice Questions</h3><div class="question-group"><p class="font-semibold">1. What is Sophie’s main reason for sorting the trash?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) She enjoys organizing</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) It’s part of the challenge agreement</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) She wants to impress the judges</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) She doesn’t trust her roommates</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">2. What does Chris say about the impact of one person not sorting?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) It will ruin the challenge</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) It’s a small action with little effect</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) It will be noticed immediately</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) It’s against the law</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">3. What ethical principle does Michael emphasize?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) Individual freedom</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) Long-term reward through cooperation</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) Environmental law</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) Personal convenience</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">4. What solution does Sophie propose to improve accountability?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) Hiring a cleaner</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">b) Installing cameras</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">c) Morning bin checks</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) Removing the prize</button></div></div><div class="question-group border-t pt-4 mt-4"><p class="font-semibold">5. What does the group agree on at the end of the discussion?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">a) Everyone should sort their trash</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">b) There is no easy answer</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">c) The challenge should be canceled</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">d) They should sleep instead</button></div></div></div><div class="space-y-4 border-t pt-6"><h3 class="text-2xl font-bold text-orange-700 mb-3">🔍 True / False / Not Given</h3><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. Michael is from Seattle.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. Sophie believes sorting trash is unnecessary.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. Chris says everyone might be thinking the same way about skipping sorting.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. The group discusses adding a reward for sorting.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. Dr. Chen is mentioned but not present.</p></div></div></div><div class="text-center mt-8"><button onclick="navigateTo(233)" class="action-button bg-orange-500 text-white font-bold py-2 px-6 rounded-full hover:bg-orange-600">View Answer Key</button></div></div></section>
+            <section id="page-233" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-600 mb-6">Roommate Challenge Answer Key 🗑️</h2><div class="readable-content text-lg leading-relaxed space-y-6"><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-orange-700 mb-2">✏️ Gap Fill Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>commitment</b> – Sophie calls it a “test of commitment and trust.”</li><li><b>sleep</b> – Chris wants to prioritize sleep over sorting trash.</li><li><b>rewarding</b> – Michael says collective effort is more rewarding.</li><li><b>difference</b> – Chris questions the impact of one unsorted bag.</li><li><b>checks and balances</b> – Sophie suggests this to add accountability.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-orange-700 mb-2">✅ Multiple Choice Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>b) It’s part of the challenge agreement</b> – Sophie wants to honor the group's commitment.</li><li><b>b) It’s a small action with little effect</b> – Chris downplays the impact of his individual action.</li><li><b>b) Long-term reward through cooperation</b> – Michael emphasizes the value of working together.</li><li><b>c) Morning bin checks</b> – Sophie proposes this as a way to ensure everyone is participating.</li><li><b>b) There is no easy answer</b> – The group agrees the situation is complex.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-orange-700 mb-2">🔍 True / False / Not Given Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>Not Given</b> – Michael's origin is not mentioned in this specific dilemma transcript.</li><li><b>False</b> – Sophie is a strong advocate for sorting the trash according to the agreement.</li><li><b>True</b> – Chris says, "what if everyone else is thinking the same thing?"</li><li><b>Not Given</b> – They discuss winning a prize, but not adding a new one for sorting.</li><li><b>Not Given</b> – Dr. Chen is not mentioned in this dilemma transcript.</li></ol></div></div></div></section>
+
+            <!-- Unit 5 Lecture Section (Pages 240-245) -->
+            <section id="page-240" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture: Warm-Up 🧠</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>What do you think “Zero Waste” means?</li><li>Is it possible to live without creating any waste? Why or why not?</li><li>What kinds of waste do you see in daily life?</li><li>How can businesses and consumers reduce waste?</li><li>What are some ways your community could support a Zero Waste lifestyle?</li></ol></div></div></section>
+            <section id="page-241" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture: Vocabulary</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ul class="space-y-3"><li><strong>Zero Waste:</strong> A goal to produce no trash or pollution</li><li><strong>Circular economy:</strong> A system where products are reused, repaired, or recycled</li><li><strong>Life cycle of products:</strong> The journey from making a product to throwing it away</li><li><strong>Linear model:</strong> A system of take → make → dispose</li><li><strong>Durability:</strong> How long something lasts before breaking</li><li><strong>Repair café:</strong> A place where people fix broken items instead of throwing them away</li><li><strong>Bulk store:</strong> A shop where you bring your own containers to reduce packaging</li><li><strong>Take-back program:</strong> A system where companies collect used products for recycling</li><li><strong>Disassembly:</strong> Taking apart a product to reuse or recycle its parts</li><li><strong>Infrastructure:</strong> Systems and buildings needed for recycling and waste management</li></ul></div></div></section>
+            <section id="page-242" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture: Transcript 🎤</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong>Lecturer:</strong> Hello everyone and welcome. Today we're diving into a truly challenging, yet incredibly important topic: the zero waste challenge. It feels like a monumental task, doesn't it? But understanding this challenge is crucial for our planet's future. In this lecture, we will explore the core principles of zero waste, its practical applications, and the hurdles we face in achieving it. First, we'll set the stage by defining zero waste beyond just recycling. Following that, we'll hear from our expert speakers who will delve into the practicalities, one focusing on the consumer perspective and the other on industry challenges. Finally, we will wrap up by reviewing the key takeaways and looking ahead. Get ready for an eye-opening discussion.</p><p><strong>Sarah:</strong> Moving on to the foundation. What does "zero waste" truly mean? Well, it's actually a philosophy, a goal, rather than a strict, absolute target of sending nothing to landfill. It's about rethinking the entire life cycle of products and resources. It feels like a radical shift, but it's desperately needed. We aim to design products to be reused, repaired, or recycled infinitely, mimicking natural cycles. It's truly inspiring to think about a system where waste is simply eliminated at the source. So the initial focus is on refusal, reduction, reuse, and then recycling or composting as the last resort. This is fundamentally different from our current linear take-make-dispose model, which is, frankly, unsustainable.</p><p><strong>Alex:</strong> Indeed, Sarah. And from a practical standpoint, especially for consumers, the zero waste challenge presents some real hurdles. How do you avoid packaging when buying groceries? What about products that aren't designed for durability or repair? It feels overwhelming for many people. Furthermore, access to proper recycling and composting facilities varies greatly depending on where you live. So while the intention is fantastic, individual action can feel limited by the existing system. We need to address these systemic issues to empower consumers effectively. It's not enough to just tell people to reduce waste, we need to make it genuinely feasible and convenient for them to do so.</p><p><strong>Sarah:</strong> That's a very valid point, Alex. However, there are encouraging signs. Many communities are seeing a rise in bulk stores, repair cafes, and initiatives that support a more circular lifestyle. It gives me hope to see people actively seeking alternatives. And frankly, the ingenuity in some of these local efforts is truly inspiring. It demonstrates that with dedication and innovation, we can overcome some of those practical barriers at the consumer level. But as you mentioned, widespread change requires more than just individual effort.</p><p><strong>Alex:</strong> Absolutely, Sarah. This brings us to the significant challenges facing industries and businesses. Shifting to zero waste principles requires a fundamental redesign of supply chains, manufacturing processes, and product design. It's a massive investment and a steep learning curve for many companies. Think about the complexities of designing for disassembly or implementing robust take-back programs for products at the end of their life. There are also regulatory barriers and the need for new infrastructure, like advanced sorting and processing facilities for different materials. This presents a real hurdle, and frankly, it requires strong leadership and commitment from the business sector, supported by clear policies.</p><p><strong>Sarah:</strong> I agree, Alex. And yet some pioneering businesses are showing it's possible, and even profitable. By reducing waste, they can lower costs, increase efficiency, and appeal to environmentally conscious consumers. It feels like a win-win when it works. So while the challenges for industry are significant, the opportunities for innovation and creating a more sustainable economy are immense. It requires a change in mindset from linear to circular, and that perhaps is the biggest challenge of all.</p><p><strong>Lecturer:</strong> To wrap up this lecture, let's quickly review what we've covered. We began by defining the zero waste challenge not just as a literal target, but as a powerful philosophy for rethinking our relationship with consumption and resources. We then explored the practical challenges from both the consumer perspective, highlighting issues like packaging and infrastructure access, and the industry perspective, focusing on redesigning systems and the need for investment. We also touched upon the inspiring local initiatives and the potential for business innovation. In conclusion, the zero waste challenge is a complex, multifaceted undertaking. While achieving absolute zero waste might seem daunting, the journey towards drastically reducing waste and embracing circularity is absolutely essential for our planet's health and future generations. It fills me with immense hope that by working together, individuals, businesses, and governments, we can move closer to this vital goal. Thank you for joining me on this important exploration.</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-sky-500 text-white font-bold py-2 px-6 rounded-full hover:bg-sky-600">Read Aloud</button></div></div></section>
+            <section id="page-243" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture Quiz: Multiple Choice ✅</h2><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What is the main idea of the Zero Waste philosophy according to the lecture?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Only recycling more</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Sending nothing to landfill by rethinking product life cycles</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Creating new kinds of packaging</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Making consumers feel guilty</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">2. According to Sarah, what are the most important first steps in the Zero Waste hierarchy?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Recycling and Composting</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Refusing and Reducing</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Buying and Disposing</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Auditing and Reporting</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">3. According to Alex, what is a major hurdle for consumers trying to live a zero-waste lifestyle?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Products are too expensive</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. There are not enough landfills</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Lack of convenient alternatives and proper facilities</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. People are not interested</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">4. What is one example of a local initiative that Sarah mentions as an encouraging sign?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. New government regulations</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Large corporate sponsorships</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Repair cafés and bulk stores</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. International treaties</button></div></div><div class="question-group border-t pt-6"><p class="font-semibold">5. What does Alex say is a significant challenge for industries adopting zero waste?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. A lack of interested consumers</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. The high cost and complexity of redesigning supply chains</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Too many government subsidies</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. A shortage of raw materials</button></div></div></div></div></section>
+            <section id="page-244" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture Quiz: True / False / Not Given 🔍</h2><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. The lecture defines "zero waste" as a literal, absolute target of sending zero items to a landfill.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. The lecture positions recycling and composting as the first and most important steps in the zero waste hierarchy.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. Sarah feels hopeful because of the rise of community initiatives like bulk stores.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. Alex states that individual consumer action is enough to solve the waste problem without changes from businesses.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-blue-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. The lecturer concludes that the journey towards zero waste is essential and expresses hope for the future.</p></div></div></div></section>
+            <section id="page-245" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-sky-700 mb-6">Lecture Answer Key</h2><div class="readable-content text-lg leading-relaxed space-y-6"><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-sky-600 mb-2">Multiple Choice Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>B</b> – The lecture defines it as a philosophy to rethink product life cycles to eliminate waste.</li><li><b>B</b> – Sarah states the initial focus is on refusal and reduction.</li><li><b>C</b> – Alex mentions lack of access to proper facilities and convenient options as systemic issues.</li><li><b>C</b> – Sarah mentions repair cafés and bulk stores as inspiring local efforts.</li><li><b>B</b> – Alex discusses the massive investment and complexity of redesigning supply chains and products.</li></ol></div><div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-sky-600 mb-2">True / False / Not Given Answers</h3><ol class="list-decimal list-inside space-y-1"><li><b>False</b> – Sarah explicitly states it is a "philosophy, a goal, rather than a strict, absolute target."</li><li><b>False</b> – Sarah states that recycling and composting are the "last resort."</li><li><b>True</b> – Sarah says, "It gives me hope to see people actively seeking alternatives."</li><li><b>False</b> – Alex argues that individual action is limited and systemic change from business and policy is required.</li><li><b>True</b> – The lecturer's concluding remarks are about the essential nature of the journey and hope for the future.</li></ol></div></div></div></section>
+
+            <!-- Unit 5 Unit Plan & Mission (Pages 250-254) -->
+            <section id="page-250" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Stage 1: Desired Results (The “Why”)</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong class="text-rose-600">Topic:</strong> Zero-Waste Living and Waste Reduction</p><p><strong class="text-rose-600">Theme:</strong> Personal Responsibility and Systems Thinking</p><p><strong class="text-rose-600">Essential Question:</strong> How can our small, daily choices about what we use and throw away create a large-scale positive impact on our communities and the environment?</p><p><strong class="text-rose-600">Learning Intention:</strong> We are learning to analyze our own consumption habits and to design a community campaign that encourages waste reduction.</p></div></div></section>
+            <section id="page-251" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Stage 2: Assessment Evidence</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-rose-600 mb-3">Primary Performance Task (GRASPS)</h3><ul class="list-disc list-inside space-y-2"><li><strong class="text-gray-700">Goal:</strong> Your goal is to design and launch a “Zero-Waste Week Challenge” for your entire school to reduce its overall waste.</li><li><strong class="text-gray-700">Role:</strong> You are a team of student environmental ambassadors.</li><li><strong class="text-gray-700">Audience:</strong> All students, teachers, and staff at the school.</li><li><strong class="text-gray-700">Situation:</strong> The school has noticed a significant increase in waste in its bins, especially single-use plastics and food waste. The principal has asked for your help to create a positive, engaging campaign to address the issue.</li><li><strong class="text-gray-700">Product:</strong> A complete campaign kit, including: (1) a clear set of rules and daily challenges, (2) promotional materials (posters, social media posts), (3) a plan for measuring the school’s waste reduction, and (4) a final presentation to launch the campaign.</li></ul></div></div></section>
+            <section id="page-252" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Learning Goals & Rubric</h2><div class="readable-content max-w-4xl mx-auto"><div class="mb-8"><h3 class="text-2xl font-bold text-rose-600 mb-3">Success Criteria</h3><ul class="list-disc list-inside space-y-2 text-xl"><li>I can define “zero-waste” and name the “5 Rs” (Refuse, Reduce, Reuse, Recycle, Rot).</li><li>I can identify three ways to reduce my personal waste.</li><li>I can collaborate to create a clear and engaging rule for a “Zero-Waste Week” challenge.</li></ul></div><div><h3 class="text-2xl font-bold text-rose-600 mb-3">Final Mission Rubric</h3><div class="overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-rose-50"><th class="border-b-2 p-2">Criterion</th><th class="border-b-2 p-2">5 - Exemplary</th></tr></thead><tbody><tr><td class="border-b p-2 font-semibold">K – Knowledge</td><td class="border-b p-2">The campaign demonstrates a deep, nuanced understanding of waste systems and behavioral psychology. It expertly analyzes the school’s specific waste problems and culture.</td></tr><tr><td class="border-b p-2 font-semibold">A – Analysis</td><td class="border-b p-2">The proposed challenge is highly creative, engaging, and practical. It demonstrates exceptional systems thinking by creating a campaign that is easy to join but has a high potential impact.</td></tr><tr><td class="border-b p-2 font-semibold">S – Structure</td><td class="border-b p-2">All campaign materials are exceptionally clear, visually compelling, and persuasive. The launch presentation uses powerful rhetorical strategies to inspire widespread participation.</td></tr><tr><td class="border-b p-2 font-semibold">E – Evidence</td><td class="border-b p-2">The campaign’s goals and predicted impact are supported by strong, relevant evidence from research on waste reduction and behavioral science. The measurement plan is clear and effective.</td></tr><tr><td class="border-b p-2 font-semibold">C – Clarity</td><td class="border-b p-2">The student demonstrates a masterful command of English, using a wide and precise range of persuasive and informative language and complex sentence structures accurately.</td></tr></tbody></table></div></div></div></div></section>
+            <section id="page-253" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h2 class="text-4xl font-bold text-center text-purple-700 mb-6">Your Final Mission 🚀</h2><div class="readable-content text-xl leading-relaxed max-w-2xl mx-auto bg-gray-50 p-6 rounded-lg"><p class="mb-4">Your task is to design and launch a “Zero-Waste Week Challenge” for your entire school to reduce its overall waste.</p><p class="mb-4">Your campaign kit should include:</p><ul class="list-disc list-inside text-left space-y-2"><li>A clear set of rules and daily challenges.</li><li>Promotional materials (e.g., a poster).</li><li>A plan for measuring waste reduction.</li></ul><p class="mt-6 font-bold">Be creative and use the vocabulary you've learned!</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-purple-500 text-white font-bold py-2 px-6 rounded-full hover:bg-purple-600">Read Aloud</button></div></div></section>
+            <section id="page-254" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h2 class="text-4xl font-bold text-teal-600 mb-4">Congratulations!</h2><p class="text-xl text-gray-600 mb-6">You have completed the "Zero-Waste Challenge" unit.</p><div class="bg-teal-50 border-4 border-dashed border-teal-300 rounded-lg p-8 max-w-2xl mx-auto"><div class="flex justify-center mb-4"><span class="text-6xl">📜</span></div><h3 class="text-3xl font-bold text-teal-800">Certificate of Completion</h3><p class="mt-4 text-lg">This certificate is awarded to</p><p id="certificate-name-u5" class="text-2xl font-bold text-teal-600 my-2 border-b-2 border-gray-400 pb-2">[Enter Your Name Here]</p><p class="mt-4 text-lg">for successfully completing all challenges and demonstrating excellent knowledge of waste reduction systems.</p><p class="mt-6 text-md"><strong>Final Score:</strong> <span id="certificate-score-u5" class="font-bold"></span> points</p><p class="text-sm mt-1"><strong>Date of Completion:</strong> <span id="certificate-date-u5"></span></p></div><div class="mt-6"><input type="text" id="name-input-u5" placeholder="Enter your name for the certificate" class="text-center p-2 border rounded-lg w-full max-w-md"><button onclick="generateCertificateU5()" class="action-button mt-4 bg-teal-600 text-white font-bold py-2 px-6 rounded-full hover:bg-teal-700">Generate Certificate</button></div></div></section>
+
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="feedback-modal">
+        <div id="modal-content" class="feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80">
+            <div id="modal-icon" class="mb-4 text-6xl flex justify-center"></div>
+            <h2 id="modal-title" class="text-4xl font-bold mb-4"></h2>
+            <p id="modal-message" class="text-gray-600"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Game State ---
+            let score = 0;
+            const scoreDisplay = document.getElementById('score-display');
+            let modalTimeout;
+
+            const correctFeedback = ["That's right!", "You got it!", "Excellent!", "Perfect!", "Great thinking!", "Awesome!", "Nailed it!", "Superb!"];
+            const incorrectFeedback = ["Not quite!", "Try again!", "Keep trying!", "You'll get the next one!"];
+            
+            // --- Dynamic Background ---
+            const backgroundColors = ['#e0f2fe', '#e0e7ff', '#dcfce7', '#fff7ed', '#fce7f3', '#cffafe'];
+            let bgColorIndex = 0;
+            setInterval(() => {
+                bgColorIndex = (bgColorIndex + 1) % backgroundColors.length;
+                document.body.style.backgroundColor = backgroundColors[bgColorIndex];
+            }, 5000);
+
+            // --- Score Animation ---
+            function animatePoints(points) {
+                const scoreEl = document.getElementById('score-display');
+                const rect = scoreEl.getBoundingClientRect();
+                const targetX = rect.left + rect.width / 2;
+                const targetY = rect.top + rect.height / 2;
+
+                for (let i = 0; i < points; i++) {
+                    const token = document.createElement('div');
+                    token.className = 'point-token';
+                    document.body.appendChild(token);
+                    
+                    const startX = window.innerWidth / 2 + (Math.random() - 0.5) * 100;
+                    const startY = window.innerHeight / 2 + (Math.random() - 0.5) * 100;
+                    token.style.transform = `translate(${startX - (window.innerWidth/2)}px, ${startY - (window.innerHeight/2)}px)`;
+
+                    setTimeout(() => {
+                        token.style.left = `${targetX}px`;
+                        token.style.top = `${targetY}px`;
+                        token.style.transform = 'scale(0.5)';
+                        token.style.opacity = '0';
+                    }, 50 + i * 30);
+
+                    setTimeout(() => {
+                        token.remove();
+                    }, 1050 + i * 30);
+                }
+            }
+
+            function updateScore(points) {
+                score += points;
+                animatePoints(points);
+                setTimeout(() => {
+                    scoreDisplay.textContent = score;
+                }, 800);
+            }
+
+            // --- Audio & TTS Initialization ---
+            let audioReady = false;
+            let ttsInitialized = false;
+            let synth;
+            const synthTTS = window.speechSynthesis;
+            let maleVoice = null;
+            let femaleVoice = null;
+
+            const voicesPromise = new Promise(resolve => {
+                let voices = synthTTS.getVoices();
+                if (voices.length > 0) {
+                    resolve(voices);
+                    return;
+                }
+
+                let timeoutId = null;
+                const onVoicesChanged = () => {
+                    voices = synthTTS.getVoices();
+                    if (voices.length > 0) {
+                        clearTimeout(timeoutId);
+                        resolve(voices);
+                        synthTTS.onvoiceschanged = null;
+                    }
+                };
+
+                synthTTS.onvoiceschanged = onVoicesChanged;
+
+                timeoutId = setTimeout(() => {
+                    console.warn("onvoiceschanged event did not fire in time. Trying getVoices() again.");
+                    voices = synthTTS.getVoices();
+                    resolve(voices);
+                    synthTTS.onvoiceschanged = null;
+                }, 1000); 
+            });
+
+            async function setupVoices() {
+                console.log("Attempting to set up voices...");
+                const voices = await voicesPromise;
+                console.log(`Found ${voices.length} voices.`);
+                if (voices.length === 0) {
+                    console.error("No speech synthesis voices available on this browser after waiting.");
+                    return;
+                }
+
+                const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+
+                femaleVoice =
+                    englishVoices.find(v => /ava|aria|zira|samantha|female/i.test(v.name) && /online/i.test(v.name)) ||
+                    englishVoices.find(v => /ava|aria|zira|samantha/i.test(v.name)) ||
+                    englishVoices.find(v => /google/i.test(v.name) && /female/i.test(v.name)) ||
+                    englishVoices.find(v => /microsoft/i.test(v.name) && /female/i.test(v.name)) ||
+                    englishVoices.find(v => /female/i.test(v.name)) ||
+                    englishVoices.find(v => v.default);
+
+                maleVoice =
+                    englishVoices.find(v => /brian|echo|alloy|david|male/i.test(v.name) && /online/i.test(v.name)) ||
+                    englishVoices.find(v => /brian|echo|alloy|david/i.test(v.name)) ||
+                    englishVoices.find(v => /google/i.test(v.name) && /male/i.test(v.name)) ||
+                    englishVoices.find(v => /microsoft/i.test(v.name) && /male/i.test(v.name)) ||
+                    englishVoices.find(v => /male/i.test(v.name)) ||
+                    englishVoices.find(v => v !== femaleVoice);
+
+                if (!femaleVoice && englishVoices.length > 0) femaleVoice = englishVoices[0];
+                if (!maleVoice && englishVoices.length > 1) maleVoice = englishVoices[1];
+                if (!maleVoice && englishVoices.length > 0) maleVoice = englishVoices[0];
+
+                console.log("Selected Male Voice:", maleVoice ? maleVoice.name : "None");
+                console.log("Selected Female Voice:", femaleVoice ? femaleVoice.name : "None");
+            }
+
+            window.startApp = async function() {
+                if (!audioReady) {
+                    try {
+                        await Tone.start();
+                        synth = new Tone.PolySynth(Tone.Synth, {
+                            oscillator: { type: "sine" },
+                            envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 }
+                        }).toDestination();
+                        audioReady = true;
+                        console.log("Audio context started successfully.");
+                    } catch (e) {
+                        console.error("Could not start audio context:", e);
+                    }
+                }
+
+                if (!ttsInitialized && synthTTS) {
+                    try {
+                        const dummyUtterance = new SpeechSynthesisUtterance(' ');
+                        dummyUtterance.volume = 0;
+                        synthTTS.speak(dummyUtterance);
+                        synthTTS.cancel();
+                        await setupVoices();
+                        ttsInitialized = true;
+                        console.log("TTS Initialized by user action.");
+                    } catch (e) {
+                        console.error("Could not initialize TTS:", e);
+                    }
+                }
+                navigateTo(1);
+            }
+
+            window.playCorrectSound = function() {
+                if (!audioReady || !synth) return;
+                const now = Tone.now();
+                synth.triggerAttackRelease("C5", "8n", now);
+                synth.triggerAttackRelease("G5", "8n", now + 0.1);
+                synth.triggerAttackRelease("E6", "8n", now + 0.2);
+            }
+
+            window.playIncorrectSound = function() {
+                if (!audioReady || !synth) return;
+                const now = Tone.now();
+                synth.triggerAttackRelease("A2", "8n", now);
+            }
+
+            async function speak(text, gender = 'default') {
+                if (!ttsInitialized) {
+                    console.warn("TTS not initialized. Please click 'Start Lesson' first.");
+                    return;
+                }
+                
+                if (synthTTS.speaking) {
+                    synthTTS.cancel();
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                const utterance = new SpeechSynthesisUtterance(text);
+
+                if (gender === 'male' && maleVoice) {
+                    utterance.voice = maleVoice;
+                } else {
+                    utterance.voice = femaleVoice || maleVoice || synthTTS.getVoices().find(v => v.lang.startsWith('en')) || synthTTS.getVoices()[0];
+                }
+                
+                if (!utterance.voice) {
+                    console.error("Could not find a suitable voice to speak.");
+                    return;
+                }
+                utterance.rate = 0.85;
+                utterance.pitch = 1;
+                utterance.volume = 1;
+                synthTTS.speak(utterance);
+            }
+            
+            window.readText = function(buttonElement) {
+                const contentParent = buttonElement.closest('.page, .bg-white');
+                const readableContent = contentParent.querySelector('.readable-content');
+                if (readableContent) {
+                    const textToSpeak = readableContent.innerText.replace(/________/g, 'blank');
+                    speak(textToSpeak);
+                }
+            }
+            
+            // --- State Management & Navigation ---
+            let currentPage = 0;
+            const pageSequence = [0, 1, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 228, 230, 231, 233, 240, 241, 242, 243, 244, 245, 250, 251, 252, 253, 254];
+            const pageHistory = [0];
+
+            window.navigateTo = function(pageNumber) {
+                const targetPage = document.getElementById(`page-${pageNumber}`);
+                if (!targetPage) {
+                    console.error(`Page with ID 'page-${pageNumber}' not found.`);
+                    return;
+                }
+                if (pageNumber === currentPage) return;
+
+                const currentPageEl = document.getElementById(`page-${currentPage}`);
+                if (currentPageEl) currentPageEl.classList.remove('active');
+                targetPage.classList.add('active');
+                currentPage = pageNumber;
+                if (pageHistory[pageHistory.length - 1] !== currentPage) {
+                        pageHistory.push(currentPage);
+                }
+                updateNavButtons();
+                window.scrollTo(0, 0);
+
+                if (targetPage.querySelector('.drop-zone')) {
+                    initializeDragAndDrop(targetPage);
+                }
+            }
+
+            window.goNext = function() {
+                const currentIndex = pageSequence.indexOf(currentPage);
+                if (currentIndex > -1 && currentIndex < pageSequence.length - 1) {
+                    navigateTo(pageSequence[currentIndex + 1]);
+                }
+            }
+
+            window.goBack = function() {
+                if (pageHistory.length > 1) {
+                    pageHistory.pop(); 
+                    const previousPage = pageHistory[pageHistory.length - 1];
+                    const currentPageEl = document.getElementById(`page-${currentPage}`);
+                    if(currentPageEl) currentPageEl.classList.remove('active');
+                    const previousPageEl = document.getElementById(`page-${previousPage}`);
+                    if(previousPageEl) previousPageEl.classList.add('active');
+                    currentPage = previousPage;
+                    updateNavButtons();
+                    window.scrollTo(0, 0);
+                }
+            }
+
+            function updateNavButtons() {
+                const navHeader = document.getElementById('nav-header');
+                if (!navHeader) return;
+                const backButton = navHeader.querySelector('button:first-child');
+                const nextButton = navHeader.querySelector('button:last-child');
+                
+                navHeader.style.display = (currentPage === 0) ? 'none' : 'flex';
+                backButton.disabled = pageHistory.length <= 1;
+                backButton.classList.toggle('opacity-50', backButton.disabled);
+                
+                const currentIndex = pageSequence.indexOf(currentPage);
+                const isLastPageOfSequence = currentIndex === -1 || currentIndex >= pageSequence.length - 1;
+                const isMainMenu = currentPage === 1;
+
+                nextButton.disabled = isLastPageOfSequence || isMainMenu;
+                nextButton.classList.toggle('opacity-50', nextButton.disabled);
+            }
+            
+            // --- Interactive Quiz & Modal Logic ---
+            const modal = document.getElementById('feedback-modal');
+            const modalContent = document.getElementById('modal-content');
+            const modalTitle = document.getElementById('modal-title');
+            const modalIcon = document.getElementById('modal-icon');
+            const modalMessage = document.getElementById('modal-message');
+
+            function showModal(title, message, type = 'info') {
+                modalContent.classList.remove('correct');
+                modalMessage.textContent = message || '';
+
+                if (type === 'correct') {
+                    playCorrectSound();
+                    modalIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                    modalTitle.textContent = title;
+                    modalTitle.className = 'text-4xl font-bold mb-4 text-green-500';
+                    modalContent.className = 'feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80 bg-green-50 correct';
+                } else if (type === 'error') {
+                    playIncorrectSound();
+                    modalIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                    modalTitle.textContent = title;
+                    modalTitle.className = 'text-4xl font-bold mb-4 text-red-500';
+                    modalContent.className = 'feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80 bg-red-50';
+                }
+                modal.classList.add('show');
+                
+                clearTimeout(modalTimeout);
+                modalTimeout = setTimeout(closeModal, 1500);
+             }
+             
+            window.showFeedback = function(isCorrect, buttonElement) {
+                const parent = buttonElement.parentElement;
+                const buttons = parent.querySelectorAll('button');
+                buttons.forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText);
+                    buttonElement.classList.remove('bg-blue-500', 'bg-red-500', 'bg-gray-500');
+                    buttonElement.classList.add('bg-green-500');
+                    buttonElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
+                    showModal('Correct!', `${feedbackText} (+10 points)`, 'correct');
+                    updateScore(10);
+                } else {
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText);
+                    buttonElement.classList.remove('bg-blue-500', 'bg-red-500', 'bg-gray-500');
+                    buttonElement.classList.add('bg-red-500');
+                    buttonElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+                    showModal('Try Again!', feedbackText, 'error');
+                }
+            }
+
+            window.checkAnswer = function(button, isCorrect) {
+                const questionGroup = button.closest('.question-group');
+                const options = questionGroup.querySelectorAll('.quiz-option');
+
+                options.forEach(opt => {
+                    opt.disabled = true;
+                });
+
+                if (isCorrect) {
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText);
+                    button.classList.remove('bg-white');
+                    button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                    button.innerHTML = `<span class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> ${button.textContent}</span>`;
+                    showModal('Correct!', `${feedbackText} (+10 points)`, 'correct');
+                    updateScore(10);
+                } else {
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText);
+                    button.classList.remove('bg-white');
+                    button.classList.add('bg-red-500', 'border-red-600', 'text-white');
+                    button.innerHTML = `<span class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg> ${button.textContent}</span>`;
+                    
+                    options.forEach(opt => {
+                        if (opt.getAttribute('onclick').includes('true')) {
+                            opt.classList.remove('bg-white');
+                            opt.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                        }
+                    });
+                    showModal('Try Again!', feedbackText, 'error');
+                }
+            }
+            
+            window.closeModal = function() {
+                clearTimeout(modalTimeout);
+                modal.classList.remove('show');
+            }
+            
+            // --- Drag and Drop Logic ---
+            function initializeDragAndDrop(pageElement) {
+                const draggables = pageElement.querySelectorAll('.draggable-word');
+                const dropZones = pageElement.querySelectorAll('.drop-zone');
+
+                draggables.forEach(draggable => {
+                    draggable.addEventListener('dragstart', handleDragStart);
+                    draggable.addEventListener('dragend', handleDragEnd);
+                });
+
+                dropZones.forEach(zone => {
+                    zone.addEventListener('dragover', handleDragOver);
+                    zone.addEventListener('dragleave', handleDragLeave);
+                    zone.addEventListener('drop', handleDrop);
+                });
+            }
+
+            function handleDragStart(e) {
+                e.dataTransfer.setData('text/plain', e.target.id);
+                setTimeout(() => { e.target.classList.add('dragging'); }, 0);
+            }
+            
+            function handleDragEnd(e) {
+                e.target.classList.remove('dragging');
+            }
+
+            function handleDragOver(e) {
+                e.preventDefault();
+                e.currentTarget.classList.add('drag-over');
+            }
+
+            function handleDragLeave(e) {
+                e.currentTarget.classList.remove('drag-over');
+            }
+
+            function handleDrop(e) {
+                e.preventDefault();
+                e.currentTarget.classList.remove('drag-over');
+                const id = e.dataTransfer.getData('text');
+                const draggableElement = document.getElementById(id);
+                const dropZone = e.currentTarget;
+
+                const correctAnswer = dropZone.dataset.answer;
+                const droppedWord = draggableElement.dataset.word;
+
+                if (correctAnswer === droppedWord) {
+                    if (dropZone.children.length > 0) {
+                        const originalBank = draggableElement.closest('.page').querySelector('.flex-wrap');
+                        originalBank.appendChild(dropZone.children[0]);
+                    }
+                    dropZone.innerHTML = '';
+                    dropZone.appendChild(draggableElement);
+                    draggableElement.classList.remove('dragging');
+                    draggableElement.setAttribute('draggable', 'false');
+                    dropZone.classList.add('correct');
+                    
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText);
+                    playCorrectSound();
+                    updateScore(10);
+
+                    const allZones = dropZone.closest('.page').querySelectorAll('.drop-zone');
+                    const allFilled = Array.from(allZones).every(zone => zone.children.length > 0);
+                    if (allFilled) {
+                        const completionText = 'Well Done! You matched all the words!';
+                        speak(completionText);
+                        setTimeout(() => showModal('Well Done!', completionText, 'correct'), 500);
+                    }
+                } else {
+                    draggableElement.classList.remove('dragging');
+                    draggableElement.classList.add('shake');
+                    setTimeout(() => draggableElement.classList.remove('shake'), 500);
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText);
+                    playIncorrectSound();
+                }
+            }
+
+            window.showMatchingAnswersU5 = function() {
+                speak("Here are the correct matches.");
+                const answers = {
+                    'term-u5-1': 'def-u5-C', // landfill
+                    'term-u5-2': 'def-u5-A', // upcycle
+                    'term-u5-3': 'def-u5-E', // consumption
+                    'term-u5-4': 'def-u5-B', // audit
+                    'term-u5-5': 'def-u5-D'  // disposable
+                };
+
+                const svg = document.getElementById('matching-svg-u5');
+                svg.innerHTML = ''; 
+
+                setTimeout(() => {
+                    for (const termId in answers) {
+                        const defId = answers[termId];
+                        const termEl = document.getElementById(termId);
+                        const defEl = document.getElementById(defId);
+                        if (!termEl || !defEl) continue;
+
+                        const rect1 = termEl.getBoundingClientRect();
+                        const rect2 = defEl.getBoundingClientRect();
+                        const containerRect = svg.getBoundingClientRect();
+
+                        const x1 = (rect1.right - containerRect.left) + 5;
+                        const y1 = (rect1.top + rect1.height / 2) - containerRect.top;
+                        const x2 = (rect2.left - containerRect.left) - 5;
+                        const y2 = (rect2.top + rect2.height / 2) - containerRect.top;
+
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', x1);
+                        line.setAttribute('y1', y1);
+                        line.setAttribute('x2', x2);
+                        line.setAttribute('y2', y2);
+                        line.setAttribute('class', 'matching-line');
+                        svg.appendChild(line);
+                    }
+                }, 100);
+                
+                document.getElementById('show-answers-btn-u5').style.display = 'none';
+                playCorrectSound();
+            }
+
+            window.generateCertificateU5 = function() {
+                const name = document.getElementById('name-input-u5').value || "Environmental Ambassador";
+                document.getElementById('certificate-name-u5').textContent = name;
+                document.getElementById('certificate-score-u5').textContent = score;
+                document.getElementById('certificate-date-u5').textContent = new Date().toLocaleDateString();
+                speak(`Congratulations, ${name}! You have completed the unit.`);
+            }
+
+            // --- Initial Setup ---
+            updateNavButtons();
+        });
+    </script>
+</body>
+</html>

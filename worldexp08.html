@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Northern Lights Vocabulary Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Tahoma', sans-serif;
+            overscroll-behavior: none;
+            /* New Aurora Color Scheme */
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+        }
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: flex;
+        }
+        /* Adjusted glass card for new theme */
+        .glass-card {
+            background: rgba(30, 27, 75, 0.5); /* indigo-900/50 */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        #timer-bar-inner {
+            transition: width 1s linear;
+        }
+        .badge-unlocked {
+             animation: popIn 0.5s ease-out;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+         #badge-modal {
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        /* Higher contrast buttons for the new theme */
+        .mcq-option {
+            background-color: rgba(49, 46, 129, 0.6); /* indigo-800/60 */
+        }
+        .mcq-option:hover {
+            background-color: rgba(67, 56, 202, 0.8); /* indigo-700/80 */
+        }
+        .mcq-option:disabled {
+            opacity: 0.8;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="w-screen h-screen flex items-center justify-center p-4 overflow-hidden">
+
+    <div id="game-container" class="w-full max-w-lg mx-auto">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active flex-col items-center justify-center text-white text-center p-6 md:p-8">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4">Northern Lights Challenge</h1>
+            <p class="text-lg md:text-xl mb-8 text-indigo-200">Test your knowledge of this celestial spectacle.</p>
+            <button id="start-game-btn" class="bg-white text-indigo-800 font-bold py-4 px-10 text-lg rounded-full shadow-lg hover:bg-indigo-100 transition-all transform hover:scale-105 focus:outline-none">Start Game</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen flex-col w-full glass-card rounded-2xl p-6 md:p-8">
+            <div class="flex justify-between items-center mb-4">
+                <div class="text-white text-lg font-bold">Score: <span id="score">0</span></div>
+                <div class="text-white text-lg font-bold">Question <span id="question-counter">1</span>/<span id="total-questions">50</span></div>
+            </div>
+            <div id="timer-bar" class="w-full bg-white/20 rounded-full h-2.5 mb-4">
+                <div id="timer-bar-inner" class="bg-emerald-400 h-2.5 rounded-full" style="width: 100%"></div>
+            </div>
+            
+            <div id="question-area" class="text-center mb-6 h-24 flex items-center justify-center">
+                <p id="question-text" class="text-white text-xl md:text-2xl font-semibold"></p>
+            </div>
+
+            <div id="options-area" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                <!-- Options will be populated by JS -->
+            </div>
+
+            <div id="feedback-area" class="mt-4 text-center h-8">
+                <p id="feedback-text" class="text-xl font-bold"></p>
+            </div>
+             <div id="badge-display" class="mt-4 flex justify-center gap-4 h-12">
+                <!-- Badges will be shown here -->
+             </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="screen flex-col items-center justify-center text-white text-center p-6 md:p-8">
+            <h2 class="text-3xl md:text-4xl font-bold mb-2">Game Over!</h2>
+            <p class="text-xl md:text-2xl mb-4">Final Score: <span id="final-score" class="font-bold"></span></p>
+            <div id="final-badges" class="mb-8 flex flex-wrap justify-center gap-4">
+                <!-- Final badges earned -->
+            </div>
+            <button id="play-again-btn" class="bg-white text-indigo-800 font-bold py-4 px-10 text-lg rounded-full shadow-lg hover:bg-indigo-100 transition-all transform hover:scale-105 focus:outline-none">Play Again</button>
+        </div>
+    </div>
+    
+    <!-- Badge Unlocked Modal -->
+    <div id="badge-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 opacity-0 pointer-events-none transform scale-95">
+        <div class="glass-card text-white text-center p-8 rounded-2xl max-w-sm w-full">
+            <h3 id="badge-modal-title" class="text-3xl font-bold text-yellow-300">Badge Unlocked!</h3>
+            <p id="badge-modal-name" class="text-xl mt-2"></p>
+            <p id="badge-modal-desc" class="text-indigo-200 mt-1"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const vocabulary = [
+                { keyword: 'Aurora Borealis', definition: 'The scientific name for the Northern Lights.' },
+                { keyword: 'celestial', definition: 'Positioned in or relating to the sky, or outer space as observed in astronomy.' },
+                { keyword: 'solar wind', definition: 'A continuous stream of charged particles released from the sun.' },
+                { keyword: 'magnetic field', definition: 'A region around a magnetic material or a moving electric charge within which the force of magnetism acts.' },
+                { keyword: 'atmosphere', definition: 'The envelope of gases surrounding the earth or another planet.' },
+                { keyword: 'oxygen', definition: 'A chemical element that is a gas at room temperature and is essential for life.' },
+                { keyword: 'nitrogen', definition: 'The chemical element of atomic number 7, a colorless, odorless unreactive gas that forms about 78 percent of the earth\'s atmosphere.' },
+                { keyword: 'Vikings', definition: 'Scandinavian seafaring pirates and traders who raided and settled in many parts of NW Europe in the 8th–11th centuries.' },
+                { keyword: 'Inuit', definition: 'A member of an indigenous people of northern Canada and parts of Greenland and Alaska.' },
+                { keyword: 'space weather', definition: 'The conditions in space that can affect Earth and its technological systems.' },
+                { keyword: 'satellites', definition: 'Artificial bodies placed in orbit around the earth or moon or another planet in order to collect information or for communication.' },
+                { keyword: 'power grids', definition: 'A network of electrical transmission lines connecting a number of generating stations to loads.' },
+                { keyword: 'phenomenon', definition: 'A fact or situation that is observed to exist or happen, especially one whose cause or explanation is in question.' },
+                { keyword: 'high-latitude', definition: 'Relating to a region near the North or South Pole.' },
+                { keyword: 'intrinsically', definition: 'In an essential or natural way.' },
+                { keyword: 'collisions', definition: 'Instances of one moving object or person striking violently against another.' },
+                { keyword: 'particles', definition: 'A minute portion of matter.' },
+                { keyword: 'tourism', definition: 'The commercial organization and operation of vacations and visits to places of interest.' },
+                { keyword: 'interpretation', definition: 'The action of explaining the meaning of something.' },
+                { keyword: 'spectacle', definition: 'A visually striking performance or display.' }
+            ];
+            
+            const readingQuestions = [
+                { type: 'mcq', text: "What causes the Northern Lights?", options: ["Moonlight reflecting off ice", "Collisions of solar wind particles with the atmosphere", "Weather balloons with lights", "Pollution from factories"], answer: "Collisions of solar wind particles with the atmosphere" },
+                { type: 'mcq', text: "What is the most common color of the aurora mentioned in the passage?", options: ["All-red", "Blue", "Pale yellowish-green", "Purple"], answer: "Pale yellowish-green" },
+                { type: 'mcq', text: "What gas produces the rarer, all-red auroras at high altitudes?", options: ["Nitrogen", "Helium", "Hydrogen", "Oxygen"], answer: "Oxygen" },
+                { type: 'tf', text: "True or False: The Vikings believed the lights were the spirits of their ancestors playing a game.", options: ["True", "False"], answer: "False" },
+                { type: 'tf', text: "True or False: The Earth's magnetic field repels solar particles away from the poles.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "What is a modern economic driver in the 'auroral zone'?", options: ["Scientific research", "Tourism", "Mining", "Fishing"], answer: "Tourism" },
+                { type: 'tf', text: "True or False: The study of the aurora provides no useful information about space.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "Strong space weather can negatively impact...", options: ["Farming and agriculture", "Ocean tides", "Satellites and power grids", "Animal migration"], answer: "Satellites and power grids" },
+                { type: 'tf', text: "True or False: The Northern Lights are best observed near the equator.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "What color can nitrogen produce in an aurora?", options: ["Only green", "Only red", "Yellow or orange", "Blue or purplish-red"], answer: "Blue or purplish-red" }
+            ];
+
+            const fillInBlankQuestions = [
+                 { type: 'mcq', text: "An aurora is a beautiful natural ____.", options: ["phenomenon", "collision", "particle", "field"], answer: "phenomenon" },
+                 { type: 'mcq', text: "The stream of charged particles from the sun is called the ____.", options: ["solar wind", "magnetic field", "atmosphere", "celestial ray"], answer: "solar wind" },
+                 { type: 'mcq', text: "Earth's ____ protects us from the full force of this stream.", options: ["atmosphere", "magnetic field", "gravity", "ozone layer"], answer: "magnetic field" },
+                 { type: 'mcq', text: "The lights are created by ____ between particles and atoms.", options: ["collisions", "interpretations", "spectacles", "regulations"], answer: "collisions" },
+                 { type: 'mcq', text: "The aurora is typically seen in ____ regions.", options: ["equatorial", "low-latitude", "high-latitude", "tropical"], answer: "high-latitude" },
+                 { type: 'mcq', text: "The most common color is produced by ____ molecules.", options: ["oxygen", "nitrogen", "hydrogen", "carbon"], answer: "oxygen" },
+                 { type: 'mcq', text: "Strong solar events can affect ____, disrupting communications.", options: ["satellites", "airplanes", "boats", "cars"], answer: "satellites" },
+                 { type: 'mcq', text: "The ____ people of North America had myths about the lights.", options: ["Inuit", "Viking", "Roman", "Greek"], answer: "Inuit" },
+                 { type: 'mcq', text: "The beauty of the lights is an amazing ____.", options: ["spectacle", "particle", "collision", "phenomenon"], answer: "spectacle" },
+                 { type: 'mcq', text: "The lights' appearance is ____ linked to solar activity.", options: ["intrinsically", "barely", "never", "randomly"], answer: "intrinsically" },
+                 { type: 'mcq', text: "The ____ believed the lights were reflections from mythical armor.", options: ["Vikings", "Romans", "Egyptians", "Greeks"], answer: "Vikings" },
+                 { type: 'mcq', text: "A major solar storm could potentially damage our electrical ____.", options: ["power grids", "water pipes", "road systems", "internet cables"], answer: "power grids" },
+                 { type: 'mcq', text: "The scientific study of the aurora gives us information about ____.", options: ["space weather", "ocean currents", "plate tectonics", "the Earth's core"], answer: "space weather" },
+                 { type: 'mcq', text: "Different cultures had a different ____ of what the lights were.", options: ["interpretation", "collision", "phenomenon", "spectacle"], answer: "interpretation" },
+                 { type: 'mcq', text: "Stars and planets are considered ____ objects.", options: ["celestial", "terrestrial", "atmospheric", "magnetic"], answer: "celestial" },
+                 { type: 'mcq', text: "____ is a big industry for places where the aurora is visible.", options: ["Tourism", "Farming", "Manufacturing", "Fishing"], answer: "tourism" },
+                 { type: 'mcq', text: "A ____ is a tiny piece of matter.", options: ["particle", "wave", "grid", "field"], answer: "particle" },
+                 { type: 'mcq', text: "The colors depend on collisions in the upper ____.", options: ["atmosphere", "ocean", "crust", "core"], answer: "atmosphere" },
+                 { type: 'mcq', text: "Besides oxygen, ____ is another gas that creates auroral colors.", options: ["nitrogen", "helium", "argon", "neon"], answer: "nitrogen" },
+                 { type: 'mcq', text: "The scientific name for the phenomenon is ____.", options: ["Aurora Borealis", "Solar Flare", "Sunspot Cycle", "Van Allen Belt"], answer: "Aurora Borealis" }
+            ];
+
+            const badges = {
+                quickThinker: { name: 'Quick Thinker', desc: 'Answer 5 questions with over half the time remaining.', icon: '⚡️', earned: false },
+                perfectStreak: { name: 'Perfect Streak', desc: 'Answer 10 questions correctly in a row.', icon: '🎯', earned: false },
+                virtuoso: { name: 'Aurora Chaser', desc: 'Score 90 points or more in a single game.', icon: '�', earned: false },
+            };
+
+            const positivePraises = ["Correct!", "Excellent!", "Great job!", "You got it!", "Awesome!"];
+
+            // DOM Elements and Game State variables (remain the same)
+             const startScreen = document.getElementById('start-screen');
+            const gameScreen = document.getElementById('game-screen');
+            const endScreen = document.getElementById('end-screen');
+            const startGameBtn = document.getElementById('start-game-btn');
+            const playAgainBtn = document.getElementById('play-again-btn');
+
+            const scoreDisplay = document.getElementById('score');
+            const questionCounterDisplay = document.getElementById('question-counter');
+            const totalQuestionsDisplay = document.getElementById('total-questions');
+            const timerBarInner = document.getElementById('timer-bar-inner');
+            const questionText = document.getElementById('question-text');
+            const optionsArea = document.getElementById('options-area');
+            const feedbackText = document.getElementById('feedback-text');
+
+            const finalScoreDisplay = document.getElementById('final-score');
+            const badgeDisplay = document.getElementById('badge-display');
+            const finalBadgesDisplay = document.getElementById('final-badges');
+            const badgeModal = document.getElementById('badge-modal');
+            const badgeModalTitle = document.getElementById('badge-modal-title');
+            const badgeModalName = document.getElementById('badge-modal-name');
+            const badgeModalDesc = document.getElementById('badge-modal-desc');
+
+            let score = 0;
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let timer;
+            let timeLeft;
+
+            let correctStreak = 0;
+            let quickAnswerCount = 0;
+            
+            let correctSound, incorrectSound;
+            let feedbackVoice = null;
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+            
+            async function initializeAudio() {
+                if (Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+                correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.5 } }).toDestination();
+                incorrectSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+                
+                if ('speechSynthesis' in window) {
+                     if (speechSynthesis.onvoiceschanged !== undefined) {
+                        speechSynthesis.onvoiceschanged = getFeedbackVoice;
+                    }
+                    getFeedbackVoice();
+                }
+            }
+
+            function getFeedbackVoice() {
+                const voices = speechSynthesis.getVoices();
+                // Change voice preference for variety
+                feedbackVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Ava')) ||
+                                voices.find(v => v.lang === 'en-US' && v.name.includes('Emma')) ||
+                                voices.find(v => v.lang.startsWith('en') && (v.name.includes('Female') || v.name.includes('Google') || v.name.includes('Zira')));
+            }
+            
+            function generateQuestions() {
+                const vocabQuestions = vocabulary.map((item) => {
+                    const distractors = vocabulary
+                        .filter(d => d.keyword !== item.keyword)
+                        .slice(0, 3)
+                        .map(d => d.keyword);
+
+                    const options = [item.keyword, ...distractors];
+                    shuffleArray(options);
+                    
+                    return {
+                        type: 'mcq',
+                        text: `Which word means: "${item.definition}"`,
+                        options: options,
+                        answer: item.keyword
+                    };
+                });
+                
+                questions = [...vocabQuestions, ...readingQuestions, ...fillInBlankQuestions];
+                shuffleArray(questions);
+                totalQuestionsDisplay.textContent = questions.length;
+            }
+
+            function startGame() {
+                score = 0;
+                currentQuestionIndex = 0;
+                correctStreak = 0;
+                quickAnswerCount = 0;
+                Object.values(badges).forEach(b => b.earned = false);
+                
+                generateQuestions();
+                
+                startScreen.classList.remove('active');
+                endScreen.classList.remove('active');
+                gameScreen.classList.add('active');
+                badgeDisplay.innerHTML = '';
+                
+                showNextQuestion();
+            }
+
+            function showNextQuestion() {
+                resetState();
+                if (currentQuestionIndex >= questions.length) {
+                    endGame();
+                    return;
+                }
+
+                const question = questions[currentQuestionIndex];
+                questionText.textContent = question.text;
+                
+                if (question.options.length <= 2) {
+                    optionsArea.classList.remove('md:grid-cols-2');
+                    optionsArea.classList.add('md:grid-cols-1', 'max-w-sm', 'mx-auto');
+                } else {
+                    optionsArea.classList.remove('md:grid-cols-1', 'max-w-sm', 'mx-auto');
+                    optionsArea.classList.add('md:grid-cols-2');
+                }
+
+                question.options.forEach(option => {
+                    const button = document.createElement('button');
+                    button.textContent = option;
+                    button.classList.add('mcq-option', 'text-white', 'py-3', 'px-4', 'rounded-lg', 'text-base', 'md:text-lg', 'transition-colors', 'duration-200');
+                    button.addEventListener('click', () => selectAnswer(option, question.answer));
+                    optionsArea.appendChild(button);
+                });
+
+                questionCounterDisplay.textContent = `${currentQuestionIndex + 1}`;
+                scoreDisplay.textContent = score;
+
+                timeLeft = 15;
+                startTimer();
+            }
+
+            function startTimer() {
+                timerBarInner.style.transition = 'none';
+                timerBarInner.style.width = '100%';
+                timerBarInner.style.backgroundColor = '#34d399'; // emerald-400
+                
+                setTimeout(() => {
+                    timerBarInner.style.transition = `width ${timeLeft}s linear`;
+                    timerBarInner.style.width = '0%';
+                }, 100);
+
+                timer = setInterval(() => {
+                    timeLeft--;
+                     if (timeLeft < 8) {
+                        timerBarInner.style.backgroundColor = '#facc15';
+                    }
+                    if (timeLeft < 4) {
+                        timerBarInner.style.backgroundColor = '#f87171';
+                    }
+                    if (timeLeft <= 0) {
+                        clearInterval(timer);
+                        selectAnswer(null, questions[currentQuestionIndex].answer);
+                    }
+                }, 1000);
+            }
+
+            function selectAnswer(selected, correct) {
+                clearInterval(timer);
+                const isCorrect = selected === correct;
+
+                optionsArea.childNodes.forEach(button => {
+                    button.disabled = true;
+                    if (button.textContent === correct) {
+                        button.classList.add('!bg-green-500', 'border-2', 'border-white');
+                    }
+                    if (button.textContent === selected && !isCorrect) {
+                        button.classList.add('!bg-red-500');
+                    }
+                });
+
+                if (isCorrect) {
+                    score += 2;
+                    feedbackText.textContent = 'Correct!';
+                    feedbackText.classList.add('text-green-300');
+                    correctStreak++;
+                    if (timeLeft > 7) { 
+                        quickAnswerCount++;
+                    }
+                    
+                    correctSound?.triggerAttackRelease("C5", "8n");
+                    
+                    if (feedbackVoice && speechSynthesis.speaking === false) {
+                        const praise = positivePraises[Math.floor(Math.random() * positivePraises.length)];
+                        const utterance = new SpeechSynthesisUtterance(praise);
+                        utterance.voice = feedbackVoice;
+                        speechSynthesis.speak(utterance);
+                    }
+
+                } else {
+                    feedbackText.textContent = `Correct: "${correct}"`;
+                    feedbackText.classList.add('text-red-300');
+                    correctStreak = 0;
+                    
+                    incorrectSound?.triggerAttackRelease("A2", "8n", Tone.now() + 0.1);
+                }
+                
+                checkBadges();
+
+                scoreDisplay.textContent = score;
+                currentQuestionIndex++;
+                
+                setTimeout(showNextQuestion, 2000);
+            }
+            
+            function checkBadges() {
+                if (quickAnswerCount >= 5 && !badges.quickThinker.earned) {
+                    badges.quickThinker.earned = true;
+                    showBadge(badges.quickThinker);
+                }
+                if (correctStreak >= 10 && !badges.perfectStreak.earned) {
+                    badges.perfectStreak.earned = true;
+                    showBadge(badges.perfectStreak);
+                }
+                if (score >= 90 && !badges.virtuoso.earned) {
+                    badges.virtuoso.earned = true;
+                    showBadge(badges.virtuoso);
+                }
+            }
+
+            function showBadge(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.textContent = badge.icon;
+                badgeEl.title = `${badge.name}: ${badge.desc}`;
+                badgeEl.classList.add('text-3xl', 'badge-unlocked');
+                badgeDisplay.appendChild(badgeEl);
+                
+                badgeModalName.textContent = badge.name;
+                badgeModalDesc.textContent = badge.desc;
+                badgeModal.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+                badgeModal.classList.add('opacity-100', 'scale-100');
+                
+                setTimeout(() => {
+                    badgeModal.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+                    badgeModal.classList.remove('opacity-100', 'scale-100');
+                }, 3000);
+            }
+
+            function resetState() {
+                clearInterval(timer);
+                optionsArea.innerHTML = '';
+                feedbackText.textContent = '';
+                feedbackText.classList.remove('text-green-300', 'text-red-300');
+            }
+
+            function endGame() {
+                gameScreen.classList.remove('active');
+                endScreen.classList.add('active');
+                finalScoreDisplay.textContent = score;
+                
+                finalBadgesDisplay.innerHTML = '';
+                Object.values(badges).forEach(badge => {
+                    if (badge.earned) {
+                        const badgeEl = document.createElement('div');
+                        badgeEl.classList.add('text-center', 'p-2');
+                        badgeEl.innerHTML = `<div class="text-4xl">${badge.icon}</div><div class="font-semibold">${badge.name}</div>`;
+                        finalBadgesDisplay.appendChild(badgeEl);
+                    }
+                });
+            }
+
+            startGameBtn.addEventListener('click', () => {
+                initializeAudio().then(() => {
+                    startGame();
+                });
+            });
+            playAgainBtn.addEventListener('click', startGame);
+
+        });
+    </script>
+</body>
+</html>
+�

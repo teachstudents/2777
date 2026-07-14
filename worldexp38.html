@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hobart, Australia Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #1e3a8a, #374151, #9ca3af, #fca5a5);
+            background-size: 400% 400%;
+            animation: gradientBG 35s ease infinite;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #4ade80; color: white; transform: scale(1.02); }
+            100% { background-color: #4ade80; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Hobart, Australia Challenge</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge of Tasmania's capital with 40 questions. You have 15 minutes. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-rose-300 focus:outline-none">
+            <button id="start-btn" class="w-full md:w-auto bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Start Challenge</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">15:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div id="badges-container" class="flex justify-center items-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-rose-700 mb-2" id="question-counter">Question 1 / 40</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 min-h-[100px] text-center"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-rose-500 hover:bg-rose-600 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+
+            let score = 0;
+            let timer;
+            let timeLeft = 900; // 15 minutes
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctVocabCount = 0;
+            let correctReadingCount = 0;
+            let mistakes = 0;
+            let streakCounter = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let availableVoices = [];
+
+            const correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            const wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+            const badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!"];
+
+            const questionBank = [
+                // Vocabulary Questions (20)
+                { type: 'vocab', question: "'Tasmania' is an...", answers: [{text: "Island state of Australia", correct: true}, {text: "A city in New Zealand", correct: false}, {text: "A type of animal", correct: false}, {text: "A mountain", correct: false}], explanation: "'Tasmania' is an island state of Australia. Hobart is its capital city." },
+                { type: 'vocab', question: "A 'penal colony' is a settlement used to...", answers: [{text: "Exile prisoners", correct: true}, {text: "Trade goods", correct: false}, {text: "Host festivals", correct: false}, {text: "Conduct scientific research", correct: false}], explanation: "A 'penal colony' is a settlement used to exile prisoners and separate them from the general population by placing them in a remote location." },
+                { type: 'vocab', question: "'Sandstone' is a type of...", answers: [{text: "Food", correct: false}, {text: "Rock often used in building", correct: true}, {text: "Tree", correct: false}, {text: "Ship", correct: false}], explanation: "'Sandstone' is a sedimentary rock consisting of sand or quartz grains cemented together, typically used in building." },
+                { type: 'vocab', question: "A 'provocative' piece of art is intended to...", answers: [{text: "Be boring", correct: false}, {text: "Stimulate strong feelings or thought", correct: true}, {text: "Be easily understood", correct: false}, {text: "Be relaxing", correct: false}], explanation: "'Provocative' means causing annoyance, anger, or another strong reaction, especially deliberately." },
+                { type: 'vocab', question: "The 'culinary' scene of a city refers to its...", answers: [{text: "Music and arts", correct: false}, {text: "Food and cooking", correct: true}, {text: "History", correct: false}, {text: "Architecture", correct: false}], explanation: "'Culinary' means of or for cooking." },
+                { type: 'vocab', question: "An 'estuary' is where...", answers: [{text: "A river begins", correct: false}, {text: "The tide meets a river stream", correct: true}, {text: "Two mountains meet", correct: false}, {text: "A desert ends", correct: false}], explanation: "An 'estuary' is the tidal mouth of a large river, where the tide meets the stream." },
+                { type: 'vocab', question: "A 'compact' city is one that is...", answers: [{text: "Spread out over a large area", correct: false}, {text: "Closely and neatly packed together", correct: true}, {text: "Very old", correct: false}, {text: "A capital city", correct: false}], explanation: "'Compact' means closely and neatly packed together; dense." },
+                { type: 'vocab', question: "'Maritime' history is related to the...", answers: [{text: "Mountains", correct: false}, {text: "Sea, shipping, and sailing", correct: true}, {text: "Air", correct: false}, {text: "Forest", correct: false}], explanation: "'Maritime' means connected with the sea, especially in relation to seafaring commercial or military activity." },
+                { type: 'vocab', question: "A 'yacht race' is a competition involving...", answers: [{text: "Running", correct: false}, {text: "Sailing boats", correct: true}, {text: "Cars", correct: false}, {text: "Horses", correct: false}], explanation: "A 'yacht' is a sailing or power vessel used for pleasure, cruising, or racing." },
+                { type: 'vocab', question: "A 'temperate' climate is...", answers: [{text: "Extremely hot", correct: false}, {text: "Characterized by mild temperatures", correct: true}, {text: "Extremely cold", correct: false}, {text: "Very rainy", correct: false}], explanation: "A 'temperate' climate is a region or climate characterized by mild temperatures." },
+                { type: 'vocab', question: "'Heritage' refers to...", answers: [{text: "Modern buildings", correct: false}, {text: "Valued historical buildings, traditions, and qualities", correct: true}, {text: "The economy", correct: false}, {text: "The local government", correct: false}], explanation: "'Heritage' is features belonging to the culture of a particular society, such as traditions, languages, or buildings, that were created in the past and still have historical importance." },
+                { type: 'vocab', question: "'Vibrancy' is the state of being...", answers: [{text: "Dull and boring", correct: false}, {text: "Full of energy and life", correct: true}, {text: "Old and historic", correct: false}, {text: "Quiet and calm", correct: false}], explanation: "'Vibrancy' is the state of being full of energy and life." },
+                { type: 'vocab', question: "A 'scallop pie' is a type of...", answers: [{text: "Dessert", correct: false}, {text: "Savory food dish", correct: true}, {text: "Drink", correct: false}, {text: "Fruit", correct: false}], explanation: "A 'scallop pie' is a savory pie containing scallops, a type of shellfish." },
+                { type: 'vocab', question: "'Pristine' wilderness is...", answers: [{text: "Damaged by humans", correct: false}, {text: "In its original, unspoiled condition", correct: true}, {text: "A popular tourist area", correct: false}, {text: "Close to the city", correct: false}], explanation: "'Pristine' means in its original condition; unspoiled." },
+                { type: 'vocab', question: "'Colonial' architecture refers to styles from...", answers: [{text: "The modern era", correct: false}, {text: "A period of colonization", correct: true}, {text: "Ancient Rome", correct: false}, {text: "The future", correct: false}], explanation: "'Colonial' architecture is an architectural style from a mother country that has been incorporated into the buildings of settlements or colonies in distant locations." },
+                { type: 'vocab', question: "'Dark Mofo' is a...", answers: [{text: "Type of food", correct: false}, {text: "Winter festival", correct: true}, {text: "Museum", correct: false}, {text: "Mountain", correct: false}], explanation: "'Dark Mofo' is an annual winter festival in Hobart, Tasmania." },
+                { type: 'vocab', question: "'Gourmet' food is...", answers: [{text: "Simple and plain", correct: false}, {text: "Of very high quality", correct: true}, {text: "Inexpensive fast food", correct: false}, {text: "Low in calories", correct: false}], explanation: "'Gourmet' food is of a type or standard suitable for a gourmet (a connoisseur of good food)." },
+                { type: 'vocab', question: "A 'renaissance' is a...", answers: [{text: "Period of decline", correct: false}, {text: "Revival or renewed interest in something", correct: true}, {text: "Historical war", correct: false}, {text: "Political movement", correct: false}], explanation: "A 'renaissance' is a revival of or renewed interest in something." },
+                { type: 'vocab', question: "A 'harbor' is a place where...", answers: [{text: "Planes land", correct: false}, {text: "Ships may shelter", correct: true}, {text: "Cars are parked", correct: false}, {text: "Animals are kept", correct: false}], explanation: "A 'harbor' is a place on the coast where vessels may find shelter." },
+                { type: 'vocab', question: "Mount Wellington provides a dramatic... for the city.", answers: [{text: "food source", correct: false}, {text: "backdrop", correct: true}, {text: "water supply", correct: false}, {text: "transportation route", correct: false}], explanation: "A 'backdrop' is the setting or background for a scene, event, or situation. The mountain serves as a scenic background for Hobart." },
+
+                // Reading Questions (20)
+                { type: 'reading', question: "What is Hobart the capital of?", answers: [{text:"Australia", correct: false}, {text:"The island state of Tasmania", correct: true}, {text:"New Zealand", correct: false}, {text:"A penal colony", correct: false}], explanation: "The passage identifies Hobart as 'the capital city of Tasmania, an island state of Australia'." },
+                { type: 'reading', question: "What famous landmark provides a backdrop for the city?", answers: [{text:"The Sydney Opera House", correct: false}, {text:"Mount Wellington", correct: true}, {text:"The Great Barrier Reef", correct: false}, {text:"Ayers Rock", correct: false}], explanation: "The passage states the city is dominated by 'the dramatic backdrop of Mount Wellington'." },
+                { type: 'reading', question: "What was Hobart originally founded as?", answers: [{text:"A trading post", correct: false}, {text:"A British penal colony", correct: true}, {text:"A farming village", correct: false}, {text:"A military outpost", correct: false}], explanation: "The passage says, 'It was founded in 1804 as a British penal colony'." },
+                { type: 'reading', question: "What is the MONA museum known for?", answers: [{text:"Its collection of colonial artifacts", correct: false}, {text:"Its provocative and unconventional art", correct: true}, {text:"Its focus on maritime history", correct: false}, {text:"Its beautiful gardens", correct: false}], explanation: "The passage states MONA is 'famous for its provocative and unconventional art'." },
+                { type: 'reading', question: "True or False: The passage describes Hobart as a huge, sprawling city.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage describes Hobart as a 'compact city, making it easy to explore on foot'." },
+                { type: 'reading', question: "What famous sporting event finishes in Hobart?", answers: [{text:"The Tour de France", correct: false}, {text:"The Sydney to Hobart yacht race", correct: true}, {text:"The Australian Open", correct: false}, {text:"The Melbourne Cup", correct: false}], explanation: "The passage says, 'It is the finishing point for the famous Sydney to Hobart yacht race'." },
+                { type: 'reading', question: "A 'scallop pie' is mentioned as a unique part of Hobart's...", answers: [{text:"Architecture", correct: false}, {text:"Culinary scene", correct: true}, {text:"History", correct: false}, {text:"Music scene", correct: false}], explanation: "The passage mentions it as a 'unique Tasmanian culinary delight' in the context of the city's 'gourmet culinary scene'." },
+                { type: 'reading', question: "What part of Hobart's history is a UNESCO World Heritage site?", answers: [{text:"The MONA museum", correct: false}, {text:"Its convict heritage", correct: true}, {text:"The waterfront warehouses", correct: false}, {text:"Mount Wellington", correct: false}], explanation: "The passage states, 'The convict heritage of the region is a UNESCO World Heritage site'." },
+                { type: 'reading', question: "The word 'renaissance' used to describe Hobart's culture means it has experienced...", answers: [{text:"A period of decline", correct: false}, {text:"A revival or renewal", correct: true}, {text:"A major disaster", correct: false}, {text:"No changes", correct: false}], explanation: "'Renaissance' means a revival or renewed interest in something, which the passage says happened to Hobart's culture." },
+                { type: 'reading', question: "What is 'Dark Mofo'?", answers: [{text:"A famous local dish", correct: false}, {text:"A popular and controversial winter festival", correct: true}, {text:"A historic neighborhood", correct: false}, {text:"The name of a yacht", correct: false}], explanation: "The passage identifies Dark Mofo as 'a popular and controversial winter festival celebrating darkness'." },
+                { type: 'reading', question: "True or False: The passage suggests Hobart's culture is old-fashioned and has not changed much.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage explicitly states the city has experienced a 'cultural and economic renaissance' and has a 'new cultural vibrancy'." },
+                { type: 'reading', question: "The city is a 'gateway' to what?", answers: [{text:"The Australian Outback", correct: false}, {text:"Tasmania's pristine wilderness areas", correct: true}, {text:"Antarctica", correct: false}, {text:"The Great Barrier Reef", correct: false}], explanation: "The passage says, 'Hobart is a gateway to Tasmania's pristine wilderness areas'." },
+                { type: 'reading', question: "The word 'pristine' to describe the wilderness means it is...", answers: [{text:"Heavily populated", correct: false}, {text:"In its original, unspoiled condition", correct: true}, {text:"Dangerous and inaccessible", correct: false}, {text:"A protected national park", correct: false}], explanation: "'Pristine' means in its original, clean, and fresh condition; unspoiled." },
+                { type: 'reading', question: "What can be inferred about the buildings on Hobart's waterfront?", answers: [{text:"They are all modern skyscrapers", correct: false}, {text:"Many are historic and made of sandstone", correct: true}, {text:"They are all residential homes", correct: false}, {text:"They are in poor condition", correct: false}], explanation: "The vocabulary list, which is part of the chapter, mentions 'Historic sandstone warehouses line the city's waterfront'." },
+                { type: 'reading', question: "The main idea of the second paragraph is to describe...", answers: [{text:"The geography of Tasmania", correct: false}, {text:"Hobart's vibrant and modern cultural scene, which blends with its history", correct: true}, {text:"The rules of the Sydney to Hobart yacht race", correct: false}, {text:"The history of British colonization", correct: false}], explanation: "The second paragraph focuses on the cultural 'renaissance', MONA, festivals, and the culinary scene." },
+                { type: 'reading', question: "What does the passage say about Hobart's climate?", answers: [{text:"It is hot and tropical", correct: false}, {text:"It is mild and temperate", correct: true}, {text:"It is cold and arctic", correct: false}, {text:"It is dry and arid", correct: false}], explanation: "The passage states the city has a 'mild, temperate maritime climate'." },
+                { type: 'reading', question: "The opening of which museum brought a new 'vibrancy' to the city?", answers: [{text:"The Tasmanian Museum and Art Gallery", correct: false}, {text:"The Museum of Old and New Art (MONA)", correct: true}, {text:"The Maritime Museum", correct: false}, {text:"The National Portrait Gallery", correct: false}], explanation: "The vocabulary list states, 'The opening of MONA brought a new cultural vibrancy to the city'." },
+                { type: 'reading', question: "Hobart is a key hub for expeditions to where?", answers: [{text:"The North Pole", correct: false}, {text:"Antarctica", correct: true}, {text:"The Amazon Rainforest", correct: false}, {text:"Mount Everest", correct: false}], explanation: "The passage states Hobart 'is a key hub for Antarctic expeditions'." },
+                { type: 'reading', question: "True or False: The passage suggests that Hobart's history is not an important part of its modern identity.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage says the culture 'blend[s] its history with modern artistic vibrancy' and that its 'convict heritage' is a UNESCO site, showing history is very important." },
+                { type: 'reading', question: "The primary purpose of this passage is to...", answers: [{text:"Encourage people to move to Hobart", correct: false}, {text:"Provide an overview of Hobart's geography, history, and cultural highlights", correct: true}, {text:"Critique the art at the MONA museum", correct: false}, {text:"Detail the history of penal colonies in Australia", correct: false}], explanation: "The passage covers the city's location, history, climate, and key cultural features like its museum, festivals, and food, making it an informative overview." }
+            ];
+            
+            const badges = {
+                vocab: { id: 'vocab', name: 'Vocabulary Virtuoso', icon: '🎓', earned: false, condition: () => correctVocabCount === 20 },
+                reading: { id: 'reading', name: 'Analytical Ace', icon: '🧐', earned: false, condition: () => correctReadingCount === 20 },
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '👍', earned: false, condition: () => streakCounter >= 5 },
+                perfect: { id: 'perfect', name: 'Perfect 100', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-green-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function loadVoices() {
+                if ('speechSynthesis' in window) {
+                    availableVoices = speechSynthesis.getVoices();
+                    if (availableVoices.length === 0) {
+                        speechSynthesis.onvoiceschanged = () => {
+                            availableVoices = speechSynthesis.getVoices();
+                        };
+                    }
+                }
+            }
+            
+            function setupGame() {
+                playerName = playerNameInput.value || "Player";
+                const vocabQuestions = questionBank.filter(q => q.type === 'vocab');
+                const readingQuestions = questionBank.filter(q => q.type === 'reading');
+                shuffleArray(vocabQuestions);
+                shuffleArray(readingQuestions);
+                questions = vocabQuestions.concat(readingQuestions);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 900;
+                correctVocabCount = 0;
+                correctReadingCount = 0;
+                mistakes = 0;
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    if (question.tf) {
+                        button.classList.add(answerObj.text === 'True' ? 'hover:!bg-green-500' : 'hover:!bg-red-500', 'hover:text-white');
+                    }
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                
+                if ('speechSynthesis' in window && availableVoices.length > 0) {
+                    const utterance = new SpeechSynthesisUtterance(praise);
+                    let preferredVoice = availableVoices.find(voice => 
+                        voice.lang === 'en-US' && 
+                        (voice.name.includes('Ava') || voice.name.includes('Natural') || voice.name.includes('Neural'))
+                    );
+                    if (!preferredVoice) {
+                        preferredVoice = availableVoices.find(voice => voice.lang === 'en-US');
+                    }
+                    if (preferredVoice) {
+                        utterance.voice = preferredVoice;
+                    }
+                    
+                    speechSynthesis.speak(utterance);
+                }
+
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 2.5;
+                    streakCounter++;
+                    if (question.type === 'vocab') correctVocabCount++;
+                    if (question.type === 'reading') correctReadingCount++;
+                    
+                    updateScore();
+                    correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    streakCounter = 0; // Reset streak
+                    wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = `Great work, ${playerName}!`;
+                } else {
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+                endMessageEl.textContent = "Your final score is:";
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            // Initial load
+            loadVoices();
+            startBtn.addEventListener('click', setupGame);
+            restartBtn.addEventListener('click', setupGame);
+            nextQuestionBtn.addEventListener('click', hideFeedback);
+        });
+    </script>
+</body>
+</html>

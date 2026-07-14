@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Al-Jazari: The Father of Robotics Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #1e3a8a, #3b82f6, #a5b4fc, #facc15);
+            background-size: 400% 400%;
+            animation: gradientBG 25s ease infinite;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #4ade80; color: white; transform: scale(1.02); }
+            100% { background-color: #4ade80; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Al-Jazari: The Father of Robotics</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge with 40 questions on the ingenious inventor. You have 15 minutes. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-yellow-400 focus:outline-none">
+            <button id="start-btn" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Start Challenge</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">15:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div id="badges-container" class="flex justify-center items-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-blue-600 mb-2" id="question-counter">Question 1 / 40</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 min-h-[100px] text-center"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+
+            let score = 0;
+            let timer;
+            let timeLeft = 900; // 15 minutes
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctVocabCount = 0;
+            let correctReadingCount = 0;
+            let mistakes = 0;
+            let streakCounter = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let availableVoices = [];
+
+            const correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            const wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+            const badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!"];
+
+            const questionBank = [
+                // Vocabulary Questions (20)
+                { type: 'vocab', question: "A 'polymath' is a person who...", answers: [{text: "Knows a lot about many subjects", correct: true}, {text: "Specializes in only one subject", correct: false}, {text: "Is a professional artist", correct: false}, {text: "Studies ancient history", correct: false}], explanation: "A 'polymath' is a person of wide-ranging knowledge or learning." },
+                { type: 'vocab', question: "'Automation' is the use of...", answers: [{text: "Manual labor", correct: false}, {text: "Artistic creativity", correct: false}, {text: "Largely automatic equipment in a system", correct: true}, {text: "Simple hand tools", correct: false}], explanation: "'Automation' is the use or introduction of automatic equipment in a manufacturing or other process or facility." },
+                { type: 'vocab', question: "'Automata' are...", answers: [{text: "Ancient books", correct: false}, {text: "Self-operating machines", correct: true}, {text: "Types of water clocks", correct: false}, {text: "Scientific theories", correct: false}], explanation: "'Automata' are moving mechanical devices made in imitation of a human being; another term for robots." },
+                { type: 'vocab', question: "An 'ingenious' device is one that is...", answers: [{text: "Old and broken", correct: false}, {text: "Simple and common", correct: false}, {text: "Cleverly and originally designed", correct: true}, {text: "Difficult to use", correct: false}], explanation: "An 'ingenious' device is clever, original, and inventive." },
+                { type: 'vocab', question: "A 'manuscript' is a...", answers: [{text: "A printed book", correct: false}, {text: "A book or document written by hand", correct: true}, {text: "A type of machine", correct: false}, {text: "A scientific journal", correct: false}], explanation: "A 'manuscript' is a book, document, or piece of music written by hand rather than typed or printed." },
+                { type: 'vocab', question: "A 'camshaft' is a component used in...", answers: [{text: "Clocks", correct: false}, {text: "Engines and machines", correct: true}, {text: "Telescopes", correct: false}, {text: "Fountains", correct: false}], explanation: "A 'camshaft' is a shaft to which a cam is fastened or of which a cam forms an integral part, used in machines." },
+                { type: 'vocab', question: "A 'crankshaft' is a key part of an engine that...", answers: [{text: "Pumps water", correct: false}, {text: "Converts linear motion to rotational motion", correct: true}, {text: "Measures time", correct: false}, {text: "Creates music", correct: false}], explanation: "A 'crankshaft' is a shaft driven by a crank, which is fundamental to how most engines work." },
+                { type: 'vocab', question: "Something that is 'hydro-powered' gets its energy from...", answers: [{text: "The sun", correct: false}, {text: "Wind", correct: false}, {text: "Moving water", correct: true}, {text: "Electricity", correct: false}], explanation: "Something 'hydro-powered' is powered by the energy of moving water." },
+                { type: 'vocab', question: "A 'mechanism' is a...", answers: [{text: "A system of parts working together in a machine", correct: true}, {text: "A scientific theory", correct: false}, {text: "A historical document", correct: false}, {text: "A piece of art", correct: false}], explanation: "A 'mechanism' is a system of parts working together in a machine; a piece of machinery." },
+                { type: 'vocab', question: "'Robotics' is the field of designing and building...", answers: [{text: "Clocks", correct: false}, {text: "Robots", correct: true}, {text: "Buildings", correct: false}, {text: "Fountains", correct: false}], explanation: "'Robotics' is the branch of technology that deals with the design, construction, operation, and application of robots." },
+                { type: 'vocab', question: "A 'scholar' is a...", answers: [{text: "A person with deep knowledge of a subject", correct: true}, {text: "A student just beginning to learn", correct: false}, {text: "A professional athlete", correct: false}, {text: "A wealthy person", correct: false}], explanation: "A 'scholar' is a specialist in a particular branch of study, a person who is highly educated or has an aptitude for study." },
+                { type: 'vocab', question: "A 'practical' invention is one that is...", answers: [{text: "Only theoretical", correct: false}, {text: "Designed for actual use; useful", correct: true}, {text: "Purely decorative", correct: false}, {text: "Impossible to build", correct: false}], explanation: "Something 'practical' is concerned with the actual doing or use of something rather than with theory and ideas." },
+                { type: 'vocab', question: "What is a 'legacy'?", answers: [{text: "A type of law", correct: false}, {text: "A final exam", correct: false}, {text: "Something left behind for future generations", correct: true}, {text: "A daily task", correct: false}], explanation: "A 'legacy' is something left or handed down by a predecessor." },
+                { type: 'vocab', question: "'Craftsmanship' refers to...", answers: [{text: "The speed of work", correct: false}, {text: "The skill in a particular craft", correct: true}, {text: "The cost of materials", correct: false}, {text: "The age of an object", correct: false}], explanation: "'Craftsmanship' is skill in a particular craft." },
+                { type: 'vocab', question: "A machine that is 'programmable' can...", answers: [{text: "Only do one task", correct: false}, {text: "Be instructed to perform a series of tasks automatically", correct: true}, {text: "Only work when a person is present", correct: false}, {text: "Never be changed", correct: false}], explanation: "Something 'programmable' is capable of being programmed to operate automatically." },
+                { type: 'vocab', question: "A 'water clock' is a device that measures time by...", answers: [{text: "The position of the sun", correct: false}, {text: "The flow of water", correct: true}, {text: "The burning of a candle", correct: false}, {text: "Using gears and springs", correct: false}], explanation: "A 'water clock' is a time-measuring device worked by a regulated flow of liquid into or out from a vessel." },
+                { type: 'vocab', question: "'Engineering' is the branch of science concerned with...", answers: [{text: "Studying animals", correct: false}, {text: "Designing and building machines and structures", correct: true}, {text: "Mixing chemicals", correct: false}, {text: "Writing poetry", correct: false}], explanation: "'Engineering' is the branch of science and technology concerned with the design, building, and use of engines, machines, and structures." },
+                { type: 'vocab', question: "'Innovation' means...", answers: [{text: "A new method, idea, or product", correct: true}, {text: "A traditional way of doing things", correct: false}, {text: "A mistake or error", correct: false}, {text: "A copy of something old", correct: false}], explanation: "'Innovation' is the action or process of innovating; a new method, idea, product, etc." },
+                { type: 'vocab', question: "A 'fountain' is a structure that...", answers: [{text: "Pumps water into the air for a decorative effect", correct: true}, {text: "Generates electricity", correct: false}, {text: "Is used for transportation", correct: false}, {text: "Is a type of building", correct: false}], explanation: "A 'fountain' is an ornamental structure in a pool or lake from which one or more jets of water are pumped into the air." },
+                { type: 'vocab', question: "A 'blueprint' is a...", answers: [{text: "A final, finished product", correct: false}, {text: "A design plan or technical drawing", correct: true}, {text: "A historical story", correct: false}, {text: "A type of paint", correct: false}], explanation: "A 'blueprint' is a design plan or other technical drawing." },
+
+                // Reading Questions (20)
+                { type: 'reading', question: "What is Al-Jazari often called?", answers: [{text:"The King of the Golden Age", correct: false}, {text:"The Father of Robotics", correct: true}, {text:"The Great Scholar", correct: false}, {text:"The Master of Water", correct: false}], explanation: "The first paragraph calls him the 'father of robotics'." },
+                { type: 'reading', question: "What is the name of Al-Jazari's famous 'manuscript'?", answers: [{text:"The Book of Engineering", correct: false}, {text:"The Book of Ingenious Mechanical Devices", correct: true}, {text:"The History of Automation", correct: false}, {text:"The Art of Craftsmanship", correct: false}], explanation: "The passage explicitly names his book 'The Book of Knowledge of Ingenious Mechanical Devices'." },
+                { type: 'reading', question: "True or False: Al-Jazari's inventions were only for decoration and had no practical use.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage states his inventions were 'meant for practical use', such as lifting water." },
+                { type: 'reading', question: "Which two of these are mentioned as Al-Jazari's most important inventions?", answers: [{text:"The water clock and the fountain", correct: false}, {text:"The crankshaft and the camshaft", correct: true}, {text:"The manuscript and the blueprint", correct: false}, {text:"The robot and the engine", correct: false}], explanation: "The final paragraph highlights the 'crankshaft' and 'camshaft' as two of the most important inventions in history." },
+                { type: 'reading', question: "What kind of power source did many of Al-Jazari's devices use?", answers: [{text:"Solar power", correct: false}, {text:"Wind power", correct: false}, {text:"Hydro power (water)", correct: true}, {text:"Steam power", correct: false}], explanation: "The passage mentions his 'hydro-powered' devices." },
+                { type: 'reading', question: "The author's tone towards Al-Jazari can best be described as...", answers: [{text:"Doubtful and critical", correct: false}, {text:"Admiring and impressed", correct: true}, {text:"Neutral and uninterested", correct: false}, {text:"Confused and puzzled", correct: false}], explanation: "The author uses words like 'brilliant', 'ingenious', 'greatest achievement', and 'immense' significance, which all show admiration." },
+                { type: 'reading', question: "What does the passage say Al-Jazari's book provided for future engineers?", answers: [{text:"A source of funding", correct: false}, {text:"A blueprint", correct: true}, {text:"A warning", correct: false}, {text:"A list of rules", correct: false}], explanation: "The final paragraph states his book provided a 'blueprint for future engineers'." },
+                { type: 'reading', question: "What is considered one of the first 'programmable' robots created by Al-Jazari?", answers: [{text:"The water clock", correct: false}, {text:"A musical automaton on a boat", correct: true}, {text:"The automated fountain", correct: false}, {text:"A water-lifting machine", correct: false}], explanation: "The passage mentions his 'musical automaton... which some consider the first ever programmable robot'." },
+                { type: 'reading', question: "The passage describes Al-Jazari as a 'polymath'. This implies he...", answers: [{text:"Only studied one subject", correct: false}, {text:"Had a wide range of knowledge and skills", correct: true}, {text:"Was not very educated", correct: false}, {text:"Traveled to many countries", correct: false}], explanation: "The first paragraph defines a polymath as someone 'good at many things'." },
+                { type: 'reading', question: "What does the author say about the 'craftsmanship' shown in Al-Jazari's book?", answers: [{text:"It was simple and plain", correct: false}, {text:"It was incredible and artistic", correct: true}, {text:"It was not important", correct: false}, {text:"It was copied from others", correct: false}], explanation: "The second paragraph says his 'water clock... showed amazing craftsmanship'." },
+                { type: 'reading', question: "True or False: The passage suggests that Al-Jazari's work is no longer relevant today.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage states his legacy is relevant because the 'principles behind his machines are still fundamental today'." },
+                { type: 'reading', question: "The main purpose of the passage is to...", answers: [{text:"Explain the history of the Islamic Golden Age", correct: false}, {text:"Inform the reader about the life and significant contributions of Al-Jazari", correct: true}, {text:"Teach the reader how to build a water clock", correct: false}, {text:"Argue that modern engineering is not innovative", correct: false}], explanation: "The entire passage is focused on describing who Al-Jazari was and why his inventions and legacy are important." },
+                { type: 'reading', question: "The passage states Al-Jazari was a respected 'scholar' during which period?", answers: [{text:"The Renaissance", correct: false}, {text:"The Islamic Golden Age", correct: true}, {text:"The Industrial Revolution", correct: false}, {text:"Ancient Rome", correct: false}], explanation: "The last sentence of the third paragraph places him in the 'Islamic Golden Age'." },
+                { type: 'reading', question: "Which word from the text best describes the detailed, working nature of Al-Jazari's designs?", answers: [{text:"Legacy", correct: false}, {text:"Mechanism", correct: true}, {text:"Scholar", correct: false}, {text:"Polymath", correct: false}], explanation: "A 'mechanism' refers to a system of parts working together, which accurately describes his detailed designs." },
+                { type: 'reading', question: "What can be inferred about the Islamic Golden Age from this passage?", answers: [{text:"It was a time of little scientific progress", correct: false}, {text:"It was a period of significant scientific and technological innovation", correct: true}, {text:"It was focused only on art and literature", correct: false}, {text:"It took place after the European Renaissance", correct: false}], explanation: "The passage describes Al-Jazari's incredible work and calls it a 'prime example of the scientific flourishing' of that era." },
+                { type: 'reading', question: "The passage highlights Al-Jazari's work in 'automation' by mentioning...", answers: [{text:"His hand-written manuscript", correct: false}, {text:"His self-operating machines like fountains and clocks", correct: true}, {text:"His invention of the crankshaft", correct: false}, {text:"His skill as a craftsman", correct: false}], explanation: "Automation is the use of automatic equipment. The self-operating fountains and clocks are perfect examples." },
+                { type: 'reading', question: "True or False: Al-Jazari's book contained only theoretical ideas, not instructions.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage says his book provided 'detailed instructions' and was a 'blueprint', showing it was not just theoretical." },
+                { type: 'reading', question: "The author emphasizes that Al-Jazari's 'legacy' can be seen in...", answers: [{text:"Modern art museums", correct: false}, {text:"Principles of modern engineering", correct: true}, {text:"Modern robotics competitions", correct: false}, {text:"The design of modern fountains", correct: false}], explanation: "The passage states, 'his legacy can be seen in many principles of modern engineering'." },
+                { type: 'reading', question: "The term 'ingenious' suggests that Al-Jazari's devices were...", answers: [{text:"Common and ordinary", correct: false}, {text:"Clever and inventive", correct: true}, {text:"Copied and unoriginal", correct: false}, {text:"Simple and basic", correct: false}], explanation: "'Ingenious' means clever, original, and inventive." },
+                { type: 'reading', question: "What is the primary function of a 'crankshaft' as implied by the text?", answers: [{text:"To measure time", correct: false}, {text:"To be a key part of engines and machines", correct: true}, {text:"To pump water automatically", correct: false}, {text:"To create music", correct: false}], explanation: "The text lists it as a key invention for 'engineering' and a 'mechanism' for machines." }
+            ];
+            
+            const badges = {
+                vocab: { id: 'vocab', name: 'Vocabulary Virtuoso', icon: '🎓', earned: false, condition: () => correctVocabCount === 20 },
+                reading: { id: 'reading', name: 'Analytical Ace', icon: '🧐', earned: false, condition: () => correctReadingCount === 20 },
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '👍', earned: false, condition: () => streakCounter >= 5 },
+                perfect: { id: 'perfect', name: 'Perfect 100', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-green-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function loadVoices() {
+                if ('speechSynthesis' in window) {
+                    availableVoices = speechSynthesis.getVoices();
+                    if (availableVoices.length === 0) {
+                        speechSynthesis.onvoiceschanged = () => {
+                            availableVoices = speechSynthesis.getVoices();
+                        };
+                    }
+                }
+            }
+            
+            function setupGame() {
+                playerName = playerNameInput.value || "Player";
+                const vocabQuestions = questionBank.filter(q => q.type === 'vocab');
+                const readingQuestions = questionBank.filter(q => q.type === 'reading');
+                shuffleArray(vocabQuestions);
+                shuffleArray(readingQuestions);
+                questions = vocabQuestions.concat(readingQuestions);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 900;
+                correctVocabCount = 0;
+                correctReadingCount = 0;
+                mistakes = 0;
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    if (question.tf) {
+                        button.classList.add(answerObj.text === 'True' ? 'hover:!bg-green-500' : 'hover:!bg-red-500', 'hover:text-white');
+                    }
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                
+                if ('speechSynthesis' in window && availableVoices.length > 0) {
+                    const utterance = new SpeechSynthesisUtterance(praise);
+                    let preferredVoice = availableVoices.find(voice => 
+                        voice.lang === 'en-US' && 
+                        (voice.name.includes('Ava') || voice.name.includes('Natural') || voice.name.includes('Neural'))
+                    );
+                    if (!preferredVoice) {
+                        preferredVoice = availableVoices.find(voice => voice.lang === 'en-US');
+                    }
+                    if (preferredVoice) {
+                        utterance.voice = preferredVoice;
+                    }
+                    
+                    speechSynthesis.speak(utterance);
+                }
+
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 2.5;
+                    streakCounter++;
+                    if (question.type === 'vocab') correctVocabCount++;
+                    if (question.type === 'reading') correctReadingCount++;
+                    
+                    updateScore();
+                    correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    streakCounter = 0; // Reset streak
+                    wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = `Great work, ${playerName}!`;
+                } else {
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+                endMessageEl.textContent = "Your final score is:";
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            // Initial load
+            loadVoices();
+            startBtn.addEventListener('click', setupGame);
+            restartBtn.addEventListener('click', setupGame);
+            nextQuestionBtn.addEventListener('click', hideFeedback);
+        });
+    </script>
+</body>
+</html>

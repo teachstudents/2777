@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unit 8: The Pulse of Progress</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Using a system font stack for broad compatibility and performance -->
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            overscroll-behavior: none;
+            transition: background-color 2s ease-in-out;
+            background-color: #f3e8ff; /* Initial color for Unit 8 */
+        }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes correctBounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .menu-button, .nav-button, .action-button {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        .menu-button:hover, .nav-button:hover, .action-button:hover {
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+        .menu-button:active, .nav-button:active, .action-button:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+        .quiz-option {
+            transition: all 0.2s ease-in-out;
+            border: 2px solid #e5e7eb;
+        }
+        .quiz-option:hover:not(:disabled) {
+            background-color: #f3e8ff; /* light purple */
+            border-color: #9333ea; /* purple */
+            transform: scale(1.02);
+        }
+        .feedback-modal {
+            display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .feedback-modal.show { display: flex; }
+        .feedback-modal-content.correct { animation: correctBounce 0.5s ease; }
+        .matching-line {
+            stroke: #a78bfa; stroke-width: 3; stroke-dasharray: 5;
+            animation: drawLine 0.8s ease-out forwards; transition: all 0.3s ease;
+        }
+        @keyframes drawLine {
+            from { stroke-dashoffset: 1000; }
+            to { stroke-dashoffset: 0; }
+        }
+        .point-token {
+            position: fixed; left: 50%; top: 50%; width: 20px; height: 20px;
+            background-color: #facc15; border-radius: 50%; border: 2px solid #ca8a04;
+            z-index: 200; transition: all 1s cubic-bezier(0.5, -0.5, 0.5, 1.5);
+            pointer-events: none; opacity: 1;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+
+    <!-- Tone.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <!-- Navigation Header -->
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm shadow-sm" style="display: none;">
+        <div class="max-w-4xl mx-auto p-2 flex justify-between items-center">
+            <button onclick="goBack()" class="nav-button bg-white text-gray-700 font-bold py-2 px-4 rounded-full hover:bg-gray-200 flex items-center gap-2 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+            Back
+            </button>
+            <div class="font-bold text-xl text-purple-600">
+                Score: <span id="score-display">0</span>
+            </div>
+            <button onclick="navigateTo(1)" class="nav-button bg-gray-800 text-white font-bold py-2 px-4 rounded-full hover:bg-gray-900 flex items-center gap-2 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L10 4.414l5.293 5.293a1 1 0 001.414-1.414l-7-7z" /><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm0 2a10 10 0 100-20 10 10 0 000 20z" /></svg>
+              Home
+            </button>
+            <button onclick="goNext()" class="nav-button bg-purple-500 text-white font-bold py-2 px-4 rounded-full hover:bg-purple-600 flex items-center gap-2 text-lg">
+            Next
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+            </button>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8 pt-20">
+
+        <!-- Page 0: Title Screen -->
+        <section id="page-0" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 class="text-5xl md:text-6xl font-bold text-purple-700 mb-4">Unit 8: The Pulse of Progress</h1>
+                <p class="text-xl md:text-2xl text-gray-600 mb-8">Smartwatches and Health</p>
+                <svg viewBox="0 0 600 300" class="rounded-lg shadow-md mb-8 w-full max-w-lg mx-auto" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="skyGradient8" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#f3e8ff;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#faf5ff;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <rect width="600" height="300" fill="url(#skyGradient8)"/>
+                    <text x="250" y="180" font-size="120">⌚️</text>
+                    <text x="100" y="100" font-size="50">❤️</text>
+                    <text x="450" y="120" font-size="50">🏃</text>
+                    <text x="120" y="230" font-size="50">😴</text>
+                    <text x="480" y="250" font-size="50">📊</text>
+                </svg>
+                <button onclick="startApp()" class="action-button bg-purple-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-purple-700">
+                    START LESSON
+                </button>
+            </div>
+        </section>
+
+        <!-- Page 1: Main Menu -->
+        <section id="page-1" class="page">
+            <div class="bg-white rounded-2xl shadow-lg p-8">
+                <h2 class="text-4xl font-bold text-center text-purple-700 mb-8">Main Menu</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <button onclick="navigateTo(401)" class="menu-button bg-violet-500 text-white p-6 rounded-xl text-xl font-semibold">💡 Vocabulary</button>
+                    <button onclick="navigateTo(412)" class="menu-button bg-purple-500 text-white p-6 rounded-xl text-xl font-semibold">📖 Reading</button>
+                    <button onclick="navigateTo(417)" class="menu-button bg-fuchsia-500 text-white p-6 rounded-xl text-xl font-semibold">🗣️ Conversation</button>
+                    <button onclick="navigateTo(420)" class="menu-button bg-pink-500 text-white p-6 rounded-xl text-xl font-semibold">🎙️ Podcast</button>
+                    <button onclick="navigateTo(440)" class="menu-button bg-rose-500 text-white p-6 rounded-xl text-xl font-semibold">🎤 Lecture</button>
+                    <button onclick="navigateTo(445)" class="menu-button bg-red-500 text-white p-6 rounded-xl text-xl font-semibold">🤔 Dilemmas</button>
+                    <button onclick="navigateTo(453)" class="menu-button bg-emerald-500 text-white p-6 rounded-xl text-xl font-semibold">🎯 Mission</button>
+                    <button onclick="navigateTo(450)" class="menu-button bg-orange-500 text-white p-6 rounded-xl text-xl font-semibold">📜 Unit Plan</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Container for ALL lesson pages -->
+        <div id="dynamic-pages-container"></div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="feedback-modal">
+        <div id="modal-content" class="feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80">
+            <div id="modal-icon" class="mb-4 text-6xl flex justify-center"></div>
+            <h2 id="modal-title" class="text-4xl font-bold mb-4"></h2>
+            <p id="modal-message" class="text-gray-600"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Game State ---
+            let score = 0;
+            const scoreDisplay = document.getElementById('score-display');
+            let modalTimeout;
+
+            const correctFeedback = ["That's right!", "You got it!", "Excellent!", "Perfect!", "Great thinking!", "Awesome!", "Nailed it!", "Superb!"];
+            const incorrectFeedback = ["Not quite!", "Try again!", "Keep trying!", "You'll get the next one!"];
+            
+            // --- Dynamic Background ---
+            const backgroundColors = ['#f3e8ff', '#e0e7ff', '#dcfce7', '#fef3c7', '#fce7f3'];
+            let bgColorIndex = 0;
+            setInterval(() => {
+                bgColorIndex = (bgColorIndex + 1) % backgroundColors.length;
+                document.body.style.backgroundColor = backgroundColors[bgColorIndex];
+            }, 5000);
+
+            // --- Score Animation ---
+            function animatePoints(points) {
+                const scoreEl = document.getElementById('score-display');
+                const rect = scoreEl.getBoundingClientRect();
+                const targetX = rect.left + rect.width / 2;
+                const targetY = rect.top + rect.height / 2;
+
+                for (let i = 0; i < points; i++) {
+                    const token = document.createElement('div');
+                    token.className = 'point-token';
+                    document.body.appendChild(token);
+                    
+                    const startX = window.innerWidth / 2 + (Math.random() - 0.5) * 100;
+                    const startY = window.innerHeight / 2 + (Math.random() - 0.5) * 100;
+                    token.style.transform = `translate(${startX - (window.innerWidth/2)}px, ${startY - (window.innerHeight/2)}px)`;
+
+                    setTimeout(() => {
+                        token.style.left = `${targetX}px`;
+                        token.style.top = `${targetY}px`;
+                        token.style.transform = 'scale(0.5)';
+                        token.style.opacity = '0';
+                    }, 50 + i * 30);
+
+                    setTimeout(() => {
+                        token.remove();
+                    }, 1050 + i * 30);
+                }
+            }
+
+            function updateScore(points) {
+                score += points;
+                animatePoints(points);
+                setTimeout(() => {
+                    scoreDisplay.textContent = score;
+                }, 800);
+            }
+
+            // --- Audio & TTS Initialization ---
+            let audioReady = false;
+            let ttsInitialized = false;
+            let synth;
+            const synthTTS = window.speechSynthesis;
+            let maleVoice = null;
+            let femaleVoice = null;
+            let britishMaleVoice = null;
+            let isSpeakingDialogue = false;
+
+            const voicesPromise = new Promise(resolve => {
+                let voices = synthTTS.getVoices();
+                if (voices.length > 0) {
+                    resolve(voices);
+                    return;
+                }
+                const onVoicesChanged = () => {
+                    voices = synthTTS.getVoices();
+                    if (voices.length > 0) {
+                        resolve(voices);
+                        synthTTS.onvoiceschanged = null;
+                    }
+                };
+                synthTTS.onvoiceschanged = onVoicesChanged;
+            });
+
+            async function setupVoices() {
+                console.log("Attempting to set up voices...");
+                const voices = await voicesPromise;
+                console.log(`Found ${voices.length} voices.`);
+                if (voices.length === 0) {
+                    console.error("No speech synthesis voices available on this browser.");
+                    return;
+                }
+
+                const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+                
+                femaleVoice = englishVoices.find(v => /female/i.test(v.name)) || englishVoices.find(v => v.default);
+                maleVoice = englishVoices.find(v => /male/i.test(v.name) && !v.lang.startsWith('en-GB')) || englishVoices.find(v => v !== femaleVoice);
+                
+                const britishVoices = englishVoices.filter(v => v.lang.startsWith('en-GB'));
+                britishMaleVoice = britishVoices.find(v => /male/i.test(v.name)) || britishVoices[0];
+
+                if (!femaleVoice && englishVoices.length > 0) femaleVoice = englishVoices[0];
+                if (!maleVoice && englishVoices.length > 0) maleVoice = englishVoices.find(v => v !== femaleVoice) || englishVoices[0];
+
+                console.log("Selected Female Voice:", femaleVoice ? femaleVoice.name : "None");
+                console.log("Selected Male Voice:", maleVoice ? maleVoice.name : "None");
+                console.log("Selected British Male Voice:", britishMaleVoice ? britishMaleVoice.name : "None (will use standard male)");
+            }
+
+            window.startApp = async function() {
+                if (!audioReady) {
+                    try {
+                        await Tone.start();
+                        synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                        audioReady = true;
+                        console.log("Audio context started successfully.");
+                    } catch (e) {
+                        console.error("Could not start audio context:", e);
+                    }
+                }
+
+                if (!ttsInitialized && synthTTS) {
+                    try {
+                        await setupVoices();
+                        ttsInitialized = true;
+                        console.log("TTS Initialized by user action.");
+                    } catch (e) {
+                        console.error("Could not initialize TTS:", e);
+                    }
+                }
+                navigateTo(1);
+            }
+
+            window.playCorrectSound = () => { if (audioReady) synth.triggerAttackRelease(["C5", "E5", "G5"], "8n"); };
+            window.playIncorrectSound = () => { if (audioReady) synth.triggerAttackRelease("C3", "8n"); };
+
+            function speak(text, voice) {
+                return new Promise(resolve => {
+                    if (!ttsInitialized) { console.warn("TTS not initialized."); resolve(); return; }
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.voice = voice;
+                    utterance.rate = 0.85;
+                    utterance.onend = resolve;
+                    utterance.onerror = (e) => { console.error("Speech synthesis error:", e); resolve(); };
+                    synthTTS.speak(utterance);
+                });
+            }
+
+            async function speakDialogue(lines) {
+                isSpeakingDialogue = true;
+                for (const line of lines) {
+                    if (!isSpeakingDialogue) break;
+                    await speak(line.text, line.voice);
+                }
+                isSpeakingDialogue = false;
+            }
+            
+            window.readDialogue = async function(buttonElement) {
+                if (isSpeakingDialogue) {
+                    isSpeakingDialogue = false;
+                    synthTTS.cancel();
+                    return;
+                }
+
+                const contentParent = buttonElement.closest('.page');
+                const readableContent = contentParent.querySelector('.readable-content');
+                if (!readableContent) return;
+                
+                const speakerVoices = {
+                    'Chris': britishMaleVoice || maleVoice,
+                    'Alex': maleVoice, 'Lecturer': maleVoice, 'Ali': maleVoice, 'Leo': maleVoice,
+                    'Sarah': femaleVoice, 'Bella': femaleVoice, 'Sara': femaleVoice, 'Speaker': femaleVoice
+                };
+
+                const lines = Array.from(readableContent.querySelectorAll('p')).map(p => {
+                    const speakerTag = p.querySelector('strong');
+                    if (speakerTag) {
+                        const speakerName = speakerTag.textContent.replace(':', '').trim();
+                        const text = p.innerText.replace(speakerTag.innerText, '').trim();
+                        return { text, voice: speakerVoices[speakerName] || femaleVoice };
+                    }
+                    return null;
+                }).filter(Boolean);
+
+                speakDialogue(lines);
+            }
+
+            window.readText = function(buttonElement) {
+                if (isSpeakingDialogue) {
+                    isSpeakingDialogue = false;
+                    synthTTS.cancel();
+                }
+                const readableContent = buttonElement.closest('.page').querySelector('.readable-content');
+                if (readableContent) {
+                    const textToSpeak = readableContent.innerText.replace(/________/g, 'blank');
+                    speak(textToSpeak, femaleVoice);
+                }
+            }
+            
+            // --- State Management & Navigation ---
+            let currentPage = 0;
+            const pageSequence = [0, 1, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418, 419, 420, 421, 422, 423, 424, 440, 441, 442, 443, 444, 445, 446, 450, 451, 452, 453, 454];
+            const pageHistory = [0];
+
+            window.navigateTo = function(pageNumber) {
+                const targetPage = document.getElementById(`page-${pageNumber}`);
+                if (!targetPage) {
+                    console.error(`Page with ID 'page-${pageNumber}' not found.`);
+                    return;
+                }
+                if (pageNumber === currentPage) return;
+
+                const currentPageEl = document.getElementById(`page-${currentPage}`);
+                if (currentPageEl) currentPageEl.classList.remove('active');
+                targetPage.classList.add('active');
+                currentPage = pageNumber;
+                if (pageHistory[pageHistory.length - 1] !== currentPage) {
+                        pageHistory.push(currentPage);
+                }
+                updateNavButtons();
+                window.scrollTo(0, 0);
+            }
+
+            window.goNext = function() {
+                const currentIndex = pageSequence.indexOf(currentPage);
+                if (currentIndex > -1 && currentIndex < pageSequence.length - 1) {
+                    navigateTo(pageSequence[currentIndex + 1]);
+                }
+            }
+
+            window.goBack = function() {
+                if (pageHistory.length > 1) {
+                    pageHistory.pop(); 
+                    const previousPage = pageHistory[pageHistory.length - 1];
+                    const currentPageEl = document.getElementById(`page-${currentPage}`);
+                    if(currentPageEl) currentPageEl.classList.remove('active');
+                    const previousPageEl = document.getElementById(`page-${previousPage}`);
+                    if(previousPageEl) previousPageEl.classList.add('active');
+                    currentPage = previousPage;
+                    updateNavButtons();
+                    window.scrollTo(0, 0);
+                }
+            }
+
+            function updateNavButtons() {
+                const navHeader = document.getElementById('nav-header');
+                if (!navHeader) return;
+                const backButton = navHeader.querySelector('button:first-child');
+                const nextButton = navHeader.querySelector('button:last-child');
+                
+                navHeader.style.display = (currentPage === 0) ? 'none' : 'flex';
+                backButton.disabled = pageHistory.length <= 1;
+                backButton.classList.toggle('opacity-50', backButton.disabled);
+                
+                const currentIndex = pageSequence.indexOf(currentPage);
+                const isLastPageOfSequence = currentIndex === -1 || currentIndex >= pageSequence.length - 1;
+                const isMainMenu = currentPage === 1;
+
+                nextButton.disabled = isLastPageOfSequence || isMainMenu;
+                nextButton.classList.toggle('opacity-50', nextButton.disabled);
+            }
+            
+            // --- Interactive Quiz & Modal Logic ---
+            const modal = document.getElementById('feedback-modal');
+            const modalContent = document.getElementById('modal-content');
+            const modalTitle = document.getElementById('modal-title');
+            const modalIcon = document.getElementById('modal-icon');
+            const modalMessage = document.getElementById('modal-message');
+
+            function showModal(title, message, type = 'info') {
+                modalContent.classList.remove('correct');
+                modalMessage.textContent = message || '';
+
+                if (type === 'correct') {
+                    playCorrectSound();
+                    modalIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                    modalTitle.textContent = title;
+                    modalTitle.className = 'text-4xl font-bold mb-4 text-green-500';
+                    modalContent.className = 'feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80 bg-green-50 correct';
+                } else if (type === 'error') {
+                    playIncorrectSound();
+                    modalIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                    modalTitle.textContent = title;
+                    modalTitle.className = 'text-4xl font-bold mb-4 text-red-500';
+                    modalContent.className = 'feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80 bg-red-50';
+                }
+                modal.classList.add('show');
+                
+                clearTimeout(modalTimeout);
+                modalTimeout = setTimeout(closeModal, 1500);
+             }
+             
+            window.showFeedback = function(isCorrect, buttonElement) {
+                const parent = buttonElement.closest('.quiz-option');
+                const buttons = parent.querySelectorAll('button');
+                buttons.forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText, femaleVoice);
+                    buttonElement.classList.remove('bg-blue-500', 'bg-red-500', 'bg-gray-500');
+                    buttonElement.classList.add('bg-green-500');
+                    buttonElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
+                    showModal('Correct!', `${feedbackText} (+10 points)`, 'correct');
+                    updateScore(10);
+                } else {
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText, femaleVoice);
+                    buttonElement.classList.remove('bg-blue-500', 'bg-red-500', 'bg-gray-500');
+                    buttonElement.classList.add('bg-red-500');
+                    buttonElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+                    showModal('Try Again!', feedbackText, 'error');
+                }
+            }
+
+            window.checkAnswer = function(button, isCorrect) {
+                const questionGroup = button.closest('.question-group');
+                const options = questionGroup.querySelectorAll('.quiz-option');
+
+                options.forEach(opt => {
+                    opt.disabled = true;
+                });
+
+                if (isCorrect) {
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText, femaleVoice);
+                    button.classList.remove('bg-white');
+                    button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                    button.innerHTML = `<span class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> ${button.textContent}</span>`;
+                    showModal('Correct!', `${feedbackText} (+10 points)`, 'correct');
+                    updateScore(10);
+                } else {
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText, femaleVoice);
+                    button.classList.remove('bg-white');
+                    button.classList.add('bg-red-500', 'border-red-600', 'text-white');
+                    button.innerHTML = `<span class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg> ${button.textContent}</span>`;
+                    
+                    options.forEach(opt => {
+                        if (opt.getAttribute('onclick').includes('true')) {
+                            opt.classList.remove('bg-white');
+                            opt.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                        }
+                    });
+                    showModal('Try Again!', feedbackText, 'error');
+                }
+            }
+            
+            window.closeModal = function() {
+                clearTimeout(modalTimeout);
+                modal.classList.remove('show');
+            }
+            
+            window.showMatchingAnswersU8 = function() {
+                speak("Here are the correct matches.", femaleVoice);
+                const answers = {
+                    'term-u8-1': 'def-u8-C', 'term-u8-2': 'def-u8-E', 'term-u8-3': 'def-u8-A',
+                    'term-u8-4': 'def-u8-D', 'term-u8-5': 'def-u8-B'
+                };
+
+                const svg = document.getElementById('matching-svg-u8');
+                svg.innerHTML = ''; 
+
+                setTimeout(() => {
+                    for (const termId in answers) {
+                        const defId = answers[termId];
+                        const termEl = document.getElementById(termId);
+                        const defEl = document.getElementById(defId);
+                        if (!termEl || !defEl) continue;
+
+                        const rect1 = termEl.getBoundingClientRect();
+                        const rect2 = defEl.getBoundingClientRect();
+                        const containerRect = svg.getBoundingClientRect();
+
+                        const x1 = (rect1.right - containerRect.left) + 5;
+                        const y1 = (rect1.top + rect1.height / 2) - containerRect.top;
+                        const x2 = (rect2.left - containerRect.left) - 5;
+                        const y2 = (rect2.top + rect2.height / 2) - containerRect.top;
+
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+                        line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+                        line.setAttribute('class', 'matching-line');
+                        svg.appendChild(line);
+                    }
+                }, 100);
+                
+                document.getElementById('show-answers-btn-u8').style.display = 'none';
+                playCorrectSound();
+            }
+
+            window.generateCertificateU8 = function() {
+                const name = document.getElementById('name-input-u8').value || "Health Innovator";
+                document.getElementById('certificate-name-u8').textContent = name;
+                document.getElementById('certificate-score-u8').textContent = score;
+                document.getElementById('certificate-date-u8').textContent = new Date().toLocaleDateString();
+                speak(`Congratulations, ${name}! You have completed the unit.`, femaleVoice);
+            }
+
+            // --- Page Content Generation ---
+            function generateUnit8Pages() {
+                const container = document.getElementById('dynamic-pages-container');
+                const pagesHTML = `
+                    <!-- Vocabulary -->
+                    <section id="page-401" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 1/10</h3><h2 class="text-5xl font-bold my-8">Biometric</h2><p class="text-2xl text-gray-600">Relating to the application of statistical analysis to biological data.</p></div></section>
+                    <section id="page-402" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 2/10</h3><h2 class="text-5xl font-bold my-8">Sensor</h2><p class="text-2xl text-gray-600">A device that detects or measures a physical property.</p></div></section>
+                    <section id="page-403" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 3/10</h3><h2 class="text-5xl font-bold my-8">Monitor</h2><p class="text-2xl text-gray-600">To observe and check the progress of something over a period of time.</p></div></section>
+                    <section id="page-404" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 4/10</h3><h2 class="text-5xl font-bold my-8">Activity Tracker</h2><p class="text-2xl text-gray-600">A device for monitoring and tracking fitness-related metrics.</p></div></section>
+                    <section id="page-405" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 5/10</h3><h2 class="text-5xl font-bold my-8">Sedentary</h2><p class="text-2xl text-gray-600">Tending to spend much time seated; somewhat inactive.</p></div></section>
+                    <section id="page-406" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 6/10</h3><h2 class="text-5xl font-bold my-8">Gamification</h2><p class="text-2xl text-gray-600">The application of game-playing elements to other areas of activity.</p></div></section>
+                    <section id="page-407" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 7/10</h3><h2 class="text-5xl font-bold my-8">Privacy</h2><p class="text-2xl text-gray-600">The state of being free from being observed by other people.</p></div></section>
+                    <section id="page-408" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 8/10</h3><h2 class="text-5xl font-bold my-8">Wellness</h2><p class="text-2xl text-gray-600">The state of being in good health, especially as an actively pursued goal.</p></div></section>
+                    <section id="page-409" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 9/10</h3><h2 class="text-5xl font-bold my-8">Calorie</h2><p class="text-2xl text-gray-600">A unit of energy, often used as a measurement of the energy that food provides.</p></div></section>
+                    <section id="page-410" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-violet-600 mb-2">Vocabulary 10/10</h3><h2 class="text-5xl font-bold my-8">Feedback</h2><p class="text-2xl text-gray-600">Information about reactions to a product or a person’s performance.</p></div></section>
+                    <section id="page-411" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 relative"><h3 class="text-2xl font-bold text-violet-600 mb-6 text-center">Vocabulary Practice: Matching</h3><div class="grid grid-cols-2 gap-x-8 relative"><div class="space-y-4 flex flex-col items-start"><div id="term-u8-1" class="bg-purple-100 p-3 rounded-lg w-full text-center">1. Sensor</div><div id="term-u8-2" class="bg-purple-100 p-3 rounded-lg w-full text-center">2. Sedentary</div><div id="term-u8-3" class="bg-purple-100 p-3 rounded-lg w-full text-center">3. Gamification</div><div id="term-u8-4" class="bg-purple-100 p-3 rounded-lg w-full text-center">4. Privacy</div><div id="term-u8-5" class="bg-purple-100 p-3 rounded-lg w-full text-center">5. Biometric</div></div><div class="space-y-4 flex flex-col items-end"><div id="def-u8-A" class="bg-amber-100 p-3 rounded-lg w-full text-center">A. Using game-like elements to motivate.</div><div id="def-u8-B" class="bg-amber-100 p-3 rounded-lg w-full text-center">B. Relating to data from the human body.</div><div id="def-u8-C" class="bg-amber-100 p-3 rounded-lg w-full text-center">C. A device that detects or measures something.</div><div id="def-u8-D" class="bg-amber-100 p-3 rounded-lg w-full text-center">D. The state of being free from observation.</div><div id="def-u8-E" class="bg-amber-100 p-3 rounded-lg w-full text-center">E. Tending to be inactive and seated.</div></div></div><svg id="matching-svg-u8" class="absolute top-0 left-0 w-full h-full pointer-events-none"></svg><div class="text-center mt-8"><button id="show-answers-btn-u8" onclick="showMatchingAnswersU8()" class="action-button bg-violet-600 text-white font-bold py-2 px-6 rounded-full">Show Answers</button></div></div></section>
+                    
+                    <!-- Reading -->
+                    <section id="page-412" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-purple-700 mb-6">Reading: Pre-Reading 📖</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>Look at the back of a smartwatch. What do you think the flashing green lights are for?</li><li>How could a watch know if you are sleeping or awake?</li><li>What are the dangers of sharing your health data online?</li></ol></div></div></section>
+                    <section id="page-413" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-purple-700 mb-6">Reading Texts</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="font-bold text-2xl text-purple-600">A Coach on Your Wrist</h3><p>A smartwatch is more than a watch. It is an activity tracker. It has a sensor that can monitor your heart rate. It can count your steps and see how many calories you burn. The watch gives you feedback on your day. It might tell you “Great job!” when you reach a goal. This is gamification—it makes fitness feel like a game. This can help you move more and avoid being too sedentary.</p><h3 class="font-bold text-2xl text-purple-600 mt-6">The Power and Privacy of Wearable Health Tech</h3><p>Smartwatches have become powerful tools for personal wellness. Using advanced biometric sensors, they can monitor everything from sleep quality to blood oxygen levels. This data provides users with instant feedback, helping them understand their bodies and make healthier choices. Many watches use gamification, such as awarding badges for achievements, to motivate users to move more and break up long, sedentary periods. However, this constant data collection raises important questions about privacy. Where is your personal health data stored? Who has access to it? While wearable tech offers incredible benefits, users must be aware of the trade-offs. It is crucial to understand the privacy settings of your device and app to ensure your sensitive information is protected.</p><h3 class="font-bold text-2xl text-purple-600 mt-6">The Quantified Self: Smartwatch Data and Behavioral Psychology</h3><p>The modern smartwatch is a sophisticated biometric data collection device, transforming the abstract concept of wellness into a stream of quantifiable metrics. Optical heart rate sensors, accelerometers, and gyroscopes work in concert to monitor activity levels, sleep architecture, and even stress indicators. This data stream enables powerful feedback loops that can drive behavioral change. The effectiveness of these devices often lies in their application of behavioral psychology, primarily through gamification. By setting goals, tracking progress, and providing social competition, these activity trackers create extrinsic motivation that can help users overcome inertia and adopt healthier habits, combating the health risks of a sedentary lifestyle. The critical challenge, however, lies in data privacy and security. This highly personal health information is a valuable target, and the ethical responsibility of tech companies is to ensure robust encryption and transparent data policies. The future of wearable health technology depends on maintaining user trust as much as on innovating new sensors.</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-purple-500 text-white font-bold py-2 px-6 rounded-full">Read Aloud</button></div></div></section>
+                    <section id="page-414" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-purple-600 mb-4 text-center">Comprehension: Gap-Fill</h3><div class="readable-content bg-gray-50 p-6 rounded-lg text-xl leading-relaxed space-y-4"><ol class="list-decimal list-inside space-y-4"><li>Using awards and competitions to motivate users is called __________.</li><li>The optical __________ on the back of the watch measures your heart rate.</li><li>It’s important to consider data __________ when using health apps.</li><li>The watch collects __________ data like your sleep patterns and step count.</li><li>My doctor advised me to avoid a __________ lifestyle by walking more.</li></ol></div></div></section>
+                    <section id="page-415" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-purple-600 mb-4 text-center">Comprehension: True/False</h3><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>1. Smartwatches can only tell the time.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>2. Gamification in health apps uses game-like features to motivate users.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>3. Sharing your health data with an app has no privacy risks.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>4. A sedentary lifestyle means being very active.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>5. Smartwatches use sensors to collect data about your body.</p></div></div></div></section>
+                    <section id="page-416" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-purple-600 mb-4 text-center">Comprehension: Multiple Choice</h3><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What is the main purpose of a smartwatch as described in the texts?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. To replace mobile phones.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. To monitor health and activity to encourage wellness.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. To play complex video games.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. To work as a high-security wallet.</button></div></div><div class="question-group"><p class="font-semibold">2. According to the B2 text, what is the most critical challenge for wearable health technology?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Making the watches more fashionable.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Improving the battery life.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Maintaining user trust through strong data privacy and security.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Adding more sports modes.</button></div></div><div class="question-group"><p class="font-semibold">3. Which of the following is an example of biometric data?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Your name.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Your email address.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Your heart rate.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Your favorite color.</button></div></div><div class="question-group"><p class="font-semibold">4. How does gamification motivate users?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. By providing detailed medical diagnoses.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. By making tasks feel like a competitive and rewarding game.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. By sending data directly to their doctor.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. By locking the screen until they exercise.</button></div></div><div class="question-group"><p class="font-semibold">5. Germany’s Datenschutz laws are primarily concerned with...</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Encouraging more people to buy smartwatches.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Protecting citizens’ personal data and privacy.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Funding new technology companies.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Standardizing the size of watch screens.</button></div></div></div></div></section>
+
+                    <!-- Conversation -->
+                    <section id="page-417" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-fuchsia-700 mb-6">Conversation Practice 🗣️</h2><div class="readable-content bg-gray-50 p-6 rounded-lg space-y-4 text-xl"><p><strong>Sara:</strong> I just got a new smartwatch, and it’s fascinating to see my sleep data. I had no idea I was so restless.</p><p><strong>Leo:</strong> I know what you mean. Mine tells me my heart rate, and it’s interesting to see how it changes when I’m stressed or relaxed.</p><p><strong>Sara:</strong> Exactly. But I’m a bit concerned about the privacy. Where does all this data go?</p><p><strong>Leo:</strong> That’s a very important question. I read the privacy policy, and it’s so long and confusing. I’m not sure who they share it with.</p><p><strong>Sara:</strong> My thoughts exactly. On one hand, I want the feedback to improve my health. On the other hand, I don’t want a company knowing my every move.</p><p><strong>Leo:</strong> It’s a trade-off, isn’t it? I think the gamification part is really effective, though. The badges make me want to walk more.</p><p><strong>Sara:</strong> I agree. It’s clever psychology. It turns a chore into a challenge.</p><p><strong>Leo:</strong> So, I guess the key is to use the features that help you, but be very careful with the privacy settings.</p></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-fuchsia-500 text-white font-bold py-2 px-6 rounded-full">Read Aloud</button></div></div></section>
+                    <section id="page-418" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-fuchsia-700 mb-6">Discussion Questions</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-fuchsia-600 mb-3">Higher-Order Thinking</h3><ul class="list-disc list-inside space-y-2"><li><b>Remembering:</b> What are two types of data a smartwatch can monitor?</li><li><b>Understanding:</b> Explain how gamification can motivate someone to be less sedentary.</li><li><b>Applying:</b> If you were designing a smartwatch for an elderly person, what one health feature would you prioritize and why?</li><li><b>Analyzing:</b> Compare the benefits and risks of an insurance company using a client’s smartwatch data to determine their health insurance price.</li><li><b>Evaluating:</b> Argue for or against the statement: “The health benefits of smartwatches outweigh their privacy risks.”</li><li><b>Creating:</b> Design a new, non-competitive “gamification” award for a smartwatch that rewards consistency or rest, not just high activity. (e.g., “Zen Master: You’ve met your sleep goal 7 days in a row!”).</li><li><b>Synthesis:</b> How do the fields of computer science (sensors, algorithms), psychology (motivation, habit formation), and law (privacy, data rights) all intersect in the design and use of a single smartwatch?</li></ul></div></div></section>
+                    <section id="page-419" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-fuchsia-700 mb-6">Exam Practice (IELTS/TOEFL)</h2><div class="readable-content text-lg leading-relaxed space-y-6 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-fuchsia-600">IELTS Part 1</h3><ul class="list-disc list-inside"><li>Do you wear a watch? What kind? Do you think it’s important to lead a healthy lifestyle? What do you do to stay healthy?</li></ul><h3 class="text-2xl font-bold text-fuchsia-600 mt-4">IELTS Part 3</h3><ul class="list-disc list-inside"><li>How have technology and gadgets changed people’s daily lives? What are the advantages and disadvantages of collecting data about ourselves? Do you think people are healthier now than they were in the past?</li></ul><h3 class="text-2xl font-bold text-fuchsia-600 mt-4">TOEFL Independent Speaking</h3><p>Some people believe it’s important to have a daily routine, while others prefer to have flexibility and variety each day. Which do you prefer and why?</p></div></div></section>
+
+                    <!-- Podcast -->
+                    <section id="page-420" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-pink-700 mb-6">Podcast: Warm-Up 🎧</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>Do you or someone you know use a smartwatch or fitness tracker?</li><li>What kind of health data do you think these devices collect?</li><li>Who should own the data collected by wearable devices?</li><li>What are some benefits of using wearable health technology?</li><li>What risks might come with sharing personal health data?</li></ol></div></div></section>
+                    <section id="page-421" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-pink-700 mb-6">Podcast: Vocabulary</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ul class="space-y-3"><li><strong>Wearable health tech:</strong> Devices worn on the body that track health data</li><li><strong>Data ownership:</strong> Who controls and has rights to the data</li><li><strong>Security breach:</strong> When private data is stolen or leaked</li><li><strong>Digital redlining:</strong> Discrimination using digital data</li><li><strong>Privacy by design:</strong> Building technology to protect privacy from the start</li></ul></div></div></section>
+                    <section id="page-422" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-pink-700 mb-6">Podcast: Transcript 🎙️</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong>Alex:</strong> Indeed, Sarah, the features are impressive, but I'm afraid the power comes with significant peril. From a privacy perspective, all this intimate data collection is deeply concerning. Who really owns the data generated by your body? Is it you, the device manufacturer, the platform provider? The terms of service are often vague and confusing, which is frankly frustrating. And the security of this data is a massive challenge. Wearable devices and their connected apps can be vulnerable to breaches. Imagine your sensitive health metrics falling into the wrong hands—potentially used by insurance companies, employers, or cyber criminals. It feels like a ticking time bomb, and I'm seriously worried that the rush to innovate is outpacing the commitment to robust security safeguards. It's a real ethical minefield.</p><p><strong>Sarah:</strong> I hear your concerns, Alex, and they are absolutely valid. Data security and ownership are paramount. However, if we can establish clear regulations and industry standards, couldn't we mitigate many of these risks? Think about the potential for personalized medicine based on this data or early detection of health issues. It feels like the potential to improve health outcomes for millions is too great to abandon the technology entirely. Perhaps the focus should be on making data ownership and sharing transparent and giving users granular control. It's about empowering individuals, not just collecting their data.</p><p><strong>Alex:</strong> Empowerment is key, Sarah, but I'm skeptical about how easily that can be achieved in practice. The sheer volume and sensitivity of the data make it a prime target, and once the data is out there, it's almost impossible to get back. Furthermore, the potential for digital redlining or discrimination based on health data is a serious worry. We need more than just regulations. We need a fundamental shift in how companies handle this data, prioritizing user privacy by design. It's a monumental task, and frankly, I'm not convinced the industry is moving fast enough.</p></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-pink-500 text-white font-bold py-2 px-6 rounded-full">Read Aloud</button></div></div></section>
+                    <section id="page-423" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-pink-700 mb-6">Podcast Quiz: Multiple Choice</h2><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What kind of data do wearable health devices collect?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Only location data</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Only medical prescriptions</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Steps, sleep patterns, heart rate, skin temperature</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Shopping habits</button></div></div><div class="question-group"><p class="font-semibold">2. What psychological techniques do wearable devices use to influence behavior?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Threats and warnings</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Behavioral psychology and gamification</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Hypnosis</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Advertising</button></div></div><div class="question-group"><p class="font-semibold">3. What is one major privacy concern mentioned in the lecture?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Devices are too expensive</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Data may be used by cyber criminals or insurance companies</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Devices don’t work in cold weather</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Users forget to wear them</button></div></div><div class="question-group"><p class="font-semibold">4. What does Sarah suggest to improve data privacy?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Stop using wearable tech</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Make devices smaller</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Create clear regulations and give users control</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Use only offline devices</button></div></div><div class="question-group"><p class="font-semibold">5. What is Alex’s concern about data once it’s leaked?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. It can be easily deleted</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. It becomes public forever</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. It helps improve health</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. It is stored in hospitals</button></div></div></div></div></section>
+                    <section id="page-424" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-pink-700 mb-6">Podcast Quiz: True/False/Not Given</h2><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. Wearable health tech can help people adopt healthier habits.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. All wearable devices are completely secure.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. Sarah believes wearable tech should be banned.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. The lecture mentions wearable tech being used in schools.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. Alex is worried about discrimination based on health data.</p></div></div></div></section>
+
+                    <!-- Lecture -->
+                    <section id="page-440" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Lecture: Warm-Up 🎤</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>Do you or someone you know use a smartwatch or fitness tracker?</li><li>What kind of health data do you think these devices collect?</li><li>Who should own the data collected by wearable devices?</li><li>What are some benefits of using wearable health technology?</li><li>What risks might come with sharing personal health data?</li></ol></div></div></section>
+                    <section id="page-441" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Lecture: Vocabulary</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ul class="space-y-3"><li><strong>Wearable health tech:</strong> Devices worn on the body that track health data</li><li><strong>Data ownership:</strong> Who controls and has rights to the data</li><li><strong>Security breach:</strong> When private data is stolen or leaked</li><li><strong>Digital redlining:</strong> Discrimination using digital data</li><li><strong>Privacy by design:</strong> Building technology to protect privacy from the start</li></ul></div></div></section>
+                    <section id="page-442" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Lecture: Transcript</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong>Speaker:</strong> Hello everyone and welcome. Today we're tackling a topic that feels incredibly relevant and frankly a little complex: the power and privacy of wearable health tech. It's amazing how these devices have become so common, isn't it? In this lecture, we will explore the exciting capabilities of wearable health technology and, just as importantly, the significant privacy and security challenges they present. First, we'll look at what makes these devices so powerful—the data they collect and how they influence behavior. Following that, we will delve into the crucial issues of data ownership, security, and the potential for misuse. Finally, we will wrap up by considering how we can navigate this landscape responsibly. Get ready for a balanced, and I hope, insightful discussion.</p><p><strong>Sarah:</strong> Moving on to the sheer power of these devices, it's quite remarkable how much data these tiny sensors can collect. We're talking about continuous streams of information—steps taken, sleep patterns, heart rate, even skin temperature. This data is incredibly valuable, not just for individuals, but potentially for researchers and public health. Furthermore, many of these devices cleverly use principles of behavioral psychology. Think of the little nudges to stand up or the encouraging messages after a workout. And the gamification, with streaks, badges, and challenges, is incredibly effective at keeping people engaged and motivated to adopt healthier habits. It feels like a positive force, empowering individuals to take control of their well-being. The potential for proactive health management is truly exciting.</p><p><strong>Alex:</strong> Indeed, Sarah, the features are impressive, but I'm afraid the power comes with significant peril. From a privacy perspective, all this intimate data collection is deeply concerning. Who really owns the data generated by your body? Is it you, the device manufacturer, the platform provider? The terms of service are often vague and confusing, which is frankly frustrating. And the security of this data is a massive challenge. Wearable devices and their connected apps can be vulnerable to breaches. Imagine your sensitive health metrics falling into the wrong hands—potentially used by insurance companies, employers, or cyber criminals. It feels like a ticking time bomb, and I'm seriously worried that the rush to innovate is outpacing the commitment to robust security safeguards. It's a real ethical minefield.</p></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-rose-500 text-white font-bold py-2 px-6 rounded-full">Read Aloud</button></div></div></section>
+                    <section id="page-443" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Lecture Quiz: Multiple Choice</h2><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What kind of data do wearable health devices collect?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Only location data</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Only medical prescriptions</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Steps, sleep patterns, heart rate, skin temperature</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Shopping habits</button></div></div><div class="question-group"><p class="font-semibold">2. What psychological techniques do wearable devices use to influence behavior?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Threats and warnings</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Behavioral psychology and gamification</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Hypnosis</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Advertising</button></div></div><div class="question-group"><p class="font-semibold">3. What is one major privacy concern mentioned in the lecture?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Devices are too expensive</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Data may be used by cyber criminals or insurance companies</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Devices don’t work in cold weather</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Users forget to wear them</button></div></div><div class="question-group"><p class="font-semibold">4. What does Sarah suggest to improve data privacy?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Stop using wearable tech</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Make devices smaller</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Create clear regulations and give users control</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Use only offline devices</button></div></div><div class="question-group"><p class="font-semibold">5. What is Alex’s concern about data once it’s leaked?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. It can be easily deleted</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. It becomes public forever</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. It helps improve health</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. It is stored in hospitals</button></div></div></div></div></section>
+                    <section id="page-444" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">Lecture Quiz: True/False/Not Given</h2><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. Wearable health tech can help people adopt healthier habits.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. All wearable devices are completely secure.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. Sarah believes wearable tech should be banned.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(true, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. The lecture mentions wearable tech being used in schools.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-purple-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. Alex is worried about discrimination based on health data.</p></div></div></div></section>
+                    
+                    <!-- Dilemmas -->
+                    <section id="page-445" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-700 mb-6">Dilemma 1: The Insurance Offer ❤️</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p>An insurance company offers a new plan: if you let them monitor your health data (exercise, sleep, diet) from your smartwatch, your insurance will be 50% cheaper. This will make healthcare affordable for many poor families. However, the company could use this data to deny coverage or raise prices for people with unhealthy habits. Do you, as a government regulator, approve this plan?</p></div></div></section>
+                    <section id="page-446" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-700 mb-6">Dilemma 2: The Research Request 🔬</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p>A university is conducting a major health study. If you and all your friends share your smartwatch data, you could help find a cure for a common illness. However, this means sharing private information about your daily habits. If you share but your friends don't, the study may be less effective, and your privacy is lost for little gain. Do you agree to share your data, trusting your friends to do the same?</p></div></div></section>
+
+                    <!-- Unit Plan & Mission -->
+                    <section id="page-450" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-700 mb-6">Stage 1: Desired Results</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong>Essential Question:</strong> How can wearable technology empower us to take control of our health, and what are the responsibilities that come with collecting our own personal data?</p></div></div></section>
+                    <section id="page-451" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-700 mb-6">Stage 2: Assessment Evidence</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-orange-600 mb-3">Primary Performance Task (GRASPS)</h3><ul class="list-disc list-inside space-y-2"><li><strong>Goal:</strong> Your goal is to design a new, innovative health and wellness feature for a next-generation smartwatch.</li><li><strong>Role:</strong> You are a team of product designers and health consultants.</li><li><strong>Audience:</strong> The executive board of a major tech company (e.g., Apple, Samsung, Garmin).</li><li><strong>Situation:</strong> The company wants to create a new feature that specifically helps students manage stress and improve focus, moving beyond just physical fitness.</li><li><strong>Product:</strong> A formal design proposal and a persuasive pitch (presentation) that details the feature’s name and purpose, how it would work, the data it would use, how it would motivate students, and how it would protect user privacy.</li></ul></div></div></section>
+                    <section id="page-452" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-700 mb-6">Learning Goals & Rubric</h2><div class="readable-content max-w-4xl mx-auto"><h3 class="text-2xl font-bold text-orange-600 mb-3">Success Criteria</h3><ul class="list-disc list-inside space-y-2 text-xl"><li>I can define “biometric data” and give two examples of what a smartwatch can measure.</li><li>I can explain one way a smartwatch can motivate a person and one potential privacy risk.</li><li>I can collaborate to brainstorm a new smartwatch feature for student well-being.</li></ul></div></div></section>
+                    <section id="page-453" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h2 class="text-4xl font-bold text-center text-emerald-700 mb-6">Your Final Mission 🎯</h2><div class="readable-content text-xl leading-relaxed max-w-2xl mx-auto bg-gray-50 p-6 rounded-lg"><p>Your task is to design a new, innovative health and wellness feature for a next-generation smartwatch that helps students manage stress and improve focus. Your proposal should outline the feature’s name, purpose, how it works, the data it uses, and how it protects user privacy. 🧠</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-emerald-500 text-white font-bold py-2 px-6 rounded-full">Read Aloud</button></div></div></section>
+                    <section id="page-454" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h2 class="text-4xl font-bold text-purple-600 mb-4">Congratulations! 🏅</h2><p class="text-xl text-gray-600 mb-6">You have completed "The Pulse of Progress" unit.</p><div class="bg-purple-50 border-4 border-dashed border-purple-300 rounded-lg p-8 max-w-2xl mx-auto"><h3 class="text-3xl font-bold text-purple-800">Certificate of Completion</h3><p class="mt-4 text-lg">This certificate is awarded to</p><p id="certificate-name-u8" class="text-2xl font-bold text-purple-600 my-2">[Enter Your Name Here]</p><p class="mt-4 text-lg">for successfully completing all challenges.</p><p class="mt-6 text-md"><strong>Final Score:</strong> <span id="certificate-score-u8" class="font-bold"></span> points</p></div><div class="mt-6"><input type="text" id="name-input-u8" placeholder="Enter your name" class="text-center p-2 border rounded-lg w-full max-w-md"><button onclick="generateCertificateU8()" class="action-button mt-4 bg-purple-600 text-white font-bold py-2 px-6 rounded-full">Generate Certificate</button></div></div></section>
+                `;
+                container.innerHTML = pagesHTML;
+            }
+
+            // --- Initial Setup ---
+            generateUnit8Pages();
+            updateNavButtons();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ashima Shiraishi: The Focused Phenom Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #44403c, #78716c, #a8a29e, #d6d3d1);
+            background-size: 400% 400%;
+            animation: gradientBG 25s ease infinite;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #4ade80; color: white; transform: scale(1.02); }
+            100% { background-color: #4ade80; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Ashima Shiraishi: The Focused Phenom</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge with 40 questions on the world-class climber. You have 15 minutes. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-amber-400 focus:outline-none">
+            <button id="start-btn" class="w-full md:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Start Challenge</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">15:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div id="badges-container" class="flex justify-center items-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-amber-700 mb-2" id="question-counter">Question 1 / 40</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 min-h-[100px] text-center"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+
+            let score = 0;
+            let timer;
+            let timeLeft = 900; // 15 minutes
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctVocabCount = 0;
+            let correctReadingCount = 0;
+            let mistakes = 0;
+            let streakCounter = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let availableVoices = [];
+
+            const correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            const wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+            const badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!"];
+
+            const questionBank = [
+                // Vocabulary Questions (20)
+                { type: 'vocab', question: "'Rock climbing' is the sport of...", answers: [{text: "Climbing up rock faces", correct: true}, {text: "Hiking on flat trails", correct: false}, {text: "Swimming in rivers", correct: false}, {text: "Skiing down mountains", correct: false}], explanation: "'Rock climbing' is the sport or activity of climbing rock faces, especially with the aid of ropes and special equipment." },
+                { type: 'vocab', question: "'Bouldering' is a type of climbing done...", answers: [{text: "On very high mountains with ropes", correct: false}, {text: "On small rock formations without ropes", correct: true}, {text: "On ice walls", correct: false}, {text: "Indoors on artificial mountains", correct: false}], explanation: "'Bouldering' is a form of rock climbing that is performed on small rock formations or artificial rock walls without the use of ropes or harnesses." },
+                { type: 'vocab', question: "A 'phenom' is a person who is...", answers: [{text: "An average performer", correct: false}, {text: "Outstandingly talented and successful", correct: true}, {text: "A beginner", correct: false}, {text: "A coach", correct: false}], explanation: "A 'phenom' is a person who is outstandingly talented or admired, an exceptional person." },
+                { type: 'vocab', question: "'Discipline' in sports refers to...", answers: [{text: "The rules of the game", correct: false}, {text: "The ability to control one's behavior and train effectively", correct: true}, {text: "The equipment used", correct: false}, {text: "The location of the competition", correct: false}], explanation: "'Discipline' is the practice of training people to obey rules or a code of behavior." },
+                { type: 'vocab', question: "To 'dominate' a competition means to...", answers: [{text: "Barely win", correct: false}, {text: "Have power and influence over others; win easily", correct: true}, {text: "Lose badly", correct: false}, {text: "Cheat to win", correct: false}], explanation: "To 'dominate' means to have a commanding influence on; exercise control over." },
+                { type: 'vocab', question: "The 'grade' of a climbing route indicates its...", answers: [{text: "Length", correct: false}, {text: "Popularity", correct: false}, {text: "Difficulty", correct: true}, {text: "Location", correct: false}], explanation: "A 'grade' in climbing is a rating that indicates the difficulty of a climb." },
+                { type: 'vocab', question: "A climber's 'technique' refers to their...", answers: [{text: "Strength and power", correct: false}, {text: "Skill and way of performing movements", correct: true}, {text: "Popularity", correct: false}, {text: "Sponsorships", correct: false}], explanation: "'Technique' is a skillful or efficient way of doing or achieving something." },
+                { type: 'vocab', question: "'Dedication' is the quality of being...", answers: [{text: "Committed to a task or purpose", correct: true}, {text: "Naturally talented without practice", correct: false}, {text: "Famous and popular", correct: false}, {text: "Lazy and unmotivated", correct: false}], explanation: "'Dedication' is the quality of being committed to a task or purpose." },
+                { type: 'vocab', question: "A 'generation' of athletes refers to...", answers: [{text: "A single athlete", correct: false}, {text: "A group of athletes from about the same time period", correct: true}, {text: "The coaches and managers", correct: false}, {text: "The fans and spectators", correct: false}], explanation: "A 'generation' is all of the people born and living at about the same time, regarded collectively." },
+                { type: 'vocab', question: "To 'inspire' others means to...", answers: [{text: "Make them feel unmotivated", correct: false}, {text: "Fill them with the urge to do something great", correct: true}, {text: "Defeat them in a competition", correct: false}, {text: "Teach them the basic rules", correct: false}], explanation: "To 'inspire' is to fill someone with the urge or ability to do or feel something, especially to do something creative or brave." },
+                { type: 'vocab', question: "'Problem-solving' is the process of...", answers: [{text: "Creating problems", correct: false}, {text: "Finding solutions to difficult issues", correct: true}, {text: "Ignoring problems", correct: false}, {text: "Memorizing facts", correct: false}], explanation: "'Problem-solving' is the process of finding solutions to difficult or complex issues." },
+                { type: 'vocab', question: "'Focus' is the ability to...", answers: [{text: "Be easily distracted", correct: false}, {text: "Direct one's attention or effort on something", correct: true}, {text: "Do many things at once", correct: false}, {text: "Climb very fast", correct: false}], explanation: "'Focus' is the center of interest or activity; the state or quality of having or producing clear visual definition." },
+                { type: 'vocab', question: "A 'prodigy' is a...", answers: [{text: "Young person with exceptional talent", correct: true}, {text: "Professional coach", correct: false}, {text: "Type of climbing shoe", correct: false}, {text: "A difficult climbing route", correct: false}], explanation: "A 'prodigy' is a young person endowed with exceptional qualities or abilities." },
+                { type: 'vocab', question: "An 'accomplishment' is something that has been...", answers: [{text: "Planned but not started", correct: false}, {text: "Achieved successfully", correct: true}, {text: "Forgotten by everyone", correct: false}, {text: "Failed", correct: false}], explanation: "An 'accomplishment' is something that has been achieved successfully." },
+                { type: 'vocab', question: "'Humility' is the quality of...", answers: [{text: "Being arrogant and proud", correct: false}, {text: "Having a modest or low view of one's own importance", correct: true}, {text: "Being very strong", correct: false}, {text: "Having many sponsors", correct: false}], explanation: "'Humility' is the quality of having a modest or low view of one's own importance." },
+                { type: 'vocab', question: "A good 'strength-to-weight ratio' is beneficial in climbing because...", answers: [{text: "It makes you heavier", correct: false}, {text: "It means you are strong for your size", correct: true}, {text: "It helps you solve problems", correct: false}, {text: "It makes you more famous", correct: false}], explanation: "A high 'strength-to-weight ratio' means a person has a lot of strength relative to their body mass, which is a major advantage in climbing." },
+                { type: 'vocab', question: "The 'pinnacle' of a sport is its...", answers: [{text: "Beginning level", correct: false}, {text: "Highest point or level of achievement", correct: true}, {text: "Rulebook", correct: false}, {text: "Training ground", correct: false}], explanation: "The 'pinnacle' is the most successful point; the culmination." },
+                { type: 'vocab', question: "'Preternatural' ability is one that seems...", answers: [{text: "Normal and average", correct: false}, {text: "Beyond what is normal or natural", correct: true}, {text: "Learned through hard work", correct: false}, {text: "Weak and ineffective", correct: false}], explanation: "'Preternatural' means beyond what is normal or natural." },
+                { type: 'vocab', question: "'Poise' is a quality of...", answers: [{text: "Grace and elegance in movement or bearing", correct: true}, {text: "Great speed", correct: false}, {text: "Loud celebration", correct: false}, {text: "Nervousness", correct: false}], explanation: "'Poise' is graceful and elegant bearing in a person." },
+                { type: 'vocab', question: "To set a new 'standard' means to...", answers: [{text: "Follow the old rules", correct: false}, {text: "Establish a new level of quality or attainment", correct: true}, {text: "Break a piece of equipment", correct: false}, {text: "Quit a competition", correct: false}], explanation: "A 'standard' is a level of quality or attainment." },
+
+                // Reading Questions (20)
+                { type: 'reading', question: "What is Ashima Shiraishi's main sport?", answers: [{text:"Gymnastics", correct: false}, {text:"Rock climbing", correct: true}, {text:"Skateboarding", correct: false}, {text:"Surfing", correct: false}], explanation: "The first sentence identifies her as a 'rock climbing phenom'." },
+                { type: 'reading', question: "What was Ashima's greatest 'accomplishment' mentioned in the text?", answers: [{text:"Winning an Olympic medal", correct: false}, {text:"Becoming the first female to climb a V15 grade route", correct: true}, {text:"Starting her own climbing gym", correct: false}, {text:"Designing climbing shoes", correct: false}], explanation: "The passage highlights her greatest accomplishment as being the 'first female climber... to successfully climb a route with a difficulty grade of V15'." },
+                { type: 'reading', question: "True or False: The passage says Ashima Shiraishi is known for her loud and boastful personality.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage emphasizes her 'quiet, determined excellence' and 'humility'." },
+                { type: 'reading', question: "The passage describes climbing as a form of vertical...", answers: [{text:"Dancing", correct: false}, {text:"Problem-solving", correct: true}, {text:"Running", correct: false}, {text:"Meditation", correct: false}], explanation: "The passage states, 'Climbing is a form of vertical problem-solving'." },
+                { type: 'reading', question: "What personal attribute does the passage say became an advantage for Ashima?", answers: [{text:"Her height", correct: false}, {text:"Her small size, giving her a good strength-to-weight ratio", correct: true}, {text:"Her loud voice", correct: false}, {text:"Her wealth", correct: false}], explanation: "The passage says, 'her excellent strength-to-weight ratio became an advantage'." },
+                { type: 'reading', question: "The author's tone towards Ashima Shiraishi is best described as...", answers: [{text:"Skeptical", correct: false}, {text:"Impressed and respectful", correct: true}, {text:"Neutral", correct: false}, {text:"Confused", correct: false}], explanation: "The author uses words like 'phenom', 'legendary', 'flawless', and 'grace', which show admiration and respect." },
+                { type: 'reading', question: "What is the main message the author suggests we can learn from Ashima's story?", answers: [{text:"That you must be tall to be a great athlete", correct: false}, {text:"That focus, discipline, and humility lead to excellence", correct: true}, {text:"That climbing is the best sport", correct: false}, {text:"That it's important to be famous", correct: false}], explanation: "The passage emphasizes her 'intense focus, discipline, and humility' as the virtues her story champions." },
+                { type: 'reading', question: "The word 'pinnacle' is used to describe the level Ashima reached in her sport. This means she reached the...", answers: [{text:"Beginning", correct: false}, {text:"Highest point", correct: true}, {text:"Middle level", correct: false}, {text:"End of her career", correct: false}], explanation: "'Pinnacle' means the highest point of achievement." },
+                { type: 'reading', question: "What does it mean that Ashima's ability was described as 'preternatural'?", answers: [{text:"It seemed average and normal", correct: false}, {text:"It seemed beyond what is normal or natural", correct: true}, {text:"It was learned very slowly", correct: false}, {text:"It was clumsy and unrefined", correct: false}], explanation: "'Preternatural' suggests a skill level that is almost supernatural or beyond normal human ability." },
+                { type: 'reading', question: "True or False: The passage suggests Ashima's success came easily and without much effort.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage repeatedly mentions her 'intense focus', 'discipline', and 'relentless dedication'." },
+                { type: 'reading', question: "The author emphasizes Ashima's 'humility' to show that she is...", answers: [{text:"Arrogant despite her success", correct: false}, {text:"Modest and does not boast about her incredible talent", correct: true}, {text:"Not confident in her abilities", correct: false}, {text:"Not as skilled as other climbers", correct: false}], explanation: "Humility is the quality of being modest. The author highlights this as a key virtue." },
+                { type: 'reading', question: "What does the passage say Ashima did for her 'generation' of climbers?", answers: [{text:"She coached them", correct: false}, {text:"She set a new standard of what was possible", correct: true}, {text:"She wrote a book for them", correct: false}, {text:"She built a gym for them", correct: false}], explanation: "The passage says she 'set a new standard for an entire generation of climbers'." },
+                { type: 'reading', question: "The phrase 'quiet, determined excellence' is used to describe...", answers: [{text:"Her loud celebration style", correct: false}, {text:"Her way of achieving greatness without boasting", correct: true}, {text:"Her weakness in competitions", correct: false}, {text:"Her coaching philosophy", correct: false}], explanation: "This phrase contrasts her quiet personality with her incredibly high level of skill and achievement." },
+                { type: 'reading', question: "What can be inferred about the V15 'grade' in climbing?", answers: [{text:"It is an easy grade for beginners", correct: false}, {text:"It is an extremely high level of difficulty", correct: true}, {text:"It is a grade that no one had ever attempted before", correct: false}, {text:"It is a grade used only in bouldering", correct: false}], explanation: "The text states that only a 'handful of elite male climbers' had achieved it, implying it is one of the most difficult grades in the world." },
+                { type: 'reading', question: "The passage is best described as...", answers: [{text:"A technical guide to bouldering", correct: false}, {text:"An inspirational profile of a young prodigy", correct: true}, {text:"A history of rock climbing", correct: false}, {text:"A comparison of different climbers", correct: false}], explanation: "The text focuses on the life, achievements, and inspirational qualities of Ashima Shiraishi." },
+                { type: 'reading', question: "The author highlights Ashima's 'poise' to emphasize her...", answers: [{text:"Speed and power", correct: false}, {text:"Grace and composure under pressure", correct: true}, {text:"Loud and energetic style", correct: false}, {text:"Nervousness during climbs", correct: false}], explanation: "'Poise' refers to grace and composure, which is how the author describes her climbing style." },
+                { type: 'reading', question: "True or False: The passage states that Ashima Shiraishi began to 'dominate' competitions when she was an adult.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage says she began to dominate 'as a teenager'." },
+                { type: 'reading', question: "The main idea of the second paragraph is to...", answers: [{text:"Describe Ashima's childhood", correct: false}, {text:"Detail her specific, record-breaking accomplishments", correct: true}, {text:"Explain the rules of bouldering", correct: false}, {text:"List her sponsors", correct: false}], explanation: "The second paragraph focuses on her reaching the 'pinnacle' of the sport and her 'greatest accomplishment' of climbing a V15." },
+                { type: 'reading', question: "The passage suggests that Ashima's 'technique' is...", answers: [{text:"Average and standard", correct: false}, {text:"Flawless and creative", correct: true}, {text:"Clumsy but powerful", correct: false}, {text:"Still developing", correct: false}], explanation: "The vocabulary list describes her technique as 'flawless' and the passage highlights her creative 'problem-solving' ability." },
+                { type: 'reading', question: "What does the passage say Ashima's story proves?", answers: [{text:"That only tall people can be great climbers", correct: false}, {text:"That immense power can come in a small package", correct: true}, {text:"That climbing is an easy sport", correct: false}, {text:"That you need to be loud to be successful", correct: false}], explanation: "The final paragraph concludes that her story proves 'that immense power can come in a small package'." }
+            ];
+            
+            const badges = {
+                vocab: { id: 'vocab', name: 'Vocabulary Virtuoso', icon: '🎓', earned: false, condition: () => correctVocabCount === 20 },
+                reading: { id: 'reading', name: 'Analytical Ace', icon: '🧐', earned: false, condition: () => correctReadingCount === 20 },
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '👍', earned: false, condition: () => streakCounter >= 5 },
+                perfect: { id: 'perfect', name: 'Perfect 100', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-green-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function loadVoices() {
+                if ('speechSynthesis' in window) {
+                    availableVoices = speechSynthesis.getVoices();
+                    if (availableVoices.length === 0) {
+                        speechSynthesis.onvoiceschanged = () => {
+                            availableVoices = speechSynthesis.getVoices();
+                        };
+                    }
+                }
+            }
+            
+            function setupGame() {
+                playerName = playerNameInput.value || "Player";
+                const vocabQuestions = questionBank.filter(q => q.type === 'vocab');
+                const readingQuestions = questionBank.filter(q => q.type === 'reading');
+                shuffleArray(vocabQuestions);
+                shuffleArray(readingQuestions);
+                questions = vocabQuestions.concat(readingQuestions);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 900;
+                correctVocabCount = 0;
+                correctReadingCount = 0;
+                mistakes = 0;
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    if (question.tf) {
+                        button.classList.add(answerObj.text === 'True' ? 'hover:!bg-green-500' : 'hover:!bg-red-500', 'hover:text-white');
+                    }
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                
+                if ('speechSynthesis' in window && availableVoices.length > 0) {
+                    const utterance = new SpeechSynthesisUtterance(praise);
+                    let preferredVoice = availableVoices.find(voice => 
+                        voice.lang === 'en-US' && 
+                        (voice.name.includes('Ava') || voice.name.includes('Natural') || voice.name.includes('Neural'))
+                    );
+                    if (!preferredVoice) {
+                        preferredVoice = availableVoices.find(voice => voice.lang === 'en-US');
+                    }
+                    if (preferredVoice) {
+                        utterance.voice = preferredVoice;
+                    }
+                    
+                    speechSynthesis.speak(utterance);
+                }
+
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 2.5;
+                    streakCounter++;
+                    if (question.type === 'vocab') correctVocabCount++;
+                    if (question.type === 'reading') correctReadingCount++;
+                    
+                    updateScore();
+                    correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    streakCounter = 0; // Reset streak
+                    wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = `Great work, ${playerName}!`;
+                } else {
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+                endMessageEl.textContent = "Your final score is:";
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            // Initial load
+            loadVoices();
+            startBtn.addEventListener('click', setupGame);
+            restartBtn.addEventListener('click', setupGame);
+            nextQuestionBtn.addEventListener('click', hideFeedback);
+        });
+    </script>
+</body>
+</html>

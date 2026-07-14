@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plastic Alternative Challenge</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+
+    <style>
+        /* Custom styles for the theme and animations */
+        :root {
+            --primary-blue: #0ea5e9;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Dynamic gradient background */
+            background: linear-gradient(-45deg, #0c4a6e, #0369a1, #0ea5e9, #38bdf8);
+            background-size: 400% 400%;
+            animation: gradientBG 35s ease infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            /* Prevents scrolling on all devices */
+            overflow: hidden;
+            padding: 1rem;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            25% { background-position: 50% 100%; }
+            50% { background-position: 100% 50%; }
+            75% { background-position: 50% 0%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            animation: fadeInScale 0.8s ease-out forwards;
+        }
+
+        @keyframes fadeInScale {
+            0% { opacity: 0; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .answer-btn {
+            transition: all 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        /* Enhanced Flash Animations */
+        .correct-flash {
+            animation: correct-pulse 0.6s ease-out forwards;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.6s ease-out forwards;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #34d399; color: white; transform: scale(1.01); }
+            50% { background-color: #10b981; color: white; transform: scale(1.03); }
+            100% { background-color: #34d399; color: white; transform: scale(1); }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.01); }
+            50% { background-color: #ef4444; color: white; transform: scale(1.03); }
+            100% { background-color: #f87171; color: white; transform: scale(1); }
+        }
+
+        /* Enhanced Badge Reveal Animation */
+        .badge {
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            transform: scale(0) rotate(-180deg);
+            opacity: 0;
+            flex-shrink: 0;
+        }
+        .badge.earned {
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+        }
+
+        /* Praise Animation */
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        #praise-feedback.show {
+            animation: praise-anim 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            30% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            70% { transform: translate(-50%, -70%) scale(1.05); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(0.8); opacity: 0; }
+        }
+        
+        #question-timer-bar {
+            background-color: var(--primary-blue);
+        }
+
+        /* Responsive adjustments for buttons */
+        #answer-buttons > button {
+            white-space: normal;
+            line-height: 1.5;
+            min-height: 5rem;
+            word-break: break-word;
+        }
+
+        @media (max-width: 768px) {
+            #answer-buttons > button {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white game-card !bg-transparent p-0 shadow-none">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Plastic Alternative Challenge</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge of the future of materials. You have 10 minutes to answer 25 questions. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl md:text-2xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-sky-300 focus:outline-none">
+            <button id="start-btn" class="w-full md:w-auto bg-sky-600 hover:bg-sky-700 text-white font-bold py-4 px-8 rounded-full text-2xl md:text-3xl answer-btn" disabled>Enter Name to Start</button>
+            
+            <!-- Leaderboard Display on Start Screen -->
+            <div id="leaderboard" class="mt-8">
+                <h2 class="text-3xl font-bold mb-4">Top Scores</h2>
+                <ul id="leaderboard-list" class="text-xl space-y-2">
+                    <!-- Leaderboard entries will be dynamically inserted here -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <!-- Game Header with Timer, Score, and Badges -->
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full text-sm md:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">10:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full text-sm md:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-6 md:w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                    <!-- Mute Button -->
+                    <button id="mute-btn" class="flex items-center space-x-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-4 py-2 rounded-full text-sm md:text-base answer-btn">
+                        <i id="mute-icon" class="fa-solid fa-volume-high"></i>
+                    </button>
+                </div>
+                
+                <div id="badges-container" class="flex items-center justify-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-sm font-bold text-sky-700" id="question-counter">Question 1 / 25</p>
+                        <!-- Timer countdown for each question -->
+                        <div class="flex items-center space-x-1 text-sm font-bold text-red-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V6z" clip-rule="evenodd" /></svg>
+                            <span id="question-timer-countdown">20</span>
+                        </div>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full mb-6">
+                        <!-- This bar visually represents the time left to answer each question -->
+                        <div id="question-timer-bar" class="rounded-full transition-all duration-[20s] linear"></div>
+                    </div>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 text-center min-h-[100px]"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white game-card !bg-transparent p-0 shadow-none">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center flex-wrap gap-4 mb-8"></div>
+            <p id="final-message" class="text-xl mt-4"></p>
+            <button id="restart-btn" class="w-full md:w-auto bg-sky-600 hover:bg-sky-700 text-white font-bold py-4 px-8 rounded-full text-2xl md:text-3xl answer-btn mt-8">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 id="feedback-title" class="text-3xl font-bold mb-4"></h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            const muteBtn = document.getElementById('mute-btn');
+            const muteIcon = document.getElementById('mute-icon');
+
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTimerCountdownEl = document.getElementById('question-timer-countdown');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+            const questionTimerBar = document.getElementById('question-timer-bar');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackTitle = document.getElementById('feedback-title');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+            const finalMessageEl = document.getElementById('final-message');
+            const leaderboardList = document.getElementById('leaderboard-list');
+
+            // --- Game State Variables ---
+            let score = 0;
+            let timer;
+            let questionTimer;
+            let timeLeft = 600; // 10 minutes in seconds
+            let questionTimeLeft = 20; // 20 seconds per question
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let streakCounter = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let audioInitialized = false;
+            let isMuted = false;
+            let totalQuestions = 25;
+
+            // --- Audio Synthesizers ---
+            let correctSound, wrongSound, badgeSound, praiseSound;
+
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!", "Fantastic!", "Well done!", "You got it!"];
+            
+            // --- New Question Data ---
+            const questionBank = [
+                { question: "What does 'Single-use' mean?", answers: [{text: "Designed to be used only once", correct: true}, {text: "Can be used by one person", correct: false}, {text: "Made from one material", correct: false}, {text: "A very useful product", correct: false}], explanation: "'Single-use' means designed to be used only once and then disposed of." },
+                { question: "A material that can be broken down naturally by bacteria is called...", answers: [{text: "Renewable", correct: false}, {text: "Biodegradable", correct: true}, {text: "Compostable", correct: false}, {text: "Recyclable", correct: false}], explanation: "'Biodegradable' means able to be broken down naturally by bacteria." },
+                { question: "What are 'Microplastics'?", answers: [{text: "A new type of soft plastic", correct: false}, {text: "Plastic seen under a microscope", correct: false}, {text: "Extremely small pieces of plastic debris", correct: true}, {text: "Plastic used in electronics", correct: false}], explanation: "'Microplastics' are extremely small pieces of plastic debris in the environment." },
+                { question: "The journey of a product from creation to disposal is its...", answers: [{text: "Supply Chain", correct: false}, {text: "Life Cycle", correct: true}, {text: "Carbon Footprint", correct: false}, {text: "Pollution Path", correct: false}], explanation: "A product's 'Life Cycle' includes all stages from creation to disposal." },
+                { question: "What is a 'Circular Economy'?", answers: [{text: "An economy based on round products", correct: false}, {text: "A system where materials are reused instead of thrown away", correct: true}, {text: "A global economic system", correct: false}, {text: "An economy that never grows", correct: false}], explanation: "A 'Circular Economy' is an economic system aimed at eliminating waste and the continual use of resources." },
+                { question: "Most plastics are made from what non-renewable resource?", answers: [{text: "Plants", correct: false}, {text: "Water", correct: false}, {text: "Fossil Fuels", correct: true}, {text: "Metals", correct: false}], explanation: "Most plastics are derived from fossil fuels like petroleum." },
+                { question: "Bamboo and glass are considered what in relation to plastic?", answers: [{text: "Alternatives", correct: true}, {text: "Ingredients", correct: false}, {text: "Byproducts", correct: false}, {text: "Pollutants", correct: false}], explanation: "Bamboo, glass, and metal are 'alternatives' to plastic." },
+                { question: "Harmful substances or waste in the environment are called...", answers: [{text: "Resources", correct: false}, {text: "Pollution", correct: true}, {text: "Materials", correct: false}, {text: "Compost", correct: false}], explanation: "'Pollution' refers to harmful substances or waste introduced into an environment." },
+                { question: "A resource that can be replaced naturally, like bamboo, is called...", answers: [{text: "Finite", correct: false}, {text: "Synthetic", correct: false}, {text: "Renewable", correct: true}, {text: "Durable", correct: false}], explanation: "A 'Renewable' resource is one that can be naturally replenished." },
+                { question: "A material that breaks down in special high-temperature facilities is...", answers: [{text: "Compostable", correct: true}, {text: "Biodegradable", correct: false}, {text: "Recyclable", correct: false}, {text: "Reusable", correct: false}], explanation: "'Compostable' materials require specific conditions, often in industrial facilities, to break down." },
+                { question: "According to the first paragraph, where does plastic stay for hundreds of years?", answers: [{text: "In factories", correct: false}, {text: "In the environment", correct: true}, {text: "In our homes", correct: false}, {text: "In stores", correct: false}], explanation: "The first paragraph states that plastic stays 'in the environment for hundreds of years'." },
+                { question: "What is a major problem with single-use plastic items?", answers: [{text: "They are too expensive", correct: false}, {text: "They are difficult to find", correct: false}, {text: "We use them once and throw them away", correct: true}, {text: "They are not very useful", correct: false}], explanation: "The first paragraph highlights that the problem is 'we use them once and throw them away'." },
+                { question: "What does the first paragraph say plastic trash can do?", answers: [{text: "Help fish swim faster", correct: false}, {text: "Clean the ocean", correct: false}, {text: "Hurt animals in the ocean", correct: true}, {text: "Create new islands", correct: false}], explanation: "The first paragraph clearly states that plastic trash 'can hurt animals in the ocean'." },
+                { question: "What is the source material for most plastic, according to the first paragraph?", answers: [{text: "Plants", correct: false}, {text: "Fossil fuels", correct: true}, {text: "Recycled paper", correct: false}, {text: "Sand", correct: false}], explanation: "The first paragraph mentions that plastic 'is made from fossil fuels'." },
+                { question: "What is the main message of the first paragraph?", answers: [{text: "We should use more plastic", correct: false}, {text: "Plastic is good for animals", correct: false}, {text: "We should use less plastic and find alternatives", correct: true}, {text: "Plastic is easy to recycle", correct: false}], explanation: "The main message is that 'we need to use less plastic and find better alternatives'." },
+                { question: "The second paragraph says that plastic's convenience comes at a high price for the...", answers: [{text: "Economy", correct: false}, {text: "Consumer", correct: false}, {text: "Environment", correct: true}, {text: "Manufacturer", correct: false}], explanation: "The second paragraph states that convenience comes at a high price for the 'environment'." },
+                { question: "What happens to plastic in the ocean, according to the second paragraph?", answers: [{text: "It dissolves safely", correct: false}, {text: "It breaks down into tiny microplastics", correct: true}, {text: "It becomes food for fish", correct: false}, {text: "It sinks and turns into rock", correct: false}], explanation: "The second paragraph explains that plastic in the ocean 'breaks down into tiny microplastics'." },
+                { question: "What is the main goal of a 'circular economy'?", answers: [{text: "To make products cheaper", correct: false}, {text: "To reuse materials instead of throwing them away", correct: true}, {text: "To ship products around the world", correct: false}, {text: "To increase waste production", correct: false}], explanation: "The goal of a circular economy is 'to reuse materials instead of throwing them away'." },
+                { question: "Besides bamboo and glass, what is another alternative to plastic mentioned in the second paragraph?", answers: [{text: "Wood", correct: false}, {text: "Bioplastics from corn", correct: true}, {text: "Stone", correct: false}, {text: "Clay", correct: false}], explanation: "The second paragraph mentions 'bioplastics made from plants like corn'." },
+                { question: "How can microplastics affect humans?", answers: [{text: "They can improve our health", correct: false}, {text: "They are a source of vitamins", correct: false}, {text: "They can enter our food chain", correct: true}, {text: "They cannot affect humans", correct: false}], explanation: "The second paragraph warns that microplastics 'can enter our food chain'." },
+                { question: "The third paragraph describes the 'take-make-waste' model as...", answers: [{text: "Circular", correct: false}, {text: "Sustainable", correct: false}, {text: "Linear", correct: true}, {text: "Efficient", correct: false}], explanation: "The third paragraph calls the 'take-make-waste' model 'linear'." },
+                { question: "What innovative packaging material comes from the root structure of mushrooms?", answers: [{text: "Seaweed", correct: false}, {text: "Mycelium", correct: true}, {text: "Bioplastic", correct: false}, {text: "Bamboo", correct: false}], explanation: "The third paragraph identifies 'mycelium (the root structure of mushrooms)' as a promising alternative." },
+                { question: "What is a key problem with some 'bioplastics' mentioned in the third paragraph?", answers: [{text: "They are too expensive", correct: false}, {text: "They are not strong enough", correct: false}, {text: "They only break down in industrial composting facilities", correct: true}, {text: "They are made from fossil fuels", correct: false}], explanation: "The third paragraph explains that some bioplastics 'only break down in high-temperature industrial composting facilities'." },
+                { question: "The third paragraph describes waste not as a personal failing, but as a...", answers: [{text: "Necessary evil", correct: false}, {text: "Good business opportunity", correct: false}, {text: "Design flaw", correct: true}, {text: "Natural process", correct: false}], explanation: "The third paragraph reframes waste as a 'design flaw' in our systems." },
+                { question: "What does a 'life cycle evaluation' of a material consider?", answers: [{text: "Only its price", correct: false}, {text: "Only how it looks", correct: false}, {text: "Its impact from creation to disposal", correct: true}, {text: "Only its strength", correct: false}], explanation: "A life cycle evaluation considers a material's 'impact from creation to its end-of-life'." }
+            ];
+            
+            const badges = {
+                // Thematic icons for the new topic
+                quick: { id: 'quick', name: 'Quick Thinker', icon: '⚡', earned: false, condition: () => timeLeft > 480 },
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '♻️', earned: false, condition: () => streakCounter >= 5 },
+                perfect: { id: 'perfect', name: 'Perfect Score', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            // --- Utility Functions ---
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                // Badge text color is dark for better contrast
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-yellow-400', 'text-gray-900');
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+
+            // --- Game Logic ---
+            function loadLeaderboard() {
+                try {
+                    const highScores = JSON.parse(localStorage.getItem('plastic-quiz-highscores')) || [];
+                    leaderboardList.innerHTML = '';
+                    if (highScores.length === 0) {
+                        leaderboardList.innerHTML = '<li class="text-white opacity-70">No scores yet. Be the first!</li>';
+                    } else {
+                        highScores.sort((a, b) => b.score - a.score);
+                        highScores.slice(0, 5).forEach((entry, index) => {
+                            const li = document.createElement('li');
+                            li.classList.add('flex', 'justify-between', 'text-white', 'p-2', 'rounded-lg', 'bg-black', 'bg-opacity-20');
+                            li.innerHTML = `
+                                <span>${index + 1}. ${entry.name}</span>
+                                <span class="font-bold">${entry.score} pts</span>
+                            `;
+                            leaderboardList.appendChild(li);
+                        });
+                    }
+                } catch (e) {
+                    console.error("Could not load leaderboard from local storage:", e);
+                }
+            }
+
+            function saveScore(score, name) {
+                try {
+                    const highScores = JSON.parse(localStorage.getItem('plastic-quiz-highscores')) || [];
+                    highScores.push({ name: name, score: score });
+                    localStorage.setItem('plastic-quiz-highscores', JSON.stringify(highScores));
+                } catch (e) {
+                    console.error("Could not save score to local storage:", e);
+                }
+            }
+
+            function setupGame() {
+                playerName = playerNameInput.value.trim() || "Player";
+                questions = shuffleArray([...questionBank]);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 600; // 10 minutes in seconds
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function startQuestionTimer() {
+                questionTimeLeft = 20;
+                questionTimerBar.style.transition = 'none';
+                questionTimerBar.style.width = '100%';
+                
+                setTimeout(() => {
+                    questionTimerBar.style.transition = 'width 20s linear';
+                    questionTimerBar.style.width = '0%';
+                }, 50);
+
+                clearInterval(questionTimer);
+                questionTimer = setInterval(() => {
+                    questionTimeLeft--;
+                    questionTimerCountdownEl.textContent = questionTimeLeft;
+                    if (questionTimeLeft <= 0) {
+                        clearInterval(questionTimer);
+                        selectAnswer(null); // Pass null on timeout
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+
+                startQuestionTimer();
+            }
+
+            function showPraise() {
+                if (isMuted) return;
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                if (audioInitialized && !isMuted) praiseSound.triggerAttackRelease("A4", "16n"); 
+                
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1500);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        if(audioInitialized && !isMuted) badgeSound.triggerAttackRelease(["E4", "G#4", "B4"], "0.4");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                clearInterval(questionTimer);
+                questionTimerBar.style.transition = 'none';
+                questionTimerBar.style.width = '100%';
+
+                const button = e ? e.target : null;
+                const isCorrect = button ? button.dataset.correct === 'true' : false;
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    if(button) button.classList.add('correct-flash');
+                    score += 4;
+                    streakCounter++;
+                    updateScore();
+                    showPraise();
+                    if(audioInitialized && !isMuted) correctSound.triggerAttackRelease("G4", "8n");
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1500);
+                } else {
+                    if(button) button.classList.add('incorrect-flash');
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    if (correctButton) correctButton.classList.add('correct-flash');
+                    streakCounter = 0;
+                    if(audioInitialized && !isMuted) wrongSound.triggerAttackRelease("C3", "8n");
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation, false);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation, isCorrect) {
+                if (isCorrect) {
+                    feedbackTitle.textContent = "Correct!";
+                    feedbackTitle.classList.remove('text-red-500');
+                    feedbackTitle.classList.add('text-green-500');
+                } else {
+                    feedbackTitle.textContent = "Not Quite!";
+                    feedbackTitle.classList.remove('text-green-500');
+                    feedbackTitle.classList.add('text-red-500');
+                }
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                clearInterval(questionTimer);
+                checkBadges();
+                
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+                
+                if (score >= 90) {
+                    endMessageEl.textContent = `You're a Plastic Alternatives expert! You earned an amazing ${score} points!`;
+                    endTitleEl.textContent = `You did it, ${playerName}!`;
+                } else if (score >= 50) {
+                    endMessageEl.textContent = `A solid effort! You earned ${score} points. Keep learning about sustainable materials!`;
+                    endTitleEl.textContent = `Good game, ${playerName}!`;
+                } else {
+                    endMessageEl.textContent = `A great start. You earned ${score} points. Try again to get a higher score!`;
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+
+                saveScore(score, playerName);
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        if(badgeData) {
+                            const badgeEl = createBadgeElement(badgeData);
+                            badgeEl.classList.add('earned');
+                            finalBadgesContainer.appendChild(badgeEl);
+                        }
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+
+            async function initAudioAndStart() {
+                if (!audioInitialized && typeof Tone !== 'undefined') {
+                    try {
+                        await Tone.start();
+                        correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.8 } }).toDestination();
+                        wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.3 } }).toDestination();
+                        badgeSound = new Tone.PolySynth({ oscillator: { type: "sine" }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.5, release: 1 } }).toDestination();
+                        praiseSound = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.1 } }).toDestination();
+                        audioInitialized = true;
+                        console.log("Audio context started.");
+                    } catch (e) {
+                        console.error("Could not initialize audio:", e);
+                    }
+                }
+                setupGame();
+            }
+
+            function toggleMute() {
+                isMuted = !isMuted;
+                if (isMuted) {
+                    muteIcon.classList.remove('fa-volume-high');
+                    muteIcon.classList.add('fa-volume-xmark');
+                } else {
+                    muteIcon.classList.remove('fa-volume-xmark');
+                    muteIcon.classList.add('fa-volume-high');
+                }
+            }
+
+            function main() {
+                playerNameInput.addEventListener('input', () => {
+                    if (playerNameInput.value.trim() !== '') {
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Start Challenge';
+                    } else {
+                        startBtn.disabled = true;
+                        startBtn.textContent = 'Enter Name to Start';
+                    }
+                });
+                
+                startBtn.addEventListener('click', initAudioAndStart);
+                restartBtn.addEventListener('click', () => {
+                    loadLeaderboard();
+                    gameUI.classList.add('hidden');
+                    endScreen.classList.add('hidden');
+                    startScreen.classList.remove('hidden');
+                });
+                nextQuestionBtn.addEventListener('click', hideFeedback);
+                muteBtn.addEventListener('click', toggleMute);
+
+                loadLeaderboard();
+            }
+            
+            main();
+        });
+    </script>
+</body>
+</html>

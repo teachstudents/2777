@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barrington Irving: Trailblazer Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #064e3b, #047857, #059669, #10b981);
+            background-size: 400% 400%;
+            animation: gradientBG 25s ease infinite;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #4ade80; color: white; transform: scale(1.02); }
+            100% { background-color: #4ade80; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Barrington Irving: Trailblazer Challenge</h1>
+            <p class="text-lg md:text-xl mb-8">Test your knowledge with 40 questions on the trailblazing pilot. You have 15 minutes. Aim for 100 points and earn all the badges!</p>
+            <button id="start-btn" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Start Challenge</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">15:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div id="badges-container" class="flex justify-center items-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-blue-600 mb-2" id="question-counter">Question 1 / 40</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 min-h-[100px] text-center"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const finalBadgesContainer = document.getElementById('final-badges');
+
+            let score = 0;
+            let timer;
+            let timeLeft = 900; // 15 minutes
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctVocabCount = 0;
+            let correctReadingCount = 0;
+            let mistakes = 0;
+            let earnedBadges = new Set();
+
+            const correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            const wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+            const badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great Job!", "Awesome!"];
+
+            const questionBank = [
+                // Vocabulary Questions (20)
+                { type: 'vocab', question: "An 'aviator' is another word for a...", answers: [{text: "Scientist", correct: false}, {text: "Pilot", correct: true}, {text: "Teacher", correct: false}, {text: "Mechanic", correct: false}], explanation: "An 'aviator' is a pilot." },
+                { type: 'vocab', question: "If a flight is 'solo', it means it is flown by...", answers: [{text: "Two people", correct: false}, {text: "A large team", correct: false}, {text: "One person alone", correct: true}, {text: "A student", correct: false}], explanation: "'Solo' means done by one person alone." },
+                { type: 'vocab', question: "To 'circumnavigate' the globe means to...", answers: [{text: "Fly over the North Pole", correct: false}, {text: "Travel all the way around it", correct: true}, {text: "Fly in a straight line", correct: false}, {text: "Land in every country", correct: false}], explanation: "'To circumnavigate' is to sail or travel all the way around something, especially the world." },
+                { type: 'vocab', question: "'Aeronautics' is the science and art of...", answers: [{text: "Building boats", correct: false}, {text: "Studying stars", correct: false}, {text: "Flight", correct: true}, {text: "Mapping the earth", correct: false}], explanation: "'Aeronautics' is the science or art involved with the study, design, and manufacturing of air-flight capable machines." },
+                { type: 'vocab', question: "What is 'inspiration'?", answers: [{text: "A feeling of sadness", correct: false}, {text: "Something that makes you want to do something creative", correct: true}, {text: "A type of engine", correct: false}, {text: "A difficult problem", correct: false}], explanation: "'Inspiration' is the process of being mentally stimulated to do or feel something, especially to do something creative." },
+                { type: 'vocab', question: "A 'non-profit' organization's main goal is to...", answers: [{text: "Make a lot of money", correct: false}, {text: "Sell products", correct: false}, {text: "Help a cause or community", correct: true}, {text: "Become famous", correct: false}], explanation: "A 'non-profit' is an organization that uses its surplus revenues to further achieve its purpose or mission, rather than distributing its surplus income to the organization's shareholders." },
+                { type: 'vocab', question: "A 'mentor' is a...", answers: [{text: "Rival or competitor", correct: false}, {text: "Wise and trusted teacher or advisor", correct: true}, {text: "Boss or supervisor", correct: false}, {text: "Student or apprentice", correct: false}], explanation: "A 'mentor' is an experienced and trusted adviser." },
+                { type: 'vocab', question: "A 'scholarship' is money given to a student to...", answers: [{text: "Buy a car", correct: false}, {text: "Go on vacation", correct: false}, {text: "Help pay for education", correct: true}, {text: "Start a business", correct: false}], explanation: "A 'scholarship' is a grant or payment made to support a student's education, awarded on the basis of academic or other achievement." },
+                { type: 'vocab', question: "'Logistics' refers to the...", answers: [{text: "The history of a place", correct: false}, {text: "The detailed organization of a complex operation", correct: true}, {text: "The laws of a country", correct: false}, {text: "The language of pilots", correct: false}], explanation: "'Logistics' is the detailed coordination of a complex operation involving many people, facilities, or supplies." },
+                { type: 'vocab', question: "An 'expedition' is a...", answers: [{text: "A short, casual walk", correct: false}, {text: "A journey with a specific purpose, like exploration", correct: true}, {text: "A type of airplane", correct: false}, {text: "A classroom lesson", correct: false}], explanation: "An 'expedition' is a journey undertaken by a group of people with a particular purpose, especially that of exploration, research, or war." },
+                { type: 'vocab', question: "'STEM' stands for...", answers: [{text: "Study, Teach, Educate, Motivate", correct: false}, {text: "Science, Technology, Engineering, and Math", correct: true}, {text: "Sail, Travel, Explore, Move", correct: false}, {text: "Support, Teamwork, Effort, Mission", correct: false}], explanation: "'STEM' is an acronym for Science, Technology, Engineering, and Math." },
+                { type: 'vocab', question: "A 'record-breaking' achievement...", answers: [{text: "Is an average accomplishment", correct: false}, {text: "Is better than any previous one", correct: true}, {text: "Is a failed attempt", correct: false}, {text: "Is kept secret", correct: false}], explanation: "A 'record-breaking' achievement surpasses all previous achievements of its kind." },
+                { type: 'vocab', question: "To 'assemble' a plane means to...", answers: [{text: "Fly it", correct: false}, {text: "Design it", correct: false}, {text: "Put its parts together", correct: true}, {text: "Sell it", correct: false}], explanation: "To 'assemble' means to fit together the separate component parts of a machine or other object." },
+                { type: 'vocab', question: "'Adversity' refers to...", answers: [{text: "An exciting adventure", correct: false}, {text: "A great success", correct: false}, {text: "Difficulties or misfortune", correct: true}, {text: "A group of friends", correct: false}], explanation: "'Adversity' means difficulties or misfortune." },
+                { type: 'vocab', question: "A 'pioneer' is someone who...", answers: [{text: "Is one of the first to do something", correct: true}, {text: "Follows others", correct: false}, {text: "Is an expert in history", correct: false}, {text: "Works in an office", correct: false}], explanation: "A 'pioneer' is a person who is among the first to explore or settle a new country or area, or to develop or be the first to use a new method or activity." },
+                { type: 'vocab', question: "What is 'ambition'?", answers: [{text: "A fear of flying", correct: false}, {text: "A type of airplane", correct: false}, {text: "A strong desire to achieve something", correct: true}, {text: "A lack of motivation", correct: false}], explanation: "'Ambition' is a strong desire to do or to achieve something, typically requiring determination and hard work." },
+                { type: 'vocab', question: "To 'empower' someone means to...", answers: [{text: "Take power away from them", correct: false}, {text: "Give them the power or authority to do something", correct: true}, {text: "Confuse them", correct: false}, {text: "Fly with them", correct: false}], explanation: "To 'empower' is to make (someone) stronger and more confident, especially in controlling their life and claiming their rights." },
+                { type: 'vocab', question: "A 'transformative' experience...", answers: [{text: "Is boring and forgettable", correct: false}, {text: "Changes you in an important way", correct: true}, {text: "Is very expensive", correct: false}, {text: "Happens every day", correct: false}], explanation: "A 'transformative' experience causes a marked change in someone or something." },
+                { type: 'vocab', question: "An 'innovative' idea is...", answers: [{text: "Old and traditional", correct: false}, {text: "New and original", correct: true}, {text: "Difficult to understand", correct: false}, {text: "A bad idea", correct: false}], explanation: "'Innovative' means featuring new methods; advanced and original." },
+                { type: 'vocab', question: "A 'legacy' is...", answers: [{text: "A type of law", correct: false}, {text: "A final exam", correct: false}, {text: "Something left behind for future generations", correct: true}, {text: "A daily task", correct: false}], explanation: "A 'legacy' is something left or handed down by a predecessor." },
+                
+                // Reading Questions (20)
+                { type: 'reading', question: "What is Barrington Irving described as in the first sentence?", answers: [{text:"A famous teacher", correct: false}, {text:"A famous aviator", correct: true}, {text:"A famous student", correct: false}, {text:"A famous mechanic", correct: false}], explanation: "The first sentence calls him a 'famous aviator'." },
+                { type: 'reading', question: "True or False: The passage states that Irving's flight around the world was a group expedition.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage clearly states it was a 'solo' flight, meaning he flew alone." },
+                { type: 'reading', question: "What did Irving turn down a 'scholarship' for?", answers: [{text:"To become a doctor", correct: false}, {text:"To pursue his passion for flying", correct: true}, {text:"To travel the world by boat", correct: false}, {text:"To work as a mechanic", correct: false}], explanation: "The passage says he 'turned down a sports scholarship to follow his passion'." },
+                { type: 'reading', question: "The passage states that Irving's plane was...", answers: [{text:"Bought new from a factory", correct: false}, {text:"A gift from his mentor", correct: false}, {text:"Assembled from donated parts", correct: true}, {text:"A military aircraft", correct: false}], explanation: "The passage says he 'persuaded companies to donate parts, which allowed him to assemble his own plane'." },
+                { type: 'reading', question: "What is the main goal of Irving's 'non-profit' organization?", answers: [{text:"To sell airplanes", correct: false}, {text:"To empower youth through STEM and aeronautics", correct: true}, {text: "To fund professional sports teams", correct: false}, {text:"To organize vacations", correct: false}], explanation: "The passage states his organization aims to 'empower youth through aeronautics and STEM education'." },
+                { type: 'reading', question: "The author uses the word 'transformative' to describe Irving's flight. This implies the experience...", answers: [{text:"Was very long", correct: false}, {text:"Was very expensive", correct: false}, {text:"Deeply changed him and his goals", correct: true}, {text:"Was easy to complete", correct: false}], explanation: "A 'transformative' experience causes a major change. For Irving, it led him to start his foundation." },
+                { type: 'reading', question: "What is the role of the 'mentor' in Irving's story?", answers: [{text:"He was a competitor", correct: false}, {text:"He provided the inspiration for Irving's career", correct: true}, {text:"He flew with Irving on his solo flight", correct: false}, {text:"He tried to stop Irving from flying", correct: false}], explanation: "The passage says his mentor 'inspired' him to follow his passion." },
+                { type: 'reading', question: "The author mentions the complex 'logistics' of the flight to emphasize...", answers: [{text:"That the flight was poorly planned", correct: false}, {text:"The difficulty and scale of the challenge", correct: true}, {text:"That Irving had a large team helping him", correct: false}, {text:"That the flight path was a secret", correct: false}], explanation: "Mentioning logistics highlights the complexity and difficulty of organizing such a massive undertaking." },
+                { type: 'reading', question: "What can be inferred about Irving's character from the fact he had to 'assemble' his own plane?", answers: [{text:"He was not a skilled pilot", correct: false}, {text:"He was very wealthy", correct: false}, {text:"He was determined and resourceful", correct: true}, {text:"He did not trust other people", correct: false}], explanation: "Building your own plane from donated parts requires immense determination and resourcefulness." },
+                { type: 'reading', question: "The author's main purpose in the final paragraph is to...", answers: [{text:"Describe the technical details of the flight", correct: false}, {text:"Explain what Irving's most important contribution is", correct: true}, {text:"Question whether Irving's flight was a good idea", correct: false}, {text:"List all of Irving's sponsors", correct: false}], explanation: "The final paragraph focuses on his 'legacy' and his dedication to 'inspiring the next generation', which is his most important contribution." },
+                { type: 'reading', question: "Which word best describes the author's attitude towards Barrington Irving?", answers: [{text:"Indifferent", correct: false}, {text:"Skeptical", correct: false}, {text:"Admiring", correct: true}, {text:"Jealous", correct: false}], explanation: "The author uses positive and respectful words like 'pioneer', 'inspiration', and 'profound dedication', showing admiration." },
+                { type: 'reading', question: "The passage suggests that Irving's 'legacy' is...", answers: [{text:"Only about his record-breaking flight", correct: false}, {text:"More about his educational work than his flight", correct: true}, {text:"Soon to be forgotten", correct: false}, {text:"Mainly financial", correct: false}], explanation: "The passage states, 'his lasting legacy is not just his historic flight, but his profound dedication to inspiring the next generation'." },
+                { type: 'reading', question: "True or False: The passage suggests Irving's journey was easy because he had a lot of money.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage explicitly states he faced 'significant financial adversity'." },
+                { type: 'reading', question: "The word 'pioneer' is used to describe Irving because he...", answers: [{text:"Was the oldest person to fly around the world", correct: false}, {text:"Was a trailblazer in both aviation and education", correct: true}, {text:"Discovered a new country", correct: false}, {text:"Invented a new type of plane", correct: false}], explanation: "He was a pioneer for his record-breaking flight and for his innovative educational programs." },
+                { type: 'reading', question: "What is the main idea of the second paragraph?", answers: [{text:"Listing the countries Irving visited", correct: false}, {text:"Describing the challenges and success of the flight itself", correct: true}, {text:"Explaining how airplanes work", correct: false}, {text:"Discussing his childhood", correct: false}], explanation: "The second paragraph focuses on overcoming adversity, assembling the plane, and the success of the flight." },
+                { type: 'reading', question: "The passage is best described as...", answers: [{text:"A technical manual", correct: false}, {text:"An argumentative essay", correct: false}, {text:"An inspirational biography", correct: true}, {text:"A fictional story", correct: false}], explanation: "The passage tells the true, inspirational story of a person's life and achievements." },
+                { type: 'reading', question: "What does the passage say Irving uses on his modern 'expeditions'?", answers: [{text:"Old maps", correct: false}, {text:"Innovative technology", correct: true}, {text:"Large ships", correct: false}, {text:"Only a compass", correct: false}], explanation: "The passage states he 'uses innovative technology' in his current educational expeditions." },
+                { type: 'reading', question: "The story emphasizes the theme of...", answers: [{text:"Giving up when things are hard", correct: false}, {text:"The importance of money over passion", correct: false}, {text:"Overcoming challenges and inspiring others", correct: true}, {text:"The dangers of flying", correct: false}], explanation: "The central theme is about overcoming adversity (the flight) and then using that success to inspire others (the foundation)." },
+                { type: 'reading', question: "True or False: Barrington Irving's only major achievement was his solo flight.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage argues his educational work and legacy of inspiration are an equally important, if not greater, achievement." },
+                { type: 'reading', question: "How did Irving 'empower' young people?", answers: [{text:"By giving them all jobs as pilots", correct: false}, {text:"By creating educational programs in STEM and aeronautics", correct: true}, {text:"By telling them not to go to school", correct: false}, {text:"By buying them airplanes", correct: false}], explanation: "He empowers them through his non-profit, which provides educational opportunities and inspiration." }
+            ];
+            
+            const badges = {
+                vocab: { id: 'vocab', name: 'Vocabulary Virtuoso', icon: '🎓', earned: false, condition: () => correctVocabCount === 20 },
+                reading: { id: 'reading', name: 'Analytical Ace', icon: '🧐', earned: false, condition: () => correctReadingCount === 20 },
+                perfect: { id: 'perfect', name: 'Perfect 100', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-green-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function setupGame() {
+                const vocabQuestions = questionBank.filter(q => q.type === 'vocab');
+                const readingQuestions = questionBank.filter(q => q.type === 'reading');
+                shuffleArray(vocabQuestions);
+                shuffleArray(readingQuestions);
+                questions = vocabQuestions.concat(readingQuestions);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 900;
+                correctVocabCount = 0;
+                correctReadingCount = 0;
+                mistakes = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    if (question.tf) {
+                        button.classList.add(answerObj.text === 'True' ? 'hover:!bg-green-500' : 'hover:!bg-red-500', 'hover:text-white');
+                    }
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 2.5;
+                    if (question.type === 'vocab') correctVocabCount++;
+                    if (question.type === 'reading') correctReadingCount++;
+                    
+                    updateScore();
+                    correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = "Challenge Complete!";
+                } else {
+                    endTitleEl.textContent = "Time's Up!";
+                }
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            startBtn.addEventListener('click', setupGame);
+            restartBtn.addEventListener('click', setupGame);
+            nextQuestionBtn.addEventListener('click', hideFeedback);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ada Lovelace: The First Programmer Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #4c1d95, #5b21b6, #7c3aed, #a78bfa);
+            background-size: 400% 400%;
+            animation: gradientBG 25s ease infinite;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #4ade80; color: white; transform: scale(1.02); }
+            100% { background-color: #4ade80; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Ada Lovelace: The First Programmer</h1>
+            <p class="text-lg md:text-xl mb-8">Test your knowledge with 40 questions on the visionary mathematician. You have 15 minutes. Aim for 100 points and earn all the badges!</p>
+            <button id="start-btn" class="w-full md:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Start Challenge</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">15:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div id="badges-container" class="flex justify-center items-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-purple-600 mb-2" id="question-counter">Question 1 / 40</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 min-h-[100px] text-center"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const finalBadgesContainer = document.getElementById('final-badges');
+
+            let score = 0;
+            let timer;
+            let timeLeft = 900; // 15 minutes
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctVocabCount = 0;
+            let correctReadingCount = 0;
+            let mistakes = 0;
+            let streakCounter = 0;
+            let earnedBadges = new Set();
+            let availableVoices = [];
+
+            const correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            const wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+            const badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!"];
+
+            const questionBank = [
+                // Vocabulary Questions (20)
+                { type: 'vocab', question: "A 'mathematician' is an expert in...", answers: [{text: "History", correct: false}, {text: "Mathematics", correct: true}, {text: "Music", correct: false}, {text: "Art", correct: false}], explanation: "A 'mathematician' is an expert in or student of mathematics." },
+                { type: 'vocab', question: "A 'visionary' is a person with...", answers: [{text: "Poor eyesight", correct: false}, {text: "No ideas", correct: false}, {text: "Original ideas about the future", correct: true}, {text: "A love of the past", correct: false}], explanation: "A 'visionary' is someone thinking about or planning the future with imagination or wisdom." },
+                { type: 'vocab', question: "The 'Analytical Engine' was an early, mechanical...", answers: [{text: "Car", correct: false}, {text: "Computer", correct: true}, {text: "Clock", correct: false}, {text: "Loom", correct: false}], explanation: "The Analytical Engine, designed by Charles Babbage, is considered a forerunner of the modern computer." },
+                { type: 'vocab', question: "An 'algorithm' is a...", answers: [{text: "Type of poem", correct: false}, {text: "Set of rules or steps to solve a problem", correct: true}, {text: "Scientific discovery", correct: false}, {text: "Musical instrument", correct: false}], explanation: "An 'algorithm' is a process or set of rules to be followed in calculations or other problem-solving operations, especially by a computer." },
+                { type: 'vocab', question: "A 'programmer' is someone who...", answers: [{text: "Writes computer software", correct: true}, {text: "Sells computers", correct: false}, {text: "Repairs computers", correct: false}, {text: "Studies computer history", correct: false}], explanation: "A 'programmer' is a person who writes computer software." },
+                { type: 'vocab', question: "'Computation' refers to the action of...", answers: [{text: "Creative writing", correct: false}, {text: "Mathematical calculation", correct: true}, {text: "Public speaking", correct: false}, {text: "Painting a picture", correct: false}], explanation: "'Computation' is the action of mathematical calculation." },
+                { type: 'vocab', question: "If something has 'potential', it has...", answers: [{text: "A history of failure", correct: "false"}, {text: "The capacity to develop into something in the future", correct: true}, {text: "A fixed and unchangeable state", correct: false}, {text: "No value", correct: false}], explanation: "'Potential' means having or showing the capacity to become or develop into something in the future." },
+                { type: 'vocab', question: "A 'collaboration' is the act of...", answers: [{text: "Working alone", correct: false}, {text: "Working with someone to create something", correct: true}, {text: "Competing against someone", correct: false}, {text: "Ignoring someone", correct: false}], explanation: "A 'collaboration' is the action of working with someone to produce or create something." },
+                { type: 'vocab', question: "A 'translation' involves changing words from...", answers: [{text: "One language to another", correct: true}, {text: "Simple to complex", correct: false}, {text: "Formal to informal", correct: false}, {text: "Speech to writing", correct: false}], explanation: "A 'translation' is the process of translating words or text from one language into another." },
+                { type: 'vocab', question: "In the context of a book or article, 'notes' are...", answers: [{text: "The main story", correct: false}, {text: "The pictures", correct: false}, {text: "Additional comments or explanations", correct: true}, {text: "The cover design", correct: false}], explanation: "'Notes' are brief records of facts, topics, or thoughts, written down as an aid to memory or for later use." },
+                { type: 'vocab', question: "'Poetical science' describes an approach that blends...", answers: [{text: "Science and business", correct: false}, {text: "Logic and imagination", correct: true}, {text: "History and geography", correct: false}, {text: "Art and music", correct: false}], explanation: "'Poetical science' was Ada Lovelace's term for an approach that combined objective science with creative imagination." },
+                { type: 'vocab', question: "'Symbolic logic' uses symbols to represent...", answers: [{text: "Only numbers", correct: false}, {text: "Logical ideas and relationships", correct: true}, {text: "Musical sounds", correct: false}, {text: "Colors and shapes", correct: false}], explanation: "'Symbolic logic' is a branch of mathematics that uses symbols to represent logical quantities and relationships." },
+                { type: 'vocab', question: "A 'legacy' is...", answers: [{text: "A temporary problem", correct: false}, {text: "Something left for future generations", correct: true}, {text: "A computer program", correct: false}, {text: "A mathematical formula", correct: false}], explanation: "A 'legacy' is something left or handed down by a predecessor." },
+                { type: 'vocab', question: "'Pioneering' work is work that is...", answers: [{text: "Copied from others", correct: false}, {text: "New, original, and influential", correct: true}, {text: "Easy and simple", correct: false}, {text: "Quickly forgotten", correct: false}], explanation: "'Pioneering' describes work that involves new ideas or methods." },
+                { type: 'vocab', question: "A 'theoretical' machine is one that...", answers: [{text: "Exists only as a concept or idea", correct: true}, {text: "Is available to buy in stores", correct: false}, {text: "Is very old and broken", correct: false}, {text: "Is simple to build", correct: false}], explanation: "A 'theoretical' concept is one that is concerned with the ideas of a subject rather than its practical applications." },
+                { type: 'vocab', question: "The 'aristocracy' is a...", answers: [{text: "Group of scientists", correct: false}, {text: "High social class, often with titles", correct: true}, {text: "Team of programmers", correct: false}, {text: "Political party", correct: false}], explanation: "The 'aristocracy' is the highest class in certain societies, especially those holding hereditary titles or offices." },
+                { type: 'vocab', question: "An 'insight' is a...", answers: [{text: "Type of computer", correct: false}, {text: "Deep and accurate understanding of something", correct: true}, {text: "Mathematical error", correct: false}, {text: "Simple fact", correct: false}], explanation: "An 'insight' is the capacity to gain an accurate and deep intuitive understanding of a person or thing." },
+                { type: 'vocab', question: "'Recognition' for one's work means receiving...", answers: [{text: "Criticism and complaints", correct: false}, {text: "Public appreciation and credit", correct: true}, {text: "A large salary", correct: false}, {text: "A difficult task", correct: false}], explanation: "'Recognition' is appreciation or acknowledgement of the existence, validity, or legality of something." },
+                { type: 'vocab', question: "'Abstract' concepts are...", answers: [{text: "Based on physical objects", correct: false}, {text: "Based on ideas rather than physical reality", correct: true}, {text: "Easy for everyone to understand", correct: false}, {text: "Always incorrect", correct: false}], explanation: "'Abstract' means existing in thought or as an idea but not having a physical or concrete existence." },
+                { type: 'vocab', question: "A 'concept' is a(n)...", answers: [{text: "Physical machine", correct: false}, {text: "Abstract idea", correct: true}, {text: "Final product", correct: false}, {text: "Mathematical proof", correct: false}], explanation: "A 'concept' is an abstract idea; a general notion." },
+
+                // Reading Questions (20)
+                { type: 'reading', question: "What is Ada Lovelace celebrated as?", answers: [{text:"The inventor of the Analytical Engine", correct: false}, {text:"The world's first computer programmer", correct: true}, {text:"A famous poet", correct: false}, {text:"A member of the aristocracy", correct: false}], explanation: "The first paragraph states she is 'celebrated as the world's first computer programmer'." },
+                { type: 'reading', question: "True or False: The Analytical Engine was a fully built and functional machine in Lovelace's time.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage describes the machine as 'theoretical', meaning it was a design, not a completed machine." },
+                { type: 'reading', question: "How did Lovelace publish her famous 'algorithm'?", answers: [{text:"In her own book", correct: false}, {text:"In extensive 'notes' she added to a translation", correct: true}, {text:"In a private letter to Babbage", correct: false}, {text:"In a university lecture", correct: false}], explanation: "The passage says her achievement came in the form of 'extensive notes she wrote for a translation'." },
+                { type: 'reading', question: "What was Lovelace's key 'insight' about the machine's potential?", answers: [{text:"It could only perform basic math", correct: false}, {text:"It could manipulate any symbol, like music or words", correct: true}, {text:"It would be too expensive to build", correct: false}, {text:"It would not work", correct: false}], explanation: "Her key insight was seeing its potential beyond 'mere computation' to creative applications." },
+                { type: 'reading', question: "The passage describes Lovelace's ideas as being...", answers: [{text:"Outdated for her time", correct: false}, {text:"A century ahead of her time", correct: true}, {text:"Copied from other mathematicians", correct: false}, {text:"Simple and easy to understand", correct: false}], explanation: "The final paragraph states her concept 'was a century ahead of its time'." },
+                { type: 'reading', question: "'Poetical science' is described as a blend of...", answers: [{text:"Logic and imagination", correct: true}, {text:"Math and history", correct: false}, {text:"Programming and art", correct: false}, {text:"Theory and practice", correct: false}], explanation: "The passage says it is a concept 'blending imagination with logic'." },
+                { type: 'reading', question: "What does the passage say about the 'recognition' Lovelace received during her lifetime?", answers: [{text:"She was celebrated worldwide", correct: false}, {text:"She received little recognition", correct: true}, {text:"She won many awards", correct: false}, {text:"She was criticized for her work", correct: false}], explanation: "The passage explicitly states she 'received little recognition in her lifetime'." },
+                { type: 'reading', question: "The author's tone towards Ada Lovelace is best described as...", answers: [{text:"Neutral", correct: false}, {text:"Admiring and respectful", correct: true}, {text:"Skeptical", correct: false}, {text:"Confused", correct: false}], explanation: "The author uses words like 'brilliant', 'visionary', 'pioneering', and 'immense significance', showing admiration." },
+                { type: 'reading', question: "What is the main purpose of the final paragraph?", answers: [{text:"To describe her family background", correct: false}, {text:"To explain the technical details of the algorithm", correct: false}, {text:"To emphasize the visionary nature and lasting importance of her ideas", correct: true}, {text:"To list her other publications", correct: false}], explanation: "The final paragraph focuses on her 'visionary insight', 'legacy', and 'immense' cultural significance." },
+                { type: 'reading', question: "The 'collaboration' mentioned in the text was between Lovelace and...", answers: [{text:"Her father, Lord Byron", correct: false}, {text:"Another female mathematician", correct: false}, {text:"Charles Babbage", correct: true}, {text:"A university", correct: false}], explanation: "The passage states her work began through her 'collaboration with the inventor Charles Babbage'." },
+                { type: 'reading', question: "True or False: The passage suggests Lovelace only understood the machine's ability for numerical 'computation'.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage's main point is that her genius was seeing its potential *beyond* mere computation." },
+                { type: 'reading', question: "The passage states that Lovelace's 'legacy' is most relevant in our age of...", answers: [{text:"Steam engines", correct: false}, {text:"AI and creative computing", correct: true}, {text:"Space exploration", correct: false}, {text:"Industrial manufacturing", correct: false}], explanation: "The final sentence connects her legacy directly to 'our age of AI and creative computing'." },
+                { type: 'reading', question: "What field does the passage say Lovelace is a foundational female figure in?", answers: [{text:"Poetry", correct: false}, {text:"Politics", correct: false}, {text:"STEM", correct: true}, {text:"Music", correct: false}], explanation: "The final paragraph highlights her 'cultural significance as a foundational female figure in STEM'." },
+                { type: 'reading', question: "The author uses the word 'visionary' to emphasize Lovelace's ability to...", answers: [{text:"See the future with supernatural power", correct: false}, {text:"Understand and plan for the future with great imagination", correct: true}, {text:"Perform calculations quickly", correct: false}, {text:"Work well with others", correct: false}], explanation: "'Visionary' in this context means having the wisdom and imagination to see what the future could hold." },
+                { type: 'reading', question: "What does the passage imply about the 'notes' Lovelace wrote?", answers: [{text:"They were short and unimportant", correct: false}, {text:"They were more significant than the original article she translated", correct: true}, {text:"They were filled with errors", correct: false}, {text:"They were written by Charles Babbage", correct: false}], explanation: "The fact that her key achievement and the first algorithm were in her notes implies they were more important than the original text." },
+                { type: 'reading', question: "The concept of 'symbolic logic' was important for Lovelace because it allowed her to see that...", answers: [{text:"The machine could only work with numbers", correct: false}, {text:"The machine could process any kind of symbol, not just numbers", correct: true}, {text:"The machine was too complex to build", correct: false}, {text:"The machine's logic was flawed", correct: false}], explanation: "Understanding symbolic logic was key to her realizing the machine's general-purpose potential beyond numbers." },
+                { type: 'reading', question: "True or False: Ada Lovelace came from a poor, working-class family.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage states she was from the English 'aristocracy'." },
+                { type: 'reading', question: "The main idea of the first paragraph is to...", answers: [{text:"Introduce Lovelace and her primary title", correct: true}, {text:"Explain how the Analytical Engine worked", correct: false}, {text:"Describe her childhood", correct: false}, {text:"Discuss her relationship with her father", correct: false}], explanation: "The first paragraph introduces her as a 'mathematician' and the 'first computer programmer'." },
+                { type: 'reading', question: "The passage as a whole presents Lovelace's contribution as being primarily...", answers: [{text:"Practical and hands-on", correct: false}, {text:"Conceptual and visionary", correct: true}, {text:"Financial and supportive", correct: false}, {text:"Minor and insignificant", correct: false}], explanation: "The text emphasizes her 'visionary insight', 'concept', and 'abstract' understanding, highlighting the conceptual nature of her contribution." },
+                { type: 'reading', question: "What is the significance of Lovelace's 'pioneering' work?", answers: [{text:"It was immediately recognized and celebrated", correct: false}, {text:"It laid the foundation for modern computing", correct: true}, {text:"It was only important for 19th-century machines", correct: false}, {text:"It proved the Analytical Engine could not work", correct: false}], explanation: "The passage states her 'pioneering work laid the foundation for modern computing'." }
+            ];
+            
+            const badges = {
+                vocab: { id: 'vocab', name: 'Vocabulary Virtuoso', icon: '🎓', earned: false, condition: () => correctVocabCount === 20 },
+                reading: { id: 'reading', name: 'Analytical Ace', icon: '🧐', earned: false, condition: () => correctReadingCount === 20 },
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '👍', earned: false, condition: () => streakCounter >= 5 },
+                perfect: { id: 'perfect', name: 'Perfect 100', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-green-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function loadVoices() {
+                if ('speechSynthesis' in window) {
+                    availableVoices = speechSynthesis.getVoices();
+                    if (availableVoices.length === 0) {
+                        speechSynthesis.onvoiceschanged = () => {
+                            availableVoices = speechSynthesis.getVoices();
+                        };
+                    }
+                }
+            }
+            
+            function setupGame() {
+                const vocabQuestions = questionBank.filter(q => q.type === 'vocab');
+                const readingQuestions = questionBank.filter(q => q.type === 'reading');
+                shuffleArray(vocabQuestions);
+                shuffleArray(readingQuestions);
+                questions = vocabQuestions.concat(readingQuestions);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 900;
+                correctVocabCount = 0;
+                correctReadingCount = 0;
+                mistakes = 0;
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    if (question.tf) {
+                        button.classList.add(answerObj.text === 'True' ? 'hover:!bg-green-500' : 'hover:!bg-red-500', 'hover:text-white');
+                    }
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                
+                if ('speechSynthesis' in window && availableVoices.length > 0) {
+                    const utterance = new SpeechSynthesisUtterance(praise);
+                    // Find a high-quality, natural-sounding US English voice
+                    let preferredVoice = availableVoices.find(voice => 
+                        voice.lang === 'en-US' && 
+                        (voice.name.includes('Ava') || voice.name.includes('Natural') || voice.name.includes('Neural'))
+                    );
+                    // Fallback to any standard US English voice if a premium one isn't found
+                    if (!preferredVoice) {
+                        preferredVoice = availableVoices.find(voice => voice.lang === 'en-US');
+                    }
+                    // If a US voice is found, use it. Otherwise, the browser will use its default.
+                    if (preferredVoice) {
+                        utterance.voice = preferredVoice;
+                    }
+                    
+                    speechSynthesis.speak(utterance);
+                }
+
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 2.5;
+                    streakCounter++;
+                    if (question.type === 'vocab') correctVocabCount++;
+                    if (question.type === 'reading') correctReadingCount++;
+                    
+                    updateScore();
+                    correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    streakCounter = 0; // Reset streak
+                    wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = "Challenge Complete!";
+                } else {
+                    endTitleEl.textContent = "Time's Up!";
+                }
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            // Initial load
+            loadVoices();
+            startBtn.addEventListener('click', setupGame);
+            restartBtn.addEventListener('click', setupGame);
+            nextQuestionBtn.addEventListener('click', hideFeedback);
+        });
+    </script>
+</body>
+</html>

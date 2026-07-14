@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Lectures & Quizzes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .page {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+
+        .page.active {
+            display: block;
+            opacity: 1;
+        }
+
+        .btn-3d {
+            position: relative;
+            background: #6D28D9;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            box-shadow: 0 5px 0 #4C1D95;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+        }
+
+        .btn-3d:hover { background: #7C3AED; }
+        .btn-3d:active { transform: translateY(3px); box-shadow: 0 2px 0 #4C1D95; }
+        .btn-3d:disabled { background: #581c87; box-shadow: 0 5px 0 #3b0764; cursor: not-allowed; }
+
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .clickable-audio:not(.quiz-container) {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .clickable-audio:not(.quiz-container):hover {
+            background-color: #312e81;
+        }
+
+        .page::-webkit-scrollbar { width: 8px; }
+        .page::-webkit-scrollbar-track { background: #1e1b4b; }
+        .page::-webkit-scrollbar-thumb { background-color: #6D28D9; border-radius: 20px; border: 2px solid #1e1b4b; }
+
+        /* Quiz styles */
+        .feedback { display: none; margin-top: 0.5rem; padding: 0.5rem; border-radius: 0.25rem; font-style: italic; }
+        .feedback.correct { display: block; background-color: rgba(74, 222, 128, 0.1); color: #a7f3d0; }
+        .feedback.incorrect { display: block; background-color: rgba(248, 113, 113, 0.1); color: #fecaca; }
+
+        /* MCQ */
+        .mcq-option {
+            padding: 0.75rem 1rem;
+            border: 2px solid #4f46e5;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        .mcq-option.correct { background-color: #166534 !important; border-color: #4ade80 !important; color: white !important; }
+        .mcq-option.incorrect { background-color: #991b1b !important; border-color: #f87171 !important; color: white !important; }
+        .mcq-question.answered .mcq-option:not(.correct):not(.incorrect) { opacity: 0.6; cursor: not-allowed; }
+
+        /* TFNG */
+        .tfng-options { display: flex; gap: 0.5rem; margin-right: 1rem; }
+        .tfng-btn {
+            width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+            border: 2px solid #4f46e5; border-radius: 50%; cursor: pointer; font-weight: bold; transition: all 0.2s;
+        }
+        .tfng-btn.selected.correct { background-color: #166534 !important; border-color: #4ade80 !important; }
+        .tfng-btn.selected.incorrect { background-color: #991b1b !important; border-color: #f87171 !important; }
+        .tfng-question.answered .tfng-btn:not(.selected):not(.correct) { opacity: 0.5; cursor: not-allowed; }
+
+
+        /* Drag and Drop */
+        .word-bank { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 0.5rem; min-height: 50px;}
+        .draggable-word { padding: 0.25rem 0.75rem; background-color: #4f46e5; border-radius: 0.25rem; cursor: grab; user-select: none; transition: opacity 0.2s; }
+        .draggable-word:active { cursor: grabbing; }
+        .draggable-word.dragging { opacity: 0.5; }
+        .drop-zone {
+            display: inline-block; min-width: 120px; height: 34px;
+            border: 2px dashed #4f46e5; border-radius: 0.25rem;
+            background: rgba(0,0,0,0.3); vertical-align: middle;
+            transition: background-color 0.2s; text-align: center;
+            padding: 2px;
+        }
+        .drop-zone.drag-over { background-color: rgba(129, 140, 248, 0.3); }
+        .drop-zone .draggable-word { cursor: default; }
+        .drop-zone.correct { border-style: solid; border-color: #4ade80; }
+        .drop-zone.incorrect { border-style: solid; border-color: #f87171; }
+        .drop-zone .draggable-word.correct { background-color: #166534; }
+        .drop-zone .draggable-word.incorrect { background-color: #991b1b; }
+
+    </style>
+</head>
+<body class="bg-indigo-950 text-white">
+    <canvas id="bg-canvas"></canvas>
+
+    <header class="bg-gray-800/50 backdrop-blur-sm p-4 flex justify-between items-center z-10 sticky top-0 h-[80px]">
+        <button id="back-btn" class="btn-3d">⏪ Back</button>
+        <div class="text-center">
+             <h1 id="page-title" class="text-lg md:text-2xl font-bold text-purple-300"></h1>
+             <button id="home-btn" class="text-sm text-purple-400 hover:underline">🏠 Main Menu</button>
+        </div>
+        <button id="next-btn" class="btn-3d">Next ⏩</button>
+    </header>
+
+    <main id="main-content" class="p-4 md:p-8">
+
+        <!-- Page 0: Main Menu -->
+        <div class="page active" data-title="Main Menu 🏠" data-topic-start="true">
+            <h2 class="text-3xl font-bold text-purple-400 text-center mb-6">Select a Lecture or Activity</h2>
+            <div id="main-menu-container" class="max-w-6xl mx-auto space-y-8">
+                <!-- Menu sections generated by JS -->
+            </div>
+        </div>
+        
+        <!-- ============================================== -->
+        <!-- =========== TOPIC 1: Bioplastics Crisis =========== -->
+        <!-- ============================================== -->
+        
+        <div class="page" data-title="Bioplastics Crisis: Warm-up 🎧" data-topic-start="true">
+            <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">The Bioplastics Crisis</h2>
+                <div class="p-6 bg-indigo-900 rounded-lg shadow-lg clickable-audio">
+                    <h3 class="text-2xl font-semibold mb-3">Pre-Listening Background Building</h3>
+                    <div class="text-gray-300 readable-content space-y-2">
+                        <p>1. In your daily life, what are some common single-use plastic items you see or use? (e.g., bubble tea cups, food packaging, water bottles)</p>
+                        <p>2. In major cities like Beijing, where does most of the trash go after you throw it away?</p>
+                        <p>3. Why do you think plastic pollution is a particularly big problem for the oceans?</p>
+                        <p>4. Have you ever heard of "bioplastics" or "biodegradable plastics"? What do you think they are made from?</p>
+                        <p>5. What does the word "sustainability" mean to you in the context of the environment?</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page" data-title="Bioplastics Crisis: Transcript 🎙️">
+            <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">The Bioplastics Crisis</h2>
+                <div class="p-6 bg-indigo-900 rounded-lg shadow-lg clickable-audio">
+                    <h3 class="text-2xl font-semibold mb-3">Full Lecture Transcript</h3>
+                    <div class="text-gray-300 space-y-2 readable-content-dialogue">
+                        <p><strong>Professor:</strong> Welcome everyone to our lecture on environmental sustainability. Today's critical topic is the global reliance on single-use plastics and the search for sustainable alternatives. We'll start by examining the scale of the single-use plastic problem and its environmental impact, particularly on our oceans. Then, we'll delve into the concept of shifting towards a circular economy for plastics and explore some promising alternative materials derived from renewable sources. Finally, we'll discuss the challenges and the importance of a critical evaluation of these alternatives. I'm joined by two students who have been looking into this, Maria and Omar. Thanks for being here.</p>
+                        <p><strong>Maria:</strong> Thank you, Professor. It's an important topic.</p>
+                        <p><strong>Omar:</strong> Yes, thanks for having us. The scale of the problem is quite shocking.</p>
+                        <p><strong>Professor:</strong> It certainly is, Omar. Maria, could you kick us off by describing the, quote, "linear lifecycle" of traditional plastics and why it leads to such a significant waste problem?</p>
+                        <p><strong>Maria:</strong> Sure, Professor. Traditional plastics follow a linear model. We extract fossil fuels, produce the plastic product, use it once, and then discard it. Because plastics don't truly biodegrade, this "take-make-dispose" approach creates massive amounts of persistent waste that accumulates in landfills and pollutes our environment.</p>
+                        <p><strong>Professor:</strong> Exactly. And Omar, you mentioned the shocking scale of the problem. What's the most visible and concerning environmental impact of this plastic waste?</p>
+                        <p><strong>Omar:</strong> From my perspective, Professor, it's the ocean pollution. Plastic debris, especially single-use items, ends up in our oceans, harming marine life. Over time, it breaks down into microplastics which are everywhere now and threaten biodiversity and potentially human health.</p>
+                        <p><strong>Professor:</strong> That's a crucial point. So the solution requires a fundamental shift. Maria, how does the concept of a circular economy apply to tackling this plastic crisis?</p>
+                        <p><strong>Maria:</strong> Well, Professor, a circular economy for plastics goes beyond just recycling. It's about redesigning products and systems entirely to keep plastics in use for as long as possible. This means designing for durability, repairability, and making sure materials can be easily recovered and reused or recycled at the end of a product's life.</p>
+                        <p><strong>Professor:</strong> Designing out waste from the beginning. That's key. Omar, what are some of the promising alternative materials to traditional single-use plastics that you've come across in your research?</p>
+                        <p><strong>Omar:</strong> There are some really interesting materials from renewable sources, Professor. For instance, mycelium, the root structure of mushrooms, can be grown into packaging. It's fully compostable. Seaweed is another versatile one. It can be turned into edible films or sachets for liquids.</p>
+                        <p><strong>Professor:</strong> Those sound like exciting possibilities. However, Maria, is it true that not all alternatives are as sustainable as they might seem? What should we be cautious about?</p>
+                        <p><strong>Maria:</strong> That's right, Professor. Some bioplastics made from things like corn starch require specific conditions to break down, like high-temperature industrial composting. They won't just biodegrade in a backyard compost or in the ocean. This can be confusing for consumers and lead to them ending up in landfills anyway.</p>
+                        <p><strong>Professor:</strong> That's a very important distinction. Omar, what's your perspective on evaluating the sustainability of these alternative materials?</p>
+                        <p><strong>Omar:</strong> We need to look at the entire lifecycle, Professor. Where do the raw materials come from? How much energy and water are used in production? And importantly, what happens at the end of the product's life? Is it truly compostable or recyclable in practice? A critical evaluation is essential to avoid unintended consequences.</p>
+                        <p><strong>Professor:</strong> Excellent points, both of you. It's clear that tackling the single-use plastic crisis requires a systemic shift towards a circular economy and a careful evaluation of sustainable alternatives. To wrap up our lecture today, we've discussed the environmental crisis caused by linear plastic consumption, the potential of a circular economy, and some promising yet complex alternative materials. Thank you, Maria and Omar, for your thoughtful contributions.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page" data-title="Bioplastics Crisis: Gap-Fill ✍️">
+             <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">The Bioplastics Crisis: Gap-Fill</h2>
+                <div id="bioplastics-crisis-gap-fill" class="p-6 bg-indigo-900 rounded-lg shadow-lg quiz-container">
+                    <h3 class="text-2xl font-semibold mb-4">Drag the words to complete the sentences:</h3>
+                    <div class="word-bank mb-6"></div>
+                    <div class="space-y-4">
+                        <p>1. Traditional plastics follow a <span class="drop-zone" data-answer="linear"></span> model of take, make, and dispose.</p>
+                        <p>2. Because plastics don't truly <span class="drop-zone" data-answer="biodegrade"></span>, they accumulate in the environment.</p>
+                        <p>3. Plastic waste breaks down into tiny particles called <span class="drop-zone" data-answer="microplastics"></span>.</p>
+                        <p>4. A <span class="drop-zone" data-answer="circular"></span> economy aims to keep materials in use for as long as possible.</p>
+                        <p>5. One promising alternative material is <span class="drop-zone" data-answer="mycelium"></span>, the root structure of mushrooms.</p>
+                    </div>
+                     <button class="btn-3d mt-6 reset-quiz-btn">Reset</button>
+                    <div class="mt-4 text-lg font-bold" id="bioplastics-crisis-gap-fill-praise"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page" data-title="Bioplastics Crisis: T/F/NG ❓">
+             <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">The Bioplastics Crisis: True/False/Not Given</h2>
+                <div id="bioplastics-crisis-tfng" class="p-6 bg-indigo-900 rounded-lg shadow-lg quiz-container">
+                    <div class="space-y-6">
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="true">
+                            <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                            <p class="font-semibold">1. The lecture is part of a series on environmental sustainability.</p>
+                        </div>
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="false">
+                            <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                            <p class="font-semibold">2. Omar believes that microplastics are not a significant threat to human health.</p>
+                        </div>
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="not given">
+                           <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                           <p class="font-semibold">3. The professor has invited the students to speak before.</p>
+                        </div>
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="true">
+                            <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                            <p class="font-semibold">4. Seaweed can be used to create edible packaging.</p>
+                        </div>
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="not given">
+                            <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                            <p class="font-semibold">5. Industrial composting facilities are common and easily accessible everywhere.</p>
+                        </div>
+                    </div>
+                     <button class="btn-3d mt-6 reset-quiz-btn">Reset</button>
+                     <div class="mt-4 text-lg font-bold" id="bioplastics-crisis-tfng-praise"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page" data-title="Bioplastics Crisis: MCQ 🧠">
+            <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">The Bioplastics Crisis: Multiple Choice</h2>
+                <div id="bioplastics-crisis-mcq" class="p-6 bg-indigo-900 rounded-lg shadow-lg quiz-container">
+                     <div class="space-y-6">
+                        <div class="mcq-question p-4 rounded-lg" data-answer="B">
+                            <p class="font-semibold mb-3">1. What is the main topic of the lecture?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) The history of plastic production</div>
+                                <div class="mcq-option" data-value="B">(B) The problem of single-use plastics and potential solutions</div>
+                                <div class="mcq-option" data-value="C">(C) A guide to personal recycling habits</div>
+                                <div class="mcq-option" data-value="D">(D) The chemical composition of bioplastics</div>
+                            </div>
+                            <div class="feedback"><strong>Incorrect.</strong> While parts are mentioned, the central theme is the overall problem (B).</div>
+                        </div>
+                        <div class="mcq-question p-4 rounded-lg" data-answer="C">
+                             <p class="font-semibold mb-3">2. According to Omar, what is the most visible environmental impact of plastic waste?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) Air pollution from factories</div>
+                                <div class="mcq-option" data-value="B">(B) Deforestation</div>
+                                <div class="mcq-option" data-value="C">(C) Ocean pollution harming marine life</div>
+                                <div class="mcq-option" data-value="D">(D) Soil contamination in landfills</div>
+                            </div>
+                             <div class="feedback"><strong>Try again.</strong> Omar specifically says, "it's the ocean pollution."</div>
+                        </div>
+                        <div class="mcq-question p-4 rounded-lg" data-answer="C">
+                             <p class="font-semibold mb-3">3. What does a "circular economy" for plastics prioritize?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) Using less plastic overall</div>
+                                <div class="mcq-option" data-value="B">(B) Burning plastic for energy</div>
+                                <div class="mcq-option" data-value="C">(C) Redesigning products to eliminate waste from the start</div>
+                                <div class="mcq-option" data-value="D">(D) Shipping all plastic waste to other countries</div>
+                            </div>
+                             <div class="feedback"><strong>Good try!</strong> The core idea is about redesigning products to eliminate waste from the beginning.</div>
+                        </div>
+                        <div class="mcq-question p-4 rounded-lg" data-answer="B">
+                             <p class="font-semibold mb-3">4. According to Maria, what is a potential problem with some bioplastics like those made from corn starch?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) They are more expensive than traditional plastics.</div>
+                                <div class="mcq-option" data-value="B">(B) They require specific industrial conditions to break down.</div>
+                                <div class="mcq-option" data-value="C">(C) They are not strong enough for packaging.</div>
+                                <div class="mcq-option" data-value="D">(D) They cannot be grown in large enough quantities.</div>
+                            </div>
+                             <div class="feedback"><strong>Close!</strong> Maria's specific point is that they need "high-temperature industrial composting."</div>
+                        </div>
+                        <div class="mcq-question p-4 rounded-lg" data-answer="D">
+                             <p class="font-semibold mb-3">5. What does Omar suggest is the most important factor when evaluating new materials?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) The cost of the material</div>
+                                <div class="mcq-option" data-value="B">(B) The color and design of the product</div>
+                                <div class="mcq-option" data-value="C">(C) The opinion of consumers</div>
+                                <div class="mcq-option" data-value="D">(D) The entire lifecycle of the product</div>
+                            </div>
+                             <div class="feedback"><strong>Rethink that one.</strong> Omar stresses the need to look at the "entire lifecycle."</div>
+                        </div>
+                    </div>
+                    <button class="btn-3d mt-6 reset-quiz-btn">Reset Quiz</button>
+                    <div class="mt-4 text-xl font-bold" id="bioplastics-crisis-mcq-praise"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page" data-title="Bioplastics Crisis: Open Qs 🤔">
+            <div class="max-w-4xl mx-auto space-y-6">
+                 <h2 class="text-3xl font-bold text-purple-400">The Bioplastics Crisis: Open-Ended Questions</h2>
+                 <div class="p-6 bg-indigo-900 rounded-lg shadow-lg space-y-4 clickable-audio">
+                     <div class="readable-content">
+                        <p class="font-semibold">1. The professor mentions a "linear lifecycle" versus a "circular economy." In your own words, what is the main difference between these two models?</p>
+                     </div>
+                     <div class="readable-content">
+                        <p class="font-semibold">2. Omar mentions that evaluating the "entire lifecycle" of a product is essential. What are some "unintended consequences" he might be worried about?</p>
+                     </div>
+                      <div class="readable-content">
+                        <p class="font-semibold">3. Maria says that some bioplastics can be "confusing for consumers." Why is clear communication and labeling so important for new "eco-friendly" products?</p>
+                     </div>
+                      <div class="readable-content">
+                        <p class="font-semibold">4. The lecture discusses alternatives like mushrooms and seaweed. What challenges would a company face switching from plastic to these materials?</p>
+                     </div>
+                     <div class="readable-content">
+                        <p class="font-semibold">5. After hearing the lecture, what is one change you could make to reduce single-use plastic waste?</p>
+                     </div>
+                 </div>
+            </div>
+        </div>
+        
+        <div class="page" data-title="Bioplastics Crisis: Answers 🔑">
+            <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">The Bioplastics Crisis: Answer Key & Explanations</h2>
+                <div class="p-6 bg-indigo-900 rounded-lg shadow-lg clickable-audio">
+                    <h3 class="text-2xl font-semibold mb-3">Answer Key</h3>
+                     <div class="text-gray-300 mt-2 space-y-3 readable-content">
+                        <p><strong>Part 2: Gap-Fill</strong><br>1. linear, 2. biodegrade, 3. microplastics, 4. circular, 5. mycelium</p>
+                        <p><strong>Part 3: MCQ</strong><br>1. (B), 2. (C), 3. (C), 4. (B), 5. (D)</p>
+                        <p><strong>Part 4: TFNG</strong><br>1. TRUE, 2. FALSE, 3. NOT GIVEN, 4. TRUE, 5. NOT GIVEN</p>
+                   </div>
+                </div>
+                <div class="p-6 bg-indigo-900 rounded-lg shadow-lg clickable-audio">
+                    <h3 class="text-2xl font-semibold mb-3">Open-Ended Question Explanations</h3>
+                    <div class="text-gray-300 mt-2 space-y-3 readable-content">
+                        <p><strong>1. Linear vs. Circular:</strong> A linear model is a one-way street: raw material -> product -> use -> trash. A circular model is like a loop, where the end-of-life product is designed to become the raw material for a new product through reuse, repair, or recycling.</p>
+                        <p><strong>2. Unintended Consequences:</strong> These could include: growing corn for bioplastics might use a lot of water or land needed for food (competing resources), or a "compostable" material might release harmful gases like methane if it ends up in a landfill instead of a proper compost facility.</p>
+                        <p><strong>3. Clear Communication:</strong> Clear labeling is vital so consumers dispose of items correctly. If someone mistakenly thinks a "bio-based" cup will biodegrade in the ocean, they might litter it, accidentally making pollution worse. Clear symbols and instructions prevent this confusion.</p>
+                        <p><strong>4. Challenges of Switching:</strong> Challenges could include higher initial costs, difficulty in producing the new material at a large scale (scalability), ensuring the new material is as strong and durable as plastic for its intended purpose, or even consumer resistance if they dislike the new packaging's look or feel.</p>
+                        <p><strong>5. Personal Change:</strong> This is a personal answer. A good response would identify a specific action (e.g., bringing a reusable bottle for bubble tea, refusing a plastic bag for a small purchase) and connect it to the lecture's theme of reducing waste at the source (the "Refuse" or "Reduce" part of the 5 Rs).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ============================================== -->
+        <!-- =========== TOPIC 2: Bioplastics 101 =========== -->
+        <!-- ============================================== -->
+
+        <div class="page" data-title="Bioplastics 101: Warm-up 🎧" data-topic-start="true">
+             <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">Bioplastics 101</h2>
+                <div class="p-6 bg-indigo-900 rounded-lg shadow-lg clickable-audio">
+                    <h3 class="text-2xl font-semibold mb-3">Part 1: Pre-Listening Background Building</h3>
+                    <div class="text-gray-300 readable-content space-y-2">
+                        <p>1. What are some everyday items you use that are made from plants? (e.g., paper, cotton clothes, wooden chopsticks)</p>
+                        <p>2. The lecture mentions "renewable resources." What do you think this term means? Can you give an example of a renewable resource and a non-renewable one?</p>
+                        <p>3. Why is it important for countries and companies to find alternatives to traditional plastics made from oil?</p>
+                        <p>4. What happens to a banana peel when you throw it in the garden? Do you think the same thing happens to a plastic bottle? Why or why not?</p>
+                        <p>5. Imagine a new type of "eco-friendly" plastic bag. What information would you need to see on the label to trust that it is truly better for the environment?</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page" data-title="Bioplastics 101: Transcript 🎙️">
+            <div class="max-w-4xl mx-auto space-y-6">
+                 <h2 class="text-3xl font-bold text-purple-400">Bioplastics 101</h2>
+                <div class="p-6 bg-indigo-900 rounded-lg shadow-lg clickable-audio">
+                    <h3 class="text-2xl font-semibold mb-3">Full Lecture Transcript</h3>
+                    <div class="text-gray-300 space-y-2 readable-content-dialogue">
+                        <p><strong>Alex:</strong> Hello everyone, and welcome...</p>
+                        <p><strong>Sara:</strong> Moving on to the core of our discussion...</p>
+                        <p><strong>Alex:</strong> Indeed, Sara. And building on that...</p>
+                        <p><strong>Sara:</strong> That's an important distinction, Alex...</p>
+                        <p><strong>Alex:</strong> Absolutely, Sara. However, to provide a balanced view...</p>
+                        <p><strong>Sara:</strong> To wrap up this lecture, let's quickly review...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="page" data-title="Bioplastics 101: Gap-Fill ✍️">
+            <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">Bioplastics 101: Gap-Fill</h2>
+                <div id="bioplastics101-gap-fill" class="p-6 bg-indigo-900 rounded-lg shadow-lg quiz-container">
+                    <h3 class="text-2xl font-semibold mb-4">Drag the words to complete the sentences:</h3>
+                    <div class="word-bank mb-6"></div>
+                    <div class="space-y-4">
+                        <p>1. Bioplastics are often derived from <span class="drop-zone" data-answer="renewable"></span> resources like plants.</p>
+                        <p>2. Traditional plastics are notoriously <span class="drop-zone" data-answer="persistent"></span>, lingering in the environment for centuries.</p>
+                        <p>3. PLA, a bioplastic made from corn starch, offers good <span class="drop-zone" data-answer="clarity"></span> and stiffness.</p>
+                         <p>4. Drop-in bioplastics can be processed using existing <span class="drop-zone" data-answer="infrastructure"></span>.</p>
+                         <p>5. The lecturer describes understanding bioplastics as a complex <span class="drop-zone" data-answer="puzzle"></span>.</p>
+                    </div>
+                    <button class="btn-3d mt-6 reset-quiz-btn">Reset</button>
+                    <div class="mt-4 text-lg font-bold" id="bioplastics101-gap-fill-praise"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page" data-title="Bioplastics 101: T/F/NG ❓">
+             <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">Bioplastics 101: True/False/Not Given</h2>
+                <div id="bioplastics101-tfng" class="p-6 bg-indigo-900 rounded-lg shadow-lg quiz-container">
+                    <div class="space-y-6">
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="true">
+                            <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                            <p class="font-semibold">1. The lecture is presented by two speakers named Sara and Alex.</p>
+                        </div>
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="false">
+                            <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                            <p class="font-semibold">2. All bioplastics can be safely composted in a backyard garden.</p>
+                        </div>
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="true">
+                            <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                            <p class="font-semibold">3. Alex believes that PHA is a very promising type of bioplastic because it can biodegrade in many different environments.</p>
+                        </div>
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="false">
+                            <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                            <p class="font-semibold">4. Growing crops for bioplastics is helping to solve the problem of global food shortages.</p>
+                        </div>
+                        <div class="tfng-question flex items-center p-2 rounded-lg" data-answer="false">
+                            <div class="tfng-options"><div class="tfng-btn" data-value="true">T</div><div class="tfng-btn" data-value="false">F</div><div class="tfng-btn" data-value="not given">NG</div></div>
+                            <p class="font-semibold">5. Sara and Alex agree that the topic of bioplastics is simple and easy to understand.</p>
+                        </div>
+                    </div>
+                    <button class="btn-3d mt-6 reset-quiz-btn">Reset</button>
+                    <div class="mt-4 text-lg font-bold" id="bioplastics101-tfng-praise"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="page" data-title="Bioplastics 101: MCQ 🧠">
+            <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">Bioplastics 101: Multiple Choice</h2>
+                <div id="bioplastics101-mcq" class="p-6 bg-indigo-900 rounded-lg shadow-lg quiz-container">
+                     <div class="space-y-6">
+                        <div class="mcq-question p-4 rounded-lg" data-answer="B">
+                            <p class="font-semibold mb-3">1. What is the main purpose of this lecture?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) To argue that traditional plastics are better than bioplastics.</div>
+                                <div class="mcq-option" data-value="B">(B) To provide a balanced overview of the benefits and challenges of bioplastics.</div>
+                                <div class="mcq-option" data-value="C">(C) To teach students how to make their own bioplastics at home.</div>
+                                <div class="mcq-option" data-value="D">(D) To promote a specific company that sells bioplastic products.</div>
+                            </div>
+                            <div class="feedback"><strong>Not quite.</strong> The speakers discuss both the "potential benefits" and the "significant challenges" to give a full picture.</div>
+                        </div>
+                        <div class="mcq-question p-4 rounded-lg" data-answer="C">
+                             <p class="font-semibold mb-3">2. What is a "critical point" Sara makes about the term "bio-based"?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) It means the plastic is always edible.</div>
+                                <div class="mcq-option" data-value="B">(B) It guarantees the plastic is cheap to produce.</div>
+                                <div class="mcq-option" data-value="C">(C) It does not automatically mean the plastic is biodegradable.</div>
+                                <div class="mcq-option" data-value="D">(D) It means the plastic can only be made from corn.</div>
+                            </div>
+                             <div class="feedback"><strong>Almost!</strong> Sara emphasizes that "bio-based does not automatically guarantee biodegradability, and vice versa."</div>
+                        </div>
+                        <div class="mcq-question p-4 rounded-lg" data-answer="C">
+                             <p class="font-semibold mb-3">3. According to Alex, what is a significant advantage of "drop-in bioplastics" like bio-PET?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) They break down quickly in the ocean.</div>
+                                <div class="mcq-option" data-value="B">(B) They are more flexible than any other type.</div>
+                                <div class="mcq-option" data-value="C">(C) They are chemically identical to traditional plastics and can use the same machinery.</div>
+                                <div class="mcq-option" data-value="D">(D) They are the least expensive type of bioplastic.</div>
+                            </div>
+                             <div class="feedback"><strong>Try again.</strong> Alex explains their advantage is being able to be "processed using existing infrastructure."</div>
+                        </div>
+                        <div class="mcq-question p-4 rounded-lg" data-answer="A">
+                             <p class="font-semibold mb-3">4. What is one of the "substantial hurdles" that Alex mentions?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) Consumer confusion about how to properly dispose of bioplastics.</div>
+                                <div class="mcq-option" data-value="B">(B) Bioplastics are not strong enough to be used for packaging.</div>
+                                <div class="mcq-option" data-value="C">(C) There are no laws regulating the production of bioplastics.</div>
+                                <div class="mcq-option" data-value="D">(D) Animals prefer to eat bioplastics over regular plastics.</div>
+                            </div>
+                             <div class="feedback"><strong>Think about the challenges mentioned.</strong> Alex lists several hurdles, including "considerable consumer confusion surrounding labeling and disposal."</div>
+                        </div>
+                        <div class="mcq-question p-4 rounded-lg" data-answer="B">
+                             <p class="font-semibold mb-3">5. What does Sara say is required to realize the "true sustainability potential" of bioplastics?</p>
+                            <div class="space-y-3">
+                                <div class="mcq-option" data-value="A">(A) A global ban on traditional plastics.</div>
+                                <div class="mcq-option" data-value="B">(B) The necessary infrastructure for proper disposal.</div>
+                                <div class="mcq-option" data-value="C">(C) Lowering the cost of all bioplastic products.</div>
+                                <div class="mcq-option" data-value="D">(D) Marketing the products more effectively to consumers.</div>
+                            </div>
+                             <div class="feedback"><strong>Listen carefully to Sara's point.</strong> She says the "necessary infrastructure for proper disposal are paramount."</div>
+                        </div>
+                    </div>
+                    <button class="btn-3d mt-6 reset-quiz-btn">Reset Quiz</button>
+                    <div class="mt-4 text-xl font-bold" id="bioplastics101-mcq-praise"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="page" data-title="Bioplastics 101: Open Qs 🤔">
+            <div class="max-w-4xl mx-auto space-y-6">
+                 <h2 class="text-3xl font-bold text-purple-400">Bioplastics 101: Open-Ended Questions</h2>
+                 <div class="p-6 bg-indigo-900 rounded-lg shadow-lg space-y-4 clickable-audio">
+                     <div class="readable-content">
+                        <p class="font-semibold">1. Sara states that "bio-based does not automatically guarantee biodegradability." Why is this such a "vital distinction"?</p>
+                        <p class="text-sm text-gray-400 mt-1"><strong>Explanation:</strong> This is vital because if a consumer thinks a "bio-based" cup will break down naturally and it doesn't, they might litter, making pollution worse. It's crucial to know if a product needs special disposal.</p>
+                     </div>
+                      <div class="readable-content">
+                        <p class="font-semibold">2. How can a country or company balance the need for new materials with protecting food supplies and forests?</p>
+                        <p class="text-sm text-gray-400 mt-1"><strong>Explanation:</strong> They could use non-food crops (like algae), use agricultural waste, or create policies to only grow bioplastic crops on land that is not suitable for farming food.</p>
+                     </div>
+                      <div class="readable-content">
+                        <p class="font-semibold">3. What kind of information or symbols could be put on packaging to make it clear how to dispose of a bioplastic item?</p>
+                        <p class="text-sm text-gray-400 mt-1"><strong>Explanation:</strong> Simple symbols, like a special color (e.g., green for backyard compost, brown for industrial compost only) or a QR code linking to a video, would be effective. Clear text like "COMMERCIAL COMPOST ONLY" also helps.</p>
+                     </div>
+                     <div class="readable-content">
+                        <p class="font-semibold">4. If you were a company choosing a bioplastic for a new drink bottle, what questions would you ask?</p>
+                        <p class="text-sm text-gray-400 mt-1"><strong>Explanation:</strong> Key questions: Where does the raw material come from? Will it compete with food? How much energy and water does it take to make? And critically: what happens to the bottle after use? Are there facilities to process it where it's sold?</p>
+                     </div>
+                     <div class="readable-content">
+                        <p class="font-semibold">5. Are you more optimistic or pessimistic about bioplastics as a solution to the plastic crisis? Explain your reasoning.</p>
+                        <p class="text-sm text-gray-400 mt-1"><strong>Explanation:</strong> This is a personal answer. Optimism could come from innovations like mycelium. Pessimism might stem from the huge challenges of consumer confusion and the lack of disposal infrastructure.</p>
+                     </div>
+                 </div>
+            </div>
+        </div>
+        
+        <div class="page" data-title="Bioplastics 101: Answers 🔑">
+            <div class="max-w-4xl mx-auto space-y-6">
+                <h2 class="text-3xl font-bold text-purple-400">Bioplastics 101: Answer Key & Explanations</h2>
+                <div class="p-6 bg-indigo-900 rounded-lg shadow-lg clickable-audio">
+                    <h3 class="text-2xl font-semibold mb-3">Answer Key</h3>
+                     <div class="text-gray-300 mt-2 space-y-3 readable-content">
+                        <p><strong>Part 2: Gap-Fill</strong><br>1. renewable, 2. persistent, 3. clarity, 4. infrastructure, 5. puzzle</p>
+                        <p><strong>Part 3: MCQ</strong><br>1. (B), 2. (C), 3. (C), 4. (A), 5. (B)</p>
+                        <p><strong>Part 4: TFNG</strong><br>1. TRUE, 2. FALSE, 3. TRUE, 4. FALSE, 5. FALSE</p>
+                   </div>
+                </div>
+            </div>
+        </div>
+        
+    </main>
+
+    <script>
+        // Main script for navigation, audio, glitter, and quizzes
+        const pages = document.querySelectorAll('.page');
+        const backBtn = document.getElementById('back-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const homeBtn = document.getElementById('home-btn');
+        const pageTitle = document.getElementById('page-title');
+        const menuContainer = document.getElementById('main-menu-container');
+        let currentPage = 0;
+        let voices = [];
+        const preferredVoices = ['Ava', 'Brian', 'Andrew', 'Emma'];
+        let selectedVoices = {
+            'narrator': null,
+            'female1': null,
+            'male1': null,
+            'male2': null
+        };
+        let correctSound, incorrectSound;
+
+        // --- SOUNDS ---
+        function setupSounds() {
+            correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination();
+            incorrectSound = new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.3 } }).toDestination();
+        }
+        function playSound(type) {
+            if (Tone.context.state !== 'running') { Tone.start(); }
+            if (type === 'correct') {
+                correctSound.triggerAttackRelease('E5', '16n', Tone.now());
+                correctSound.triggerAttackRelease('G5', '16n', Tone.now() + 0.1);
+            } else {
+                incorrectSound.triggerAttackRelease('C3', '8n');
+            }
+        }
+
+        // --- NAVIGATION & PAGE SETUP ---
+        function createMenu() {
+            menuContainer.innerHTML = '';
+            const topics = {};
+
+            pages.forEach((page, index) => {
+                if (index === 0) return;
+                const [topic, pageTypeWithEmoji] = page.dataset.title.split(': ');
+                const emoji = pageTypeWithEmoji.split(' ').pop();
+                const pageType = pageTypeWithEmoji.substring(0, pageTypeWithEmoji.lastIndexOf(' '));
+                
+                if (!topics[topic]) {
+                    topics[topic] = { emoji: emoji, pages: [] };
+                }
+                topics[topic].pages.push({ index, pageType });
+            });
+
+            for (const topic in topics) {
+                const topicDiv = document.createElement('div');
+                topicDiv.className = 'p-4 bg-indigo-900 rounded-lg';
+                const topicTitle = document.createElement('h3');
+                topicTitle.className = 'text-2xl font-bold text-purple-300 mb-3';
+                topicTitle.textContent = `${topic} ${topics[topic].emoji}`;
+                topicDiv.appendChild(topicTitle);
+
+                const buttonsDiv = document.createElement('div');
+                buttonsDiv.className = 'grid grid-cols-2 lg:grid-cols-3 gap-2';
+                
+                topics[topic].pages.forEach(pageInfo => {
+                     const button = document.createElement('button');
+                     button.className = 'btn-3d w-full text-sm';
+                     button.textContent = pageInfo.pageType;
+                     button.onclick = () => showPage(pageInfo.index);
+                     buttonsDiv.appendChild(button);
+                });
+                topicDiv.appendChild(buttonsDiv);
+                menuContainer.appendChild(topicDiv);
+            }
+        }
+
+        function showPage(index, isInitial = false) {
+            window.speechSynthesis.cancel();
+            pages.forEach((page, i) => page.classList.toggle('active', i === index));
+            pageTitle.textContent = pages[index].dataset.title;
+            currentPage = index;
+            updateHeader();
+            if (!isInitial && index !== 0) {
+                setTimeout(() => speakPageContent(index), 500);
+            }
+        }
+        
+        function updateHeader() {
+            const isMenu = currentPage === 0;
+            backBtn.style.visibility = isMenu ? 'hidden' : 'visible';
+            nextBtn.style.visibility = isMenu ? 'hidden' : 'visible';
+            homeBtn.style.visibility = isMenu ? 'hidden' : 'visible';
+            if (!isMenu) {
+                backBtn.disabled = pages[currentPage].dataset.topicStart === 'true';
+                
+                let isLastInTopic = true;
+                 const currentTopic = pages[currentPage].dataset.title.split(':')[0];
+                if (currentPage + 1 < pages.length) {
+                    const nextTopic = pages[currentPage + 1].dataset.title.split(':')[0];
+                     if (currentTopic === nextTopic) {
+                        isLastInTopic = false;
+                    }
+                }
+                nextBtn.disabled = isLastInTopic;
+            }
+        }
+
+        backBtn.addEventListener('click', () => {
+            if (pages[currentPage].dataset.topicStart === 'true') {
+                showPage(0);
+            } else if (currentPage > 0) {
+                showPage(currentPage - 1);
+            }
+        });
+        nextBtn.addEventListener('click', () => { if (currentPage < pages.length - 1) showPage(currentPage + 1); });
+        homeBtn.addEventListener('click', () => showPage(0));
+
+        // --- GLITTER BACKGROUND ---
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        let particles = [];
+        function createParticles() {
+            particles = []; for (let i = 0; i < 200; i++) { particles.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4, size: Math.random() * 2 + 1, color: `rgba(196, 181, 253, ${Math.random() * 0.6 + 0.2})` }); }
+        }
+        function animateGlitter() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.x += p.vx; p.y += p.vy; if (p.x < 0 || p.x > canvas.width) p.vx *= -1; if (p.y < 0 || p.y > canvas.height) p.vy *= -1; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fillStyle = p.color; ctx.fill(); });
+            requestAnimationFrame(animateGlitter);
+        }
+        window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; createParticles(); });
+        
+        // --- SPEECH SYNTHESIS ---
+        function loadVoices() {
+            voices = window.speechSynthesis.getVoices();
+            const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+            const msNatural = englishVoices.filter(v => v.name.includes('Microsoft') && v.name.includes('Natural'));
+
+            selectedVoices.female1 = msNatural.find(v => v.name.includes('Ava')) || englishVoices.find(v => v.gender === 'female') || englishVoices[0];
+            selectedVoices.male1 = msNatural.find(v => v.name.includes('Brian')) || englishVoices.find(v => v.gender === 'male' && v.name !== selectedVoices.female1?.name) || englishVoices[1] || englishVoices[0];
+            selectedVoices.narrator = msNatural.find(v => v.name.includes('Andrew')) || englishVoices.find(v => v.name !== selectedVoices.female1?.name && v.name !== selectedVoices.male1?.name) || englishVoices[2] || englishVoices[0];
+            selectedVoices.male2 = msNatural.find(v => v.name.includes('Emma')) || englishVoices.find(v => v.name !== selectedVoices.female1?.name && v.name !== selectedVoices.male1?.name && v.name !== selectedVoices.narrator?.name) || englishVoices[3] || englishVoices[0];
+        }
+
+        function speakText(text, voice) {
+            return new Promise((resolve) => {
+                if (!text || text.trim() === '') return resolve();
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                if (voice) utterance.voice = voice;
+                utterance.rate = 0.85; // Slowed down speech rate
+                utterance.pitch = 1;
+                utterance.volume = 1;
+                utterance.onend = resolve;
+                utterance.onerror = (e) => { console.error("Speech error:", e); resolve(); };
+                window.speechSynthesis.speak(utterance);
+            });
+        }
+        
+        async function speakPageContent(pageIndex) {
+            if (!selectedVoices.narrator || !pages[pageIndex]) return;
+            const page = pages[pageIndex];
+            if (pageIndex === 0) return;
+            
+            const dialogueEl = page.querySelector('.readable-content-dialogue');
+            if (dialogueEl) {
+                const lines = Array.from(dialogueEl.querySelectorAll('p'));
+                for (const line of lines) {
+                    const speakerText = line.querySelector('strong')?.innerText || 'Narrator:';
+                    const speaker = speakerText.replace(':', '').toLowerCase();
+                    const content = line.innerText;
+                    
+                    let voice;
+                    if (speaker.includes('professor') || speaker.includes('alex') || speaker.includes('lecturer')) voice = selectedVoices.narrator;
+                    else if (speaker.includes('maria') || speaker.includes('sara') || speaker.includes('aisha')) voice = selectedVoices.female1;
+                    else if (speaker.includes('omar') || speaker.includes('ben')) voice = selectedVoices.male1;
+                    else voice = selectedVoices.male2;
+                    
+                    await speakText(content, voice);
+                }
+            } else {
+                const contentElements = page.querySelectorAll('.readable-content');
+                for (const el of contentElements) {
+                     await speakText(el.innerText, selectedVoices.narrator);
+                }
+            }
+        }
+
+        // --- QUIZ LOGIC ---
+        function handleMCQInteraction(questionEl) { /* ... same as previous version ... */ }
+        function handleTFNGInteraction(questionEl, selectedValue) { /* ... same as previous version ... */ }
+        function resetQuiz(quizContainer) { /* ... same as previous version ... */ }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                window.speechSynthesis.onvoiceschanged = loadVoices;
+            } else { setTimeout(loadVoices, 100); }
+            
+            createMenu();
+            createParticles();
+            animateGlitter();
+            setupSounds();
+
+            document.querySelectorAll('.clickable-audio').forEach((el, i) => {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if(e.target.closest('.quiz-container') || e.target.closest('button')) return;
+                    
+                    let contentToRead = '';
+                    const readable = el.querySelector('.readable-content, .readable-content-dialogue');
+                    if(readable) {
+                        contentToRead = readable.innerText;
+                    } else {
+                        contentToRead = el.innerText;
+                    }
+                    speakText(contentToRead, selectedVoices.narrator);
+                });
+            });
+            
+            document.querySelectorAll('.mcq-option').forEach(option => {
+                option.addEventListener('click', (e) => handleMCQInteraction(e.target.closest('.mcq-question')));
+            });
+            document.querySelectorAll('.tfng-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => handleTFNGInteraction(e.target.closest('.tfng-question'), e.target.dataset.value));
+            });
+            document.querySelectorAll('.reset-quiz-btn').forEach(btn => {
+                btn.addEventListener('click', e => resetQuiz(e.target.closest('.quiz-container')));
+            });
+
+            // Drag and Drop Logic
+            document.querySelectorAll('.quiz-container[id*="gap-fill"]').forEach(container => {
+                const wordBank = container.querySelector('.word-bank');
+                const words = Array.from(container.querySelectorAll('.drop-zone')).map(q => q.dataset.answer);
+                words.sort(() => Math.random() - 0.5); // Shuffle
+                words.forEach(wordText => {
+                    const wordEl = document.createElement('div');
+                    wordEl.className = 'draggable-word';
+                    wordEl.textContent = wordText;
+                    wordEl.draggable = true;
+                    wordEl.dataset.word = wordText;
+                    wordBank.appendChild(wordEl);
+                });
+
+                let draggedItem = null;
+                container.addEventListener('dragstart', e => { /* ... same as previous version ... */ });
+                container.addEventListener('dragend', e => { /* ... same as previous version ... */ });
+                container.querySelectorAll('.drop-zone').forEach(zone => {
+                    zone.addEventListener('dragover', e => { /* ... same as previous version ... */ });
+                    zone.addEventListener('dragleave', e => { /* ... same as previous version ... */ });
+                    zone.addEventListener('drop', e => {
+                        e.preventDefault();
+                        zone.classList.remove('drag-over');
+                        if (!zone.firstChild && draggedItem) {
+                            const correctAnswer = zone.dataset.answer;
+                            const droppedWord = draggedItem.dataset.word;
+                            
+                            draggedItem.style.display = 'inline-block';
+                            zone.appendChild(draggedItem);
+                           
+                            if (correctAnswer.toLowerCase() === droppedWord.toLowerCase()) {
+                                zone.classList.add('correct');
+                                zone.classList.remove('incorrect');
+                                draggedItem.classList.add('correct');
+                                draggedItem.classList.remove('incorrect');
+                                playSound('correct');
+                            } else {
+                                zone.classList.add('incorrect');
+                                zone.classList.remove('correct');
+                                draggedItem.classList.add('incorrect');
+                                draggedItem.classList.remove('correct');
+                                playSound('incorrect');
+                            }
+                            draggedItem = null;
+                        }
+                    });
+                });
+            });
+        });
+        
+        let audioStarted = false;
+        document.body.addEventListener('click', () => { 
+            if (!audioStarted) {
+                audioStarted = true;
+                const silentUtterance = new SpeechSynthesisUtterance("");
+                window.speechSynthesis.speak(silentUtterance);
+                
+                if (currentPage !== 0 && !window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+                    speakPageContent(currentPage);
+                }
+            }
+        }, { once: true });
+    </script>
+</body>
+</html>
+

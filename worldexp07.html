@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galápagos Islands Vocabulary Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Tahoma', sans-serif;
+            overscroll-behavior: none;
+            /* New Island Color Scheme */
+            background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
+        }
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: flex;
+        }
+        /* Adjusted glass card for new theme */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.6); /* Darker for contrast */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        #timer-bar-inner {
+            transition: width 1s linear;
+        }
+        .badge-unlocked {
+             animation: popIn 0.5s ease-out;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+         #badge-modal {
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        /* Higher contrast buttons for the new theme */
+        .mcq-option {
+            background-color: rgba(2, 44, 34, 0.7); 
+        }
+        .mcq-option:hover {
+            background-color: rgba(6, 78, 59, 0.9);
+        }
+        .mcq-option:disabled {
+            opacity: 0.8;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="w-screen h-screen flex items-center justify-center p-4 overflow-hidden">
+
+    <div id="game-container" class="w-full max-w-lg mx-auto">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active flex-col items-center justify-center text-white text-center p-6 md:p-8">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4">Galápagos Islands Challenge</h1>
+            <p class="text-lg md:text-xl mb-8 text-green-200">Test your knowledge of this "living laboratory".</p>
+            <button id="start-game-btn" class="bg-white text-green-700 font-bold py-4 px-10 text-lg rounded-full shadow-lg hover:bg-green-100 transition-all transform hover:scale-105 focus:outline-none">Start Game</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen flex-col w-full glass-card rounded-2xl p-6 md:p-8">
+            <div class="flex justify-between items-center mb-4">
+                <div class="text-white text-lg font-bold">Score: <span id="score">0</span></div>
+                <div class="text-white text-lg font-bold">Question <span id="question-counter">1</span>/<span id="total-questions">50</span></div>
+            </div>
+            <div id="timer-bar" class="w-full bg-white/20 rounded-full h-2.5 mb-4">
+                <div id="timer-bar-inner" class="bg-green-400 h-2.5 rounded-full" style="width: 100%"></div>
+            </div>
+            
+            <div id="question-area" class="text-center mb-6 h-24 flex items-center justify-center">
+                <p id="question-text" class="text-white text-xl md:text-2xl font-semibold"></p>
+            </div>
+
+            <div id="options-area" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                <!-- Options will be populated by JS -->
+            </div>
+
+            <div id="feedback-area" class="mt-4 text-center h-8">
+                <p id="feedback-text" class="text-xl font-bold"></p>
+            </div>
+             <div id="badge-display" class="mt-4 flex justify-center gap-4 h-12">
+                <!-- Badges will be shown here -->
+             </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="screen flex-col items-center justify-center text-white text-center p-6 md:p-8">
+            <h2 class="text-3xl md:text-4xl font-bold mb-2">Game Over!</h2>
+            <p class="text-xl md:text-2xl mb-4">Final Score: <span id="final-score" class="font-bold"></span></p>
+            <div id="final-badges" class="mb-8 flex flex-wrap justify-center gap-4">
+                <!-- Final badges earned -->
+            </div>
+            <button id="play-again-btn" class="bg-white text-green-700 font-bold py-4 px-10 text-lg rounded-full shadow-lg hover:bg-green-100 transition-all transform hover:scale-105 focus:outline-none">Play Again</button>
+        </div>
+    </div>
+    
+    <!-- Badge Unlocked Modal -->
+    <div id="badge-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 opacity-0 pointer-events-none transform scale-95">
+        <div class="glass-card text-white text-center p-8 rounded-2xl max-w-sm w-full">
+            <h3 id="badge-modal-title" class="text-3xl font-bold text-yellow-300">Badge Unlocked!</h3>
+            <p id="badge-modal-name" class="text-xl mt-2"></p>
+            <p id="badge-modal-desc" class="text-green-200 mt-1"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const vocabulary = [
+                { keyword: 'archipelago', definition: 'A group or chain of islands.' },
+                { keyword: 'volcanic', definition: 'Relating to or produced by a volcano.' },
+                { keyword: 'endemic species', definition: 'A species of animal or plant that is found in one particular area and nowhere else.' },
+                { keyword: 'Charles Darwin', definition: 'The naturalist whose visit to the islands was instrumental in his theory of evolution.' },
+                { keyword: 'theory of evolution', definition: 'The scientific theory explaining how living things change over time.' },
+                { keyword: 'natural selection', definition: 'The process whereby organisms better adapted to their environment tend to survive and produce more offspring.' },
+                { keyword: 'living laboratory', definition: 'A term for the Galápagos Islands because they are a perfect place to study evolution in action.' },
+                { keyword: 'invasive species', definition: 'Non-native species that threaten the native wildlife, such as goats and rats in the Galápagos.' },
+                { keyword: 'conservation', definition: 'The protection of animals, plants, and natural resources.' },
+                { keyword: 'biosecurity', definition: 'Measures taken to stop the spread or introduction of harmful organisms to native species.' },
+                { keyword: 'UNESCO', definition: 'An organization that designates and protects places of great natural or cultural value.' },
+                { keyword: 'isolation', definition: 'The state of being in a place or situation that is separate from others.' },
+                { keyword: 'adaptation', definition: 'The process of change by which an organism or species becomes better suited to its environment.' },
+                { keyword: 'finches', definition: 'Small birds whose different beak shapes on the islands Darwin famously studied.' },
+                { keyword: 'giant tortoises', definition: 'Very large reptiles that can live for over a hundred years, famous inhabitants of the islands.' },
+                { keyword: 'marine iguanas', definition: 'Unique lizards that have adapted to feed on algae in the cold ocean waters.' },
+                { keyword: 'ecosystem', definition: 'A biological community of interacting organisms and their physical environment.' },
+                { keyword: 'fragile', definition: 'Easily broken or damaged.' },
+                { keyword: 'pirates', definition: 'People who attack and rob ships at sea, who historically used the islands as a base.' },
+                { keyword: 'irreplaceable', definition: 'Impossible to replace if lost or damaged.' }
+            ];
+            
+            const readingQuestions = [
+                { type: 'mcq', text: "What is the key reason for the high number of endemic species in the Galápagos?", options: ["The rich soil", "The warm climate", "Its geographic isolation", "The lack of predators"], answer: "Its geographic isolation" },
+                { type: 'mcq', text: "Whose theory of evolution was heavily influenced by a visit to the islands?", options: ["Gregor Mendel", "Alfred Russel Wallace", "Jean-Baptiste Lamarck", "Charles Darwin"], answer: "Charles Darwin" },
+                { type: 'mcq', text: "Which of the following is an example of an invasive species mentioned in the passage?", options: ["Giant tortoises", "Finches", "Rats", "Marine iguanas"], answer: "Rats" },
+                { type: 'tf', text: "True or False: The passage states the islands have a calm, uneventful human history.", options: ["True", "False"], answer: "False" },
+                { type: 'tf', text: "True or False: The Galápagos Islands were formed by ancient glaciers.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "What is a major threat to the Galápagos ecosystem besides invasive species?", options: ["Volcanic eruptions", "Tourism and illegal fishing", "Frequent hurricanes", "Earthquakes"], answer: "Tourism and illegal fishing" },
+                { type: 'tf', text: "True or False: Marine iguanas are unique because they have adapted to feed in the ocean.", options: ["True", "False"], answer: "True" },
+                { type: 'mcq', text: "The islands are often called a '____' for studying evolution.", options: ["Natural Museum", "Living Laboratory", "Biological Library", "Evolutionary Theater"], answer: "Living Laboratory" },
+                { type: 'tf', text: "True or False: The islands were claimed by Spain in 1832.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "What are the rigorous measures to protect the islands from harmful organisms called?", options: ["Conservation", "Adaptation", "Biosecurity", "Isolation"], answer: "Biosecurity" }
+            ];
+            
+            const fillInBlankQuestions = [
+                { type: 'mcq', text: "The Galápagos are a volcanic ____, which means a group of islands.", options: ["archipelago", "peninsula", "isthmus", "atoll"], answer: "archipelago" },
+                { type: 'mcq', text: "The islands' ecosystem is described as incredibly ____ and easily damaged.", options: ["resilient", "fragile", "vast", "barren"], answer: "fragile" },
+                { type: 'mcq', text: "____ studied the different beak shapes of the finches on the islands.", options: ["Charles Darwin", "Galileo", "Newton", "Einstein"], answer: "Charles Darwin" },
+                { type: 'mcq', text: "The islands' remote location led to their ____ from the mainland.", options: ["isolation", "conservation", "adaptation", "destruction"], answer: "isolation" },
+                { type: 'mcq', text: "Protecting the unique wildlife is a major ____ effort.", options: ["piracy", "tourism", "conservation", "invasion"], answer: "conservation" },
+                { type: 'mcq', text: "Species that are only found in one specific place are called ____.", options: ["endemic species", "invasive species", "volcanic species", "marine species"], answer: "endemic species" },
+                { type: 'mcq', text: "The islands' origins are ____, meaning they were formed by volcanoes.", options: ["sedimentary", "volcanic", "tectonic", "eroded"], answer: "volcanic" },
+                { type: 'mcq', text: "The unique animals show incredible ____ to their specific environments.", options: ["resistance", "adaptation", "vulnerability", "isolation"], answer: "adaptation" },
+                { type: 'mcq', text: "____ measures are used at airports to protect the islands.", options: ["Security", "Biosecurity", "Safety", "Tourism"], answer: "Biosecurity" },
+                { type: 'mcq', text: "Historically, ____ and whalers used the islands as a base.", options: ["pirates", "tourists", "scientists", "navies"], answer: "pirates" },
+                { type: 'mcq', text: "The ____ are famous for living over a hundred years.", options: ["marine iguanas", "finches", "giant tortoises", "sea lions"], answer: "giant tortoises" },
+                { type: 'mcq', text: "The ____ developed from Darwin's observations in the Galápagos.", options: ["theory of evolution", "theory of relativity", "germ theory", "atomic theory"], answer: "theory of evolution" },
+                { type: 'mcq', text: "____ is the process that allows better-suited organisms to survive.", options: ["Artificial selection", "Natural selection", "Conservation", "Biosecurity"], answer: "Natural selection" },
+                { type: 'mcq', text: "The unique wildlife of the islands is considered ____.", options: ["commonplace", "expendable", "irreplaceable", "temporary"], answer: "irreplaceable" },
+                { type: 'mcq', text: "Goats and rats are examples of ____ that harm the native wildlife.", options: ["endemic species", "invasive species", "keystone species", "indicator species"], answer: "invasive species" },
+                { type: 'mcq', text: "The islands are recognized as a World Heritage Site by ____.", options: ["UNESCO", "UNICEF", "NATO", "The World Bank"], answer: "UNESCO" },
+                { type: 'mcq', text: "The entire community of life and its environment is an ____.", options: ["ecosystem", "archipelago", "adaptation", "isolation"], answer: "ecosystem" },
+                { type: 'mcq', text: "The ____ have special claws to cling to rocks and eat algae.", options: ["sea turtles", "marine iguanas", "sea lions", "crabs"], answer: "marine iguanas" },
+                { type: 'mcq', text: "Darwin studied the various species of ____ on the islands.", options: ["tortoises", "iguanas", "finches", "boobies"], answer: "finches" },
+                { type: 'mcq', text: "The dark history of Floreana Island includes unsolved ____.", options: ["mysteries", "parties", "elections", "murders"], answer: "murders" }
+            ];
+
+            const badges = {
+                quickThinker: { name: 'Quick Thinker', desc: 'Answer 5 questions with over half the time remaining.', icon: '⚡️', earned: false },
+                perfectStreak: { name: 'Perfect Streak', desc: 'Answer 10 questions correctly in a row.', icon: '🎯', earned: false },
+                virtuoso: { name: 'Galápagos Explorer', desc: 'Score 90 points or more in a single game.', icon: '🏆', earned: false },
+            };
+
+            const positivePraises = ["Correct!", "Excellent!", "Great job!", "You got it!", "Awesome!"];
+
+            // DOM Elements and Game State variables (remain the same)
+             const startScreen = document.getElementById('start-screen');
+            const gameScreen = document.getElementById('game-screen');
+            const endScreen = document.getElementById('end-screen');
+            const startGameBtn = document.getElementById('start-game-btn');
+            const playAgainBtn = document.getElementById('play-again-btn');
+
+            const scoreDisplay = document.getElementById('score');
+            const questionCounterDisplay = document.getElementById('question-counter');
+            const totalQuestionsDisplay = document.getElementById('total-questions');
+            const timerBarInner = document.getElementById('timer-bar-inner');
+            const questionText = document.getElementById('question-text');
+            const optionsArea = document.getElementById('options-area');
+            const feedbackText = document.getElementById('feedback-text');
+
+            const finalScoreDisplay = document.getElementById('final-score');
+            const badgeDisplay = document.getElementById('badge-display');
+            const finalBadgesDisplay = document.getElementById('final-badges');
+            const badgeModal = document.getElementById('badge-modal');
+            const badgeModalTitle = document.getElementById('badge-modal-title');
+            const badgeModalName = document.getElementById('badge-modal-name');
+            const badgeModalDesc = document.getElementById('badge-modal-desc');
+
+            let score = 0;
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let timer;
+            let timeLeft;
+
+            let correctStreak = 0;
+            let quickAnswerCount = 0;
+            
+            let correctSound, incorrectSound;
+            let feedbackVoice = null;
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+            
+            async function initializeAudio() {
+                if (Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+                correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.5 } }).toDestination();
+                incorrectSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+                
+                if ('speechSynthesis' in window) {
+                     if (speechSynthesis.onvoiceschanged !== undefined) {
+                        speechSynthesis.onvoiceschanged = getFeedbackVoice;
+                    }
+                    getFeedbackVoice();
+                }
+            }
+
+            function getFeedbackVoice() {
+                const voices = speechSynthesis.getVoices();
+                // Change voice preference for variety
+                feedbackVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Andrew')) ||
+                                voices.find(v => v.lang === 'en-US' && v.name.includes('Brian')) ||
+                                voices.find(v => v.lang.startsWith('en') && (v.name.includes('Male') || v.name.includes('David')));
+            }
+            
+            function generateQuestions() {
+                const vocabQuestions = vocabulary.map((item) => {
+                    const distractors = vocabulary
+                        .filter(d => d.keyword !== item.keyword)
+                        .slice(0, 3)
+                        .map(d => d.keyword);
+
+                    const options = [item.keyword, ...distractors];
+                    shuffleArray(options);
+                    
+                    return {
+                        type: 'mcq',
+                        text: `Which word means: "${item.definition}"`,
+                        options: options,
+                        answer: item.keyword
+                    };
+                });
+                
+                questions = [...vocabQuestions, ...readingQuestions, ...fillInBlankQuestions];
+                shuffleArray(questions);
+                totalQuestionsDisplay.textContent = questions.length;
+            }
+
+            function startGame() {
+                score = 0;
+                currentQuestionIndex = 0;
+                correctStreak = 0;
+                quickAnswerCount = 0;
+                Object.values(badges).forEach(b => b.earned = false);
+                
+                generateQuestions();
+                
+                startScreen.classList.remove('active');
+                endScreen.classList.remove('active');
+                gameScreen.classList.add('active');
+                badgeDisplay.innerHTML = '';
+                
+                showNextQuestion();
+            }
+
+            function showNextQuestion() {
+                resetState();
+                if (currentQuestionIndex >= questions.length) {
+                    endGame();
+                    return;
+                }
+
+                const question = questions[currentQuestionIndex];
+                questionText.textContent = question.text;
+                
+                if (question.options.length <= 2) {
+                    optionsArea.classList.remove('md:grid-cols-2');
+                    optionsArea.classList.add('md:grid-cols-1', 'max-w-sm', 'mx-auto');
+                } else {
+                    optionsArea.classList.remove('md:grid-cols-1', 'max-w-sm', 'mx-auto');
+                    optionsArea.classList.add('md:grid-cols-2');
+                }
+
+                question.options.forEach(option => {
+                    const button = document.createElement('button');
+                    button.textContent = option;
+                    button.classList.add('mcq-option', 'text-white', 'py-3', 'px-4', 'rounded-lg', 'text-base', 'md:text-lg', 'transition-colors', 'duration-200');
+                    button.addEventListener('click', () => selectAnswer(option, question.answer));
+                    optionsArea.appendChild(button);
+                });
+
+                questionCounterDisplay.textContent = `${currentQuestionIndex + 1}`;
+                scoreDisplay.textContent = score;
+
+                timeLeft = 15;
+                startTimer();
+            }
+
+            function startTimer() {
+                timerBarInner.style.transition = 'none';
+                timerBarInner.style.width = '100%';
+                timerBarInner.style.backgroundColor = '#22d3ee'; // cyan-400
+                
+                setTimeout(() => {
+                    timerBarInner.style.transition = `width ${timeLeft}s linear`;
+                    timerBarInner.style.width = '0%';
+                }, 100);
+
+                timer = setInterval(() => {
+                    timeLeft--;
+                     if (timeLeft < 8) {
+                        timerBarInner.style.backgroundColor = '#facc15';
+                    }
+                    if (timeLeft < 4) {
+                        timerBarInner.style.backgroundColor = '#f87171';
+                    }
+                    if (timeLeft <= 0) {
+                        clearInterval(timer);
+                        selectAnswer(null, questions[currentQuestionIndex].answer);
+                    }
+                }, 1000);
+            }
+
+            function selectAnswer(selected, correct) {
+                clearInterval(timer);
+                const isCorrect = selected === correct;
+
+                optionsArea.childNodes.forEach(button => {
+                    button.disabled = true;
+                    if (button.textContent === correct) {
+                        button.classList.add('!bg-green-500', 'border-2', 'border-white');
+                    }
+                    if (button.textContent === selected && !isCorrect) {
+                        button.classList.add('!bg-red-500');
+                    }
+                });
+
+                if (isCorrect) {
+                    score += 2;
+                    feedbackText.textContent = 'Correct!';
+                    feedbackText.classList.add('text-green-300');
+                    correctStreak++;
+                    if (timeLeft > 7) { 
+                        quickAnswerCount++;
+                    }
+                    
+                    correctSound?.triggerAttackRelease("C5", "8n");
+                    
+                    if (feedbackVoice && speechSynthesis.speaking === false) {
+                        const praise = positivePraises[Math.floor(Math.random() * positivePraises.length)];
+                        const utterance = new SpeechSynthesisUtterance(praise);
+                        utterance.voice = feedbackVoice;
+                        speechSynthesis.speak(utterance);
+                    }
+
+                } else {
+                    feedbackText.textContent = `Correct: "${correct}"`;
+                    feedbackText.classList.add('text-red-300');
+                    correctStreak = 0;
+                    
+                    incorrectSound?.triggerAttackRelease("A2", "8n", Tone.now() + 0.1);
+                }
+                
+                checkBadges();
+
+                scoreDisplay.textContent = score;
+                currentQuestionIndex++;
+                
+                setTimeout(showNextQuestion, 2000);
+            }
+            
+            function checkBadges() {
+                if (quickAnswerCount >= 5 && !badges.quickThinker.earned) {
+                    badges.quickThinker.earned = true;
+                    showBadge(badges.quickThinker);
+                }
+                if (correctStreak >= 10 && !badges.perfectStreak.earned) {
+                    badges.perfectStreak.earned = true;
+                    showBadge(badges.perfectStreak);
+                }
+                if (score >= 90 && !badges.virtuoso.earned) {
+                    badges.virtuoso.earned = true;
+                    showBadge(badges.virtuoso);
+                }
+            }
+
+            function showBadge(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.textContent = badge.icon;
+                badgeEl.title = `${badge.name}: ${badge.desc}`;
+                badgeEl.classList.add('text-3xl', 'badge-unlocked');
+                badgeDisplay.appendChild(badgeEl);
+                
+                badgeModalName.textContent = badge.name;
+                badgeModalDesc.textContent = badge.desc;
+                badgeModal.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+                badgeModal.classList.add('opacity-100', 'scale-100');
+                
+                setTimeout(() => {
+                    badgeModal.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+                    badgeModal.classList.remove('opacity-100', 'scale-100');
+                }, 3000);
+            }
+
+            function resetState() {
+                clearInterval(timer);
+                optionsArea.innerHTML = '';
+                feedbackText.textContent = '';
+                feedbackText.classList.remove('text-green-300', 'text-red-300');
+            }
+
+            function endGame() {
+                gameScreen.classList.remove('active');
+                endScreen.classList.add('active');
+                finalScoreDisplay.textContent = score;
+                
+                finalBadgesDisplay.innerHTML = '';
+                Object.values(badges).forEach(badge => {
+                    if (badge.earned) {
+                        const badgeEl = document.createElement('div');
+                        badgeEl.classList.add('text-center', 'p-2');
+                        badgeEl.innerHTML = `<div class="text-4xl">${badge.icon}</div><div class="font-semibold">${badge.name}</div>`;
+                        finalBadgesDisplay.appendChild(badgeEl);
+                    }
+                });
+            }
+
+            startGameBtn.addEventListener('click', () => {
+                initializeAudio().then(() => {
+                    startGame();
+                });
+            });
+            playAgainBtn.addEventListener('click', startGame);
+
+        });
+    </script>
+</body>
+</html>

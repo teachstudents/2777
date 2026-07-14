@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wildlife Crossing Review (1-Player)</title>
+    <!-- 1. Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+    <!-- 3. Tone.js for Sound Effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+    
+    <!-- 4. Custom Styles for Game Elements -->
+    <style>
+        /* --- Base & No-Scroll --- */
+        html, body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            overflow: hidden; /* Prevent scrolling */
+            height: 100%;
+        }
+
+        /* --- Screen-wide Container --- */
+        .game-screen {
+            width: 100%;
+            height: 100%;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            box-sizing: border-box;
+            position: absolute;
+            inset: 0;
+        }
+        .game-screen.active {
+            display: flex;
+        }
+
+        /* --- 3D Button Style --- */
+        .btn-3d {
+            position: relative;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 700;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.1s ease-in-out;
+            transform-style: preserve-3d;
+            box-shadow: 0 4px 0 var(--shadow-color, #4a5568);
+            transform: translateZ(-4px);
+        }
+        .btn-3d:active {
+            transform: translateY(2px) translateZ(-2px);
+            box-shadow: 0 2px 0 var(--shadow-color, #4a5568);
+        }
+        .btn-3d:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        .btn-blue {
+            background-color: #3b82f6;
+            --shadow-color: #1d4ed8;
+        }
+        .btn-green {
+            background-color: #22c55e;
+            --shadow-color: #15803d;
+        }
+        .btn-gray {
+            background-color: #6b7280;
+            --shadow-color: #374151;
+        }
+        .btn-fuchsia {
+            background-color: #d946ef;
+            --shadow-color: #a21caf;
+        }
+        
+        /* Correct/Incorrect State */
+        .btn-3d.correct {
+            background-color: #22c55e;
+            --shadow-color: #15803d;
+            animation: pulse-correct 0.5s;
+        }
+        .btn-3d.incorrect {
+            background-color: #ef4444;
+            --shadow-color: #b91c1c;
+            animation: shake-incorrect 0.5s;
+        }
+
+        /* --- Learning Card (No flip) --- */
+        .learn-card {
+            width: 100%;
+            max-width: 800px;
+            padding: 2rem;
+            background-color: #1f2937; /* gray-800 */
+            border: 1px solid #374151; /* gray-700 */
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        
+        /* --- Timer Progress Bar --- */
+        #timer-bar {
+            height: 10px;
+            width: 100%;
+            background-color: #374151; /* gray-700 */
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        #timer-bar-inner {
+            height: 100%;
+            width: 100%;
+            background-color: #3b82f6; /* blue-500 */
+            border-radius: 0.5rem;
+            transition: width 0.1s linear;
+        }
+
+        /* --- Glitter Animation --- */
+        #glitter-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 9999;
+        }
+        .glitter {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: var(--glitter-color);
+            border-radius: 50%;
+            animation: glitter-fall 1.5s ease-out forwards;
+        }
+
+        @keyframes glitter-fall {
+            0% {
+                transform: translateY(-20vh) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) scale(0);
+                opacity: 0;
+            }
+        }
+        
+        /* --- Animal Emoji Animation --- */
+        #animal-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 10;
+        }
+        .animal-emoji {
+            position: absolute;
+            right: -100px; /* Start off-screen */
+            animation: move-left 8s linear forwards;
+            will-change: transform;
+        }
+        
+        @keyframes move-left {
+            0% {
+                transform: translateX(0);
+            }
+            100% {
+                transform: translateX(calc(-100vw - 100px)); /* Move fully across screen */
+            }
+        }
+
+        /* --- Keyframe Animations --- */
+        @keyframes pulse-correct {
+            0% { transform: scale(1) translateZ(-4px); }
+            50% { transform: scale(1.05) translateZ(-4px); }
+            100% { transform: scale(1) translateZ(-4px); }
+        }
+        @keyframes shake-incorrect {
+            0%, 100% { transform: translateX(0) translateZ(-4px); }
+            20%, 60% { transform: translateX(-10px) translateZ(-4px); }
+            40%, 80% { transform: translateX(10px) translateZ(-4px); }
+        }
+
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center relative overflow-hidden">
+
+    <!-- Glitter container for effects -->
+    <div id="glitter-container"></div>
+    <!-- Animal container for effects -->
+    <div id="animal-container"></div>
+
+    <!-- Main Game Container -->
+    <div class="w-full max-w-4xl h-full" style="height: 100vh;">
+
+        <!-- ======== SCREEN 1: MAIN MENU ======== -->
+        <div id="menu-screen" class="game-screen active">
+            <h1 class="text-6xl font-black text-center mb-4">Wildlife Crossing</h1>
+            <h2 class="text-5xl font-bold text-fuchsia-400 text-center mb-12">Review</h2>
+            <div class="w-full max-w-xs">
+                <button id="btn-1p" class="btn-3d btn-blue text-2xl !py-6 w-full">Start Game</button>
+            </div>
+        </div>
+
+        <!-- ======== SCREEN 4: LEARNING STAGE ======== -->
+        <div id="learn-screen" class="game-screen">
+            <h1 id="learn-header" class="text-4xl font-bold text-center mb-8">Round 1 - Learning Stage</h1>
+            
+            <div id="learn-card-display" class="learn-card">
+                <!-- Single card content will be populated by JS -->
+            </div>
+            
+            <div id="learn-status" class="mt-8 text-lg text-gray-400">
+                <!-- Status messages like "Get Ready..." will appear here -->
+            </div>
+        </div>
+        
+        <!-- ======== SCREEN 5: PRACTICE STAGE ======== -->
+        <div id="practice-screen" class="game-screen justify-start md:justify-center">
+            <!-- Top Section: Word Display -->
+            <div class="w-full text-center">
+                <div id="practice-header" class="w-full flex justify-between items-center text-lg font-semibold mb-2">
+                    <span id="p1-name-score" class="text-fuchsia-400">Score: 0</span>
+                    <span id="round-progress-text" class="text-gray-300">Round 1: 1 / 7</span>
+                </div>
+                <div id="current-word-display" class="my-4 md:my-8 py-4 md:py-8 bg-gray-800 rounded-lg shadow-xl">
+                    <h2 class="text-5xl md:text-7xl font-black text-white">biodiversity</h2>
+                    <button id="btn-speak-practice" class="mt-2 text-gray-400 hover:text-blue-400 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .89-1.077 1.337-1.707.707L5.586 15z" />
+                        </svg>
+                        Listen
+                    </button>
+                </div>
+            </div>
+
+            <!-- Middle Section: Choices -->
+            <div class="w-full flex-1 flex flex-col md:flex-row gap-4 md:gap-8">
+                <!-- P1 Choices -->
+                <div id="choice-container-p1" class="flex-1 grid grid-cols-2 gap-4">
+                    <!-- 4 choice buttons will be populated by JS -->
+                </div>
+            </div>
+            
+            <!-- Bottom Section: Timer & Help -->
+            <div class="w-full mt-4 md:mt-8">
+                <div id="timer-bar" class="mb-4">
+                    <div id="timer-bar-inner"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ======== SCREEN 6: ROUND END ======== -->
+        <div id="round-end-screen" class="game-screen">
+            <h1 id="round-end-header" class="text-5xl font-bold text-center mb-8">Round 1 Complete!</h1>
+            <div id="round-score-summary" class="text-2xl text-center mb-8">
+                <!-- Scores populated by JS -->
+            </div>
+            <button id="btn-quit-game" class="mt-4 text-gray-400 hover:text-white transition-colors">Quit to Menu</button>
+        </div>
+
+        <!-- ======== SCREEN 7: GAME END ======== -->
+        <div id="game-end-screen" class="game-screen">
+            <h1 class="text-6xl font-black text-center mb-8">Game Over!</h1>
+            <h2 id="game-winner-text" class="text-4xl font-bold text-fuchsia-400 text-center mb-8"></h2>
+            <div id="final-score-summary" class="text-2xl text-center mb-8">
+                <!-- Final Scores populated by JS -->
+            </div>
+            <button id="btn-play-again" class="btn-3d btn-blue text-2xl !py-4 w-full max-w-md">Play Again</T>
+        </div>
+    </div>
+
+    <!-- 4. Main Game Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- 1. DATA AND STATE ---
+
+            // All words are now lowercase
+            const allWords = [
+                { word: "biodiversity", synonym: "biological variety", chinese: "生物多样性" },
+                { word: "collision", synonym: "impact, crash", chinese: "碰撞" },
+                { word: "connectivity", synonym: "linkage", chinese: "连通性" },
+                { word: "detrimental", synonym: "harmful, damaging", chinese: "有害的" },
+                { word: "disturbance", synonym: "disruption", chinese: "干扰" },
+                { word: "fragmentation", synonym: "splitting, division", chinese: "碎片化" },
+                { word: "habitat", synonym: "environment, natural home", chinese: "栖息地" },
+                { word: "infrastructure", synonym: "public works", chinese: "基础设施" },
+                { word: "isolation", synonym: "separation", chinese: "隔离" },
+                { word: "sprawl (urban)", synonym: "uncontrolled expansion", chinese: "(城市) 蔓延" },
+                { word: "vulnerable", synonym: "at risk, susceptible", chinese: "脆弱的" },
+                { word: "adapt", synonym: "adjust, modify", chinese: "适应" },
+                { word: "coexistence", synonym: "harmony, living together", chinese: "共存" },
+                { word: "corridor (wildlife)", synonym: "passageway, link", chinese: "(野生动物) 廊道" },
+                { word: "durable", synonym: "long-lasting, sturdy", chinese: "耐用的" },
+                { word: "fencing", synonym: "barriers, enclosure", chinese: "围栏" },
+                { word: "holistic", synonym: "comprehensive, integrated", chinese: "整体的" },
+                { word: "mitigate", synonym: "lessen, reduce", chinese: "减轻" },
+                { word: "modular", synonym: "standardized, sectional", chinese: "模块化的" },
+                { word: "noise barriers", synonym: "sound walls", chinese: "隔音屏障" },
+                { word: "overpass", synonym: "wildlife bridge, ecoduct", chinese: "(生态) 天桥" },
+                { word: "scalable", synonym: "adjustable, expandable", chinese: "可扩展的" },
+                { word: "species-specific", synonym: "specialized, targeted", chinese: "物种特定的" },
+                { word: "sustainable", synonym: "eco-friendly, green", chinese: "可持续的" },
+                { word: "underpass", synonym: "tunnel, wildlife culvert", chinese: "(生态) 隧道" },
+                { word: "amphibians", synonym: "(scientific class)", chinese: "两栖动物" },
+                { word: "ecology", synonym: "environmental science", chinese: "生态学" },
+                { word: "ecosystem", synonym: "natural system", chinese: "生态系统" },
+                { word: "gene flow", synonym: "genetic transfer", chinese: "基因流动" },
+                { word: "genetic diversity", synonym: "genetic variation", chinese: "遗传多样性" },
+                { word: "population", synonym: "group, community", chinese: "种群" },
+                { word: "resilience", synonym: "toughness, adaptability", chinese: "恢复力" },
+                { word: "thrive", synonym: "flourish, prosper", chinese: "繁荣 / 茁壮成长" },
+                { word: "vegetation", synonym: "plant life, flora", chinese: "植被" },
+                { word: "acquisition (land)", synonym: "purchase, buying", chinese: "(土地) 收购" },
+                { word: "analyze", synonym: "examine, study", chinese: "分析" },
+                { word: "camera traps", synonym: "remote cameras", chinese: "红外相机" },
+                { word: "cost-effective", synonym: "economical, good value", chinese: "划算的 / 性价比高的" },
+                { word: "evaluation", synonym: "assessment, judgment", chinese: "评估" },
+                { word: "evidence-based", synonym: "data-driven, fact-based", chinese: "基于证据的" },
+                { word: "implement", synonym: "execute, apply", chinese: "实施" },
+                { word: "innovative", synonym: "new, original, creative", chinese: "创新的" },
+                { word: "monitoring", synonym: "observing, tracking", chinese: "监测" },
+                { word: "paramount", synonym: "crucial, most important", chinese: "至关重要的" },
+                { word: "prioritize", synonym: "rank, put first", chinese: "优先考虑" },
+                { word: "public buy-in", synonym: "public support", chinese: "公众支持" },
+                { word: "sensors", synonym: "detectors", chinese: "传感器" },
+                { word: "synthesis", synonym: "combination, integration", chinese: "综合" },
+                { word: "transition zones", synonym: "approach areas", chinese: "过渡区" }
+                // 49 words total. "justify" was the 50th and has been excluded for 7x7 rounds.
+            ];
+            
+            const animalEmojis = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐵', '🐒', '🐘', '🦣', '🦒', '🦌', '🦬', '🐐', '🐑', '🐎', '🦓', '🐪', '🐫', '🐢', '🦎', '🐍', '🐸', '🐊'];
+
+            // --- Restricted TTS Voices ---
+            const defaultTTSVoices = ["Brian", "Emma", "Andrew"];
+
+            let gameState = {};
+            let gameRounds = [];
+            let currentTimer = null;
+            let practiceWord = null;
+            let animalInterval = null;
+            let correctSound; // For Tone.js
+
+            // TTS variables
+            const synth = window.speechSynthesis;
+            let voices = [];
+            let ttsQueue = [];
+            let isSpeaking = false;
+
+            // --- 2. DOM ELEMENTS ---
+            const screens = {
+                menu: document.getElementById('menu-screen'),
+                learn: document.getElementById('learn-screen'),
+                practice: document.getElementById('practice-screen'),
+                roundEnd: document.getElementById('round-end-screen'),
+                gameEnd: document.getElementById('game-end-screen'),
+            };
+
+            const learnHeader = document.getElementById('learn-header');
+            const learnCardDisplay = document.getElementById('learn-card-display');
+            const learnStatus = document.getElementById('learn-status');
+
+            const practiceHeader = document.getElementById('practice-header');
+            const p1NameScore = document.getElementById('p1-name-score');
+            const roundProgressText = document.getElementById('round-progress-text');
+            const currentWordDisplay = document.querySelector('#current-word-display h2');
+            const btnSpeakPractice = document.getElementById('btn-speak-practice');
+            const choiceContainerP1 = document.getElementById('choice-container-p1');
+            const timerBarInner = document.getElementById('timer-bar-inner');
+            
+            const roundEndHeader = document.getElementById('round-end-header');
+            const roundScoreSummary = document.getElementById('round-score-summary');
+            const gameWinnerText = document.getElementById('game-winner-text');
+            const finalScoreSummary = document.getElementById('final-score-summary');
+            const glitterContainer = document.getElementById('glitter-container');
+            const animalContainer = document.getElementById('animal-container');
+
+            // --- 3. CORE FUNCTIONS ---
+            
+            /**
+             * Initializes the game, loads voices, and sets up event listeners
+             */
+            function init() {
+                loadVoices();
+                setupWordRounds();
+                
+                // Initialize sound
+                correctSound = new Tone.Synth().toDestination();
+
+                // Main Menu Listeners
+                document.getElementById('btn-1p').addEventListener('click', () => {
+                    Tone.start(); // Start audio context on user click
+                    startGame();
+                });
+                
+                // Practice Screen Listener
+                btnSpeakPractice.addEventListener('click', () => {
+                    if (practiceWord) speak(practiceWord.word, 'en-US', defaultTTSVoices[0]);
+                });
+
+                // End Screen Listeners
+                document.getElementById('btn-quit-game').addEventListener('click', () => showScreen('menu'));
+                document.getElementById('btn-play-again').addEventListener('click', () => showScreen('menu'));
+            }
+
+            /**
+             * Shows a specific game screen and hides others
+             * @param {string} screenId - The ID of the screen to show (e.g., 'menu')
+             */
+            function showScreen(screenId) {
+                Object.values(screens).forEach(screen => {
+                    screen.classList.remove('active');
+                });
+                screens[screenId].classList.add('active');
+
+                // Manage animal emoji spawner
+                if (screenId === 'learn') {
+                    startAnimalSpawner();
+                } else {
+                    stopAnimalSpawner();
+                }
+            }
+
+            /**
+             * Shuffles the master word list and splits it into 7 rounds
+             */
+            function setupWordRounds() {
+                // Fisher-Yates Shuffle
+                let shuffled = [...allWords];
+                for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                }
+                
+                gameRounds = [];
+                for (let i = 0; i < 7; i++) {
+                    gameRounds.push(shuffled.slice(i * 7, (i + 1) * 7));
+                }
+            }
+
+            /**
+             * Finalizes player names and starts the first round
+             */
+            function startGame() {
+                setupWordRounds();
+                
+                gameState.p1 = { name: "Player", score: 0 };
+                p1NameScore.textContent = `Score: 0`;
+                
+                startRound(0);
+            }
+            
+            /**
+             * Starts a specific round (learning stage)
+             * @param {number} roundNum - The index of the round (0-6)
+             */
+            function startRound(roundNum) {
+                if (roundNum >= 7) {
+                    endGame();
+                    return;
+                }
+                
+                gameState.round = roundNum;
+                gameState.currentWordIndex = 0;
+                
+                learnHeader.textContent = `Round ${roundNum + 1} - Learning Stage`;
+                learnStatus.textContent = "";
+                
+                showScreen('learn');
+                showNextLearnCard();
+            }
+
+            /**
+             * Shows the next sequential card in the learning stage
+             */
+            function showNextLearnCard() {
+                if (gameState.currentWordIndex >= 7) {
+                    // Learning round is over
+                    learnStatus.textContent = "Get Ready!";
+                    learnCardDisplay.innerHTML = `<h2 class="text-5xl font-bold text-green-400">Round ${gameState.round + 1} Learning Complete!</h2>`;
+                    
+                    setTimeout(startPractice, 2500);
+                    return;
+                }
+
+                const word = gameRounds[gameState.round][gameState.currentWordIndex];
+                
+                learnCardDisplay.innerHTML = `
+                    <h2 class="text-6xl md:text-7xl font-black text-white mb-6">${word.word}</h2>
+                    <p class="text-3xl font-semibold text-fuchsia-300 mb-4">${word.synonym}</p>
+                    <h3 class="text-4xl font-bold text-cyan-300">${word.chinese}</h3>
+                `;
+                
+                // Speak the English word, using one of the 3 voices
+                speak(word.word, 'en-US', defaultTTSVoices[gameState.currentWordIndex % 3], () => {
+                    // This onEnd callback will be executed after speech finishes
+                    setTimeout(() => {
+                        gameState.currentWordIndex++;
+                        showNextLearnCard();
+                    }, 3500); // 3.5 second pause after word
+                });
+            }
+
+            /**
+             * Moves from the learning stage to the practice stage
+             */
+            function startPractice() {
+                showScreen('practice');
+                updateScoreboard();
+                gameState.currentWordIndex = 0; // Reset index for practice
+                showNextWord();
+            }
+
+            /**
+             * Displays the next word and choices for the practice round
+             */
+            function showNextWord() {
+                // Stop any previous timers
+                stopTimer();
+                resetButtons();
+                
+                // Check if round is over
+                if (gameState.currentWordIndex >= 7) {
+                    endRound();
+                    return;
+                }
+                
+                practiceWord = gameRounds[gameState.round][gameState.currentWordIndex];
+                currentWordDisplay.textContent = practiceWord.word;
+                roundProgressText.textContent = `Round ${gameState.round + 1}: ${gameState.currentWordIndex + 1} / 7`;
+                
+                // Speak the word automatically
+                speak(practiceWord.word, 'en-US', defaultTTSVoices[0]);
+                
+                createMultipleChoice(practiceWord);
+                startTimer();
+            }
+
+            /**
+             * Generates 1 correct and 3 incorrect multiple-choice options,
+             * showing BOTH synonym and Chinese.
+             * @param {object} correctWord - The word object for the correct answer
+             */
+            function createMultipleChoice(correctWord) {
+                choiceContainerP1.innerHTML = '';
+                
+                // Get 3 fake word objects
+                let fakes = [];
+                while (fakes.length < 3) {
+                    const randomWord = allWords[Math.floor(Math.random() * allWords.length)];
+                    if (randomWord.word !== correctWord.word && !fakes.some(f => f.word === randomWord.word)) {
+                        fakes.push(randomWord);
+                    }
+                }
+                
+                // Combine and shuffle the full word objects
+                let options = [correctWord, ...fakes];
+                for (let i = options.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [options[i], options[j]] = [options[j], options[i]];
+                }
+                
+                // Create buttons
+                options.forEach((option) => {
+                    const isCorrect = (option.word === correctWord.word);
+                    
+                    const buttonContent = `
+                        <span class="block text-xl md:text-2xl font-semibold text-white">${option.synonym}</span>
+                        <span class="block text-xl md:text-2xl font-bold text-cyan-300">${option.chinese}</span>
+                    `;
+
+                    // Create P1 Button
+                    const buttonP1 = document.createElement('button');
+                    buttonP1.className = 'btn-3d btn-gray !py-4 md:!py-6 relative flex flex-col items-center justify-center';
+                    buttonP1.innerHTML = buttonContent;
+                    if (isCorrect) buttonP1.dataset.correct = 'true';
+                    
+                    buttonP1.addEventListener('click', (e) => handleAnswer(e.currentTarget));
+                    choiceContainerP1.appendChild(buttonP1);
+                });
+            }
+
+
+            /**
+             * Handles 1-Player answer click
+             * @param {HTMLElement} button - The button that was clicked
+             */
+            function handleAnswer(button) {
+                // button is null if timer runs out
+                stopTimer();
+                
+                // Disable all buttons
+                choiceContainerP1.querySelectorAll('button').forEach(btn => btn.disabled = true);
+
+                if (!button) { // Timer ran out
+                     const correctBtn = choiceContainerP1.querySelector('[data-correct="true"]');
+                     if (correctBtn) correctBtn.classList.add('correct'); // Show correct answer
+                } else {
+                    const isCorrect = button.dataset.correct === 'true';
+                    if (isCorrect) {
+                        gameState.p1.score += 10;
+                        button.classList.add('correct');
+                        playGlitterEffect();
+                        correctSound.triggerAttackRelease("C5", "8n"); // PLAY SOUND
+                    } else {
+                        button.classList.add('incorrect');
+                        // Highlight the correct one
+                        const correctBtn = choiceContainerP1.querySelector('[data-correct="true"]');
+                        if (correctBtn) correctBtn.classList.add('correct');
+                    }
+                }
+                
+                updateScoreboard();
+                
+                setTimeout(() => {
+                    gameState.currentWordIndex++;
+                    showNextWord();
+                }, 1500);
+            }
+
+            /**
+             * Resets buttons for the next word
+             */
+            function resetButtons() {
+                document.querySelectorAll('.btn-3d[data-correct]').forEach(btn => {
+                    btn.disabled = false;
+                    btn.classList.remove('correct', 'incorrect');
+                    btn.style.border = 'none';
+                });
+            }
+
+            /**
+             * Starts the 10-second timer
+             */
+            function startTimer() {
+                stopTimer(); // Ensure no other timers are running
+                timerBarInner.style.transition = 'none'; // Reset transition
+                timerBarInner.style.width = '100%'; // Reset bar
+                
+                setTimeout(() => { // Allow bar to reset before animating
+                    timerBarInner.style.transition = 'width 10s linear';
+                    timerBarInner.style.width = '0%';
+                }, 10);
+                
+                currentTimer = setTimeout(() => {
+                    handleAnswer(null); // Timer ran out, counts as wrong
+                }, 10000);
+            }
+
+            /**
+             * Stops the current timer
+             */
+            function stopTimer() {
+                if (currentTimer) {
+                    clearTimeout(currentTimer);
+                    currentTimer = null;
+                }
+                // Freeze the progress bar
+                const currentWidth = timerBarInner.offsetWidth;
+                timerBarInner.style.transition = 'none';
+                timerBarInner.style.width = `${currentWidth}px`;
+            }
+
+            /**
+             * Updates the score display
+             */
+            function updateScoreboard() {
+                if (gameState.p1) {
+                    p1NameScore.textContent = `Score: ${gameState.p1.score}`;
+                }
+            }
+
+            /**
+             * Shows the round end screen
+             */
+            function endRound() {
+                roundEndHeader.textContent = `Round ${gameState.round + 1} Complete!`;
+                roundScoreSummary.innerHTML = `<p class="text-3xl">Score: ${gameState.p1.score}</p>`;
+                showScreen('roundEnd');
+                
+                // Fully automatic progression
+                if (gameState.round >= 6) { // If last round
+                    setTimeout(endGame, 3000); // Auto-proceed to final results
+                } else {
+                    setTimeout(() => startRound(gameState.round + 1), 3000);
+                }
+            }
+
+            /**
+             * Shows the final game over screen
+             */
+            function endGame() {
+                gameWinnerText.textContent = `Great Job!`;
+                finalScoreSummary.innerHTML = `<p class="text-3xl">Final Score: ${gameState.p1.score}</p>`;
+                showScreen('gameEnd');
+            }
+            
+            /**
+             * Spawns glitter particles for correct answers
+             */
+            function playGlitterEffect() {
+                const colors = ['#ec4899', '#f0abfc', '#3b82f6', '#0ea5e9', '#22c55e', '#fde047'];
+                for (let i = 0; i < 70; i++) {
+                    const glitter = document.createElement('div');
+                    glitter.className = 'glitter';
+                    glitter.style.left = `${Math.random() * 100}%`;
+                    glitter.style.top = `${Math.random() * 40 - 20}%`; // Start from top
+                    glitter.style.setProperty('--glitter-color', colors[Math.floor(Math.random() * colors.length)]);
+                    glitter.style.animationDelay = `${Math.random() * 0.5}s`;
+                    glitterContainer.appendChild(glitter);
+                    
+                    setTimeout(() => {
+                        glitter.remove();
+                    }, 2000);
+                }
+            }
+            
+            /**
+             * Spawns a single animal emoji
+             */
+            function spawnAnimal() {
+                const animal = document.createElement('div');
+                animal.className = 'animal-emoji';
+                animal.textContent = animalEmojis[Math.floor(Math.random() * animalEmojis.length)];
+                animal.style.top = `${Math.random() * 90}%`;
+                animal.style.fontSize = `${Math.random() * 1.5 + 1}rem`; // 1rem to 2.5rem
+                animal.style.animationDuration = `${Math.random() * 5 + 6}s`; // 6 to 11 seconds
+                
+                animalContainer.appendChild(animal);
+                
+                // Remove emoji after animation finishes
+                setTimeout(() => {
+                    animal.remove();
+                }, 11000);
+            }
+            
+            /**
+             * Starts the animal emoji spawner
+             */
+            function startAnimalSpawner() {
+                stopAnimalSpawner(); // Clear any existing
+                animalInterval = setInterval(spawnAnimal, 1500);
+            }
+            
+            /**
+             * Stops the animal emoji spawner
+             */
+            function stopAnimalSpawner() {
+                if (animalInterval) {
+                    clearInterval(animalInterval);
+                }
+                animalInterval = null;
+                animalContainer.innerHTML = ''; // Clear all current animals
+            }
+
+            // --- 4. TTS FUNCTIONS ---
+
+            /**
+             * Loads available system voices
+             */
+            function loadVoices() {
+                voices = synth.getVoices();
+                if (voices.length) {
+                    // console.log("Voices loaded:", voices.map(v => v.name));
+                } else {
+                    synth.onvoiceschanged = () => {
+                        voices = synth.getVoices();
+                        // console.log("Voices loaded (onvoiceschanged):", voices.map(v => v.name));
+                    };
+                }
+            }
+
+            /**
+             * Finds the best available voice, preferring user requests
+             * @param {string} lang - 'en-US' or 'zh-CN'
+             * @param {string} preferredName - e.g., 'Brian'
+             * @returns {SpeechSynthesisVoice}
+             */
+            function findVoice(lang, preferredName) {
+                if (voices.length === 0) {
+                    voices = synth.getVoices(); // Try one more time
+                }
+                // 1. Try to find the exact preferred name (e.g., "Microsoft Brian")
+                let voice = voices.find(v => v.lang === lang && v.name.includes(preferredName));
+                if (voice) return voice;
+
+                // 2. Try to find any "Microsoft" voice for that lang
+                voice = voices.find(v => v.lang === lang && v.name.includes('Microsoft'));
+                if (voice) return voice;
+
+                // 3. Try to find any default voice for that lang
+                voice = voices.find(v => v.lang === lang);
+                if (voice) return voice;
+
+                // 4. Fallback to any voice
+                return voices[0];
+            }
+            
+            /**
+             * Speaks text using the Web Speech API, with a queue
+             * @param {string} text - The text to speak
+             * @param {string} lang - 'en-US' or 'zh-CN'
+             * @param {string} preferredName - 'Brian', 'Emma', or 'Andrew'
+             * @param {function} onEndCallback - Optional callback for when speech finishes
+             */
+            function speak(text, lang, preferredName, onEndCallback = () => {}) {
+                if (!text || !synth) {
+                    console.warn("Speech synthesis not available or text is empty.");
+                    onEndCallback(); 
+                    return;
+                }
+                
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = lang;
+                utterance.rate = 0.85; // Slowed down as per user preference (85%)
+                utterance.voice = findVoice(lang, preferredName);
+                
+                utterance.onend = () => {
+                    isSpeaking = false;
+                    onEndCallback();
+                    processTTSQueue();
+                };
+                
+                utterance.onerror = (e) => {
+                    console.error("Speech synthesis error:", e);
+                    isSpeaking = false;
+                    onEndCallback(); // Call callback even on error to not stop the game
+                };
+                
+                isSpeaking = true;
+                synth.cancel(); // Clear any lingering speech
+                synth.speak(utterance);
+            }
+            
+            /**
+             * Processes the next item in the speech queue
+             */
+            function processTTSQueue() {
+                if (isSpeaking || ttsQueue.length === 0) {
+                    return;
+                }
+                isSpeaking = true;
+                synth.cancel(); 
+                synth.speak(ttsQueue.shift());
+            }
+
+    
+            // --- 5. START THE GAME ---
+            init();
+        });
+    </script>
+</body>
+</html>

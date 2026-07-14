@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galapagos Midterm Review</title>
+    <!-- Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use the Inter font, which is clean and readable */
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrolling */
+        }
+
+        /* --- Question & Answer Styling --- */
+        #question-container {
+            max-width: 900px;
+        }
+
+        #question-text {
+            font-size: clamp(1.75rem, 4vw, 3.25rem); 
+            line-height: 1.3;
+        }
+        
+        /* Restored Chinese text styling */
+        #question-text-zh {
+            font-size: clamp(1.25rem, 2.5vw, 2rem); /* Font size for Chinese */
+            color: #6b7280; /* gray-500 */
+            margin-top: 1.5rem;
+        }
+        
+        #answer-container {
+            /* Pushes content to the top */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            width: 100%;
+            min-height: 100vh;
+            padding: 10vh 2rem 2rem 2rem;
+            box-sizing: border-box;
+        }
+
+        #answer-text {
+            /* Increased font size, left-aligned */
+            font-size: clamp(1.75rem, 3.5vw, 3.25rem);
+            line-height: 1.45;
+            text-align: left;
+            max-width: 1200px;
+        }
+        
+        /* Base class for all words - layout properties moved here to prevent jumping */
+        .word-node {
+            display: inline-block; 
+            padding: 2px 4px; /* Always present so size doesn't change */
+            border-radius: 4px;
+            transition: background-color 0.1s ease-in-out;
+        }
+        
+        /* Class to highlight spoken words - only changes background color now */
+        .highlighted {
+            background-color: #fef08a; /* yellow-200 */
+            color: #000; 
+        }
+        
+        .word-node > b {
+            font-weight: bold; /* Ensure bold tags inside spans stay bold */
+        }
+
+
+        /* --- Timer Progress Bar --- */
+        #timer-bar {
+            width: 100%;
+            height: 40px;
+            background-color: #e5e7eb; /* gray-200 */
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #timer-progress {
+            width: 100%;
+            height: 100%;
+            border-radius: 20px 0 0 20px;
+            /* Animation for width and color */
+            transition: width 0.1s linear, background-color 0.5s linear;
+            position: relative;
+            background-color: hsl(120, 80%, 50%); /* Start green */
+            animation: pulse 2s infinite ease-in-out;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.85; }
+            100% { opacity: 1; }
+        }
+        
+        #timer-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #374151; /* gray-700 */
+        }
+
+        /* --- Sparkle/Glitter Effect --- */
+        #sparkle-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 50px; /* Area for sparkles to originate */
+            pointer-events: none;
+        }
+
+        .sparkle {
+            position: absolute;
+            background-color: #fff;
+            border-radius: 50%;
+            opacity: 0;
+            animation: sparkle-fly 1s ease-out forwards;
+            /* Glitter-like shape */
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        }
+
+        @keyframes sparkle-fly {
+            0% {
+                opacity: 0.8;
+                transform: translate(0, 0) scale(0.2);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-150px, var(--sparkle-y)) scale(var(--sparkle-scale)) rotate(360deg);
+            }
+        }
+
+        /* --- Vehicle (Now Animal) Animation --- */
+        #vehicle-marquee-container {
+            width: 100%;
+            overflow: hidden;
+            /* Adds a subtle fade on the left and right edges */
+            -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+        }
+
+        #vehicle-track {
+            font-size: clamp(2.5rem, 6vw, 4rem); /* Large emoji font size */
+            white-space: nowrap;
+            display: inline-block;
+            /* Animation: name, duration, timing-function, iteration-count */
+            animation: move-vehicles 30s linear infinite;
+        }
+        
+        /* Keyframes for the animation */
+        @keyframes move-vehicles {
+            0% {
+                transform: translateX(0%);
+            }
+            100% {
+                /* Move left by half the width */
+                transform: translateX(-50%); 
+            }
+        }
+
+        /* Utility class to hide elements */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-blue-50 text-gray-800">
+
+    <!-- Main Container: Aligned to top -->
+    <div id="app-container" class="min-h-screen w-full flex flex-col items-center justify-start p-4 pt-12 lg:p-8 lg:pt-20 transition-all duration-300">
+
+        <!-- Start Button (Initial View) -->
+        <div id="start-view" class="text-center">
+            <h1 class="text-4xl lg:text-6xl font-bold mb-8 text-blue-900">Galapagos Review</h1>
+            <button id="start-button" class="bg-gray-400 text-white font-bold py-4 px-10 rounded-full text-2xl shadow-lg transition-all" disabled>
+                Loading Voices...
+            </button>
+        </div>
+
+        <!-- Question View -->
+        <div id="question-view" class="hidden w-full max-w-4xl text-center">
+            <div id="question-container" class="mb-8">
+                <p id="question-text" class="text-gray-900"></p>
+            </div>
+            
+            <!-- Restored Translation Container -->
+            <div id="translation-container" class="w-full mt-6">
+                 <p id="question-text-zh"></p>
+            </div>
+            
+            <!-- Timer Container -->
+            <div id="timer-container" class="w-full mt-8">
+                <div id="timer-bar">
+                    <div id="timer-progress">
+                        <!-- Sparkles will be injected here by JS -->
+                        <div id="sparkle-container"></div>
+                    </div>
+                </div>
+                <div id="timer-text" class="mt-4">60s</div>
+            </div>
+            
+            <!-- Marquee Animation Container (Updated for Galapagos) -->
+            <div id="vehicle-marquee-container" class="w-full mt-12">
+                <div id="vehicle-track">
+                    🐢 🦎 🐦 🌊 🌋 🦀 🌵 🐟 🐬 🦦 🦕&nbsp;
+                    🐢 🦎 🐦 🌊 🌋 🦀 🌵 🐟 🐬 🦦 🦕&nbsp;
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Answer View -->
+        <div id="answer-view" class="hidden w-screen h-screen">
+            <div id="answer-container">
+                <p id="answer-text"></p>
+            </div>
+        </div>
+        
+        <!-- "Review Complete" View -->
+        <div id="complete-view" class="hidden text-center">
+            <h1 class="text-4xl lg:text-6xl font-bold mb-8 text-blue-900">Review Complete!</h1>
+            <button id="restart-button" class="bg-green-600 text-white font-bold py-4 px-10 rounded-full text-2xl shadow-lg hover:bg-green-700 transition-all transform hover:scale-105">
+                Restart
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 1. DATA AND STATE (UPDATED FOR GALAPAGOS) ---
+        // Restored translations
+
+        const reviewData = [
+            {
+                question: "Where are the <b>Galapagos Islands</b> located, and why is their <b>isolation</b> important for <b>evolution</b>?",
+                question_zh: "加拉帕戈斯群岛位于哪里？为什么它们的隔离 (isolation) 对进化 (evolution) 很重要？",
+                answer: "The islands are located in the <b>Pacific Ocean</b>, about 1,000 km from South America. Their <b>isolation</b> is crucial because species arrived there and <b>evolved</b> independently without influence or competition from mainland species."
+            },
+            {
+                question: "Who was <b>Charles Darwin</b>, and what famous ship did he sail on to reach the <b>Galapagos</b>?",
+                question_zh: "谁是查尔斯·达尔文 (Charles Darwin)？他乘坐哪艘著名的船到达加拉帕戈斯群岛？",
+                answer: "<b>Charles Darwin</b> was a British naturalist who developed the theory of <b>evolution</b> by <b>natural selection</b>. He arrived in the Galapagos in 1835 aboard the ship <b>HMS Beagle</b>."
+            },
+            {
+                question: "Explain the concept of <b>endemic species</b>. Can you give one example from the Galapagos?",
+                question_zh: "请解释特有物种 (endemic species) 的概念。你能举一个加拉帕戈斯的例子吗？",
+                answer: "An <b>endemic species</b> is a plant or animal that is found <b>only</b> in one specific location and nowhere else on Earth. A famous example is the <b>Marine Iguana</b>, the only lizard in the world that swims in the ocean."
+            },
+            {
+                question: "How did the <b>finches</b> on different islands inspire Darwin's theory of <b>natural selection</b>?",
+                question_zh: "不同岛屿上的雀鸟 (finches) 是如何激发达尔文的自然选择 (natural selection) 理论的？",
+                answer: "Darwin noticed that <b>finches</b> on different islands had different <b>beak shapes</b>. He realized they had <b>adapted</b> to the specific food sources available on their island, such as seeds, insects, or cactus flowers."
+            },
+            {
+                question: "What is unique about the <b>Galapagos Giant Tortoise</b>, and how does its shell shape relate to its <b>habitat</b>?",
+                question_zh: "加拉帕戈斯象龟 (Giant Tortoise) 有什么独特之处？它的壳形状与它的栖息地 (habitat) 有什么关系？",
+                answer: "These tortoises are the largest in the world. Tortoises with <b>dome-shaped shells</b> live in wet areas with low vegetation, while those with <b>saddleback shells</b> live in dry areas and have long necks to reach high cactus pads."
+            },
+            {
+                question: "How were the <b>Galapagos Islands</b> formed geologically?",
+                question_zh: "加拉帕戈斯群岛在地质上是如何形成的？",
+                answer: "The islands are <b>volcanic</b>. They were formed by a <b>hotspot</b> in the Earth's crust. As the tectonic plate moved over the hotspot, magma rose up to create a chain of <b>volcanoes</b> that became the islands."
+            },
+            {
+                question: "Why are the <b>Marine Iguanas</b> black, and why do they sneeze salt?",
+                question_zh: "为什么海鬣蜥 (Marine Iguanas) 是黑色的？它们为什么会打喷嚏排出盐分？",
+                answer: "They are <b>black</b> to absorb heat from the sun quickly after swimming in cold water. They sneeze to remove the excess <b>salt</b> they swallow while eating <b>algae</b> underwater."
+            },
+            {
+                question: "What is <b>adaptive radiation</b>?",
+                question_zh: "什么是适应性辐射 (adaptive radiation)？",
+                answer: "<b>Adaptive radiation</b> is when a single species evolves into many different species to fill different <b>ecological niches</b>. The Galapagos <b>finches</b> are the perfect example of this process."
+            },
+            {
+                question: "What are the biggest <b>threats</b> to the Galapagos biodiversity today?",
+                question_zh: "今天加拉帕戈斯生物多样性面临的最大威胁 (threats) 是什么？",
+                answer: "The biggest threats are <b>invasive species</b> (like rats, goats, and blackberries) that compete with native animals, as well as <b>climate change</b> and the pressure from increased <b>tourism</b>."
+            },
+            {
+                question: "Why do <b>Blue-footed Boobies</b> have blue feet?",
+                question_zh: "为什么蓝脚鲣鸟 (Blue-footed Boobies) 有蓝色的脚？",
+                answer: "The blue color comes from pigments in their diet of fresh fish. During mating rituals, males show off their feet; brighter blue feet indicate the bird is <b>healthy</b> and a good hunter, making him more attractive to females."
+            }
+        ];
+
+        // --- State Variables ---
+        let currentQuestionIndex = 0;
+        let timerInterval;
+        let sparkleInterval;
+        let timerSeconds = 60;
+        let allVoices = [];
+        let selectedVoices = []; // Will hold the specific MS Online voices
+        let voiceIndex = 0;
+        let allWordNodes = []; // For speech highlighting
+        let currentHighlightIndex = 0; // For speech highlighting
+
+        // --- DOM Elements ---
+        const startView = document.getElementById('start-view');
+        const questionView = document.getElementById('question-view');
+        const answerView = document.getElementById('answer-view');
+        const completeView = document.getElementById('complete-view');
+        
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        
+        const questionText = document.getElementById('question-text');
+        const questionTextZh = document.getElementById('question-text-zh'); // Restored
+        const answerText = document.getElementById('answer-text');
+        
+        const timerText = document.getElementById('timer-text');
+        const timerProgress = document.getElementById('timer-progress');
+        const sparkleContainer = document.getElementById('sparkle-container');
+        
+
+        // --- 2. CORE FUNCTIONS ---
+
+        /**
+         * Initializes the application.
+         * Loads voices and sets up event listeners.
+         */
+        function init() {
+            // Load voices first
+            loadVoices();
+            
+            // Set up button listeners
+            startButton.addEventListener('click', startReview);
+            restartButton.addEventListener('click', startReview);
+            
+            // This is a failsafe in case voiceschange isn't supported or fails
+            setTimeout(loadVoices, 1000); 
+        }
+
+        /**
+         * Loads and filters the available system voices.
+         * Specifically searches for the Microsoft Online voices.
+         */
+        function loadVoices() {
+            allVoices = window.speechSynthesis.getVoices();
+            if (allVoices.length === 0) {
+                // Listen for the event that fires when voices are loaded
+                window.speechSynthesis.onvoiceschanged = () => {
+                    allVoices = window.speechSynthesis.getVoices();
+                    filterAndEnableVoices();
+                };
+            } else {
+                filterAndEnableVoices();
+            }
+        }
+        
+        /**
+         * Filters for the requested MS voices and enables the start button.
+         */
+        function filterAndEnableVoices() {
+            const voiceNames = [
+                "Microsoft Andrew Online (Natural) - English (United States)",
+                "Microsoft Emma Online (Natural) - English (United States)",
+                "Microsoft Emma Online (Natural) - English (UnitedStates)"
+            ];
+
+            selectedVoices = allVoices.filter(voice => {
+                if (voiceNames.includes(voice.name)) return true;
+                
+                return voice.lang === "en-US" &&
+                       voice.name.includes("Microsoft") && 
+                       voice.name.includes("Online") && 
+                       (voice.name.includes("Andrew") || voice.name.includes("Emma"));
+            });
+
+            // Fallback
+            if (selectedVoices.length === 0) {
+                console.warn("Could not find specific MS Online voices. Falling back to default en-US voices.");
+                selectedVoices = allVoices.filter(voice => voice.lang === "en-US");
+            }
+            
+            if (selectedVoices.length === 0) {
+                 console.error("No en-US voices found!");
+                 startButton.innerText = "Error: No Voices Found";
+                 startButton.disabled = true;
+                 startButton.classList.add('bg-red-500');
+                 startButton.classList.remove('bg-gray-400');
+            } else {
+                console.log("Voices loaded:", selectedVoices.map(v => v.name));
+                startButton.innerText = "Start Review";
+                startButton.disabled = false;
+                startButton.classList.remove('bg-gray-400');
+                startButton.classList.add('bg-blue-600', 'hover:bg-blue-700', 'transform', 'hover:scale-105');
+            }
+        }
+
+        /**
+         * Starts or restarts the review.
+         */
+        function startReview() {
+            currentQuestionIndex = 0;
+            voiceIndex = 0;
+            
+            startView.classList.add('hidden');
+            answerView.classList.add('hidden');
+            completeView.classList.add('hidden');
+            
+            showQuestion();
+        }
+
+        /**
+         * Displays the current question and starts the timer.
+         */
+        function showQuestion() {
+            if (currentQuestionIndex >= reviewData.length) {
+                showCompletionScreen();
+                return;
+            }
+
+            const data = reviewData[currentQuestionIndex];
+
+            questionText.innerHTML = data.question; 
+            questionTextZh.innerText = data.question_zh; // Restored
+            
+            answerView.classList.add('hidden');
+            completeView.classList.add('hidden');
+            questionView.classList.remove('hidden');
+
+            resetTimer();
+            
+            // START TIMER IMMEDIATELY
+            startTimer();
+            
+            // Then start speaking
+            speakText(data.question);
+        }
+
+        /**
+         * Displays the answer for the current question.
+         */
+        function showAnswer() {
+            const data = reviewData[currentQuestionIndex];
+
+            answerText.innerHTML = data.answer;
+            
+            questionView.classList.add('hidden');
+            answerView.classList.remove('hidden');
+            
+            speakAndHighlightAnswer(data.answer, () => {
+                setTimeout(() => {
+                    currentQuestionIndex++;
+                    showQuestion();
+                }, 1500);
+            });
+        }
+
+        /**
+         * Displays the completion screen.
+         */
+        function showCompletionScreen() {
+            startView.classList.add('hidden');
+            questionView.classList.add('hidden');
+            answerView.classList.add('hidden');
+            completeView.classList.remove('hidden');
+        }
+
+        // --- 3. TIMER & EFFECTS FUNCTIONS ---
+
+        function startTimer() {
+            timerSeconds = 60;
+            updateTimerDisplay();
+            
+            sparkleInterval = setInterval(createSparkle, 100);
+
+            timerInterval = setInterval(() => {
+                timerSeconds--;
+                updateTimerDisplay();
+
+                if (timerSeconds <= 0) {
+                    timeUp();
+                } 
+            }, 1000);
+        }
+
+        function timeUp() {
+            clearInterval(timerInterval);
+            clearInterval(sparkleInterval);
+            
+            setTimeout(() => {
+                showAnswer();
+            }, 1500);
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            clearInterval(sparkleInterval);
+            
+            timerSeconds = 60;
+            timerText.innerText = "60s";
+            timerProgress.style.width = '100%';
+            timerProgress.style.backgroundColor = 'hsl(120, 80%, 50%)';
+            sparkleContainer.innerHTML = '';
+        }
+
+        function updateTimerDisplay() {
+            timerText.innerText = `${timerSeconds}s`;
+            
+            const percentage = (timerSeconds / 60) * 100;
+            timerProgress.style.width = `${percentage}%`;
+
+            const hue = (percentage / 100) * 120;
+            timerProgress.style.backgroundColor = `hsl(${hue}, 80%, 50%)`;
+        }
+
+        function createSparkle() {
+            const sparkle = document.createElement('div');
+            sparkle.className = 'sparkle';
+            
+            const y = Math.random() * timerProgress.clientHeight;
+            const scale = 0.5 + Math.random() * 0.5;
+            const animY = (Math.random() - 0.5) * 80;
+
+            sparkle.style.setProperty('--sparkle-y', `${animY}px`);
+            sparkle.style.setProperty('--sparkle-scale', scale);
+            sparkle.style.top = `${y}px`;
+            sparkle.style.right = '0px'; 
+            
+            sparkle.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 75%)`;
+
+            sparkleContainer.appendChild(sparkle);
+
+            setTimeout(() => {
+                sparkle.remove();
+            }, 1000);
+        }
+
+        // --- 4. SPEECH & HIGHLIGHTING FUNCTIONS ---
+
+        /**
+         * Generic speak function.
+         * Default rate set to 0.85 (85%) based on user preference.
+         */
+        function speakText(text, onEndCallback, rate = 0.85) {
+            window.speechSynthesis.cancel();
+            
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = text;
+            const plainText = tempDiv.textContent || tempDiv.innerText || "";
+
+            const utterance = new SpeechSynthesisUtterance(plainText);
+            
+            const voice = selectedVoices[voiceIndex % selectedVoices.length];
+            voiceIndex++;
+            
+            utterance.voice = voice;
+            utterance.rate = rate; 
+            utterance.pitch = 1.0;
+            
+            console.log(`Speaking with: ${voice.name}`);
+
+            let keepAliveInterval = null; 
+
+            if (onEndCallback) {
+                utterance.onend = () => {
+                    clearInterval(keepAliveInterval);
+                    onEndCallback();
+                };
+            } else {
+                utterance.onend = () => {
+                    clearInterval(keepAliveInterval);
+                };
+            }
+            
+            utterance.onerror = (event) => {
+                console.error("Speech synthesis error:", event);
+                clearInterval(keepAliveInterval);
+                if (onEndCallback) {
+                    onEndCallback();
+                }
+            };
+
+            window.speechSynthesis.speak(utterance);
+
+            keepAliveInterval = setInterval(() => {
+                window.speechSynthesis.pause();
+                window.speechSynthesis.resume();
+            }, 5000);
+        }
+
+        /**
+         * Speaks answer with highlighting.
+         * Rate set to 0.85 (85%) based on user preference.
+         */
+        function speakAndHighlightAnswer(answerHtml, onEndCallback) {
+            window.speechSynthesis.cancel();
+            
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = answerHtml;
+            const plainText = tempDiv.textContent || tempDiv.innerText || "";
+
+            allWordNodes = [];
+            currentHighlightIndex = 0;
+            
+            answerText.innerHTML = answerHtml;
+            setupHighlighting(answerText.childNodes);
+
+            const utterance = new SpeechSynthesisUtterance(plainText);
+            
+            const voice = selectedVoices[voiceIndex % selectedVoices.length];
+            voiceIndex++;
+            
+            utterance.voice = voice;
+            utterance.rate = 0.85; // Enforce 85% speed
+            utterance.pitch = 1.0;
+            
+            let lastHighlightedNode = null;
+            let keepAliveInterval = null;
+
+            utterance.onboundary = (event) => {
+                if (event.name === 'word') {
+                    if (lastHighlightedNode) {
+                        lastHighlightedNode.classList.remove('highlighted');
+                    }
+                    
+                    const nodeToHighlight = allWordNodes[currentHighlightIndex];
+                    
+                    if (nodeToHighlight) {
+                        nodeToHighlight.classList.add('highlighted');
+                        lastHighlightedNode = nodeToHighlight;
+                        currentHighlightIndex++;
+                    }
+                }
+            };
+
+            utterance.onend = () => {
+                clearInterval(keepAliveInterval);
+                if (lastHighlightedNode) {
+                    lastHighlightedNode.classList.remove('highlighted');
+                }
+                if (onEndCallback) {
+                    onEndCallback();
+                }
+            };
+            
+            utterance.onerror = (event) => {
+                console.error("Speech synthesis error:", event);
+                clearInterval(keepAliveInterval);
+                if (onEndCallback) {
+                    onEndCallback();
+                }
+            };
+
+            window.speechSynthesis.speak(utterance);
+            
+            keepAliveInterval = setInterval(() => {
+                window.speechSynthesis.pause();
+                window.speechSynthesis.resume();
+            }, 5000);
+        }
+        
+        /**
+         * REVISED 2.0: Smart whitespace handling to prevent double spacing issues
+         */
+        function setupHighlighting(nodes) {
+            Array.from(nodes).forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const rawText = node.textContent;
+                    const text = rawText.trim();
+                    
+                    if (text) {
+                        const words = text.split(/\s+/).filter(Boolean);
+                        const parent = node.parentNode;
+                        
+                        const fragment = document.createDocumentFragment();
+                        
+                        // 1. Preserve leading whitespace if it existed in the original text node
+                        if (/^\s/.test(rawText)) {
+                            fragment.appendChild(document.createTextNode(' '));
+                        }
+                        
+                        words.forEach((word, index) => {
+                            const span = document.createElement('span');
+                            span.textContent = word; 
+                            span.className = 'word-node';
+                            fragment.appendChild(span);
+                            
+                            // 2. Add a single space between words
+                            if (index < words.length - 1) { 
+                                fragment.appendChild(document.createTextNode(' '));
+                            }
+                            
+                            allWordNodes.push(span);
+                        });
+
+                        // 3. Preserve trailing whitespace if it existed in the original text node
+                        if (/\s$/.test(rawText)) {
+                             fragment.appendChild(document.createTextNode(' '));
+                        }
+
+                        parent.insertBefore(fragment, node);
+                        parent.removeChild(node);
+                    } else if (/\s/.test(rawText)) {
+                         // If the text node was ONLY whitespace (e.g. space between </b> and <b>), preserve it
+                         const parent = node.parentNode;
+                         parent.insertBefore(document.createTextNode(' '), node);
+                         parent.removeChild(node);
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.hasChildNodes() && node.firstChild.nodeType === Node.TEXT_NODE && node.childNodes.length === 1) {
+                        // Mark elements like <b>bold</b> as word nodes, but DO NOT blindly inject spaces after them
+                        node.classList.add('word-node'); 
+                        allWordNodes.push(node);
+                    } else if (node.hasChildNodes()) {
+                        setupHighlighting(node.childNodes);
+                    }
+                }
+            });
+        }
+
+        init();
+
+    </script>
+</body>
+</html>

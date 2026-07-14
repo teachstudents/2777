@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unit 9: The Electric Avenue</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Using a system font stack for broad compatibility and performance -->
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            overscroll-behavior: none;
+            transition: background-color 2s ease-in-out;
+            background-color: #dcfce7; /* Initial color for Unit 9 */
+        }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes correctBounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .menu-button, .nav-button, .action-button {
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        .menu-button:hover, .nav-button:hover, .action-button:hover {
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+        .menu-button:active, .nav-button:active, .action-button:active {
+            transform: translateY(-1px) scale(0.98);
+        }
+        .quiz-option {
+            transition: all 0.2s ease-in-out;
+            border: 2px solid #e5e7eb;
+        }
+        .quiz-option:hover:not(:disabled) {
+            background-color: #dcfce7; /* light green */
+            border-color: #22c55e; /* green */
+            transform: scale(1.02);
+        }
+        .feedback-modal {
+            display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%;
+            overflow: auto; background-color: rgba(0,0,0,0.5); justify-content: center; align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .feedback-modal.show { display: flex; }
+        .feedback-modal-content.correct { animation: correctBounce 0.5s ease; }
+        .matching-line {
+            stroke: #4ade80; stroke-width: 3; stroke-dasharray: 5;
+            animation: drawLine 0.8s ease-out forwards; transition: all 0.3s ease;
+        }
+        @keyframes drawLine {
+            from { stroke-dashoffset: 1000; }
+            to { stroke-dashoffset: 0; }
+        }
+        .point-token {
+            position: fixed; left: 50%; top: 50%; width: 20px; height: 20px;
+            background-color: #facc15; border-radius: 50%; border: 2px solid #ca8a04;
+            z-index: 200; transition: all 1s cubic-bezier(0.5, -0.5, 0.5, 1.5);
+            pointer-events: none; opacity: 1;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+
+    <!-- Tone.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <!-- Navigation Header -->
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm shadow-sm" style="display: none;">
+        <div class="max-w-4xl mx-auto p-2 flex justify-between items-center">
+            <button onclick="goBack()" class="nav-button bg-white text-gray-700 font-bold py-2 px-4 rounded-full hover:bg-gray-200 flex items-center gap-2 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+            Back
+            </button>
+            <div class="font-bold text-xl text-green-600">
+                Score: <span id="score-display">0</span>
+            </div>
+            <button onclick="navigateTo(1)" class="nav-button bg-gray-800 text-white font-bold py-2 px-4 rounded-full hover:bg-gray-900 flex items-center gap-2 text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L10 4.414l5.293 5.293a1 1 0 001.414-1.414l-7-7z" /><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm0 2a10 10 0 100-20 10 10 0 000 20z" /></svg>
+              Home
+            </button>
+            <button onclick="goNext()" class="nav-button bg-green-500 text-white font-bold py-2 px-4 rounded-full hover:bg-green-600 flex items-center gap-2 text-lg">
+            Next
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+            </button>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8 pt-20">
+
+        <!-- Page 0: Title Screen -->
+        <section id="page-0" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 class="text-5xl md:text-6xl font-bold text-green-700 mb-4">Unit 9: The Electric Avenue</h1>
+                <p class="text-xl md:text-2xl text-gray-600 mb-8">Benefits of E-Bikes and E-Buses</p>
+                <svg viewBox="0 0 600 300" class="rounded-lg shadow-md mb-8 w-full max-w-lg mx-auto" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="skyGradient9" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" style="stop-color:#f0fdf4;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#dcfce7;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <rect width="600" height="300" fill="url(#skyGradient9)"/>
+                    <text x="100" y="180" font-size="120">🚲</text>
+                    <text x="350" y="180" font-size="120">🚌</text>
+                    <text x="260" y="180" font-size="60">⚡️</text>
+                    <text x="50" y="80" font-size="40">🌳</text>
+                    <text x="500" y="80" font-size="40">🍃</text>
+                </svg>
+                <button onclick="startApp()" class="action-button bg-green-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-green-700">
+                    START LESSON
+                </button>
+            </div>
+        </section>
+
+        <!-- Page 1: Main Menu -->
+        <section id="page-1" class="page">
+            <div class="bg-white rounded-2xl shadow-lg p-8">
+                <h2 class="text-4xl font-bold text-center text-green-700 mb-8">Main Menu</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <button onclick="navigateTo(501)" class="menu-button bg-lime-500 text-white p-6 rounded-xl text-xl font-semibold">💡 Vocabulary</button>
+                    <button onclick="navigateTo(512)" class="menu-button bg-green-500 text-white p-6 rounded-xl text-xl font-semibold">📖 Reading</button>
+                    <button onclick="navigateTo(517)" class="menu-button bg-emerald-500 text-white p-6 rounded-xl text-xl font-semibold">🗣️ Conversation</button>
+                    <button onclick="navigateTo(520)" class="menu-button bg-teal-500 text-white p-6 rounded-xl text-xl font-semibold">🎙️ Podcast</button>
+                    <button onclick="navigateTo(540)" class="menu-button bg-cyan-500 text-white p-6 rounded-xl text-xl font-semibold">🎤 Lecture</button>
+                    <button onclick="navigateTo(545)" class="menu-button bg-red-500 text-white p-6 rounded-xl text-xl font-semibold">🤔 Dilemmas</button>
+                    <button onclick="navigateTo(553)" class="menu-button bg-sky-500 text-white p-6 rounded-xl text-xl font-semibold">🎯 Mission</button>
+                    <button onclick="navigateTo(550)" class="menu-button bg-indigo-500 text-white p-6 rounded-xl text-xl font-semibold">📜 Unit Plan</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Container for ALL lesson pages -->
+        <div id="dynamic-pages-container"></div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="feedback-modal">
+        <div id="modal-content" class="feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80">
+            <div id="modal-icon" class="mb-4 text-6xl flex justify-center"></div>
+            <h2 id="modal-title" class="text-4xl font-bold mb-4"></h2>
+            <p id="modal-message" class="text-gray-600"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Game State ---
+            let score = 0;
+            const scoreDisplay = document.getElementById('score-display');
+            let modalTimeout;
+
+            const correctFeedback = ["That's right!", "You got it!", "Excellent!", "Perfect!", "Great thinking!", "Awesome!", "Nailed it!", "Superb!"];
+            const incorrectFeedback = ["Not quite!", "Try again!", "Keep trying!", "You'll get the next one!"];
+            
+            // --- Dynamic Background ---
+            const backgroundColors = ['#f0fdf4', '#dcfce7', '#ecfdf5', '#e0f2fe', '#f3e8ff'];
+            let bgColorIndex = 0;
+            setInterval(() => {
+                bgColorIndex = (bgColorIndex + 1) % backgroundColors.length;
+                document.body.style.backgroundColor = backgroundColors[bgColorIndex];
+            }, 5000);
+
+            // --- Score Animation ---
+            function animatePoints(points) {
+                const scoreEl = document.getElementById('score-display');
+                const rect = scoreEl.getBoundingClientRect();
+                const targetX = rect.left + rect.width / 2;
+                const targetY = rect.top + rect.height / 2;
+
+                for (let i = 0; i < points; i++) {
+                    const token = document.createElement('div');
+                    token.className = 'point-token';
+                    document.body.appendChild(token);
+                    
+                    const startX = window.innerWidth / 2 + (Math.random() - 0.5) * 100;
+                    const startY = window.innerHeight / 2 + (Math.random() - 0.5) * 100;
+                    token.style.transform = `translate(${startX - (window.innerWidth/2)}px, ${startY - (window.innerHeight/2)}px)`;
+
+                    setTimeout(() => {
+                        token.style.left = `${targetX}px`;
+                        token.style.top = `${targetY}px`;
+                        token.style.transform = 'scale(0.5)';
+                        token.style.opacity = '0';
+                    }, 50 + i * 30);
+
+                    setTimeout(() => {
+                        token.remove();
+                    }, 1050 + i * 30);
+                }
+            }
+
+            function updateScore(points) {
+                score += points;
+                animatePoints(points);
+                setTimeout(() => {
+                    scoreDisplay.textContent = score;
+                }, 800);
+            }
+
+            // --- Audio & TTS Initialization ---
+            let audioReady = false;
+            let ttsInitialized = false;
+            let synth;
+            const synthTTS = window.speechSynthesis;
+            let maleVoice = null;
+            let femaleVoice = null;
+            let britishMaleVoice = null;
+            let isSpeakingDialogue = false;
+
+            const voicesPromise = new Promise(resolve => {
+                let voices = synthTTS.getVoices();
+                if (voices.length > 0) {
+                    resolve(voices);
+                    return;
+                }
+                const onVoicesChanged = () => {
+                    voices = synthTTS.getVoices();
+                    if (voices.length > 0) {
+                        resolve(voices);
+                        synthTTS.onvoiceschanged = null;
+                    }
+                };
+                synthTTS.onvoiceschanged = onVoicesChanged;
+            });
+
+            async function setupVoices() {
+                console.log("Attempting to set up voices...");
+                const voices = await voicesPromise;
+                console.log(`Found ${voices.length} voices.`);
+                if (voices.length === 0) {
+                    console.error("No speech synthesis voices available on this browser.");
+                    return;
+                }
+
+                const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+                
+                femaleVoice = englishVoices.find(v => /female/i.test(v.name)) || englishVoices.find(v => v.default);
+                maleVoice = englishVoices.find(v => /male/i.test(v.name) && !v.lang.startsWith('en-GB')) || englishVoices.find(v => v !== femaleVoice);
+                
+                const britishVoices = englishVoices.filter(v => v.lang.startsWith('en-GB'));
+                britishMaleVoice = britishVoices.find(v => /male/i.test(v.name)) || britishVoices[0];
+
+                if (!femaleVoice && englishVoices.length > 0) femaleVoice = englishVoices[0];
+                if (!maleVoice && englishVoices.length > 0) maleVoice = englishVoices.find(v => v !== femaleVoice) || englishVoices[0];
+
+                console.log("Selected Female Voice:", femaleVoice ? femaleVoice.name : "None");
+                console.log("Selected Male Voice:", maleVoice ? maleVoice.name : "None");
+                console.log("Selected British Male Voice:", britishMaleVoice ? britishMaleVoice.name : "None (will use standard male)");
+            }
+
+            window.startApp = async function() {
+                if (!audioReady) {
+                    try {
+                        await Tone.start();
+                        synth = new Tone.PolySynth(Tone.Synth).toDestination();
+                        audioReady = true;
+                        console.log("Audio context started successfully.");
+                    } catch (e) {
+                        console.error("Could not start audio context:", e);
+                    }
+                }
+
+                if (!ttsInitialized && synthTTS) {
+                    try {
+                        await setupVoices();
+                        ttsInitialized = true;
+                        console.log("TTS Initialized by user action.");
+                    } catch (e) {
+                        console.error("Could not initialize TTS:", e);
+                    }
+                }
+                navigateTo(1);
+            }
+
+            window.playCorrectSound = () => { if (audioReady) synth.triggerAttackRelease(["C5", "E5", "G5"], "8n"); };
+            window.playIncorrectSound = () => { if (audioReady) synth.triggerAttackRelease("C3", "8n"); };
+
+            function speak(text, voice) {
+                return new Promise(resolve => {
+                    if (!ttsInitialized) { console.warn("TTS not initialized."); resolve(); return; }
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.voice = voice;
+                    utterance.rate = 0.85;
+                    utterance.onend = resolve;
+                    utterance.onerror = (e) => { console.error("Speech synthesis error:", e); resolve(); };
+                    synthTTS.speak(utterance);
+                });
+            }
+            
+            function autoReadVocabulary(pageElement) {
+                if (synthTTS.speaking) {
+                    isSpeakingDialogue = false;
+                    synthTTS.cancel();
+                }
+                const keyword = pageElement.querySelector('h2').textContent;
+                const definition = pageElement.querySelector('p:nth-of-type(1)').textContent;
+                const example = pageElement.querySelector('p:nth-of-type(2)').textContent;
+                const textToSpeak = `${keyword}. ${definition}. ${example}`;
+                
+                setTimeout(() => {
+                    speak(textToSpeak, femaleVoice);
+                }, 500); 
+            }
+
+            async function speakDialogue(lines) {
+                isSpeakingDialogue = true;
+                for (const line of lines) {
+                    if (!isSpeakingDialogue) break;
+                    await speak(line.text, line.voice);
+                }
+                isSpeakingDialogue = false;
+            }
+            
+            window.readDialogue = async function(buttonElement) {
+                if (isSpeakingDialogue) {
+                    isSpeakingDialogue = false;
+                    synthTTS.cancel();
+                    return;
+                }
+
+                const contentParent = buttonElement.closest('.page');
+                const readableContent = contentParent.querySelector('.readable-content');
+                if (!readableContent) return;
+                
+                const speakerVoices = {
+                    'Chris': britishMaleVoice || maleVoice, 'Ben': britishMaleVoice || maleVoice,
+                    'Alex': maleVoice, 'Lecturer': maleVoice, 'Ali': maleVoice, 'Leo': maleVoice,
+                    'Sarah': femaleVoice, 'Bella': femaleVoice, 'Sara': femaleVoice, 'Anna': femaleVoice, 'Speaker': femaleVoice
+                };
+
+                const lines = Array.from(readableContent.querySelectorAll('p')).map(p => {
+                    const speakerTag = p.querySelector('strong');
+                    if (speakerTag) {
+                        const speakerName = speakerTag.textContent.replace(':', '').trim();
+                        const text = p.innerText.replace(speakerTag.innerText, '').trim();
+                        return { text, voice: speakerVoices[speakerName] || femaleVoice };
+                    }
+                    return null;
+                }).filter(Boolean);
+
+                speakDialogue(lines);
+            }
+
+            window.readText = function(buttonElement) {
+                if (isSpeakingDialogue) {
+                    isSpeakingDialogue = false;
+                    synthTTS.cancel();
+                }
+                const readableContent = buttonElement.closest('.page').querySelector('.readable-content');
+                if (readableContent) {
+                    const textToSpeak = readableContent.innerText.replace(/________/g, 'blank');
+                    speak(textToSpeak, femaleVoice);
+                }
+            }
+            
+            // --- State Management & Navigation ---
+            let currentPage = 0;
+            const pageSequence = [0, 1, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 512, 513, 514, 515, 516, 517, 518, 519, 520, 521, 522, 523, 524, 540, 541, 542, 543, 544, 545, 546, 550, 551, 552, 553, 554];
+            const pageHistory = [0];
+
+            window.navigateTo = function(pageNumber) {
+                if (synthTTS.speaking) {
+                    synthTTS.cancel();
+                    isSpeakingDialogue = false;
+                }
+                const targetPage = document.getElementById(`page-${pageNumber}`);
+                if (!targetPage) {
+                    console.error(`Page with ID 'page-${pageNumber}' not found.`);
+                    return;
+                }
+                if (pageNumber === currentPage) return;
+
+                const currentPageEl = document.getElementById(`page-${currentPage}`);
+                if (currentPageEl) currentPageEl.classList.remove('active');
+                targetPage.classList.add('active');
+                currentPage = pageNumber;
+                if (pageHistory[pageHistory.length - 1] !== currentPage) {
+                        pageHistory.push(currentPage);
+                }
+                updateNavButtons();
+                window.scrollTo(0, 0);
+
+                if (pageNumber >= 501 && pageNumber <= 510) {
+                    autoReadVocabulary(targetPage);
+                }
+            }
+
+            window.goNext = function() {
+                const currentIndex = pageSequence.indexOf(currentPage);
+                if (currentIndex > -1 && currentIndex < pageSequence.length - 1) {
+                    navigateTo(pageSequence[currentIndex + 1]);
+                }
+            }
+
+            window.goBack = function() {
+                if (pageHistory.length > 1) {
+                    pageHistory.pop(); 
+                    const previousPage = pageHistory[pageHistory.length - 1];
+                    navigateTo(previousPage);
+                }
+            }
+
+            function updateNavButtons() {
+                const navHeader = document.getElementById('nav-header');
+                if (!navHeader) return;
+                const backButton = navHeader.querySelector('button:first-child');
+                const nextButton = navHeader.querySelector('button:last-child');
+                
+                navHeader.style.display = (currentPage === 0) ? 'none' : 'flex';
+                backButton.disabled = pageHistory.length <= 1;
+                backButton.classList.toggle('opacity-50', backButton.disabled);
+                
+                const currentIndex = pageSequence.indexOf(currentPage);
+                const isLastPageOfSequence = currentIndex === -1 || currentIndex >= pageSequence.length - 1;
+                const isMainMenu = currentPage === 1;
+
+                nextButton.disabled = isLastPageOfSequence || isMainMenu;
+                nextButton.classList.toggle('opacity-50', nextButton.disabled);
+            }
+            
+            // --- Interactive Quiz & Modal Logic ---
+            const modal = document.getElementById('feedback-modal');
+            const modalContent = document.getElementById('modal-content');
+            const modalTitle = document.getElementById('modal-title');
+            const modalIcon = document.getElementById('modal-icon');
+            const modalMessage = document.getElementById('modal-message');
+
+            function showModal(title, message, type = 'info') {
+                modalContent.classList.remove('correct');
+                modalMessage.textContent = message || '';
+
+                if (type === 'correct') {
+                    playCorrectSound();
+                    modalIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                    modalTitle.textContent = title;
+                    modalTitle.className = 'text-4xl font-bold mb-4 text-green-500';
+                    modalContent.className = 'feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80 bg-green-50 correct';
+                } else if (type === 'error') {
+                    playIncorrectSound();
+                    modalIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+                    modalTitle.textContent = title;
+                    modalTitle.className = 'text-4xl font-bold mb-4 text-red-500';
+                    modalContent.className = 'feedback-modal-content text-center p-8 rounded-2xl shadow-2xl w-80 bg-red-50';
+                }
+                modal.classList.add('show');
+                
+                clearTimeout(modalTimeout);
+                modalTimeout = setTimeout(closeModal, 1500);
+             }
+             
+            window.showFeedback = function(isCorrect, buttonElement) {
+                const parent = buttonElement.closest('.quiz-option');
+                const buttons = parent.querySelectorAll('button');
+                buttons.forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText, femaleVoice);
+                    buttonElement.classList.remove('bg-blue-500', 'bg-red-500', 'bg-gray-500');
+                    buttonElement.classList.add('bg-green-500');
+                    buttonElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>`;
+                    showModal('Correct!', `${feedbackText} (+10 points)`, 'correct');
+                    updateScore(10);
+                } else {
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText, femaleVoice);
+                    buttonElement.classList.remove('bg-blue-500', 'bg-red-500', 'bg-gray-500');
+                    buttonElement.classList.add('bg-red-500');
+                    buttonElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>`;
+                    showModal('Try Again!', feedbackText, 'error');
+                }
+            }
+
+            window.checkAnswer = function(button, isCorrect) {
+                const questionGroup = button.closest('.question-group');
+                const options = questionGroup.querySelectorAll('.quiz-option');
+
+                options.forEach(opt => {
+                    opt.disabled = true;
+                });
+
+                if (isCorrect) {
+                    const feedbackText = correctFeedback[Math.floor(Math.random() * correctFeedback.length)];
+                    speak(feedbackText, femaleVoice);
+                    button.classList.remove('bg-white');
+                    button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                    button.innerHTML = `<span class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg> ${button.textContent}</span>`;
+                    showModal('Correct!', `${feedbackText} (+10 points)`, 'correct');
+                    updateScore(10);
+                } else {
+                    const feedbackText = incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                    speak(feedbackText, femaleVoice);
+                    button.classList.remove('bg-white');
+                    button.classList.add('bg-red-500', 'border-red-600', 'text-white');
+                    button.innerHTML = `<span class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg> ${button.textContent}</span>`;
+                    
+                    options.forEach(opt => {
+                        if (opt.getAttribute('onclick').includes('true')) {
+                            opt.classList.remove('bg-white');
+                            opt.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                        }
+                    });
+                    showModal('Try Again!', feedbackText, 'error');
+                }
+            }
+            
+            window.closeModal = function() {
+                clearTimeout(modalTimeout);
+                modal.classList.remove('show');
+            }
+            
+            window.showMatchingAnswersU9 = function() {
+                speak("Here are the correct matches.", femaleVoice);
+                const answers = {
+                    'term-u9-1': 'def-u9-C', 'term-u9-2': 'def-u9-E', 'term-u9-3': 'def-u9-A',
+                    'term-u9-4': 'def-u9-B', 'term-u9-5': 'def-u9-D'
+                };
+
+                const svg = document.getElementById('matching-svg-u9');
+                svg.innerHTML = ''; 
+
+                setTimeout(() => {
+                    for (const termId in answers) {
+                        const defId = answers[termId];
+                        const termEl = document.getElementById(termId);
+                        const defEl = document.getElementById(defId);
+                        if (!termEl || !defEl) continue;
+
+                        const rect1 = termEl.getBoundingClientRect();
+                        const rect2 = defEl.getBoundingClientRect();
+                        const containerRect = svg.getBoundingClientRect();
+
+                        const x1 = (rect1.right - containerRect.left) + 5;
+                        const y1 = (rect1.top + rect1.height / 2) - containerRect.top;
+                        const x2 = (rect2.left - containerRect.left) - 5;
+                        const y2 = (rect2.top + rect2.height / 2) - containerRect.top;
+
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+                        line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+                        line.setAttribute('class', 'matching-line');
+                        svg.appendChild(line);
+                    }
+                }, 100);
+                
+                document.getElementById('show-answers-btn-u9').style.display = 'none';
+                playCorrectSound();
+            }
+
+            window.generateCertificateU9 = function() {
+                const name = document.getElementById('name-input-u9').value || "Urban Innovator";
+                document.getElementById('certificate-name-u9').textContent = name;
+                document.getElementById('certificate-score-u9').textContent = score;
+                document.getElementById('certificate-date-u9').textContent = new Date().toLocaleDateString();
+                speak(`Congratulations, ${name}! You have completed the unit.`, femaleVoice);
+            }
+
+            // --- Page Content Generation ---
+            function generateUnit9Pages() {
+                const container = document.getElementById('dynamic-pages-container');
+                const pagesHTML = `
+                    <!-- Vocabulary -->
+                    <section id="page-501" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 1/10</h3><h2 class="text-5xl font-bold my-8">Mobility</h2><p class="text-2xl text-gray-600">The ability to move or be moved freely and easily.</p><p class="text-xl text-gray-500 italic mt-4">"Electric scooters have increased mobility for short trips in the city."</p></div></section>
+                    <section id="page-502" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 2/10</h3><h2 class="text-5xl font-bold my-8">Emission</h2><p class="text-2xl text-gray-600">The production and discharge of something, especially gas.</p><p class="text-xl text-gray-500 italic mt-4">"Electric buses produce zero tailpipe emissions."</p></div></section>
+                    <section id="page-503" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 3/10</h3><h2 class="text-5xl font-bold my-8">Congestion</h2><p class="text-2xl text-gray-600">The state of being crowded and full of traffic.</p><p class="text-xl text-gray-500 italic mt-4">"More people on bikes can help reduce traffic congestion."</p></div></section>
+                    <section id="page-504" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 4/10</h3><h2 class="text-5xl font-bold my-8">Infrastructure</h2><p class="text-2xl text-gray-600">The basic physical systems of a country, like roads.</p><p class="text-xl text-gray-500 italic mt-4">"The city is investing in new infrastructure, including protected bike lanes."</p></div></section>
+                    <section id="page-505" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 5/10</h3><h2 class="text-5xl font-bold my-8">Subsidy</h2><p class="text-2xl text-gray-600">Money granted by the state to help an industry or business.</p><p class="text-xl text-gray-500 italic mt-4">"The government offers a subsidy to people who buy electric cars."</p></div></section>
+                    <section id="page-506" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 6/10</h3><h2 class="text-5xl font-bold my-8">Pedal-assist</h2><p class="text-2xl text-gray-600">A feature on an e-bike where the motor provides power when the rider is pedaling.</p><p class="text-xl text-gray-500 italic mt-4">"The pedal-assist feature makes it easy to ride up steep hills."</p></div></section>
+                    <section id="page-507" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 7/10</h3><h2 class="text-5xl font-bold my-8">Micro-mobility</h2><p class="text-2xl text-gray-600">A category of transportation using very light vehicles like e-bikes.</p><p class="text-xl text-gray-500 italic mt-4">"Micro-mobility solutions are perfect for the last mile of a commute."</p></div></section>
+                    <section id="page-508" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 8/10</h3><h2 class="text-5xl font-bold my-8">Public Transit</h2><p class="text-2xl text-gray-600">Buses, trains, and other forms of transport available to the public.</p><p class="text-xl text-gray-500 italic mt-4">"Reliable public transit is essential for a well-functioning city."</p></div></section>
+                    <section id="page-509" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 9/10</h3><h2 class="text-5xl font-bold my-8">Sustainable</h2><p class="text-2xl text-gray-600">Causing little or no damage to the environment.</p><p class="text-xl text-gray-500 italic mt-4">"Electric buses are a more sustainable option than diesel buses."</p></div></section>
+                    <section id="page-510" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h3 class="text-2xl font-bold text-lime-600 mb-2">Vocabulary 10/10</h3><h2 class="text-5xl font-bold my-8">Urban Planning</h2><p class="text-2xl text-gray-600">The planning of the physical and social development of cities.</p><p class="text-xl text-gray-500 italic mt-4">"Good urban planning includes safe routes for cyclists."</p></div></section>
+                    <section id="page-511" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 relative"><h3 class="text-2xl font-bold text-lime-600 mb-6 text-center">Vocabulary Practice: Matching</h3><div class="grid grid-cols-2 gap-x-8 relative"><div class="space-y-4 flex flex-col items-start"><div id="term-u9-1" class="bg-green-100 p-3 rounded-lg w-full text-center">1. Emission</div><div id="term-u9-2" class="bg-green-100 p-3 rounded-lg w-full text-center">2. Congestion</div><div id="term-u9-3" class="bg-green-100 p-3 rounded-lg w-full text-center">3. Subsidy</div><div id="term-u9-4" class="bg-green-100 p-3 rounded-lg w-full text-center">4. Infrastructure</div><div id="term-u9-5" class="bg-green-100 p-3 rounded-lg w-full text-center">5. Micro-mobility</div></div><div class="space-y-4 flex flex-col items-end"><div id="def-u9-A" class="bg-amber-100 p-3 rounded-lg w-full text-center">A. Financial aid from a government.</div><div id="def-u9-B" class="bg-amber-100 p-3 rounded-lg w-full text-center">B. The basic systems like roads and bridges.</div><div id="def-u9-C" class="bg-amber-100 p-3 rounded-lg w-full text-center">C. The discharge of gas.</div><div id="def-u9-D" class="bg-amber-100 p-3 rounded-lg w-full text-center">D. Transportation using very light vehicles.</div><div id="def-u9-E" class="bg-amber-100 p-3 rounded-lg w-full text-center">E. Crowded with traffic.</div></div></div><svg id="matching-svg-u9" class="absolute top-0 left-0 w-full h-full pointer-events-none"></svg><div class="text-center mt-8"><button id="show-answers-btn-u9" onclick="showMatchingAnswersU9()" class="action-button bg-lime-600 text-white font-bold py-2 px-6 rounded-full">Show Answers</button></div></div></section>
+                    
+                    <!-- Reading -->
+                    <section id="page-512" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-green-700 mb-6">Reading: Pre-Reading 📖</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>Why would a city want more people to ride bikes and buses instead of driving cars?</li><li>How does an electric bike make riding easier?</li><li>What challenges might a city face when trying to switch to electric buses?</li></ol></div></div></section>
+                    <section id="page-513" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-green-700 mb-6">Reading Texts</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="font-bold text-2xl text-green-600">A Cleaner, Quieter Ride</h3><p>Gasoline cars and diesel buses are noisy. They also make dirty gas called emissions. This is bad for the air. Electric bikes (e-bikes) and electric buses are different. They use electricity, so they are very quiet. They have no tailpipe emissions. E-bikes have a small motor with pedal-assist. This helps you ride up hills easily. E-buses make public transit better for everyone. They help make cities cleaner and reduce traffic congestion.</p><h3 class="font-bold text-2xl text-green-600 mt-6">The Benefits of Electric Mobility</h3><p>Cities around the world are fighting air pollution and traffic congestion. One of the most effective solutions is to promote electric mobility. This means encouraging the use of electric bikes and electric buses. Unlike gasoline vehicles, electric vehicles have no tailpipe emissions, which dramatically improves urban air quality. They are also nearly silent, reducing noise pollution. E-bikes make cycling accessible to more people. The pedal-assist motor helps riders go faster and farther with less effort, making long commutes or hilly terrain manageable. Electric buses make public transit a more attractive and sustainable option. By investing in infrastructure like charging stations and protected bike lanes, cities can create a cleaner, quieter, and healthier environment for everyone.</p><h3 class="font-bold text-2xl text-green-600 mt-6">Transforming Urban Landscapes with Electric Mobility</h3><p>Modern urban planning faces a critical challenge: how to move millions of people efficiently without sacrificing environmental quality and livability. The transition to electric mobility is a cornerstone of the sustainable city. By replacing diesel bus fleets with electric ones, cities can eliminate significant sources of particulate matter and nitrogen oxides, two major pollutants with serious health impacts. This shift also drastically reduces noise pollution, creating more pleasant public spaces. On the individual level, e-bikes and other forms of micro-mobility are revolutionizing personal transport. The pedal-assist technology removes barriers to cycling, such as age, fitness level, and distance, thereby reducing car dependency for daily commutes. This shift helps alleviate traffic congestion. To accelerate this transition, many governments offer a subsidy for e-bike purchases and invest heavily in the infrastructure required to support them, such as secure parking and dedicated, safe cycling networks. This systemic approach is essential for creating cities that prioritize people over cars.</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-green-500 text-white font-bold py-2 px-6 rounded-full">Read Aloud</button></div></div></section>
+                    <section id="page-514" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-green-600 mb-4 text-center">Comprehension: Gap-Fill</h3><div class="readable-content bg-gray-50 p-6 rounded-lg text-xl leading-relaxed space-y-4"><ol class="list-decimal list-inside space-y-4"><li>The city received a government __________ to help pay for its new electric buses.</li><li>Good transportation __________ is essential for a growing city.</li><li>E-scooters and e-bikes are often called __________ because they are small and light.</li><li>The main benefit of electric vehicles is that they produce no tailpipe __________.</li><li>Better public transit can help reduce traffic __________ during rush hour.</li></ol></div></div></section>
+                    <section id="page-515" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-green-600 mb-4 text-center">Comprehension: True/False</h3><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>1. Electric buses are louder than diesel buses.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>2. A pedal-assist motor on an e-bike works even when you are not pedaling.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>3. Improving public transit can help reduce traffic.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>4. E-bikes are only useful for very short, flat trips.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button></div><p>5. Electric vehicles improve air quality in cities.</p></div></div></div></section>
+                    <section id="page-516" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h3 class="text-2xl font-bold text-green-600 mb-4 text-center">Comprehension: Multiple Choice</h3><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What is the primary advantage of electric vehicles discussed in the texts?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. They are faster than gasoline cars.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. They require no maintenance.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. They produce no tailpipe emissions and are quiet.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. They are cheaper to buy than any other vehicle.</button></div></div><div class="question-group"><p class="font-semibold">2. How do e-bikes make cycling more accessible?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. By being much heavier than regular bikes.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. By requiring a special driver’s license.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. By providing a motor to help riders with hills and long distances.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. By being illegal to ride on roads.</button></div></div><div class="question-group"><p class="font-semibold">3. According to the B2 text, what is a key strategy for governments to encourage e-bike use?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Banning all cars from the city.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Offering subsidies and investing in safe cycling infrastructure.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Making gasoline much more expensive.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Requiring all citizens to pass a cycling test.</button></div></div><div class="question-group"><p class="font-semibold">4. The term “micro-mobility” refers to...</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Very large vehicles like trains and airplanes.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. A new type of small car.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Small, light vehicles like e-bikes and e-scooters for personal transport.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. The study of microscopic organisms.</button></div></div><div class="question-group"><p class="font-semibold">5. The German government’s support for Elektromobilität shows that it values...</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Preserving historical gasoline-powered cars.</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. Sustainability, innovation, and environmental protection.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. Slowing down all forms of transportation.</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. Building more highways for faster driving.</button></div></div></div></div></section>
+
+                    <!-- Conversation -->
+                    <section id="page-517" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-emerald-700 mb-6">Conversation Practice 🗣️</h2><div class="readable-content bg-gray-50 p-6 rounded-lg space-y-4 text-xl"><p><strong>Anna:</strong> I think electric buses are a great idea. It would make the city so much quieter.</p><p><strong>Ben:</strong> I agree. And the cleaner air would be a huge benefit for everyone’s health. But I wonder if our city has the right infrastructure for them.</p><p><strong>Anna:</strong> That’s a valid point. They would need a lot of charging stations at the bus depots. That could be a big project.</p><p><strong>Ben:</strong> Exactly. And what about e-bikes? I’d be scared to ride one in traffic. We don’t have enough protected bike lanes.</p><p><strong>Anna:</strong> You’ve hit the nail on the head. The technology is great, but it’s useless without the infrastructure to support it. It seems to me that safety is the biggest barrier.</p><p><strong>Ben:</strong> My thoughts exactly. If there were safe, separated bike lanes, I would definitely consider getting an e-bike for my commute.</p><p><strong>Anna:</strong> So, the solution is not just about the vehicles, but about redesigning the streets. It’s an urban planning issue.</p><p><strong>Ben:</strong> Precisely. We need to make it safe and convenient for people to choose these sustainable options.</p></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-emerald-500 text-white font-bold py-2 px-6 rounded-full">Read Aloud</button></div></div></section>
+                    <section id="page-518" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-emerald-700 mb-6">Discussion Questions</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-emerald-600 mb-3">Higher-Order Thinking</h3><ul class="list-disc list-inside space-y-2"><li><b>Remembering:</b> What are two benefits of electric buses compared to diesel buses?</li><li><b>Understanding:</b> Explain how a pedal-assist e-bike works.</li><li><b>Applying:</b> Plan a daily commute from your home to school using only sustainable transportation (walking, e-bike, public transit). What are the steps of your journey?</li><li><b>Analyzing:</b> Analyze the different infrastructure needs for a city-wide e-bus system versus a city-wide e-bike sharing system.</li><li><b>Evaluating:</b> Make a judgment on which form of electric mobility—e-bikes or e-buses—would have a greater overall impact on improving a city’s environment. Defend your choice.</li><li><b>Creating:</b> Design a marketing slogan and a simple visual logo for a campaign to promote e-bike use in your city.</li><li><b>Synthesis:</b> How do government policy (subsidies, regulations), urban planning (infrastructure), and individual choice (consumer behavior) all need to align to create a successful city-wide transition to electric mobility?</li></ul></div></div></section>
+                    <section id="page-519" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-emerald-700 mb-6">Exam Practice (IELTS/TOEFL)</h2><div class="readable-content text-lg leading-relaxed space-y-6 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-emerald-600">IELTS Part 1</h3><ul class="list-disc list-inside"><li>How do you usually travel to school or work? What is the public transportation like in your city? Do you prefer to travel by bike or by car?</li></ul><h3 class="text-2xl font-bold text-emerald-600 mt-4">IELTS Part 3</h3><ul class="list-disc list-inside"><li>What are the advantages and disadvantages of living in a city with a lot of traffic? How can cities encourage people to use public transport more? What will transportation in cities look like in the future?</li></ul><h3 class="text-2xl font-bold text-emerald-600 mt-4">TOEFL Independent Speaking</h3><p>Do you agree or disagree with the following statement? “Governments should spend more money on improving roads and highways than on improving public transportation.” Use specific reasons and examples.</p></div></div></section>
+
+                    <!-- Podcast -->
+                    <section id="page-520" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-teal-700 mb-6">Podcast: Warm-Up 🎧</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ol class="list-decimal list-inside space-y-2"><li>What kinds of electric transportation do you know?</li><li>Have you ever seen or used an e-bike or e-bus?</li><li>What are some benefits of using electric vehicles in cities?</li><li>What challenges might cities face when switching to electric transport?</li><li>Do you think electric transport can help reduce pollution? Why or why not?</li></ol></div></div></section>
+                    <section id="page-521" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-teal-700 mb-6">Podcast: Vocabulary</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><ul class="space-y-3"><li><strong>E-bike:</strong> An electric bicycle</li><li><strong>E-bus:</strong> An electric bus</li><li><strong>Zero tailpipe emissions:</strong> No pollution comes out of the vehicle’s exhaust</li><li><strong>Urban mobility:</strong> How people move around in cities</li><li><strong>Charging infrastructure:</strong> Equipment and systems for charging electric vehicles</li><li><strong>Upfront cost:</strong> The money needed at the beginning</li><li><strong>Grid capacity:</strong> How much electricity the power system can handle</li><li><strong>Last mile:</strong> The final part of a trip, like from a bus stop to home</li><li><strong>Multimodal transport system:</strong> A system with many types of transportation working together</li><li><strong>Equity in access:</strong> Fair access for everyone, no matter where they live</li></ul></div></div></section>
+                    <section id="page-522" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-teal-700 mb-6">Podcast: Transcript 🎙️</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong>Alex:</strong> Welcome to Urban Futures, the podcast exploring innovative solutions for sustainable living. Today, we're diving into the world of electric transportation, specifically the growing role of e-bikes and e-buses. I'm your host, Alex. Joining me are two experts with differing perspectives. First, from London, we have Sarah Chen, an environmental scientist.</p><p><strong>Sarah:</strong> Hello Alex, thanks for having me. I'm excited to discuss how electric transport can truly revolutionize our cities.</p><p><strong>Alex:</strong> And joining us from Sydney, Australia, Chris Miller, a logistics manager.</p><p><strong>Chris:</strong> Good to be here, Alex and Sarah. I'm keen to talk about the practicalities and challenges of integrating these technologies on a large scale.</p><p><strong>Alex:</strong> Great to have you both. Let's get right into it. The push for e-bikes and e-buses is gaining momentum globally. Sarah, from your environmental perspective, what are the key benefits you see?</p><p><strong>Sarah:</strong> The environmental advantages are enormous, Alex. Zero tailpipe emissions mean cleaner air in our urban centers, directly impacting public health. Reduced noise pollution also contributes to a more pleasant city environment. It's a crucial step towards mitigating climate change.</p><p><strong>Chris:</strong> From a logistics standpoint, the transition isn't without its hurdles. The upfront cost of electric bus fleets is significant, and building the necessary charging infrastructure requires substantial investment and planning. While the long-term running costs might be lower, the initial financial burden is a major consideration for municipalities.</p><p><strong>Sarah:</strong> I agree the infrastructure is a challenge, Chris, but the long-term savings on fuel and maintenance, coupled with the environmental benefits, surely outweigh the initial investment over time. We need to think beyond immediate costs.</p><p><strong>Chris:</strong> Thinking long-term is important, Sarah, but we also need to ensure reliability. What happens when a large percentage of a bus fleet needs charging simultaneously? The strain on the power grid could be immense, and we need robust solutions for that.</p><p><strong>Alex:</strong> That's a critical point, Chris. Reliability and grid capacity are definitely factors. Sarah, how do you see e-bikes fitting into this urban mobility puzzle? They seem more individual-focused compared to buses.</p><p><strong>Sarah:</strong> E-bikes are a fantastic complementary solution. They make cycling accessible to a broader demographic, easing congestion and reducing the reliance on cars for shorter trips. They can also bridge the "last mile" gap, helping people get to and from public transport hubs.</p><p><strong>Chris:</strong> I can see the benefit of e-bikes for individual use and the last mile, but they don't address the mass transit needs that e-buses are intended for. My concern is that sometimes e-bikes are presented as a solution to all traffic problems, which isn't realistic.</p><p><strong>Alex:</strong> A fair point. It seems we agree that both e-bikes and e-buses have a role to play, but the scale and implementation present different challenges. How can cities effectively integrate both?</p><p><strong>Sarah:</strong> Integrated urban planning is key, Alex. Cities need to invest in dedicated bike lanes and safe infrastructure for e-bikes, while simultaneously developing smart charging solutions and optimized routes for e-buses. It requires a holistic approach to mobility.</p><p><strong>Chris:</strong> I agree with Sarah on the need for integrated planning. It's not an either/or situation. It's about creating a multi-modal transport system where electric options are seamlessly connected and accessible to everyone, regardless of where they live in the city. Addressing equity and access is crucial.</p><p><strong>Alex:</strong> That's a great point to end on. It seems that while the challenges of transitioning to electric transport are significant, the potential benefits for our cities and the need for integrated, equitable planning are areas we all agree on. Thank you both, Sarah Chen and Chris Miller, for this insightful discussion.</p></div><div class="text-center mt-8"><button onclick="readDialogue(this)" class="action-button bg-teal-500 text-white font-bold py-2 px-6 rounded-full">Read Aloud</button></div></div></section>
+                    <section id="page-523" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-teal-700 mb-6">Podcast Quiz: Multiple Choice</h2><div class="space-y-6"><div class="question-group"><p class="font-semibold">1. What is one environmental benefit of e-bikes and e-buses mentioned by Sarah?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. They are faster than cars</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. They reduce air and noise pollution</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. They are cheaper to build</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. They use less water</button></div></div><div class="question-group"><p class="font-semibold">2. What concern does Chris raise about e-buses?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. They are too noisy</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. They are not popular</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. They are expensive and need charging infrastructure</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. They are too small</button></div></div><div class="question-group"><p class="font-semibold">3. What does Sarah say about e-bikes and the “last mile”?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. They are not useful for short trips</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">B. They help people get to and from public transport</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">C. They are only for athletes</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. They are too slow</button></div></div><div class="question-group"><p class="font-semibold">4. What does Chris say about e-bikes and mass transit?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. E-bikes can replace buses</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. E-bikes are better than trains</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. E-bikes don’t solve large-scale transport needs</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. E-bikes are too expensive</button></div></div><div class="question-group"><p class="font-semibold">5. What do both Sarah and Chris agree on at the end?</p><div class="grid grid-cols-1 gap-2"><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">A. Cities should only use e-bikes</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">B. Electric transport is not ready</button><button onclick="checkAnswer(this, true)" class="quiz-option p-3 rounded-lg text-left">C. Integrated planning is important</button><button onclick="checkAnswer(this, false)" class="quiz-option p-3 rounded-lg text-left">D. E-buses are better than e-bikes</button></div></div></div></div></section>
+                    <section id="page-524" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-teal-700 mb-6">Podcast Quiz: True/False/Not Given</h2><div class="space-y-4"><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>1. E-bikes and e-buses produce no tailpipe emissions.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>2. Chris thinks e-bikes are the best solution for all traffic problems.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>3. Sarah says e-bikes can help reduce traffic congestion.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(false, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(true, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>4. The podcast says all cities already have charging stations.</p></div><div class="flex items-center gap-4 p-4 rounded-lg quiz-option"><div class="flex-shrink-0 flex gap-2"><button onclick="showFeedback(true, this)" class="bg-green-500 text-white font-bold w-10 h-10 rounded-full">T</button><button onclick="showFeedback(false, this)" class="bg-red-500 text-white font-bold w-10 h-10 rounded-full">F</button><button onclick="showFeedback(false, this)" class="bg-gray-500 text-white font-bold w-10 h-10 rounded-full">NG</button></div><p>5. The speakers believe electric transport can help make cities more sustainable.</p></div></div></div></section>
+
+                    <!-- Lecture -->
+                    <section id="page-540" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-cyan-700 mb-6">Lecture: Warm-Up 🎤</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p>Content not available. Please wait for the other party to provide it.</p></div></div></section>
+                    <section id="page-541" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-cyan-700 mb-6">Lecture: Vocabulary</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p>Content not available. Please wait for the other party to provide it.</p></div></div></section>
+                    <section id="page-542" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-cyan-700 mb-6">Lecture: Transcript</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p>Content not available. Please wait for the other party to provide it.</p></div><div class="text-center mt-8"><button class="action-button bg-cyan-500 text-white font-bold py-2 px-6 rounded-full opacity-50 cursor-not-allowed">Read Aloud</button></div></div></section>
+                    <section id="page-543" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-cyan-700 mb-6">Lecture Quiz: Multiple Choice</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p>Content not available.</p></div></div></section>
+                    <section id="page-544" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-cyan-700 mb-6">Lecture Quiz: True/False/Not Given</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p>Content not available.</p></div></div></section>
+                    
+                    <!-- Dilemmas -->
+                    <section id="page-545" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-700 mb-6">Dilemma 1: The Bus Route vs. The Bike Lane 🚌🚲</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p>Your city wants to encourage electric transport and has the budget for one major project. You can replace the five main diesel bus routes with clean electric buses, which will improve air quality for thousands of people in the city center. Or, you can build a network of protected e-bike lanes into the suburbs, which benefits fewer people but encourages personal health and reduces traffic congestion.</p><p class="font-bold mt-4">Which project do you fund?</p></div></div></section>
+                    <section id="page-546" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-red-700 mb-6">Dilemma 2: The Neighbor's Pact 🤝</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p>You and your neighbor both commute to work. You could agree to both buy e-bikes and ride together, which is good for the environment and your health. If you buy one but your neighbor doesn't, they will keep driving their car, and you'll be riding alone. If neither of you buys one, you both continue to pollute and get stuck in traffic.</p><p class="font-bold mt-4">Do you commit to buying an e-bike?</p></div></div></section>
+
+                    <!-- Unit Plan & Mission -->
+                    <section id="page-550" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-700 mb-6">Stage 1: Desired Results</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><p><strong>Essential Question:</strong> How can electrifying our transportation systems create cleaner, quieter, and more equitable cities?</p></div></div></section>
+                    <section id="page-551" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-700 mb-6">Stage 2: Assessment Evidence</h2><div class="readable-content text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="text-2xl font-bold text-orange-600 mb-3">Primary Performance Task (GRASPS)</h3><ul class="list-disc list-inside space-y-2"><li><strong>Goal:</strong> Your goal is to persuade your city council to invest in a new program to expand the use of electric bikes and buses.</li><li><strong>Role:</strong> You are a team of urban mobility consultants.</li><li><strong>Audience:</strong> The city council’s transportation committee.</li><li><strong>Situation:</strong> Your city is suffering from traffic congestion, air pollution, and noisy streets. The council is seeking innovative solutions to make the city cleaner, quieter, and easier to navigate.</li><li><strong>Product:</strong> A formal proposal and a persuasive presentation that outlines a two-part plan: one for increasing e-bus routes and one for promoting e-bike use (e.g., new bike lanes, subsidy programs). The proposal must detail the benefits, costs, and a timeline for implementation.</li></ul></div></div></section>
+                    <section id="page-552" class="page"><div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-orange-700 mb-6">Learning Goals & Rubric</h2><div class="readable-content max-w-4xl mx-auto"><h3 class="text-2xl font-bold text-orange-600 mb-3">Success Criteria</h3><ul class="list-disc list-inside space-y-2 text-xl"><li>I can define “electric mobility” and list two benefits of e-bikes or e-buses.</li><li>I can compare an electric vehicle to a gasoline vehicle in terms of pollution and noise.</li><li>I can collaborate to brainstorm one idea to make e-bikes or e-buses more popular.</li></ul></div></div></section>
+                    <section id="page-553" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h2 class="text-4xl font-bold text-center text-emerald-700 mb-6">Your Final Mission 🎯</h2><div class="readable-content text-xl leading-relaxed max-w-2xl mx-auto bg-gray-50 p-6 rounded-lg"><p>Your task is to persuade your city council to invest in a new program to expand the use of electric bikes and buses. Your proposal must detail the benefits, costs, and a timeline for implementation. 🚲</p></div><div class="text-center mt-8"><button onclick="readText(this)" class="action-button bg-emerald-500 text-white font-bold py-2 px-6 rounded-full">Read Aloud</button></div></div></section>
+                    <section id="page-554" class="page"><div class="bg-white rounded-2xl shadow-lg p-8 text-center"><h2 class="text-4xl font-bold text-green-600 mb-4">Congratulations! 🏅</h2><p class="text-xl text-gray-600 mb-6">You have completed "The Electric Avenue" unit.</p><div class="bg-green-50 border-4 border-dashed border-green-300 rounded-lg p-8 max-w-2xl mx-auto"><h3 class="text-3xl font-bold text-green-800">Certificate of Completion</h3><p class="mt-4 text-lg">This certificate is awarded to</p><p id="certificate-name-u9" class="text-2xl font-bold text-green-600 my-2">[Enter Your Name Here]</p><p class="mt-4 text-lg">for successfully completing all challenges.</p><p class="mt-6 text-md"><strong>Final Score:</strong> <span id="certificate-score-u9" class="font-bold"></span> points</p></div><div class="mt-6"><input type="text" id="name-input-u9" placeholder="Enter your name" class="text-center p-2 border rounded-lg w-full max-w-md"><button onclick="generateCertificateU9()" class="action-button mt-4 bg-green-600 text-white font-bold py-2 px-6 rounded-full">Generate Certificate</button></div></div></section>
+                `;
+                container.innerHTML = pagesHTML;
+            }
+
+            // --- Initial Setup ---
+            generateUnit9Pages();
+            updateNavButtons();
+        });
+    </script>
+</body>
+</html>

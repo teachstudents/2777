@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banksy: Art & Anarchy - 100 Point Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #0f172a, #1e293b, #334155, #475569);
+            background-size: 400% 400%;
+            animation: gradientBG 25s ease infinite;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #4ade80; color: white; transform: scale(1.02); }
+            100% { background-color: #4ade80; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Banksy: 100 Point Challenge</h1>
+            <p class="text-lg md:text-xl mb-8">Test your knowledge with 40 questions on vocabulary and reading. You have 15 minutes. Aim for 100 points and earn all the badges!</p>
+            <button id="start-btn" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Start Challenge</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">15:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div id="badges-container" class="flex justify-center items-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-blue-600 mb-2" id="question-counter">Question 1 / 40</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 min-h-[100px] text-center"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const finalBadgesContainer = document.getElementById('final-badges');
+
+            let score = 0;
+            let timer;
+            let timeLeft = 900; // 15 minutes
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctVocabCount = 0;
+            let correctReadingCount = 0;
+            let mistakes = 0;
+            let earnedBadges = new Set();
+
+            const correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            const wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+            const badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great Job!", "Awesome!"];
+
+            const questionBank = [
+                // Vocabulary Questions (20)
+                { type: 'vocab', question: "What does 'anonymous' mean?", answers: [{text: "Famous", correct: false}, {text: "Unknown", correct: true}, {text: "Artistic", correct: false}, {text: "Rich", correct: false}], explanation: "'Anonymous' means having an unknown name or identity." },
+                { type: 'vocab', question: "Which word describes art that is temporary or short-lived?", answers: [{text: "Iconic", correct: false}, {text: "Subversive", correct: false}, {text: "Ephemeral", correct: true}, {text: "Mainstream", correct: false}], explanation: "'Ephemeral' means lasting for a very short time." },
+                { type: 'vocab', question: "If art is 'satirical', it uses humor to...", answers: [{text: "Praise something", correct: false}, {text: "Sell something", correct: false}, {text: "Explain something", correct: false}, {text: "Criticize something", correct: true}], explanation: "'Satirical' work uses humor, irony, or exaggeration to criticize people's foolishness or vices." },
+                { type: 'vocab', question: "What is 'guerrilla art'?", answers: [{text: "Art sold in galleries", correct: false}, {text: "Art made by soldiers", correct: false}, {text: "Art created in public spaces without permission", correct: true}, {text: "Art made from metal", correct: false}], explanation: "'Guerrilla art' is unauthorized art installed in a public place." },
+                { type: 'vocab', question: "Which of these is the best example of 'social commentary'?", answers: [{text: "A painting of a beautiful flower", correct: false}, {text: "A song that criticizes poverty", correct: true}, {text: "A sculpture of a famous person", correct: false}, {text: "A dance with no story", correct: false}], explanation: "'Social commentary' is the act of using art to provide commentary on issues in a society." },
+                { type: 'vocab', question: "An artist who challenges authority could be described as...", answers: [{text: "Mainstream", correct: false}, {text: "Subversive", correct: true}, {text: "Ephemeral", correct: false}, {text: "Anonymous", correct: false}], explanation: "'Subversive' means seeking to disrupt an established system or institution." },
+                { type: 'vocab', question: "What does 'elusive' mean?", answers: [{text: "Easy to find", correct: false}, {text: "Very famous", correct: false}, {text: "Difficult to find or catch", correct: true}, {text: "Colorful", correct: false}], explanation: "'Elusive' means difficult to find, catch, or achieve." },
+                { type: 'vocab', question: "A 'provocative' piece of art is intended to cause...", answers: [{text: "A strong reaction", correct: true}, {text: "Sleepiness", correct: false}, {text: "Hunger", correct: false}, {text: "Confusion", correct: false}], explanation: "'Provocative' means causing annoyance, anger, or another strong reaction, especially deliberately." },
+                { type: 'vocab', question: "An 'installation' in art refers to...", answers: [{text: "A type of paintbrush", correct: false}, {text: "A large-scale mixed-media construction", correct: true}, {text: "A small drawing", correct: false}, {text: "A famous museum", correct: false}], explanation: "An 'installation' is an art form that uses sculptural materials and other media to modify the way a particular space is experienced." },
+                { type: 'vocab', question: "If something is 'controversial', it causes...", answers: [{text: "Public agreement", correct: false}, {text: "Public disagreement or argument", correct: true}, {text: "Public celebration", correct: false}, {text: "Public indifference", correct: false}], explanation: "'Controversial' means giving rise or likely to give rise to public disagreement." },
+                { type: 'vocab', question: "An 'iconic' image is one that is...", answers: [{text: "Very new and unknown", correct: false}, {text: "Very famous and representative", correct: true}, {text: "Very complex and detailed", correct: false}, {text: "Very small and simple", correct: false}], explanation: "'Iconic' means relating to or of the nature of an icon; widely recognized and well-established." },
+                { type: 'vocab', question: "A 'critique' is a detailed...", answers: [{text: "Praise or compliment", correct: false}, {text: "Story or narrative", correct: false}, {text: "Analysis and assessment", correct: true}, {text: "Quick glance", correct: false}], explanation: "A 'critique' is a detailed analysis and assessment of something, especially a literary, philosophical, or political theory." },
+                { type: 'vocab', question: "What does 'mainstream' refer to?", answers: [{text: "Ideas that are very unusual", correct: false}, {text: "Ideas that are considered normal for most people", correct: true}, {text: "Ideas from the past", correct: false}, {text: "Ideas from other countries", correct: false}], explanation: "'Mainstream' refers to the ideas, attitudes, or activities that are shared by most people and regarded as normal or conventional." },
+                { type: 'vocab', question: "What is 'authenticity'?", answers: [{text: "The quality of being fake", correct: false}, {text: "The quality of being expensive", correct: false}, {text: "The quality of being new", correct: false}, {text: "The quality of being genuine or real", correct: true}], explanation: "'Authenticity' is the quality of being authentic, or real and genuine." },
+                { type: 'vocab', question: "The 'impact' of something is its...", answers: [{text: "Color or shape", correct: false}, {text: "Powerful effect or influence", correct: true}, {text: "Original price", correct: false}, {text: "Hidden meaning", correct: false}], explanation: "'Impact' refers to a marked effect or influence." },
+                { type: 'vocab', question: "A 'stencil' is used to...", answers: [{text: "Mix colors", correct: false}, {text: "Create a design by painting over a cutout", correct: true}, {text: "Frame a painting", correct: false}, {text: "Clean brushes", correct: false}], explanation: "A 'stencil' is a thin sheet with a design cut from it, used to produce the design on a surface below by applying pigment through the holes." },
+                { type: 'vocab', question: "What is an 'auction'?", answers: [{text: "A private sale", correct: false}, {text: "A museum exhibit", correct: false}, {text: "A public sale where goods are sold to the highest bidder", correct: true}, {text: "A type of art school", correct: false}], explanation: "An 'auction' is a public sale in which goods or property are sold to the highest bidder." },
+                { type: 'vocab', question: "What does 'identity' mean?", answers: [{text: "A type of art", correct: false}, {text: "A famous painting", correct: false}, {text: "The facts or characteristics of who a person is", correct: true}, {text: "A secret message", correct: false}], explanation: "'Identity' refers to the characteristics determining who or what a person or thing is." },
+                { type: 'vocab', question: "Artistic 'activism' aims to bring about...", answers: [{text: "Financial profit", correct: false}, {text: "Social or political change", correct: true}, {text: "Personal fame", correct: false}, {text: "Historical preservation", correct: false}], explanation: "'Activism' in art is the practice of using art to bring about social or political change." },
+                { type: 'vocab', question: "If art contains 'graffiti', it is usually made on...", answers: [{text: "A canvas in a studio", correct: false}, {text: "Paper with pencils", correct: false}, {text: "Public walls without permission", correct: true}, {text: "A computer screen", correct: false}], explanation: "'Graffiti' is writing or drawings scribbled, scratched, or sprayed illicitly on a wall or other surface in a public place." },
+                
+                // Reading Questions (20)
+                { type: 'reading', question: "What is the author's main point about Banksy's identity?", answers: [{text:"It is a well-known secret", correct: false}, {text:"It is not important to his art", correct: false}, {text:"It is unknown and adds to his mystery", correct: true}, {text:"It was revealed recently", correct: false}], explanation: "The first paragraph states he is 'anonymous' and his 'identity is a global mystery'." },
+                { type: 'reading', question: "The passage suggests Banksy's art is 'ephemeral' because...", answers: [{text:"It is very expensive", correct: false}, {text:"It can be removed or painted over", correct: true}, {text:"It is only shown in museums", correct: false}, {text:"It is made of digital light", correct: false}], explanation: "The passage states his art is ephemeral 'because it can be removed'." },
+                { type: 'reading', question: "What happened at an auction to make one of Banksy's works 'controversial'?", answers: [{text:"It was sold for a record price", correct: false}, {text:"It was stolen", correct: false}, {text:"It was a fake", correct: false}, {text:"It destroyed itself", correct: true}], explanation: "The passage mentions his iconic painting shredded itself right after being sold at auction." },
+                { type: 'reading', question: "The author's tone towards Banksy can best be described as:", answers: [{text:"Critical and disapproving", correct: false}, {text:"Neutral and objective", correct: false}, {text:"Admiring and respectful", correct: true}, {text:"Confused and uncertain", correct: false}], explanation: "The author uses positive language ('significant', 'powerful', 'masterful') to describe Banksy's work and impact." },
+                { type: 'reading', question: "What is the primary purpose of the final paragraph?", answers: [{text:"To summarize Banksy's early life", correct: false}, {text:"To argue that his art is not valuable", correct: false}, {text:"To analyze the deeper meaning and significance of his work", correct: true}, {text:"To list all of his famous installations", correct: false}], explanation: "The final paragraph discusses his 'cultural significance', 'activism', and his role as a 'powerful tool for change'." },
+                { type: 'reading', question: "The passage mentions a company that checks 'authenticity'. This implies that:", answers: [{text:"Banksy's art is not valuable", correct: false}, {text:"People might try to create fakes of his work", correct: true}, {text:"All of his art is given away for free", correct: false}, {text:"He signs every piece of art", correct: false}], explanation: "The need for authentication arises because the art is valuable and could be forged." },
+                { type: 'reading', question: "Which of the following is NOT mentioned as a characteristic of Banksy's art?", answers: [{text:"It is often satirical", correct: false}, {text:"It is a form of social commentary", correct: false}, {text:"It is usually created with permission", correct: true}, {text:"It can be provocative", correct: false}], explanation: "The passage describes his work as 'guerrilla art', which is done without permission." },
+                { type: 'reading', question: "The phrase 'entered the mainstream art world' suggests that Banksy...", answers: [{text:"Was always a part of it", correct: false}, {text:"Is now rejected by it", correct: false}, {text:"Started outside of it and later became accepted", correct: true}, {text:"Only sells his art on the street", correct: false}], explanation: "The word 'entered' implies a transition from being outside the mainstream to being inside it." },
+                { type: 'reading', question: "True or False: The author believes Banksy's anonymity makes his message less important.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage suggests the anonymity makes the message *more* important, not the artist." },
+                { type: 'reading', question: "What is 'Dismaland' described as in the passage?", answers: [{text:"A traditional museum", correct: false}, {text:"A large-scale installation", correct: true}, {text:"A private art gallery", correct: false}, {text:"A city where Banksy lives", correct: false}], explanation: "The passage explicitly calls Dismaland a 'large-scale installation'." },
+                { type: 'reading', question: "The author uses the word 'subversive' to describe Banksy's work. This means the work aims to:", answers: [{text:"Support the government", correct: false}, {text:"Beautify the city", correct: false}, {text:"Disrupt or challenge authority", correct: true}, {text:"Make people feel comfortable", correct: false}], explanation: "'Subversive' means to challenge and disrupt established systems, which aligns with the description of his art." },
+                { type: 'reading', question: "What can be inferred from the fact that Banksy uses a 'stencil'?", answers: [{text:"He is a very slow artist", correct: false}, {text:"He wants to create his art quickly and leave", correct: true}, {text:"He only paints portraits", correct: false}, {text:"He does not like using spray paint", correct: false}], explanation: "Stencils allow for rapid creation of complex images, which is essential for guerrilla art where the artist needs to avoid being caught." },
+                { type: 'reading', question: "The author's main purpose in mentioning the self-destructing painting is to:", answers: [{text:"Show that his art is not valuable", correct: false}, {text:"Illustrate his subversive and critical attitude towards the art market", correct: true}, {text:"Prove that he makes mistakes", correct: false}, {text:"Describe how to frame a painting", correct: false}], explanation: "Destroying the art immediately after it was sold for a high price is a direct critique of the commercialization of art." },
+                { type: 'reading', question: "Which of these words from the text implies a judgment or assessment?", answers: [{text:"Stencil", correct: false}, {text:"Graffiti", correct: false}, {text:"Critique", correct: true}, {text:"Auction", correct: false}], explanation: "A 'critique' is a detailed analysis and judgment of something." },
+                { type: 'reading', question: "The passage suggests that Banksy's 'impact' is...", answers: [{text:"Limited to his home country", correct: false}, {text:"Only felt by other artists", correct: false}, {text:"Global and widely recognized", correct: true}, {text:"Mostly negative", correct: false}], explanation: "The passage explicitly mentions his 'global impact' and that he is a 'globally recognized figure'." },
+                { type: 'reading', question: "The author connects Banksy's 'activism' to his...", answers: [{text:"Desire for fame", correct: false}, {text:"Use of art to promote social or political change", correct: true}, {text:"Ability to make money", correct: false}, {text:"Skill with a paintbrush", correct: false}], explanation: "The passage defines his work as 'artistic activism' and a 'powerful tool for change'." },
+                { type: 'reading', question: "True or False: The passage indicates that all of Banksy's work is considered 'controversial'.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage says his work is 'frequently' controversial, not always. This is a nuance." },
+                { type: 'reading', question: "The term 'iconic' is used to describe 'Girl with Balloon'. This suggests the artwork is:", answers: [{text:"His only famous piece", correct: false}, {text:"Widely recognized and symbolic", correct: true}, {text:"His most expensive piece", correct: false}, {text:"A temporary installation", correct: false}], explanation: "'Iconic' means something is so famous it has become a symbol, which is true for this artwork." },
+                { type: 'reading', question: "What is the relationship between 'guerrilla art' and 'mainstream art' as described in the passage?", answers: [{text:"They are the same thing", correct: false}, {text:"Guerrilla art is a type of mainstream art", correct: false}, {text:"They are initially separate, but one can cross over into the other", correct: true}, {text:"Mainstream art is illegal, but guerrilla art is not", correct: false}], explanation: "The passage describes Banksy 'entering' the mainstream, showing they are different spheres but that a guerrilla artist can gain mainstream acceptance." },
+                { type: 'reading', question: "Based on the passage, what is the most likely reason Banksy remains 'anonymous'?", answers: [{text:"He is shy", correct: false}, {text:"To avoid legal trouble and keep the focus on the art's message", correct: true}, {text:"He forgot his own name", correct: false}, {text:"His identity is not interesting", correct: false}], explanation: "Given that his art is illegal 'guerrilla art' and focuses on a 'message', remaining anonymous protects him and emphasizes the work over his personality." }
+            ];
+            
+            const badges = {
+                vocab: { id: 'vocab', name: 'Vocabulary Virtuoso', icon: '🎓', earned: false, condition: () => correctVocabCount === 20 },
+                reading: { id: 'reading', name: 'Analytical Ace', icon: '🧐', earned: false, condition: () => correctReadingCount === 20 },
+                perfect: { id: 'perfect', name: 'Perfect 100', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-green-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function setupGame() {
+                const vocabQuestions = questionBank.filter(q => q.type === 'vocab');
+                const readingQuestions = questionBank.filter(q => q.type === 'reading');
+                shuffleArray(vocabQuestions);
+                shuffleArray(readingQuestions);
+                questions = vocabQuestions.concat(readingQuestions);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 900;
+                correctVocabCount = 0;
+                correctReadingCount = 0;
+                mistakes = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    if (question.tf) {
+                        button.classList.add(answerObj.text === 'True' ? 'hover:!bg-green-500' : 'hover:!bg-red-500', 'hover:text-white');
+                    }
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 2.5;
+                    if (question.type === 'vocab') correctVocabCount++;
+                    if (question.type === 'reading') correctReadingCount++;
+                    
+                    updateScore();
+                    correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = "Challenge Complete!";
+                } else {
+                    endTitleEl.textContent = "Time's Up!";
+                }
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            startBtn.addEventListener('click', setupGame);
+            restartBtn.addEventListener('click', setupGame);
+            nextQuestionBtn.addEventListener('click', hideFeedback);
+        });
+    </script>
+</body>
+</html>

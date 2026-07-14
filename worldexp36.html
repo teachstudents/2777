@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Paz, Bolivia Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            /* New gradient for La Paz theme - representing Andean skies */
+            background: linear-gradient(-45deg, #3b82f6, #6366f1, #8b5cf6, #a855f7);
+            background-size: 400% 400%;
+            animation: gradientBG 35s ease infinite;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #4ade80; color: white; transform: scale(1.02); }
+            100% { background-color: #4ade80; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">La Paz, Bolivia Challenge</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge of the world's highest capital with 40 questions. You have 15 minutes. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-indigo-400 focus:outline-none">
+            <button id="start-btn" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Start Challenge</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">15:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div id="badges-container" class="flex justify-center items-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-indigo-700 mb-2" id="question-counter">Question 1 / 40</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 min-h-[100px] text-center"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+
+            let score = 0;
+            let timer;
+            let timeLeft = 900; // 15 minutes
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctVocabCount = 0;
+            let correctReadingCount = 0;
+            let mistakes = 0;
+            let streakCounter = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let availableVoices = [];
+
+            const correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            const wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+            const badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!"];
+
+            const questionBank = [
+                // Vocabulary Questions (20)
+                { type: 'vocab', question: "What does 'altitude' refer to?", answers: [{text: "The height of a place above sea level", correct: true}, {text: "A person's attitude", correct: false}, {text: "The depth of a canyon", correct: false}, {text: "The local currency", correct: false}], explanation: "'Altitude' is the height of an object or point in relation to sea level or ground level." },
+                { type: 'vocab', question: "A 'canyon' is a...", answers: [{text: "Large, flat plain", correct: false}, {text: "Deep, narrow valley with steep sides", correct: true}, {text: "Type of public transport", correct: false}, {text: "Traditional pastry", correct: false}], explanation: "A 'canyon' is a deep gorge, typically one with a river flowing through it, like the one La Paz is built in." },
+                { type: 'vocab', question: "The 'Altiplano' is a...", answers: [{text: "Low-lying swamp", correct: false}, {text: "Dense jungle", correct: false}, {text: "High plateau in the Andes", correct: true}, {text: "Famous market", correct: false}], explanation: "The Altiplano is the vast high plateau on which the city of El Alto sits, overlooking La Paz." },
+                { type: 'vocab', question: "What does 'indigenous' mean?", answers: [{text: "A tourist or visitor", correct: false}, {text: "Originating or occurring naturally in a particular place; native", correct: true}, {text: "Someone who lives in the capital city", correct: false}, {text: "A modern style of building", correct: false}], explanation: "'Indigenous' refers to the original inhabitants of a region, such as the Aymara and Quechua people of Bolivia." },
+                { type: 'vocab', question: "The 'Aymara' are...", answers: [{text: "A type of cable car", correct: false}, {text: "An indigenous people of the Andes region", correct: true}, {text: "Spanish colonial rulers", correct: false}, {text: "A popular local dish", correct: false}], explanation: "The Aymara are an indigenous nation in the Andes and Altiplano regions of South America; they are a large part of La Paz's population." },
+                { type: 'vocab', question: "A 'cholita' is known for her...", answers: [{text: "Modern business suit", correct: false}, {text: "Traditional dress including a bowler hat and layered skirts", correct: true}, {text: "Ability to drive a cable car", correct: false}, {text: "Skill in making pastries", correct: false}], explanation: "A 'cholita' is an Aymara or Quechua woman in traditional dress, which is a powerful symbol of indigenous identity." },
+                { type: 'vocab', question: "'Mi Teleférico' is La Paz's...", answers: [{text: "Main government building", correct: false}, {text: "Largest market", correct: false}, {text: "Cable car public transport system", correct: true}, {text: "National football team", correct: false}], explanation: "'Mi Teleférico' is the name of the world's longest urban cable car network, which serves as public transport in La Paz." },
+                { type: 'vocab', question: "What is sold at the 'Witches' Market'?", answers: [{text: "Modern electronics", correct: false}, {text: "Traditional herbs, folk remedies, and spiritual items", correct: true}, {text: "Fresh fruits and vegetables", correct: false}, {text: "Designer clothing", correct: false}], explanation: "The Witches' Market (Mercado de las Brujas) is famous for its vendors selling items used in traditional Aymara rituals and folk medicine." },
+                { type: 'vocab', question: "A 'salteña' is a type of...", answers: [{text: "Traditional hat", correct: false}, {text: "Baked savory pastry", correct: true}, {text: "Folk dance", correct: false}, {text: "Mountain trail", correct: false}], explanation: "A 'salteña' is a popular type of baked empanada from Bolivia, with a sweet crust and a savory, juicy filling." },
+                { type: 'vocab', question: "An 'administrative capital' is the seat of the...", answers: [{text: "Judicial branch of government", correct: false}, {text: "Monarchy", correct: false}, {text: "Executive branch of government", correct: true}, {text: "Religious authority", correct: false}], explanation: "An administrative capital is where the executive branch of government (president, ministries) is located. Sucre is the constitutional capital of Bolivia." },
+                { type: 'vocab', question: "'Colonial' architecture in La Paz refers to the style from the period of...", answers: [{text: "Inca rule", correct: false}, {text: "Spanish rule", correct: true}, {text: "Modern development", correct: false}, {text: "Aymara kingdoms", correct: false}], explanation: "'Colonial' refers to the period when Bolivia was a colony of Spain, which left a distinct architectural style." },
+                { type: 'vocab', question: "A 'vibrant' city is...", answers: [{text: "Quiet and calm", correct: false}, {text: "Full of energy and life", correct: true}, {text: "Very old and decaying", correct: false}, {text: "Small and unpopulated", correct: false}], explanation: "'Vibrant' means full of energy, excitement, and bright colors, which describes the street life in La Paz." },
+                { type: 'vocab', question: "'Topography' refers to the...", answers: [{text: "Population density of a city", correct: false}, {text: "Arrangement of the physical features of an area", correct: true}, {text: "Local language and dialects", correct: false}, {text: "Types of food available", correct: false}], explanation: "'Topography' describes the shape of the land, such as mountains, valleys, and plateaus. La Paz has a very dramatic topography." },
+                { type: 'vocab', question: "A 'bustling' market is...", answers: [{text: "Empty and quiet", correct: false}, {text: "Closed for business", correct: false}, {text: "Full of busy activity", correct: true}, {text: "Located underground", correct: false}], explanation: "'Bustling' means to be full of activity, which is characteristic of the markets in La Paz." },
+                { type: 'vocab', question: "'Resilience' is the ability to...", answers: [{text: "Follow rules without question", correct: false}, {text: "Withstand or recover quickly from difficult conditions", correct: true}, {text: "Live at a low altitude", correct: false}, {text: "Build modern transportation", correct: false}], explanation: "'Resilience' is the capacity to recover from difficulties. The people of La Paz show resilience by thriving in a challenging high-altitude environment." },
+                { type: 'vocab', question: "A cultural 'fusion' is a...", answers: [{text: "Separation of two cultures", correct: false}, {text: "Mix or blend of different cultures", correct: true}, {text: "Conflict between cultures", correct: false}, {text: "Type of traditional music", correct: false}], explanation: "A 'fusion' is the result of joining two or more things together to form a single entity, like the blend of indigenous and Spanish cultures in La Paz." },
+                { type: 'vocab', question: "The 'elevation' of a place is its...", answers: [{text: "Political importance", correct: false}, {text: "Economic output", correct: false}, {text: "Height above sea level", correct: true}, {text: "Population size", correct: false}], explanation: "'Elevation' is another word for altitude, referring to the height of a geographic location." },
+                { type: 'vocab', question: "A 'metropolis' is a...", answers: [{text: "Small, rural village", correct: false}, {text: "Large and important city", correct: true}, {text: "Specific type of market", correct: false}, {text: "Government policy", correct: false}], explanation: "A 'metropolis' is a very large, busy city, often the most important city in a country or region." },
+                { type: 'vocab', question: "A 'cable car' is a form of transport that...", answers: [{text: "Travels on rails on the ground", correct: false}, {text: "Is suspended from and pulled by a moving cable", correct: true}, {text: "Flies through the air like a plane", correct: false}, {text: "Travels on water", correct: false}], explanation: "A 'cable car' is a cabin that hangs from a thick metal rope (a cable) and is pulled along to transport people, especially up and down mountains." },
+                { type: 'vocab', question: "A 'plateau' is an area of...", answers: [{text: "Deep water", correct: false}, {text: "Steep, pointed mountains", correct: false}, {text: "Fairly level high ground", correct: true}, {text: "Dense forest", correct: false}], explanation: "A 'plateau' is a large area of flat land that is higher than the land around it. The Altiplano is a famous example." },
+
+                // Reading Questions (20)
+                { type: 'reading', question: "What is La Paz famous for being?", answers: [{text:"The world's largest capital city", correct: false}, {text:"The world's highest administrative capital city", correct: true}, {text:"The world's oldest capital city", correct: false}, {text:"The world's richest capital city", correct: false}], explanation: "The passage states, 'It is famous because it is the world's highest capital city.'" },
+                { type: 'reading', question: "What is the name of the modern transport system in La Paz?", answers: [{text:"El Rápido", correct: false}, {text:"Mi Teleférico", correct: true}, {text:"La Paz Metro", correct: false}, {text:"Andean Express", correct: false}], explanation: "The passage says, 'it has a modern cable car system for transport called Mi Teleférico.'" },
+                { type: 'reading', question: "Why is the Mi Teleférico system so useful in La Paz?", answers: [{text:"It is very fast for long distances", correct: false}, {text:"It helps people travel up and down steep hills", correct: true}, {text:"It is the only form of transport", correct: false}, {text:"It goes underground", correct: false}], explanation: "The passage explains, 'This system helps people travel up and down the steep hills easily.'" },
+                { type: 'reading', question: "The city of La Paz is built within a...", answers: [{text:"Flat desert", correct: false}, {text:"Deep canyon", correct: true}, {text:"Coastal bay", correct: false}, {text:"Thick rainforest", correct: false}], explanation: "The passage notes the city's topography is 'set in a deep canyon'." },
+                { type: 'reading', question: "What is the name of the high plateau the city spreads onto?", answers: [{text:"The Atacama", correct: false}, {text:"The Altiplano", correct: true}, {text:"The Patagonia", correct: false}, {text:"The Pampas", correct: false}], explanation: "The passage mentions the city 'spreads onto the high Altiplano plateau'." },
+                { type: 'reading', question: "What two influences are blended in La Paz's culture?", answers: [{text:"African and Asian", correct: false}, {text:"Pre-colonial (indigenous) and Spanish", correct: true}, {text:"North American and Australian", correct: false}, {text:"Modern and futuristic", correct: false}], explanation: "The passage says, 'La Paz has a rich history that blends its pre-colonial past with Spanish influence.'" },
+                { type: 'reading', question: "What can you find at the Witches' Market?", answers: [{text:"Souvenirs and postcards", correct: false}, {text:"Traditional herbs and spiritual items", correct: true}, {text:"Livestock and farm equipment", correct: false}, {text:"Computers and mobile phones", correct: false}], explanation: "The passage states the Witches' Market is where 'vendors sell traditional herbs and spiritual items.'" },
+                { type: 'reading', question: "Who are the 'cholitas'?", answers: [{text:"Female government officials", correct: false}, {text:"Aymara women in traditional clothing", correct: true}, {text:"Tour guides for the city", correct: false}, {text:"Chefs who make salteñas", correct: false}], explanation: "The passage identifies them as 'Aymara women, known as cholitas, in their traditional clothing.'" },
+                { type: 'reading', question: "What is a 'salteña'?", answers: [{text:"A traditional song", correct: false}, {text:"A savory baked pastry", correct: true}, {text:"A type of bowler hat", correct: false}, {text:"A cable car station", correct: false}], explanation: "The passage describes a salteña as 'a savory baked pastry which is enjoyed by many.'" },
+                { type: 'reading', question: "True or False: The passage describes La Paz as a flat, sprawling city.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage states, 'In contrast to many flat, sprawling capitals, La Paz's growth is vertical, climbing the canyon walls.'" },
+                { type: 'reading', question: "What was the direct cause for creating the Mi Teleférico system?", answers: [{text:"A desire for tourism", correct: false}, {text:"The city's challenging elevation and transportation problems", correct: true}, {text:"A gift from another country", correct: false}, {text:"The need to transport goods", correct: false}], explanation: "The passage says, 'The city's challenging elevation is the direct cause of its most innovative effect: the creation of the Mi Teleférico to solve transportation problems.'" },
+                { type: 'reading', question: "What is one positive result of the city's difficult geography?", answers: [{text:"It has very clean air", correct: false}, {text:"It results in breathtaking views", correct: true}, {text:"It is easy to farm there", correct: false}, {text:"It never gets too crowded", correct: false}], explanation: "The passage states that the geography 'also results in breathtaking views.'" },
+                { type: 'reading', question: "The city's identity is a powerful balance between...", answers: [{text:"The rich and the poor", correct: false}, {text:"Ancient traditions and forward-thinking spirit", correct: true}, {text:"Work and leisure", correct: false}, {text:"The city and the countryside", correct: false}], explanation: "The last sentence says the city is defined by 'both its powerful heritage and its forward-thinking spirit.'" },
+                { type: 'reading', question: "The word 'resilience' is used to show that the city...", answers: [{text:"Is very old", correct: false}, {text:"Thrives despite its extreme conditions", correct: true}, {text:"Is a major financial center", correct: false}, {text:"Has many modern buildings", correct: false}], explanation: "The passage says the city 'shows remarkable resilience, thriving despite its extreme conditions.'" },
+                { type:- 'reading', question: "Why is the air thin in La Paz?", answers: [{text:"Because of pollution", correct: false}, {text:"Because of its high altitude", correct: true}, {text:"Because there are few trees", correct: false}, {text:"Because it is in a canyon", correct: false}], explanation: "The passage states, 'The city has a very high altitude, so the air is thin.'" },
+                { type: 'reading', question: "What is the main idea of the first paragraph?", answers: [{text:"To describe the food of La Paz", correct: false}, {text:"To introduce La Paz's key features: location, altitude, and transport", correct: true}, {text:"To detail the history of the Aymara people", correct: false}, {text:"To explain how to use the cable car", correct: false}], explanation: "The first paragraph introduces the city's status as the highest capital, its altitude, indigenous population, and the Mi Teleférico system." },
+                { type: 'reading', question: "The word 'bustling' used to describe the markets means they are...", answers: [{text:"Very colorful", correct: false}, {text:"Full of energy and activity", correct: true}, {text:"Located outdoors", correct: false}, {text:"Selling expensive goods", correct: false}], explanation: "The context of 'bustling street markets' and 'vibrant street life' points to a high level of activity." },
+                { type: 'reading', question: "The passage suggests that La Paz is a city of...", answers: [{text:"Uniformity and simplicity", correct: false}, {text:"Contrasts and adaptation", correct: true}, {text:"Ancient ruins and museums", correct: false}, {text:"Peace and quiet", correct: false}], explanation: "The passage highlights contrasts like ancient traditions vs. modern transit, and adaptation to the extreme environment." },
+                { type: 'reading', question: "True or False: According to the passage, only tourists use the Mi Teleférico.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage describes it as a 'public transport system' that 'helps people travel,' indicating it's for residents, not just tourists." },
+                { type: 'reading', question: "The primary purpose of this passage is to...", answers: [{text:"Persuade people to visit La Paz", correct: false}, {text:"Provide an overview of the unique characteristics of La Paz", correct: true}, {text:"Compare La Paz to other South American capitals", correct: false}, {text:"Give a detailed history of Bolivia", correct: false}], explanation: "The passage covers the geography, culture, people, and innovations of La Paz to give the reader a general understanding of the city." }
+            ];
+            
+            const badges = {
+                vocab: { id: 'vocab', name: 'Vocabulary Virtuoso', icon: '🎓', earned: false, condition: () => correctVocabCount === 20 },
+                reading: { id: 'reading', name: 'Analytical Ace', icon: '🧐', earned: false, condition: () => correctReadingCount === 20 },
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '👍', earned: false, condition: () => streakCounter >= 5 },
+                perfect: { id: 'perfect', name: 'Perfect 100', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-green-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function loadVoices() {
+                if ('speechSynthesis' in window) {
+                    availableVoices = speechSynthesis.getVoices();
+                    if (availableVoices.length === 0) {
+                        speechSynthesis.onvoiceschanged = () => {
+                            availableVoices = speechSynthesis.getVoices();
+                        };
+                    }
+                }
+            }
+            
+            function setupGame() {
+                playerName = playerNameInput.value || "Player";
+                const vocabQuestions = questionBank.filter(q => q.type === 'vocab');
+                const readingQuestions = questionBank.filter(q => q.type === 'reading');
+                shuffleArray(vocabQuestions);
+                shuffleArray(readingQuestions);
+                questions = vocabQuestions.concat(readingQuestions);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 900;
+                correctVocabCount = 0;
+                correctReadingCount = 0;
+                mistakes = 0;
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    if (question.tf) {
+                        button.classList.add(answerObj.text === 'True' ? 'hover:!bg-green-500' : 'hover:!bg-red-500', 'hover:text-white');
+                    }
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                
+                if ('speechSynthesis' in window && availableVoices.length > 0) {
+                    const utterance = new SpeechSynthesisUtterance(praise);
+                    // Try to find a good quality English voice
+                    let preferredVoice = availableVoices.find(voice => 
+                        voice.lang.startsWith('en') && 
+                        (voice.name.includes('Ava') || voice.name.includes('Natural') || voice.name.includes('Neural') || voice.name.includes('Google'))
+                    );
+                    if (!preferredVoice) {
+                        preferredVoice = availableVoices.find(voice => voice.lang.startsWith('en'));
+                    }
+                    if (preferredVoice) {
+                        utterance.voice = preferredVoice;
+                    }
+                    
+                    speechSynthesis.speak(utterance);
+                }
+
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 2.5;
+                    streakCounter++;
+                    if (question.type === 'vocab') correctVocabCount++;
+                    if (question.type === 'reading') correctReadingCount++;
+                    
+                    updateScore();
+                    correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    streakCounter = 0; // Reset streak
+                    wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = `Great work, ${playerName}!`;
+                } else {
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+                endMessageEl.textContent = "Your final score is:";
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            // Initial load
+            loadVoices();
+            startBtn.addEventListener('click', setupGame);
+            restartBtn.addEventListener('click', setupGame);
+            nextQuestionBtn.addEventListener('click', hideFeedback);
+        });
+    </script>
+</body>
+</html>

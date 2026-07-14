@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Midterm Review Tool</title>
+    <!-- Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Use the Inter font, which is clean and readable */
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent scrolling, as requested */
+        }
+
+        /* --- Question & Answer Styling --- */
+        #question-container {
+            max-width: 900px;
+        }
+
+        #question-text {
+            font-size: clamp(1.75rem, 4vw, 3.25rem); /* Increased font size */
+            line-height: 1.3;
+        }
+        
+        #question-text-zh {
+            font-size: clamp(1.25rem, 2.5vw, 2rem); /* Font size for Chinese */
+            color: #6b7280; /* gray-500 */
+            margin-top: 1.5rem;
+        }
+
+        #answer-container {
+            /* Pushes content to the top */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            width: 100%;
+            min-height: 100vh;
+            padding: 10vh 2rem 2rem 2rem;
+            box-sizing: border-box;
+        }
+
+        #answer-text {
+            /* Increased font size, left-aligned */
+            font-size: clamp(1.75rem, 3.5vw, 3.25rem);
+            line-height: 1.45;
+            text-align: left;
+            max-width: 1200px;
+        }
+        
+        /* Class to highlight spoken words */
+        .highlighted {
+            background-color: #fef08a; /* yellow-200 */
+            color: #1f2937; /* gray-800 */
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: background-color 0.1s ease-in-out;
+            /* Ensure <b> tags stay bold when highlighted */
+            font-weight: bold; 
+        }
+        
+        /* This class is added to word nodes during speech */
+        .word-node {
+            display: inline; /* Keep flow */
+        }
+        
+        .word-node > b {
+            font-weight: bold; /* Ensure bold tags inside spans stay bold */
+        }
+
+
+        /* --- Timer Progress Bar --- */
+        #timer-bar {
+            width: 100%;
+            height: 40px;
+            background-color: #e5e7eb; /* gray-200 */
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        #timer-progress {
+            width: 100%;
+            height: 100%;
+            border-radius: 20px 0 0 20px;
+            /* Animation for width and color */
+            transition: width 0.1s linear, background-color 0.5s linear;
+            position: relative;
+            background-color: hsl(120, 80%, 50%); /* Start green */
+            animation: pulse 2s infinite ease-in-out; /* Added pulsing */
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.85; }
+            100% { opacity: 1; }
+        }
+        
+        #timer-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #374151; /* gray-700 */
+        }
+
+        /* --- Sparkle/Glitter Effect --- */
+        #sparkle-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 50px; /* Area for sparkles to originate */
+            pointer-events: none;
+        }
+
+        .sparkle {
+            position: absolute;
+            background-color: #fff;
+            border-radius: 50%;
+            opacity: 0;
+            animation: sparkle-fly 1s ease-out forwards;
+            /* Glitter-like shape */
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+        }
+
+        @keyframes sparkle-fly {
+            0% {
+                opacity: 0.8;
+                transform: translate(0, 0) scale(0.2);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-150px, var(--sparkle-y)) scale(var(--sparkle-scale)) rotate(360deg);
+            }
+        }
+
+        /* --- Confetti/Fireworks Effect --- */
+        #confetti-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 9999;
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 20px;
+            opacity: 0;
+            animation: confetti-fall 3s ease-out forwards;
+        }
+
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(-20vh) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(120vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        /* --- Vehicle Animation --- */
+        #vehicle-marquee-container {
+            width: 100%;
+            overflow: hidden;
+            /* Adds a subtle fade on the left and right edges */
+            -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+        }
+
+        #vehicle-track {
+            font-size: clamp(2.5rem, 6vw, 4rem); /* Large emoji font size */
+            white-space: nowrap;
+            display: inline-block;
+            /* Animation: name, duration, timing-function, iteration-count */
+            animation: move-vehicles 30s linear infinite;
+        }
+        
+        /* Keyframes for the vehicle animation */
+        @keyframes move-vehicles {
+            0% {
+                transform: translateX(0%);
+            }
+            100% {
+                /* Move left by half the width (since content is duplicated) */
+                transform: translateX(-50%); 
+            }
+        }
+
+        /* Utility class to hide elements */
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Main Container: Aligned to top -->
+    <div id="app-container" class="min-h-screen w-full flex flex-col items-center justify-start p-4 pt-12 lg:p-8 lg:pt-20 transition-all duration-300">
+
+        <!-- Start Button (Initial View) -->
+        <div id="start-view" class="text-center">
+            <h1 class="text-4xl lg:text-6xl font-bold mb-8">Midterm Review</h1>
+            <button id="start-button" class="bg-gray-400 text-white font-bold py-4 px-10 rounded-full text-2xl shadow-lg transition-all" disabled>
+                Loading Voices...
+            </button>
+        </div>
+
+        <!-- Question View -->
+        <div id="question-view" class="hidden w-full max-w-4xl text-center">
+            <div id="question-container" class="mb-8">
+                <p id="question-text" class="text-gray-900"></p>
+            </div>
+            <!-- Simplified Chinese Translation -->
+            <div id="translation-container" class="w-full mt-6">
+                 <p id="question-text-zh"></p>
+            </div>
+            
+            <!-- Timer Container -->
+            <div id="timer-container" class="w-full mt-8">
+                <div id="timer-bar">
+                    <div id="timer-progress">
+                        <!-- Sparkles will be injected here by JS -->
+                        <div id="sparkle-container"></div>
+                    </div>
+                </div>
+                <div id="timer-text" class="mt-4">60s</div>
+            </div>
+            
+            <!-- Vehicle Animation Container -->
+            <div id="vehicle-marquee-container" class="w-full mt-12">
+                <div id="vehicle-track">
+                    <!-- FIX: Removed "T;" typo -->
+                    🚗 🚕 🚙 🚌 🚓 🚑 🚒 🚐 🚚 🚛 🚜&nbsp;
+                    🚗 🚕 🚙 🚌 🚓 🚑 🚒 🚐 🚚 🚛 🚜&nbsp;
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Answer View -->
+        <div id="answer-view" class="hidden w-screen h-screen">
+            <div id="answer-container">
+                <p id="answer-text"></p>
+            </div>
+        </div>
+        
+        <!-- "Review Complete" View -->
+        <div id="complete-view" class="hidden text-center">
+            <h1 class="text-4xl lg:text-6xl font-bold mb-8">Review Complete!</h1>
+            <button id="restart-button" class="bg-green-600 text-white font-bold py-4 px-10 rounded-full text-2xl shadow-lg hover:bg-green-700 transition-all transform hover:scale-105">
+                Restart
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Confetti container for time's up -->
+    <div id="confetti-container"></div>
+
+    <script>
+        // --- 1. DATA AND STATE ---
+
+        const reviewData = [
+            {
+                question: "Can you explain the <b>cause-and-effect</b> relationship between <b>new infrastructure</b> and <b>habitat fragmentation</b>?",
+                question_zh: "你能解释一下新基础设施 (new infrastructure) 和栖息地破碎化 (habitat fragmentation) 之间的因果关系吗？",
+                answer: "Yes. First, the <b>cause</b> is the <b>new infrastructure</b>, like a highway. As a <b>result</b>, the land is physically cut. This <b>effect</b> is called <b>habitat fragmentation</b>, which is the 'chopping up' of a large natural <b>habitat</b> into smaller, <b>isolated</b> pieces."
+            },
+            {
+                question: "Why is the <b>isolation</b> caused by <b>fragmentation</b> considered so <b>detrimental</b> to a region's <b>biodiversity</b>?",
+                question_zh: "为什么栖息地破碎化 (fragmentation) 导致的隔离 (isolation) 对一个地区的生物多样性 (biodiversity) 如此有害 (detrimental)？",
+                answer: "This <b>isolation</b> is <b>detrimental</b> because it makes <b>populations vulnerable</b>. Therefore, they have 'limited access to food, water, [and] mates'. This, in turn, can lead to <b>extinction</b> and a loss of <b>biodiversity</b>."
+            },
+            {
+                question: "Besides habitat loss, what is the most dangerous and direct <b>result</b> of <b>new infrastructure</b> for both humans and animals?",
+                question_zh: "除了栖息地丧失，新基础设施 (infrastructure) 对人类和动物最危险、最直接的后果是什么？",
+                answer: "The most dangerous <b>result</b> is the high rate of <b>animal-vehicle collisions</b>. This is because these <b>collisions</b> are a 'real hurdle' for animal survival and, consequently, a serious risk to '<b>human safety</b>'."
+            },
+            {
+                question: "Explain how <b>fragmentation</b> and <b>connectivity</b> are <b>opposite concepts</b> in ecology.",
+                question_zh: "请解释为什么破碎化 (fragmentation) 和连通性 (connectivity) 在生态学中是相反的概念。",
+                answer: "<b>Fragmentation</b> is the <b>problem</b> of breaking habitats apart, which results in <b>isolation</b>. Therefore, <b>connectivity</b> is the <b>solution</b>; it's the 'state of being connected' and the goal of a <b>wildlife corridor</b>."
+            },
+            {
+                question: "How does <b>urban sprawl</b> create <b>disturbances</b> that make wildlife <b>populations</b> more <b>vulnerable</b>?",
+                question_zh: "城市扩张 (urban sprawl) 是如何制造干扰 (disturbances)，从而使野生动物种群 (populations) 更加脆弱 (vulnerable) 的？",
+                answer: "<b>Urban sprawl</b> (the spread of cities) creates constant human <b>disturbances</b>, such as <b>traffic noise and light</b>. As a <b>result</b>, this stress makes <b>vulnerable</b> animal <b>populations</b> even weaker."
+            },
+            {
+                question: "Explain the scientific process: How does the <b>isolation</b> of a <b>population</b> lead to a decrease in <b>gene flow</b> and <b>genetic diversity</b>?",
+                question_zh: "请解释这个科学过程：一个种群 (population) 的隔离 (isolation) 是如何导致基因流动 (gene flow) 减少和遗传多样性 (genetic diversity) 下降的？",
+                answer: "First, the <b>isolation</b> of a <b>population</b> (the <b>cause</b>) means they cannot travel to breed with other groups. This directly stops <b>gene flow</b> (the <b>effect</b>). Without <b>gene flow</b>, the <b>genetic diversity</b> of the group shrinks, which makes them weaker."
+            },
+            {
+                question: "Why is an <b>ecosystem</b> with low <b>genetic diversity</b> considered to have low <b>resilience</b> against <b>disturbances</b> like disease?",
+                question_zh: "为什么一个遗传多样性 (genetic diversity) 低的生态系统 (ecosystem) 被认为对疾病等干扰 (disturbances) 的恢复力 (resilience) 很低？",
+                answer: "An <b>ecosystem</b> with low <b>genetic diversity</b> has less <b>resilience</b>. This means that if a <b>disturbance</b> like a 'disease or genetic issue' appears, the entire weak <b>population</b> is <b>vulnerable</b> and can be wiped out."
+            },
+            {
+                question: "What is the difference between an animal <b>population</b> that merely '<b>survives</b>' and one that can '<b>thrive</b>'? Furthermore, why is protecting <b>biodiversity</b> essential for this?",
+                question_zh: "一个仅仅‘存活’(survives) 的动物种群 (population) 和一个能‘茁壮成长’(thrive) 的种群有什么区别？此外，为什么保护生物多样性 (biodiversity) 对此至关重要？",
+                answer: "A <b>population</b> that '<b>survives</b>' is just barely hanging on. In contrast, a <b>population</b> that can '<b>thrive</b>' is healthy, growing, and successful. Protecting <b>biodiversity</b> is <b>essential</b> because it maintains the health of the whole <b>ecosystem</b>, allowing all species to <b>thrive</b>."
+            },
+            {
+                question: "Why is planting native <b>vegetation</b> a '<b>crucial</b>' part of designing an <b>overpass</b>? Specifically, how does it help recreate the animal's <b>habitat</b>?",
+                question_zh: "为什么种植本地植被 (vegetation) 是设计天桥 (overpass) 的“关键”部分？具体来说，它如何帮助重建动物的栖息地 (habitat)？",
+                answer: "<b>Vegetation</b> is '<b>crucial</b>' on an <b>overpass</b> because it makes the bridge feel like a natural <b>habitat</b>. For example, it 'provides <b>shelter</b>, <b>food</b>, and a sense of <b>security</b>' so animals aren't afraid to use it."
+            },
+            {
+                question: "Why would a large, open <b>overpass</b> be an incorrect design for <b>amphibians</b>? What kind of <b>species-specific</b> structure, like an <b>underpass</b>, do they need?",
+                question_zh: "为什么一个大型、开放的天桥 (overpass) 对两栖动物 (amphibians) 来说是一个错误的设计？它们需要哪种特定物种 (species-specific) 的结构，比如地下通道 (underpass)？",
+                answer: "A large <b>overpass</b> is wrong for <b>amphibians</b> because they prefer small, dark, and often moist places. Therefore, a <b>species-specific</b> design for them would be a small <b>underpass</b> or tunnel."
+            },
+            {
+                question: "What is the main purpose of a <b>wildlife corridor</b>, and what are the two primary types of structures?",
+                question_zh: "野生动物通道 (wildlife corridor) 的主要目的是什么？它有两种主要结构类型是什么？",
+                answer: "The main purpose of a <b>wildlife corridor</b> is to 'reconnect... <b>fragmented habitats</b>'. The two primary structures are, first, the <b>overpass</b> (a 'green bridge' <b>over</b> the road) and, second, the <b>underpass</b> (a tunnel <b>under</b> it)."
+            },
+            {
+                question: "What does '<b>engineering for coexistence</b>' mean? Why must an engineer use a <b>holistic approach</b> that includes <b>ecology</b>, not just construction?",
+                question_zh: "“为共存而工程”(engineering for coexistence) 是什么意思？为什么工程师必须采用包括生态学 (ecology) 在内的整体 (holistic) 方法，而不仅仅是建筑？",
+                answer: "'<b>Engineering for coexistence</b>' means designing infrastructure so humans and wildlife can both <b>thrive</b>. An engineer must use a <b>holistic approach</b> because 'it's about understanding <b>animal behavior</b> and <b>ecological needs</b>,' not just 'concrete and steel.'"
+            },
+            {
+                question: "How do features like <b>noise barriers</b> help to <b>mitigate</b> human <b>disturbances</b> for animals using a crossing?",
+                question_zh: "像隔音屏障 (noise barriers) 这样的设施如何帮助减轻 (mitigate) 过路动物受到的人为干扰 (disturbances)？",
+                answer: "<b>Noise barriers</b> are walls that 'help <b>mitigate</b> the stress of <b>traffic noise</b>.' This reduction in the <b>disturbance</b> of noise is consequently <b>essential</b> to make animals feel safe enough to use the crossing."
+            },
+            {
+                question: "Why is <b>fencing</b> often necessary? How does it help create safe <b>transition zones</b> for animals approaching a crossing?",
+                question_zh: "为什么围栏 (fencing) 常常是必需的？它如何帮助为接近通道的动物创造安全的过渡区 (transition zones)？",
+                answer: "<b>Fencing</b> is necessary because it '<b>funnel</b>[s] animals towards designated <b>safe crossing points</b>.' As a <b>result</b>, this creates safe <b>transition zones</b> by ensuring animals 'feel safe approaching' the crossing instead of wandering onto the road."
+            },
+            {
+                question: "A company proposes a new <b>modular design</b>. What are its main advantages? And how does it help a project be more <b>cost-effective</b>, <b>scalable</b>, and able to <b>adapt</b>?",
+                question_zh: "一家公司提出了一种新的模块化设计 (modular design)。它的主要优点是什么？它如何帮助项目更具成本效益 (cost-effective)、可扩展性 (scalable) 和适应性 (adapt)？",
+                answer: "A <b>modular design</b> uses standard parts. Its main advantage is that it is more <b>cost-effective</b>. Additionally, it is <b>scalable</b> (easy to resize) and can <b>adapt</b> to different species, from kangaroos to badgers, and still be made <b>durable</b> for any climate."
+            },
+            {
+                question: "When engineers <b>analyze</b> a new project, what are the two biggest non-engineering <b>challenges</b> they face in getting it approved?",
+                question_zh: "当工程师分析 (analyze) 一个新项目时，他们在获得批准方面面临的两个最大的非工程类挑战是什么？",
+                answer: "When engineers <b>analyze</b> a project, the two biggest <b>challenges</b> are, first, the high <b>cost</b> (including <b>land acquisition</b>), and second, the difficulty of getting <b>public buy-in</b> (public support)."
+            },
+            {
+                question: "The audio says location is '<b>paramount</b>.' What does this mean, and what other factors must an engineer <b>prioritize</b> in the design phase?",
+                question_zh: "音频中说位置是“至关重要” (paramount) 的。这是什么意思？工程师在设计阶段还必须优先考虑 (prioritize) 哪些其他因素？",
+                answer: "'<b>Paramount</b>' means '<b>location</b>' is the <b>most important</b> factor; the crossing must be 'placed where animals are likely to cross.' However, an engineer must also <b>prioritize</b> other factors like '<b>structural integrity</b>' (safety) and <b>cost-effectiveness</b>."
+            },
+            {
+                question: "What is the purpose of <b>monitoring</b>? Specifically, how do <b>camera traps</b> provide data for <b>evaluation</b> and <b>evidence-based design</b>?",
+                question_zh: "监测 (monitoring) 的目的是什么？具体来说，相机陷阱 (camera traps) 是如何为评估 (evaluation) 和循证设计 (evidence-based design) 提供数据的？",
+                answer: "The purpose of <b>monitoring</b> is for the <b>evaluation</b> of the project—to see if it works. <b>Camera traps</b> are 'vital' because they provide <b>proof</b> and <b>data</b>. This <b>data</b> is then used for <b>evidence-based design</b> on future projects."
+            },
+            {
+                question: "Why is it often difficult to <b>implement</b> a project even after it's designed? What is '<b>public buy-in</b>' and why is it <b>essential</b>?",
+                question_zh: "为什么一个项目即使在设计完成后也常常难以实施 (implement)？什么是“公众支持” (public buy-in)，为什么它至关重要？",
+                answer: "It is difficult to <b>implement</b> a project because of high <b>costs</b> and lack of <b>public support</b>. '<b>Public buy-in</b>' is when 'the public... understand[s] and support[s] the project.' It is <b>essential</b> because without it, it is very difficult to get government <b>funding</b>."
+            },
+            {
+                question: "What is an example of an <b>innovative</b>, <b>cost-effective</b> alternative to a full bridge, such as using <b>sensors</b>? And how would you use a <b>synthesis</b> of all this information to <b>justify</b> your final plan?",
+                question_zh: "有没有什么创新的 (innovative)、具有成本效益 (cost-effective) 的方案可以替代造价高昂的桥梁，比如使用传感器 (sensors)？你将如何综合 (synthesis) 所有这些信息来证明 (justify) F你的最终计划？",
+                answer: "An <b>innovative</b> and <b>cost-effective</b> alternative is '<b>smart technology</b>' that uses <b>sensors</b> to detect animals and warn drivers. To <b>justify</b> a final plan, you would use a <b>synthesis</b> of all information. First, you would present the <b>problem</b> (fragmentation), then the <b>benefits</b> (safety), and finally the <b>costs</b> and these <b>innovative solutions</b> to prove your plan is <b>sustainable</b>."
+            }
+        ];
+
+        // --- State Variables ---
+        let currentQuestionIndex = 0;
+        let timerInterval;
+        let sparkleInterval;
+        let timerSeconds = 60;
+        let allVoices = [];
+        let selectedVoices = []; // Will hold the specific MS Online voices
+        let voiceIndex = 0;
+        let allWordNodes = []; // For speech highlighting
+        let currentHighlightIndex = 0; // For speech highlighting
+
+        // --- DOM Elements ---
+        const startView = document.getElementById('start-view');
+        const questionView = document.getElementById('question-view');
+        const answerView = document.getElementById('answer-view');
+        const completeView = document.getElementById('complete-view');
+        
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        
+        const questionText = document.getElementById('question-text');
+        const questionTextZh = document.getElementById('question-text-zh');
+        const answerText = document.getElementById('answer-text');
+        
+        const timerText = document.getElementById('timer-text');
+        const timerProgress = document.getElementById('timer-progress');
+        const sparkleContainer = document.getElementById('sparkle-container');
+        const confettiContainer = document.getElementById('confetti-container');
+
+        // --- 2. CORE FUNCTIONS ---
+
+        /**
+         * Initializes the application.
+         * Loads voices and sets up event listeners.
+         */
+        function init() {
+            // Load voices first
+            loadVoices();
+            
+            // Set up button listeners
+            startButton.addEventListener('click', startReview);
+            restartButton.addEventListener('click', startReview);
+            
+            // This is a failsafe in case voiceschange isn't supported or fails
+            setTimeout(loadVoices, 1000); 
+        }
+
+        /**
+         * Loads and filters the available system voices.
+         * Specifically searches for the Microsoft Online voices.
+         */
+        function loadVoices() {
+            allVoices = window.speechSynthesis.getVoices();
+            if (allVoices.length === 0) {
+                // Listen for the event that fires when voices are loaded
+                window.speechSynthesis.onvoiceschanged = () => {
+                    allVoices = window.speechSynthesis.getVoices();
+                    filterAndEnableVoices();
+                };
+            } else {
+                filterAndEnableVoices();
+            }
+        }
+        
+        /**
+         * Filters for the requested MS voices and enables the start button.
+         */
+        function filterAndEnableVoices() {
+            // FIX: Prioritize only Andrew and Emma as requested
+            const voiceNames = [
+                "Microsoft Andrew Online (Natural) - English (United States)",
+                "Microsoft Emma Online (Natural) - English (United States)",
+                "Microsoft Emma Online (Natural) - English (UnitedStates)" // Note: Emma sometimes has no space
+            ];
+
+            selectedVoices = allVoices.filter(voice => {
+                // Check for exact name first
+                if (voiceNames.includes(voice.name)) return true;
+                
+                // Fallback check for partial names
+                return voice.lang === "en-US" &&
+                       voice.name.includes("Microsoft") && 
+                       voice.name.includes("Online") && 
+                       (voice.name.includes("Andrew") || voice.name.includes("Emma"));
+            });
+
+            // If we didn't find the specific online voices, fall back to any US English voice
+            if (selectedVoices.length === 0) {
+                console.warn("Could not find specific MS Online voices (Andrew, Emma). Falling back to default en-US voices.");
+                selectedVoices = allVoices.filter(voice => voice.lang === "en-US");
+            }
+            
+            // If still no voices, something is wrong
+            if (selectedVoices.length === 0) {
+                 console.error("No en-US voices found!");
+                 startButton.innerText = "Error: No Voices Found";
+                 startButton.disabled = true;
+                 startButton.classList.add('bg-red-500');
+                 startButton.classList.remove('bg-gray-400');
+            } else {
+                // DEBUG FIX: Enable the button only when voices are ready
+                console.log("Voices loaded:", selectedVoices.map(v => v.name));
+                startButton.innerText = "Start Review";
+                startButton.disabled = false;
+                startButton.classList.remove('bg-gray-400');
+                startButton.classList.add('bg-blue-600', 'hover:bg-blue-700', 'transform', 'hover:scale-105');
+            }
+        }
+
+        /**
+         * Starts or restarts the review.
+         */
+        function startReview() {
+            // Reset state
+            currentQuestionIndex = 0;
+            voiceIndex = 0;
+            
+            // Hide all views, then show the first question
+            startView.classList.add('hidden');
+            answerView.classList.add('hidden');
+            completeView.classList.add('hidden');
+            
+            showQuestion();
+        }
+
+        /**
+         * Displays the current question and starts the timer.
+         */
+        function showQuestion() {
+            if (currentQuestionIndex >= reviewData.length) {
+                showCompletionScreen();
+                return;
+            }
+
+            // Get current data
+            const data = reviewData[currentQuestionIndex];
+
+            // Set up the view
+            questionText.innerHTML = data.question; // Use innerHTML for <b> tags
+            questionTextZh.innerText = data.question_zh;
+            
+            // Hide other views and show the question view
+            answerView.classList.add('hidden');
+            completeView.classList.add('hidden');
+            questionView.classList.remove('hidden');
+
+            // Reset and start the timer
+            resetTimer();
+            
+            // Speak the question, and when done, start the 60s timer
+            speakText(data.question, () => {
+                startTimer();
+            });
+        }
+
+        /**
+         * Displays the answer for the current question.
+         */
+        function showAnswer() {
+            const data = reviewData[currentQuestionIndex];
+
+            // Set up the view
+            answerText.innerHTML = data.answer; // Use innerHTML for <b> tags
+            
+            // Hide question, show answer
+            questionView.classList.add('hidden');
+            answerView.classList.remove('hidden');
+            
+            // Speak the answer, and when done, move to the next question
+            speakAndHighlightAnswer(data.answer, () => {
+                // Pause for 1.5 seconds before showing the next question
+                setTimeout(() => {
+                    currentQuestionIndex++;
+                    showQuestion();
+                }, 1500);
+            });
+        }
+
+        /**
+         * Displays the completion screen.
+         */
+        function showCompletionScreen() {
+            startView.classList.add('hidden');
+            questionView.classList.add('hidden');
+            answerView.classList.add('hidden');
+            completeView.classList.remove('hidden');
+            
+            // FIX: Add confetti to the final "complete" screen
+            triggerConfetti();
+        }
+
+        // --- 3. TIMER & EFFECTS FUNCTIONS ---
+
+        /**
+         * Starts the 60-second countdown timer.
+         */
+        function startTimer() {
+            timerSeconds = 60;
+            
+            // Update immediately for a responsive feel
+            updateTimerDisplay();
+            
+            // Start sparkle effect
+            sparkleInterval = setInterval(createSparkle, 100);
+
+            // Start the main countdown
+            timerInterval = setInterval(() => {
+                timerSeconds--;
+                updateTimerDisplay();
+
+                if (timerSeconds <= 0) {
+                    timeUp();
+                } else if (timerSeconds === 8) {
+                    // At 8 seconds, say "now make a review"
+                    // FIX: Changed rate from 1.0 to 0.85 to respect user preference
+                    speakText("Now, make a review.", null, 0.85); 
+                }
+            }, 1000);
+        }
+
+        /**
+         * Called when the timer reaches zero.
+         */
+        function timeUp() {
+            clearInterval(timerInterval);
+            clearInterval(sparkleInterval);
+            
+            // FIX: Don't show "Time's Up!" text on the timer
+            
+            // Trigger confetti/fireworks
+            triggerConfetti();
+
+            // Pause for 1.5 seconds, then show the answer
+            setTimeout(() => {
+                showAnswer();
+            }, 1500);
+        }
+
+        /**
+         * Resets the timer display to its initial state (60s, 100% green).
+         */
+        function resetTimer() {
+            clearInterval(timerInterval);
+            clearInterval(sparkleInterval);
+            
+            // FIX: Reset text and progress bar *before* question is shown
+            timerSeconds = 60;
+            timerText.innerText = "60s";
+            timerProgress.style.width = '100%';
+            timerProgress.style.backgroundColor = 'hsl(120, 80%, 50%)';
+            sparkleContainer.innerHTML = ''; // Clear old sparkles
+        }
+
+        /**
+         * Updates the timer text and progress bar.
+         */
+        function updateTimerDisplay() {
+            timerText.innerText = `${timerSeconds}s`;
+            
+            const percentage = (timerSeconds / 60) * 100;
+            timerProgress.style.width = `${percentage}%`;
+
+            // Dynamically change color from Green (120) to Red (0)
+            const hue = (percentage / 100) * 120;
+            timerProgress.style.backgroundColor = `hsl(${hue}, 80%, 50%)`;
+        }
+
+        /**
+         * Creates a single sparkle particle for the timer effect.
+         */
+        function createSparkle() {
+            const sparkle = document.createElement('div');
+            sparkle.className = 'sparkle';
+            
+            const y = Math.random() * timerProgress.clientHeight;
+            const scale = 0.5 + Math.random() * 0.5;
+            const animY = (Math.random() - 0.5) * 80; // Spread up or down
+
+            sparkle.style.setProperty('--sparkle-y', `${animY}px`);
+            sparkle.style.setProperty('--sparkle-scale', scale);
+            sparkle.style.top = `${y}px`;
+            sparkle.style.right = '0px'; // Start from the right edge of the bar
+            
+            // Randomize color
+            sparkle.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 75%)`;
+
+            sparkleContainer.appendChild(sparkle);
+
+            // Clean up the DOM
+            setTimeout(() => {
+                sparkle.remove();
+            }, 1000);
+        }
+
+        /**
+         * Creates a burst of confetti.
+         */
+        function triggerConfetti() {
+            const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
+            
+            for (let i = 0; i < 100; i++) {
+                const confetti = document.createElement('div');
+                confetti.className = 'confetti';
+                confetti.style.left = `${Math.random() * 100}vw`;
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.animationDelay = `${Math.random() * 0.5}s`;
+                confetti.style.transform = `rotate(${Math.random() * 360}deg)`;
+                
+                confettiContainer.appendChild(confetti);
+
+                // Clean up the DOM
+                setTimeout(() => {
+                    confetti.remove();
+                }, 3000);
+            }
+        }
+
+        // --- 4. SPEECH & HIGHLIGHTING FUNCTIONS ---
+
+        /**
+         * A generic function to speak any text.
+         * @param {string} text - The text to be spoken.
+         * @param {function} onEndCallback - Function to call when speech finishes.
+         * @param {number} [rate=0.85] - Speech rate (0.85 is 85%).
+         */
+        function speakText(text, onEndCallback, rate = 0.85) {
+            // Cancel any ongoing speech
+            window.speechSynthesis.cancel();
+            
+            // Create a temporary div to parse HTML and get plain text
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = text;
+            const plainText = tempDiv.textContent || tempDiv.innerText || "";
+
+            // Create a new speech utterance
+            const utterance = new SpeechSynthesisUtterance(plainText);
+            
+            // Get the next voice in the cycle
+            const voice = selectedVoices[voiceIndex % selectedVoices.length];
+            voiceIndex++;
+            
+            utterance.voice = voice;
+            utterance.rate = rate; // Use preference for 85% speed
+            utterance.pitch = 1.0;
+            
+            console.log(`Speaking with: ${voice.name}`);
+
+            // FIX: Add keep-alive interval to prevent speech engine from sleeping
+            let keepAliveInterval = null; 
+
+            // Set the callback for when the speech ends
+            if (onEndCallback) {
+                utterance.onend = () => {
+                    clearInterval(keepAliveInterval); // Clear keep-alive
+                    onEndCallback();
+                };
+            } else {
+                utterance.onend = () => {
+                    clearInterval(keepAliveInterval); // Clear keep-alive
+                };
+            }
+            
+            // Handle errors
+            utterance.onerror = (event) => {
+                console.error("Speech synthesis error:", event);
+                clearInterval(keepAliveInterval); // Clear on error
+                // If there's an error, still call the callback to proceed
+                if (onEndCallback) {
+                    onEndCallback();
+                }
+            };
+
+            // Speak the text
+            window.speechSynthesis.speak(utterance);
+
+            // Start keep-alive
+            keepAliveInterval = setInterval(() => {
+                window.speechSynthesis.pause();
+                window.speechSynthesis.resume();
+            }, 5000); // Every 5 seconds
+        }
+
+        /**
+         * Speaks the answer and highlights words as they are spoken.
+         * @param {string} answerHtml - The HTML content of the answer.
+         * @param {function} onEndCallback - Function to call when speech finishes.
+         */
+        function speakAndHighlightAnswer(answerHtml, onEndCallback) {
+            window.speechSynthesis.cancel();
+            
+            // --- 1. Setup: Prepare HTML and data structures ---
+            
+            // Create a temporary div to parse the HTML and extract text
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = answerHtml;
+            const plainText = tempDiv.textContent || tempDiv.innerText || "";
+
+            // Reset the word-highlighting map
+            allWordNodes = [];
+            currentHighlightIndex = 0;
+            
+            // Clear previous highlighting setup (if any)
+            answerText.innerHTML = answerHtml;
+            setupHighlighting(answerText.childNodes);
+
+            // --- 2. Create Speech Utterance ---
+            const utterance = new SpeechSynthesisUtterance(plainText);
+            
+            // Get the next voice
+            const voice = selectedVoices[voiceIndex % selectedVoices.length];
+            voiceIndex++;
+            
+            utterance.voice = voice;
+            utterance.rate = 0.85; // Use preference for 85% speed
+            utterance.pitch = 1.0;
+            
+            console.log(`Speaking answer with: ${voice.name}`);
+
+            // --- 3. Speech Event Listeners ---
+            let lastHighlightedNode = null;
+            // FIX: Add keep-alive interval
+            let keepAliveInterval = null;
+
+            utterance.onboundary = (event) => {
+                if (event.name === 'word') {
+                    // Remove highlight from the previous word
+                    if (lastHighlightedNode) {
+                        lastHighlightedNode.classList.remove('highlighted');
+                    }
+                    
+                    // Find the node to highlight
+                    const nodeToHighlight = allWordNodes[currentHighlightIndex];
+                    
+                    if (nodeToHighlight) {
+                        nodeToHighlight.classList.add('highlighted');
+                        lastHighlightedNode = nodeToHighlight;
+                        currentHighlightIndex++;
+                    }
+                }
+            };
+
+            utterance.onend = () => {
+                clearInterval(keepAliveInterval); // Clear keep-alive
+                // Remove the final highlight
+                if (lastHighlightedNode) {
+                    lastHighlightedNode.classList.remove('highlighted');
+                }
+                
+                // Call the main callback to move to the next question
+                if (onEndCallback) {
+                    onEndCallback();
+                }
+            };
+            
+            utterance.onerror = (event) => {
+                console.error("Speech synthesis error:", event);
+                clearInterval(keepAliveInterval); // Clear on error
+                if (onEndCallback) {
+                    onEndCallback();
+                }
+            };
+
+            // --- 4. Start Speaking ---
+            window.speechSynthesis.speak(utterance);
+            
+            // Start keep-alive
+            keepAliveInterval = setInterval(() => {
+                window.speechSynthesis.pause();
+                window.speechSynthesis.resume();
+            }, 5000); // Every 5 seconds
+        }
+        
+        /**
+         * Recursive helper function to build the word map for highlighting.
+         * Traverses text nodes and <b> tags.
+         * @param {NodeListOf<ChildNode>} nodes - Child nodes of the answer element.
+         */
+        function setupHighlighting(nodes) {
+            // We must iterate over a static copy, because the collection is "live"
+            // and changing it (by removing nodes) while iterating breaks things.
+            Array.from(nodes).forEach(node => {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    // It's a plain text node
+                    const text = node.textContent.trim();
+                    if (text) {
+                        const words = text.split(/\s+/).filter(Boolean); // Filter out empty strings
+                        const parent = node.parentNode;
+                        
+                        // Replace the single text node with <span> wrapped words
+                        const fragment = document.createDocumentFragment();
+                        const newNodes = words.map(word => {
+                            const span = document.createElement('span');
+                            span.textContent = word + ' '; // Add space back
+                            span.className = 'word-node';
+                            return span;
+                        });
+                        
+                        newNodes.forEach(newNode => fragment.appendChild(newNode));
+
+                        // Insert new spans and remove old text node
+                        parent.insertBefore(fragment, node); // Pass the fragment itself
+                        allWordNodes.push(...newNodes);
+                        parent.removeChild(node);
+                    } else {
+                        // Node is just whitespace, remove it
+                        if (node.parentNode) {
+                            node.parentNode.removeChild(node);
+                        }
+                    }
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    // It's an element, e.g., <B>
+                    if (node.hasChildNodes() && node.firstChild.nodeType === Node.TEXT_NODE) {
+                        // This is a <b> tag with only text inside, e.g. <b>word</b>
+                        // Add a class so it can be targeted
+                        node.classList.add('word-node'); 
+                        allWordNodes.push(node);
+                    } else if (node.hasChildNodes()) {
+                        // This node has other nodes inside it, recurse
+                        setupHighlighting(node.childNodes);
+                    }
+                }
+            });
+        }
+
+        // --- 5. Start Application ---
+        init();
+
+    </script>
+</body>
+</html>

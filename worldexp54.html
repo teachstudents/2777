@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wildlife Corridor Challenge</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+
+    <style>
+        /* Custom styles with an indigo, "wildlife" theme */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #312e81, #4338ca, #4f46e5, #6366f1);
+            background-size: 400% 400%;
+            animation: gradientBG 35s ease infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #34d399; color: white; transform: scale(1.02); }
+            100% { background-color: #34d399; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Wildlife Corridor Challenge</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge of animal crossings and biodiversity. You have 10 minutes to answer 25 questions. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-indigo-300 focus:outline-none">
+            
+            <div id="loading-indicator" class="flex items-center justify-center my-4">
+                <svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="ml-3 text-xl">Loading audio...</span>
+            </div>
+
+            <button id="start-btn" class="hidden w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn" disabled>Enter Name to Start</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">10:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div id="badges-container" class="flex justify-center items-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-indigo-700 mb-2" id="question-counter">Question 1 / 25</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 min-h-[100px] text-center"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+
+            let score = 0;
+            let timer;
+            let timeLeft = 600; // 10 minutes for 25 questions
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctAnswers = 0;
+            let mistakes = 0;
+            let streakCounter = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let audioInitialized = false;
+
+            let correctSound, wrongSound, badgeSound;
+
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!"];
+
+            const questionBank = [
+                { question: "What is the natural home of an animal called?", answers: [{text: "A corridor", correct: false}, {text: "A habitat", correct: true}, {text: "An overpass", correct: false}, {text: "An ecosystem", correct: false}], explanation: "A 'habitat' is the natural home or environment of an animal, plant, or other organism." },
+                { question: "The process of breaking a habitat into smaller, separate parts is called...", answers: [{text: "Conservation", correct: false}, {text: "Migration", correct: false}, {text: "Fragmentation", correct: true}, {text: "Coexistence", correct: false}], explanation: "'Fragmentation' is the process of being broken into smaller or separate parts, often by roads." },
+                { question: "A strip of land connecting two larger habitats is a...", answers: [{text: "Corridor", correct: true}, {text: "Highway", correct: false}, {text: "Tunnel", correct: false}, {text: "Bridge", correct: false}], explanation: "A wildlife 'corridor' allows animals to move safely between habitats." },
+                { question: "What does 'Biodiversity' refer to?", answers: [{text: "The number of roads", correct: false}, {text: "The variety of plant and animal life", correct: true}, {text: "The speed of animal migration", correct: false}, {text: "The study of animal bridges", correct: false}], explanation: "'Biodiversity' is the variety of plant and animal life in a particular habitat." },
+                { question: "When humans and wildlife live together with minimal conflict, it is called...", answers: [{text: "Fragmentation", correct: false}, {text: "Conservation", correct: false}, {text: "Migration", correct: false}, {text: "Coexistence", correct: true}], explanation: "'Coexistence' is the state of living or existing at the same time or in the same place peacefully." },
+                { question: "What is the seasonal movement of animals called?", answers: [{text: "Infrastructure", correct: false}, {text: "Migration", correct: true}, {text: "Conservation", correct: false}, {text: "Fragmentation", correct: false}], explanation: "'Migration' is the seasonal movement of animals from one region to another." },
+                { question: "A bridge built over a road for animals is an...", answers: [{text: "Underpass", correct: false}, {text: "Overpass", correct: true}, {text: "Corridor", correct: false}, {text: "Habitat", correct: false}], explanation: "An animal 'overpass' is a bridge built specifically for wildlife to cross over a road." },
+                { question: "A tunnel built under a road for animals is an...", answers: [{text: "Overpass", correct: false}, {text: "Underpass", correct: true}, {text: "Corridor", correct: false}, {text: "Habitat", correct: false}], explanation: "An 'underpass' is a tunnel that passes under a road, often used by smaller animals." },
+                { question: "The protection of animals, plants, and natural resources is called...", answers: [{text: "Infrastructure", correct: false}, {text: "Coexistence", correct: false}, {text: "Conservation", correct: true}, {text: "Migration", correct: false}], explanation: "'Conservation' is the protection of animals, plants, and natural resources." },
+                { question: "Roads, bridges, and railways are all examples of...", answers: [{text: "Habitats", correct: false}, {text: "Ecosystems", correct: false}, {text: "Infrastructure", correct: true}, {text: "Corridors", correct: false}], explanation: "'Infrastructure' refers to basic physical systems like roads and bridges." },
+                { question: "According to the A2 text, what is the main problem caused by building a big road?", answers: [{text: "It makes the forest look ugly", correct: false}, {text: "It causes habitat fragmentation", correct: true}, {text: "It is too expensive", correct: false}, {text: "It makes animals move faster", correct: false}], explanation: "The A2 text states that a big road 'can cut a forest in two. This is called habitat fragmentation'." },
+                { question: "What do animal bridges need to have on them to feel like a real habitat?", answers: [{text: "Streetlights and signs", correct: false}, {text: "Grass and trees", correct: true}, {text: "Shops and restaurants", correct: false}, {text: "Pavement and painted lines", correct: false}], explanation: "The A2 text says they are 'covered with grass and trees to make them feel like a real habitat'." },
+                { question: "The B1 text says that when a road cuts through a forest, it creates two smaller...", answers: [{text: "Parks", correct: false}, {text: "Cities", correct: false}, {text: "Islands of land", correct: true}, {text: "Rivers", correct: false}], explanation: "The B1 text describes the result as two smaller, 'isolated islands of land'." },
+                { question: "What is a human benefit of wildlife crossings mentioned in the B1 text?", answers: [{text: "They are nice to look at", correct: false}, {text: "They prevent vehicle collisions", correct: true}, {text: "They create jobs for builders", correct: false}, {text: "They make drives more interesting", correct: false}], explanation: "The B1 text mentions that wildlife crossings help in 'preventing vehicle collisions'." },
+                { question: "According to the B1 text, wildlife corridors are safe passages that connect what?", answers: [{text: "Two different cities", correct: false}, {text: "Fragmented habitats", correct: true}, {text: "Rivers and oceans", correct: false}, {text: "Two different countries", correct: false}], explanation: "Wildlife corridors 'connect fragmented habitats'." },
+                { question: "The B2 text states that habitat fragmentation is one of the greatest threats to...", answers: [{text: "Global biodiversity", correct: true}, {text: "The economy", correct: false}, {text: "Human safety", correct: false}, {text: "The tourism industry", correct: false}], explanation: "The B2 text calls it 'one of the greatest threats to global biodiversity'." },
+                { question: "What does the B2 text say is a key factor in the design of a successful wildlife corridor?", answers: [{text: "The color of the bridge", correct: false}, {text: "The name of the bridge", correct: false}, {text: "Location, width, and vegetation", correct: true}, {text: "The company that built it", correct: false}], explanation: "The B2 text lists 'location, width, noise-dampening barriers, and the type of vegetation' as critical factors." },
+                { question: "What is the main purpose of a wildlife overpass?", answers: [{text: "To provide a scenic view for drivers", correct: false}, {text: "To allow large mammals to cross a highway safely", correct: true}, {text: "To create a new park", correct: false}, {text: "To serve as a tourist attraction", correct: false}], explanation: "Overpasses are typically designed for large mammals like deer to cross safely." },
+                { question: "What kind of animals often prefer an underpass?", answers: [{text: "Large birds", correct: false}, {text: "Giraffes", correct: false}, {text: "Small amphibians and mammals", correct: true}, {text: "Elephants", correct: false}], explanation: "The B2 text mentions that underpasses are often designed for 'amphibians and small mammals'." },
+                { question: "What is a benefit of wildlife corridors for humans, mentioned in the B2 text?", answers: [{text: "They increase property values", correct: false}, {text: "They reduce the number of wildlife-vehicle collisions", correct: true}, {text: "They provide a new place to walk", correct: false}, {text: "They generate electricity", correct: false}], explanation: "The B2 text states they enhance human safety by 'significantly reducing the number of dangerous and costly wildlife-vehicle collisions'." },
+                { question: "What is the main theme of all three texts?", answers: [{text: "Roads are bad for the environment", correct: false}, {text: "Animals are smarter than humans", correct: false}, {text: "Engineering can be used to help humans and wildlife coexist", correct: true}, {text: "All forests should be connected", correct: false}], explanation: "The central theme is using engineering and design to solve the conflict between human infrastructure and wildlife." },
+                { question: "What does 'isolates animal populations' mean?", answers: [{text: "It helps them find new mates", correct: false}, {text: "It separates them from each other", correct: true}, {text: "It protects them from predators", correct: false}, {text: "It gives them a larger habitat", correct: false}], explanation: "'Isolates' means to separate one group from others." },
+                { question: "Why is it important for a wildlife bridge to have vegetation?", answers: [{text: "To make it look pretty for humans", correct: false}, {text: "To make it feel like a natural and safe path for animals", correct: true}, {text: "To absorb rainwater", correct: false}, {text: "To provide food for the construction workers", correct: false}], explanation: "Vegetation makes the bridge feel like a natural part of the animals' habitat, encouraging them to use it." },
+                { question: "What does 'mitigate' mean in the context of 'mitigate this damage'?", answers: [{text: "To make a problem worse", correct: false}, {text: "To ignore a problem", correct: false}, {text: "To make a problem less severe or serious", correct: true}, {text: "To study a problem", correct: false}], explanation: "'Mitigate' means to make something bad less severe or painful." },
+                { question: "Germany's *Grünbrücken* are a real-world example of what?", answers: [{text: "A new type of highway", correct: false}, {text: "Wildlife overpasses", correct: true}, {text: "A national park", correct: false}, {text: "A type of garden", correct: false}], explanation: "*Grünbrücken* literally translates to 'green bridges' and refers to Germany's wildlife overpasses." }
+            ];
+            
+            const badges = {
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '🔥', earned: false, condition: () => streakCounter >= 5 },
+                quick: { id: 'quick', name: 'Quick Thinker', icon: '⚡', earned: false, condition: () => timeLeft > 480 }, // Answered all in under 2 mins
+                perfect: { id: 'perfect', name: 'Perfect Score', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-yellow-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function setupGame() {
+                playerName = playerNameInput.value || "Player";
+                questions = shuffleArray([...questionBank]);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 600; // 10 minutes
+                correctAnswers = 0;
+                mistakes = 0;
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        if(audioInitialized) badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 4; // 25 questions * 4 points = 100
+                    correctAnswers++;
+                    streakCounter++;
+                    
+                    updateScore();
+                    if(audioInitialized) correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    streakCounter = 0; // Reset streak
+                    if(audioInitialized) wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = `Great work, ${playerName}!`;
+                } else {
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+                endMessageEl.textContent = "Your final score is:";
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            async function initAudioAndStart() {
+                 if (!audioInitialized && typeof Tone !== 'undefined') {
+                    try {
+                        await Tone.start();
+                        correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+                        wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+                        badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+                        audioInitialized = true;
+                        console.log("Audio context started.");
+                    } catch (e) {
+                        console.error("Could not start audio context:", e);
+                    }
+                }
+                setupGame();
+            }
+
+            function main() {
+                playerNameInput.addEventListener('input', () => {
+                    if (playerNameInput.value.trim() !== '' && !loadingIndicator.classList.contains('hidden')) {
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Start Challenge';
+                    } else if (playerNameInput.value.trim() !== '') {
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Start Challenge';
+                    } else {
+                        startBtn.disabled = true;
+                        startBtn.textContent = 'Enter Name to Start';
+                    }
+                });
+
+                restartBtn.addEventListener('click', () => {
+                    gameUI.classList.add('hidden');
+                    endScreen.classList.add('hidden');
+                    startScreen.classList.remove('hidden');
+                });
+                nextQuestionBtn.addEventListener('click', hideFeedback);
+
+                if (typeof Tone !== 'undefined') {
+                    loadingIndicator.classList.add('hidden');
+                    startBtn.classList.remove('hidden');
+                } else {
+                    loadingIndicator.querySelector('span').textContent = "Audio failed to load.";
+                    setTimeout(() => {
+                        loadingIndicator.classList.add('hidden');
+                        startBtn.classList.remove('hidden');
+                    }, 2000);
+                }
+                startBtn.addEventListener('click', initAudioAndStart);
+            }
+
+            main();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vertical Farming Challenge</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+
+    <style>
+        /* Custom styles with a green, "vertical farming" theme */
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #14532d, #166534, #15803d, #16a34a, #10b981, #059669);
+            background-size: 400% 400%;
+            animation: gradientBG 35s ease infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #34d399; color: white; transform: scale(1.02); }
+            100% { background-color: #34d399; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+
+        #question-timer-bar {
+            height: 8px;
+            background-color: #65a30d;
+            width: 100%;
+        }
+        
+        #power-up-btn {
+            transition: all 0.3s ease-in-out;
+        }
+        #power-up-btn.earned {
+            transform: scale(1.1);
+            animation: pulse-yellow 2s infinite;
+        }
+
+        @keyframes pulse-yellow {
+            0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(250, 204, 21, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Vertical Farming Challenge</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge of the future of farming. You have 10 minutes to answer 25 questions. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-green-300 focus:outline-none">
+            
+            <div id="loading-indicator" class="flex items-center justify-center my-4">
+                <svg class="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="ml-3 text-xl">Loading audio...</span>
+            </div>
+
+            <button id="start-btn" class="hidden w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn" disabled>Enter Name to Start</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">10:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div class="flex justify-between items-center mb-6">
+                    <div id="badges-container" class="flex items-center space-x-2 h-12">
+                        <!-- Badges will appear here when earned -->
+                    </div>
+                    <button id="power-up-btn" class="bg-gray-300 text-gray-500 font-bold py-2 px-4 rounded-full flex items-center" disabled>
+                        <i class="fas fa-bolt mr-2"></i> 50/50 (<span id="power-up-count">0</span>)
+                    </button>
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-green-700 mb-2" id="question-counter">Question 1 / 25</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-4 min-h-[100px] text-center"></p>
+                    <div class="w-full bg-gray-200 rounded-full mb-6">
+                        <div id="question-timer-bar" class="rounded-full"></div>
+                    </div>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-stats" class="grid grid-cols-3 gap-4 mb-6 text-lg">
+                <div><p class="font-bold text-3xl" id="stats-correct">0</p><p>Correct</p></div>
+                <div><p class="font-bold text-3xl" id="stats-mistakes">0</p><p>Mistakes</p></div>
+                <div><p class="font-bold text-3xl" id="stats-streak">0</p><p>Best Streak</p></div>
+            </div>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+            const questionTimerBar = document.getElementById('question-timer-bar');
+            const powerUpBtn = document.getElementById('power-up-btn');
+            const powerUpCountEl = document.getElementById('power-up-count');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+            const statsCorrectEl = document.getElementById('stats-correct');
+            const statsMistakesEl = document.getElementById('stats-mistakes');
+            const statsStreakEl = document.getElementById('stats-streak');
+
+            let score = 0;
+            let timer;
+            let questionTimer;
+            let timeLeft = 600; // 10 minutes for 25 questions
+            let questionTimeLeft = 30;
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctAnswers = 0;
+            let mistakes = 0;
+            let streakCounter = 0;
+            let longestStreak = 0;
+            let powerUpCount = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let audioInitialized = false;
+
+            let correctSound, wrongSound, badgeSound, tickSound, powerUpSound;
+
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!"];
+
+            const questionBank = [
+                { question: "What is 'Vertical Farming'?", answers: [{text: "Growing crops in fields", correct: false}, {text: "Growing crops in stacked layers", correct: true}, {text: "Farming on mountains", correct: false}, {text: "A type of greenhouse", correct: false}], explanation: "'Vertical Farming' is the practice of growing crops in vertically stacked layers, often indoors." },
+                { question: "Growing plants without soil, using a water-based nutrient solution, is called...", answers: [{text: "Aeroponics", correct: false}, {text: "Hydroponics", correct: true}, {text: "Agriculture", correct: false}, {text: "Aquaponics", correct: false}], explanation: "'Hydroponics' is a method of growing plants without soil." },
+                { question: "What does 'Controlled Environment Agriculture' (CEA) mean?", answers: [{text: "Farming outdoors with no controls", correct: false}, {text: "Growing plants indoors with controlled conditions", correct: true}, {text: "A government farming program", correct: false}, {text: "Farming using only natural sunlight", correct: false}], explanation: "CEA means growing plants indoors in a fully controlled environment." },
+                { question: "What does 'Food Miles' refer to?", answers: [{text: "The calories in a food item", correct: false}, {text: "The distance food is transported", correct: true}, {text: "How long it takes to cook food", correct: false}, {text: "A marathon where you eat food", correct: false}], explanation: "'Food Miles' is the distance food travels from where it's grown to where it's eaten." },
+                { question: "What kind of lights are typically used in vertical farms?", answers: [{text: "Candles", correct: false}, {text: "Incandescent bulbs", correct: false}, {text: "LED lights", correct: true}, {text: "Sunlight only", correct: false}], explanation: "Vertical farms use efficient 'LED lights' to provide a specific spectrum of light for the plants." },
+                { question: "What is 'Aeroponics'?", answers: [{text: "Growing plants in air with a nutrient mist", correct: true}, {text: "The study of air quality", correct: false}, {text: "A type of hydroponics", correct: false}, {text: "Farming with airplanes", correct: false}], explanation: "'Aeroponics' is the process of growing plants in an air or mist environment without the use of soil." },
+                { question: "A major benefit of vertical farming is that it uses less...", answers: [{text: "Seeds and nutrients", correct: false}, {text: "Water and land", correct: true}, {text: "Electricity", correct: false}, {text: "Workers", correct: false}], explanation: "Vertical farming is highly efficient, using up to 95% less water and far less land than traditional farming." },
+                { question: "What is a 'Food Desert'?", answers: [{text: "A place with many restaurants", correct: false}, {text: "A desert where food is grown", correct: false}, {text: "An area where it's hard to buy fresh food", correct: true}, {text: "A type of dessert", correct: false}], explanation: "A 'Food Desert' is an area that has limited access to affordable and nutritious food." },
+                { question: "Producing a lot of food in a small space is called...", answers: [{text: "High yield", correct: true}, {text: "Low yield", correct: false}, {text: "Hydroponics", correct: false}, {text: "Sustainability", correct: false}], explanation: "'High yield' means producing a large amount of a crop per unit of area." },
+                { question: "According to Paragraph 1, where are vertical farms often located?", answers: [{text: "In the countryside", correct: false}, {text: "In cities", correct: true}, {text: "On boats", correct: false}, {text: "Underground", correct: false}], explanation: "Paragraph 1 states that vertical farms are often in cities, inside buildings or shipping containers." },
+                { question: "What is one benefit of vertical farming mentioned in Paragraph 1?", answers: [{text: "It uses more land", correct: false}, {text: "It reduces food miles", correct: true}, {text: "The food is free", correct: false}, {text: "It requires a lot of sunlight", correct: false}], explanation: "Paragraph 1 says that because the farms are in the city, it 'reduces food miles'." },
+                { question: "According to Paragraph 2, what problem with traditional farming does vertical farming solve?", answers: [{text: "It uses too little water", correct: false}, {text: "It requires a huge amount of land and water", correct: true}, {text: "The food tastes bad", correct: false}, {text: "It is too slow", correct: false}], explanation: "Paragraph 2 states that traditional agriculture 'requires a huge amount of land and water'." },
+                { question: "What does 'year-round crop production' mean?", answers: [{text: "You can only grow crops once a year", correct: false}, {text: "You can grow crops in all seasons", correct: true}, {text: "The crops take a full year to grow", correct: false}, {text: "You must rotate your crops every year", correct: false}], explanation: "Because the environment is controlled, vertical farms allow for 'year-round crop production', regardless of the season." },
+                { question: "What is a major challenge for vertical farming mentioned in Paragraph 2?", answers: [{text: "It uses too much water", correct: false}, {text: "It requires a lot of land", correct: false}, {text: "The high energy consumption of the LED lights", correct: true}, {text: "It is difficult to find workers", correct: false}], explanation: "Paragraph 2 identifies the 'high energy consumption' of the lights as a major challenge." },
+                { question: "According to Paragraph 3, vertical farming is a key component of what?", answers: [{text: "Traditional agriculture", correct: false}, {text: "The future of urban food systems", correct: true}, {text: "Space exploration", correct: false}, {text: "The restaurant industry", correct: false}], explanation: "Paragraph 3 describes it as a 'key component of the future of urban food systems'." },
+                { question: "What does Paragraph 3 say about the use of pesticides in vertical farms?", answers: [{text: "They use more pesticides than traditional farms", correct: false}, {text: "They eliminate the need for chemical pesticides", correct: true}, {text: "They use only organic pesticides", correct: false}, {text: "The text does not mention pesticides", correct: false}], explanation: "Because it's a controlled environment, vertical farming 'eliminates the need for chemical pesticides'." },
+                { question: "What is the 'scalability' of vertical farms, as mentioned in Paragraph 3?", answers: [{text: "Their ability to grow very tall plants", correct: false}, {text: "Their ability to be built in different sizes", correct: true}, {text: "Their ability to weigh produce", correct: false}, {text: "Their ability to resist earthquakes", correct: false}], explanation: "'Scalability' refers to the ability to be changed in size or scale." },
+                { question: "What is a major economic challenge for vertical farming, according to Paragraph 3?", answers: [{text: "High initial start-up costs", correct: true}, {text: "A lack of demand for its products", correct: false}, {text: "The low price of its produce", correct: false}, {text: "Competition from traditional farms", correct: false}], explanation: "Paragraph 3 notes that 'high initial start-up costs' are a significant barrier." },
+                { question: "What is the main theme of all three texts?", answers: [{text: "Vertical farming is a perfect solution with no problems", correct: false}, {text: "Traditional farming is better than vertical farming", correct: false}, {text: "Vertical farming is an innovative solution for sustainable urban food production, but it faces challenges with energy use and cost", correct: true}, {text: "Vertical farming can only be used to grow lettuce", correct: false}], explanation: "All three texts balance the significant benefits of vertical farming with its current challenges." },
+                { question: "How can vertical farms help solve the problem of 'food deserts'?", answers: [{text: "By making deserts cooler", correct: false}, {text: "By bringing fresh, local produce into urban areas that lack it", correct: true}, {text: "By shipping food to deserts", correct: false}, {text: "By teaching people how to cook", correct: false}], explanation: "By being located in cities, vertical farms can provide fresh produce to urban areas that lack access to it." },
+                { question: "A vertical farm in a German city like Berlin would align with the cultural value of...", answers: [{text: "Ignoring the environment", correct: false}, {text: "Valuing *Natürlichkeit* (naturalness) above all else", correct: false}, {text: "Valuing innovation, sustainability, and regional food", correct: true}, {text: "Importing all food from other countries", correct: false}], explanation: "Vertical farming aligns with German values of innovation (*Technik*), sustainability, and providing fresh, regional food." },
+                { question: "Which of these crops is most suitable for current vertical farming technology?", answers: [{text: "Wheat and corn", correct: false}, {text: "Leafy greens and herbs", correct: true}, {text: "Large fruit trees like apples", correct: false}, {text: "Root vegetables like potatoes", correct: false}], explanation: "Currently, vertical farming is most economically viable for high-value, fast-growing crops like leafy greens and herbs." },
+                { question: "Why is less transportation a major benefit of vertical farming?", answers: [{text: "It makes the food taste better", correct: false}, {text: "It reduces the carbon footprint, and the food is fresher", correct: true}, {text: "It makes the food cheaper", correct: false}, {text: "It allows for more types of crops to be grown", correct: false}], explanation: "Less transportation means a lower carbon footprint and fresher produce for the consumer." },
+                { question: "What is the primary energy source for photosynthesis in a vertical farm?", answers: [{text: "The sun", correct: false}, {text: "LED lights", correct: true}, {text: "Geothermal heat", correct: false}, {text: "Hydroelectric power", correct: false}], explanation: "Because they are indoors, vertical farms rely on specially designed LED lights." },
+                { question: "What is the main difference between hydroponics and aeroponics?", answers: [{text: "Hydroponics uses soil, but aeroponics does not", correct: false}, {text: "Hydroponics uses a nutrient-rich water solution, while aeroponics uses a nutrient mist", correct: true}, {text: "Hydroponics is for vegetables, and aeroponics is for fruits", correct: false}, {text: "There is no difference", correct: false}], explanation: "The key difference is the medium used to deliver nutrients to the roots: water for hydroponics and a mist for aeroponics." }
+            ];
+            
+            const badges = {
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '🔥', earned: false, condition: () => streakCounter >= 5 },
+                quick: { id: 'quick', name: 'Quick Thinker', icon: '⚡', earned: false, condition: () => timeLeft > 480 }, // Answered all in under 2 mins
+                perfect: { id: 'perfect', name: 'Perfect Score', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-yellow-400', 'text-green-900'); // UPDATED TEXT COLOR
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function setupGame() {
+                playerName = playerNameInput.value || "Player";
+                questions = shuffleArray([...questionBank]);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 600; // 10 minutes
+                correctAnswers = 0;
+                mistakes = 0;
+                streakCounter = 0;
+                longestStreak = 0;
+                powerUpCount = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                updatePowerUpButton();
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function startQuestionTimer() {
+                questionTimeLeft = 30;
+                // Instantly reset the bar to full before starting the new animation
+                questionTimerBar.style.transition = 'none';
+                questionTimerBar.style.width = '100%';
+                
+                // A tiny delay to allow the browser to register the reset before applying the new transition
+                setTimeout(() => {
+                    questionTimerBar.style.transition = 'width 30s linear';
+                    questionTimerBar.style.width = '0%';
+                }, 50);
+
+                clearInterval(questionTimer);
+                questionTimer = setInterval(() => {
+                    questionTimeLeft--;
+                    if (questionTimeLeft < 10 && audioInitialized) {
+                        tickSound.triggerAttackRelease("C5", "32n");
+                    }
+                    if (questionTimeLeft <= 0) {
+                        clearInterval(questionTimer);
+                        // FIX: Call selectAnswer with null to indicate a timeout
+                        selectAnswer(null);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+
+                startQuestionTimer();
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        if(audioInitialized) badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+            
+            function updatePowerUpButton() {
+                powerUpCountEl.textContent = powerUpCount;
+                if (powerUpCount > 0) {
+                    powerUpBtn.disabled = false;
+                    powerUpBtn.classList.remove('bg-gray-300', 'text-gray-500');
+                    powerUpBtn.classList.add('bg-yellow-400', 'text-green-900', 'earned');
+                } else {
+                    powerUpBtn.disabled = true;
+                    powerUpBtn.classList.add('bg-gray-300', 'text-gray-500');
+                    powerUpBtn.classList.remove('bg-yellow-400', 'text-green-900', 'earned');
+                }
+            }
+
+            function selectAnswer(e) {
+                clearInterval(questionTimer);
+                questionTimerBar.style.transition = 'none'; // Stop animation immediately
+
+                // FIX: Handle null event for timeouts
+                const button = e ? e.target : null;
+                const isCorrect = button ? button.dataset.correct === 'true' : false;
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    // Dynamic scoring: more points for faster answers
+                    const points = 2 + Math.ceil(questionTimeLeft / 15); // 2 base points + up to 2 bonus points
+                    score += points;
+                    correctAnswers++;
+                    streakCounter++;
+                    if (streakCounter > longestStreak) {
+                        longestStreak = streakCounter;
+                    }
+                    if (streakCounter % 5 === 0 && streakCounter > 0) {
+                        powerUpCount++;
+                        updatePowerUpButton();
+                    }
+                    
+                    updateScore();
+                    if(audioInitialized) correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    streakCounter = 0; // Reset streak
+                    if(audioInitialized) wrongSound.triggerAttackRelease("C3", "8n");
+                    
+                    // FIX: Check if button exists before adding class
+                    if(button && button.classList) {
+                        button.classList.add('incorrect-flash');
+                    }
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    if(correctButton) correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function usePowerUp() {
+                if (powerUpCount > 0) {
+                    powerUpCount--;
+                    if(audioInitialized) powerUpSound.triggerAttackRelease("A4", "8n");
+                    updatePowerUpButton();
+
+                    const incorrectButtons = Array.from(answerButtonsEl.querySelectorAll('[data-correct="false"]'));
+                    shuffleArray(incorrectButtons);
+                    
+                    // Disable two incorrect buttons
+                    incorrectButtons[0].style.opacity = '0.5';
+                    incorrectButtons[0].disabled = true;
+                    incorrectButtons[1].style.opacity = '0.5';
+                    incorrectButtons[1].disabled = true;
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                clearInterval(questionTimer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                statsCorrectEl.textContent = correctAnswers;
+                statsMistakesEl.textContent = mistakes;
+                statsStreakEl.textContent = longestStreak;
+
+                if (completed) {
+                    endTitleEl.textContent = `Great work, ${playerName}!`;
+                } else {
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+                endMessageEl.textContent = "Your final score is:";
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            async function initAudioAndStart() {
+                 if (!audioInitialized && typeof Tone !== 'undefined') {
+                     try {
+                         await Tone.start();
+                         // FIX: Correctly initialize all synths
+                         correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+                         wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+                         badgeSound = new Tone.PolySynth({ oscillator: { type: "sine" } }).toDestination();
+                         tickSound = new Tone.MembraneSynth({ pitchDecay: 0.008, octaves: 2, oscillator: { type: "square" }, envelope: { attack: 0.001, decay: 0.2, sustain: 0.01, release: 0.2 } }).toDestination();
+                         powerUpSound = new Tone.Synth({ oscillator: { type: 'sawtooth' } }).toDestination();
+                         audioInitialized = true;
+                         console.log("Audio context started and synths initialized.");
+                     } catch (e) {
+                         console.error("Could not start audio context:", e);
+                     }
+                 }
+                 setupGame();
+            }
+
+            function main() {
+                playerNameInput.addEventListener('input', () => {
+                    if (playerNameInput.value.trim() !== '' && !startBtn.classList.contains('hidden')) {
+                          startBtn.disabled = false;
+                          startBtn.textContent = 'Start Challenge';
+                    } else {
+                          startBtn.disabled = true;
+                          startBtn.textContent = 'Enter Name to Start';
+                    }
+                });
+
+                restartBtn.addEventListener('click', () => {
+                    gameUI.classList.add('hidden');
+                    endScreen.classList.add('hidden');
+                    startScreen.classList.remove('hidden');
+                });
+                nextQuestionBtn.addEventListener('click', hideFeedback);
+                powerUpBtn.addEventListener('click', usePowerUp);
+
+                if (typeof Tone !== 'undefined') {
+                    loadingIndicator.classList.add('hidden');
+                    startBtn.classList.remove('hidden');
+                } else {
+                    loadingIndicator.querySelector('span').textContent = "Audio failed to load.";
+                    setTimeout(() => {
+                        loadingIndicator.classList.add('hidden');
+                        startBtn.classList.remove('hidden');
+                    }, 2000);
+                }
+                startBtn.addEventListener('click', initAudioAndStart);
+            }
+
+            main();
+        });
+    </script>
+    <!-- Designed by Joel Mitchell, Ed.D. teachstudents@outlook.com -->
+</body>
+</html>

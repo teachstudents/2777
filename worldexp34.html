@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iquitos, Peru Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #166534, #15803d, #22c55e, #86efac);
+            background-size: 400% 400%;
+            animation: gradientBG 35s ease infinite;
+            overflow: hidden;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .answer-btn {
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .correct-flash {
+            animation: correct-pulse 0.8s ease-out;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.8s ease-out;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #4ade80; color: white; transform: scale(1.02); }
+            100% { background-color: #4ade80; color: white; }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.02); }
+            100% { background-color: #f87171; color: white; }
+        }
+        
+        .badge {
+            transition: all 0.3s ease-in-out;
+            transform: scale(0);
+            opacity: 0;
+        }
+        .badge.earned {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+        }
+        
+        #praise-feedback.show {
+            animation: praise-anim 1.2s ease-out forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 1; }
+            20% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(1.2); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+        
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Iquitos, Peru Challenge</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge of the gateway to the Amazon with 40 questions. You have 15 minutes. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-green-400 focus:outline-none">
+            <button id="start-btn" class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Start Challenge</button>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">15:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                </div>
+                <div id="badges-container" class="flex justify-center items-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <p class="text-sm font-bold text-green-700 mb-2" id="question-counter">Question 1 / 40</p>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 min-h-[100px] text-center"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center space-x-4 mb-8"></div>
+            <button id="restart-btn" class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-2xl answer-btn">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 class="text-3xl font-bold mb-4 text-red-500">Not Quite!</h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+
+            let score = 0;
+            let timer;
+            let timeLeft = 900; // 15 minutes
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let correctVocabCount = 0;
+            let correctReadingCount = 0;
+            let mistakes = 0;
+            let streakCounter = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let availableVoices = [];
+
+            const correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+            const wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+            const badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!"];
+
+            const questionBank = [
+                // Vocabulary Questions (20)
+                { type: 'vocab', question: "A place that is 'inaccessible' is...", answers: [{text: "Easy to reach", correct: false}, {text: "Unable to be reached", correct: true}, {text: "A popular tourist spot", correct: false}, {text: "Located in a city center", correct: false}], explanation: "'Inaccessible' means unable to be reached." },
+                { type: 'vocab', question: "A 'bustling' port is...", answers: [{text: "Quiet and empty", correct: false}, {text: "Full of busy activity", correct: true}, {text: "Small and unimportant", correct: false}, {text: "Closed to the public", correct: false}], explanation: "'Bustling' means full of energetic and noisy activity." },
+                { type: 'vocab', question: "'Biodiversity' refers to the...", answers: [{text: "Number of buildings in a city", correct: false}, {text: "Variety of life in a particular habitat", correct: true}, {text: "Types of boats on a river", correct: false}, {text: "Local economy", correct: false}], explanation: "'Biodiversity' is the variety of plant and animal life in the world or in a particular habitat." },
+                { type: 'vocab', question: "A 'gateway' to the jungle is a place that...", answers: [{text: "Blocks entry to the jungle", correct: false}, {text: "Serves as an access point to the jungle", correct: true}, {text: "Is the deepest part of the jungle", correct: false}, {text: "Is a historical monument", correct: false}], explanation: "A 'gateway' is a place through which you must go to get to another place." },
+                { type: 'vocab', question: "'Exotic' fruits are those that are...", answers: [{text: "Common and locally grown everywhere", correct: false}, {text: "Originating in a distant, foreign country; unusual", correct: true}, {text: "Rotten and inedible", correct: false}, {text: "Artificially flavored", correct: false}], explanation: "'Exotic' means originating in or characteristic of a distant foreign country." },
+                { type: 'vocab', question: "'Stilt houses' are houses that are...", answers: [{text: "Built underground", correct: false}, {text: "Raised on posts over water or land", correct: true}, {text: "Made entirely of glass", correct: false}, {text: "Floating on the water", correct: false}], explanation: "'Stilt houses' are houses raised on stilts over the surface of the soil or a body of water." },
+                { type: 'vocab', question: "A 'rubber boom' was a period of...", answers: [{text: "Economic decline", correct: false}, {text: "Rapid economic growth due to the rubber trade", correct: true}, {text: "A large festival", correct: false}, {text: "A type of flood", correct: false}], explanation: "A 'boom' is a period of great prosperity or rapid economic growth. A 'rubber boom' was a boom related to the rubber industry." },
+                { type: 'vocab', question: "A 'motocarro' is a type of...", answers: [{text: "Large bus", correct: false}, {text: "Three-wheeled taxi or vehicle", correct: true}, {text: "Riverboat", correct: false}, {text: "Bicycle", correct: false}], explanation: "A 'motocarro' is a three-wheeled motor vehicle, used as a taxi." },
+                { type: 'vocab', question: "A 'confluence' is a place where...", answers: [{text: "A river ends in the ocean", correct: false}, {text: "Two or more rivers flow together", correct: true}, {text: "A market is held", correct: false}, {text: "A famous battle took place", correct: false}], explanation: "A 'confluence' is the junction of two rivers, especially rivers of approximately equal width." },
+                { type: 'vocab', question: "An 'equatorial' climate is typically...", answers: [{text: "Cold and snowy", correct: false}, {text: "Hot and humid year-round", correct: true}, {text: "Mild and dry", correct: false}, {text: "Windy and cold", correct: false}], explanation: "'Equatorial' climates are found near the equator and are characterized by high temperatures and humidity." },
+                { type: 'vocab', question: "'Aquatic' commerce takes place...", answers: [{text: "In the air", correct: false}, {text: "On or in the water", correct: true}, {text: "Underground", correct: false}, {text: "Online", correct: false}], explanation: "'Aquatic' means relating to water." },
+                { type: 'vocab', question: "'Juane' is a popular local...", answers: [{text: "Type of music", correct: false}, {text: "Dish made with rice and chicken", correct: true}, {text: "Type of clothing", correct: false}, {text: "Festival", correct: false}], explanation: "'Juane' is a traditional dish from the Peruvian jungle, made of rice, chicken, and spices wrapped in a banana leaf." },
+                { type: 'vocab', question: "A 'tropical' environment is typically...", answers: [{text: "Cold and icy", correct: false}, {text: "Warm year-round with high humidity", correct: true}, {text: "Dry and arid", correct: false}, {text: "Found at high altitudes", correct: false}], explanation: "'Tropical' relates to the region of Earth surrounding the Equator, which is typically warm all year." },
+                { type: 'vocab', question: "'Architecture' refers to the...", answers: [{text: "Local language", correct: false}, {text: "Design and style of buildings", correct: true}, {text: "Type of government", correct: false}, {text: "Natural landscape", correct: false}], explanation: "'Architecture' is the art or practice of designing and constructing buildings." },
+                { type: 'vocab', question: "An 'isolated' city is one that is...", answers: [{text: "A major transportation hub", correct: false}, {text: "Far from other cities and difficult to reach", correct: true}, {text: "Very crowded", correct: false}, {text: "Famous for its nightlife", correct: false}], explanation: "'Isolated' means far away from other places, buildings, or people; remote." },
+                { type: 'vocab', question: "'Tributaries' are...", answers: [{text: "Large oceans", correct: false}, {text: "Rivers or streams that flow into a larger river", correct: true}, {text: "Types of jungle animals", correct: false}, {text: "Local taxes", correct: false}], explanation: "A 'tributary' is a river or stream flowing into a larger river or lake." },
+                { type: 'vocab', question: "'Shamanism' involves...", answers: [{text: "Modern medicine", correct: false}, {text: "A practice that involves a practitioner reaching altered states of consciousness to interact with the spirit world", correct: true}, {text: "A type of government", correct: false}, {text: "Building with wood", correct: false}], explanation: "'Shamanism' is a religious practice that involves a practitioner who is believed to interact with a spirit world through altered states of consciousness." },
+                { type: 'vocab', question: "A 'meandering' river is one that...", answers: [{text: "Flows in a straight line", correct: false}, {text: "Follows a winding course", correct: true}, {text: "Is completely dry", correct: false}, {text: "Flows very fast", correct: false}], explanation: "A 'meandering' river follows a winding, turning course." },
+                { type: 'vocab', question: "A 'river port' is a port located...", answers: [{text: "On the sea coast", correct: false}, {text: "On a river", correct: true}, {text: "At an airport", correct: false}, {text: "Underground", correct: false}], explanation: "A 'river port' is a port located on a river, as opposed to one on a sea or ocean." },
+                { type: 'vocab', question: "A 'self-sufficient' culture is one that...", answers: [{text: "Relies heavily on imports", correct: false}, {text: "Can provide for its own needs without outside help", correct: true}, {text: "Is very welcoming to outsiders", correct: false}, {text: "Has a complex economy", correct: false}], explanation: "'Self-sufficient' means needing no outside help in satisfying one's basic needs." },
+
+                // Reading Questions (20)
+                { type: 'reading', question: "What is unique about Iquitos's location?", answers: [{text:"It is the highest capital city in the world", correct: false}, {text:"It is the largest city in the world inaccessible by road", correct: true}, {text:"It is located on a volcanic island", correct: false}, {text:"It is an underground city", correct: false}], explanation: "The passage states Iquitos is 'the largest city in the world that is inaccessible by road'." },
+                { type: 'reading', question: "What historical event led to the construction of grand mansions in Iquitos?", answers: [{text:"The discovery of gold", correct: false}, {text:"The 19th-century rubber boom", correct: true}, {text:"Its founding by the Spanish", correct: false}, {text:"A major earthquake", correct: false}], explanation: "The passage says the city's grand mansions 'were built during the 19th-century rubber boom'." },
+                { type: 'reading', question: "What is the most common form of transport in Iquitos?", answers: [{text:"Bicycles", correct: false}, {text:"The motocarro", correct: true}, {text:"A subway system", correct: false}, {text:"Large buses", correct: false}], explanation: "The passage states, 'The most common form of transport is the noisy motocarro'." },
+                { type: 'reading', question: "The Belén Market is famous for its...", answers: [{text:"Modern architecture", correct: false}, {text:"Floating section and stilt houses", correct: true}, {text:"Quiet and clean atmosphere", correct: false}, {text:"High-end luxury goods", correct: false}], explanation: "The passage describes the market with its 'aquatic floating section and stilt houses'." },
+                { type: 'reading', question: "True or False: Iquitos has a cold, dry climate.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage describes the climate as 'hot and humid, a classic tropical or equatorial environment'." },
+                { type: 'reading', question: "Iquitos is considered the 'gateway' to what?", answers: [{text:"The Andes Mountains", correct: false}, {text:"The Amazon Rainforest", correct: true}, {text:"The Pacific Ocean", correct: false}, {text:"The ancient Inca ruins", correct: false}], explanation: "The passage says Iquitos 'serves as the gateway for jungle lodges and river cruises' and is located 'deep within the Amazon Rainforest'." },
+                { type: 'reading', question: "The word 'bustling' to describe the river port means it is...", answers: [{text:"Calm and quiet", correct: false}, {text:"Full of activity and energy", correct: true}, {text:"Small and insignificant", correct: false}, {text:"Closed at night", correct: false}], explanation: "'Bustling' means to be full of activity." },
+                { type: 'reading', question: "What is 'juane'?", answers: [{text:"A type of riverboat", correct: false}, {text:"A local dish with rice and chicken in a banana leaf", correct: true}, {text:"A traditional festival", correct: false}, {text:"A type of exotic fruit", correct: false}], explanation: "The passage describes 'juane' as 'a popular local dish...which consists of rice, chicken, and spices wrapped in a banana leaf'." },
+                { type: 'reading', question: "The 'architecture' in Iquitos reflects a mix of...", answers: [{text:"Modern and ancient styles", correct: false}, {text:"Colonial splendor and jungle practicality", correct: true}, {text:"Indigenous and Asian styles", correct: false}, {text:"Only one simple style", correct: false}], explanation: "The vocabulary list, which is part of the chapter, notes that 'The architecture reflects a mix of colonial splendor and jungle practicality'." },
+                { type: 'reading', question: "What does it mean that Iquitos is located near a 'confluence'?", answers: [{text:"It is near a large waterfall", correct: false}, {text:"It is near where several rivers join together", correct: true}, {text:"It is on the coast of the ocean", correct: false}, {text:"It is at a very high altitude", correct: false}], explanation: "A 'confluence' is a place where rivers meet." },
+                { type: 'reading', question: "True or False: The passage states that Iquitos is a UNESCO World Heritage site.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage explicitly says, 'While not a UNESCO site itself, it provides access to the incredible natural heritage of the Amazon'." },
+                { type: 'reading', question: "The culture of Iquitos is a blend of indigenous traditions and what other heritage?", answers: [{text:"Asian", correct: false}, {text:"Colonial", correct: true}, {text:"African", correct: false}, {text:"North American", correct: false}], explanation: "The passage states, 'The culture of Iquitos is a unique blend of indigenous traditions and colonial heritage'." },
+                { type: 'reading', question: "The term 'aquatic' to describe the market implies that it is...", answers: [{text:"Very quiet", correct: false}, {text:"Related to water", correct: true}, {text:"Open 24 hours", correct: false}, {text:"Very expensive", correct: false}], explanation: "'Aquatic' means relating to water, which fits the description of a floating market." },
+                { type: 'reading', question: "What can be inferred about the 'biodiversity' around Iquitos?", answers: [{text:"There are very few species of plants and animals", correct: false}, {text:"There is an incredible variety of plants and animals", correct: true}, {text:"The wildlife is dangerous and should be avoided", correct: false}, {text:"The environment is heavily polluted", correct: false}], explanation: "The text mentions the 'immense biodiversity' and its location in the 'vast Amazon Rainforest', implying a rich variety of life." },
+                { type: 'reading', question: "The main idea of the first paragraph is to describe...", answers: [{text:"The culture and food of Iquitos", correct: false}, {text:"The unique geography, climate, and history of Iquitos", correct: true}, {text:"The economy of Peru", correct: false}, {text:"The different animals of the Amazon", correct: false}], explanation: "The first paragraph focuses on Iquitos's location, its isolation, climate, population, and the historical 'rubber boom'." },
+                { type: 'reading', question: "What does the passage say about the rivers near Iquitos?", answers: [{text:"They are small and insignificant", correct: false}, {text:"They are major Amazonian tributaries", correct: true}, {text:"They are frozen for most of the year", correct: false}, {text:"They are too polluted for boats", correct: false}], explanation: "The passage states the city sits 'near the confluence of several major Amazonian tributaries'." },
+                { type: 'reading', question: "The 'isolated' location of Iquitos has fostered a culture that is...", answers: [{text:"Exactly the same as the capital, Lima", correct: false}, {text:"Unique and self-sufficient", correct: true}, {text:"Heavily influenced by North America", correct: false}, {text:"Lacking in tradition", correct: false}], explanation: "The vocabulary list, which is part of the chapter, notes that 'Its isolated location has fostered a unique and self-sufficient culture'." },
+                { type: 'reading', question: "What is 'shamanism' in the context of the passage?", answers: [{text:"A type of modern art", correct: false}, {text:"A traditional practice involving plant medicine and the spirit world", correct: true}, {text:"The local form of government", correct: false}, {text:"A style of architecture", correct: false}], explanation: "The passage identifies the region as a center for 'Amazonian shamanism and traditional plant medicine'." },
+                { type: 'reading', question: "True or False: The grand mansions in Iquitos are new, modern buildings.", tf: true, answers: [{text:"True", correct: false}, {text:"False", correct: true}], explanation: "The passage states they are a 'legacy' from the 'late 19th century' rubber boom." },
+                { type: 'reading', question: "The primary purpose of this passage is to...", answers: [{text:"To sell tours to the Amazon", correct: false}, {text:"To provide an informative overview of the unique city of Iquitos", correct: true}, {text:"To discuss the history of the rubber industry", correct: false}, {text:"To compare Iquitos to other cities in Peru", correct: false}], explanation: "The passage covers the geography, history, culture, and unique features of Iquitos, serving as an informative profile." }
+            ];
+            
+            const badges = {
+                vocab: { id: 'vocab', name: 'Vocabulary Virtuoso', icon: '🎓', earned: false, condition: () => correctVocabCount === 20 },
+                reading: { id: 'reading', name: 'Analytical Ace', icon: '🧐', earned: false, condition: () => correctReadingCount === 20 },
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '👍', earned: false, condition: () => streakCounter >= 5 },
+                perfect: { id: 'perfect', name: 'Perfect 100', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-green-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function loadVoices() {
+                if ('speechSynthesis' in window) {
+                    availableVoices = speechSynthesis.getVoices();
+                    if (availableVoices.length === 0) {
+                        speechSynthesis.onvoiceschanged = () => {
+                            availableVoices = speechSynthesis.getVoices();
+                        };
+                    }
+                }
+            }
+            
+            function setupGame() {
+                playerName = playerNameInput.value || "Player";
+                const vocabQuestions = questionBank.filter(q => q.type === 'vocab');
+                const readingQuestions = questionBank.filter(q => q.type === 'reading');
+                shuffleArray(vocabQuestions);
+                shuffleArray(readingQuestions);
+                questions = vocabQuestions.concat(readingQuestions);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 900;
+                correctVocabCount = 0;
+                correctReadingCount = 0;
+                mistakes = 0;
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    if (question.tf) {
+                        button.classList.add(answerObj.text === 'True' ? 'hover:!bg-green-500' : 'hover:!bg-red-500', 'hover:text-white');
+                    }
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                
+                if ('speechSynthesis' in window && availableVoices.length > 0) {
+                    const utterance = new SpeechSynthesisUtterance(praise);
+                    let preferredVoice = availableVoices.find(voice => 
+                        voice.lang === 'en-US' && 
+                        (voice.name.includes('Ava') || voice.name.includes('Natural') || voice.name.includes('Neural'))
+                    );
+                    if (!preferredVoice) {
+                        preferredVoice = availableVoices.find(voice => voice.lang === 'en-US');
+                    }
+                    if (preferredVoice) {
+                        utterance.voice = preferredVoice;
+                    }
+                    
+                    speechSynthesis.speak(utterance);
+                }
+
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 2.5;
+                    streakCounter++;
+                    if (question.type === 'vocab') correctVocabCount++;
+                    if (question.type === 'reading') correctReadingCount++;
+                    
+                    updateScore();
+                    correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    streakCounter = 0; // Reset streak
+                    wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = `Great work, ${playerName}!`;
+                } else {
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+                endMessageEl.textContent = "Your final score is:";
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            // Initial load
+            loadVoices();
+            startBtn.addEventListener('click', setupGame);
+            restartBtn.addEventListener('click', setupGame);
+            nextQuestionBtn.addEventListener('click', hideFeedback);
+        });
+    </script>
+</body>
+</html>

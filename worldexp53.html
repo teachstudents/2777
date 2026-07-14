@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Powering Potential Challenge</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+
+    <style>
+        /* Custom styles with an amber, "energy" theme */
+        :root {
+            --primary-amber: #d97706;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #92400e, #b45309, #d97706, #f59e0b);
+            background-size: 400% 400%;
+            animation: gradientBG 35s ease infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            padding: 1rem;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            25% { background-position: 50% 100%; }
+            50% { background-position: 100% 50%; }
+            75% { background-position: 50% 0%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            animation: fadeInScale 0.8s ease-out forwards;
+        }
+
+        @keyframes fadeInScale {
+            0% { opacity: 0; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .answer-btn {
+            transition: all 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        /* Enhanced Flash Animations */
+        .correct-flash {
+            animation: correct-pulse 0.6s ease-out forwards;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.6s ease-out forwards;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #34d399; color: white; transform: scale(1.01); }
+            50% { background-color: #10b981; color: white; transform: scale(1.03); }
+            100% { background-color: #34d399; color: white; transform: scale(1); }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.01); }
+            50% { background-color: #ef4444; color: white; transform: scale(1.03); }
+            100% { background-color: #f87171; color: white; transform: scale(1); }
+        }
+        
+        .badge {
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            transform: scale(0) rotate(-180deg);
+            opacity: 0;
+            flex-shrink: 0;
+        }
+        .badge.earned {
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+        }
+        
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        #praise-feedback.show {
+            animation: praise-anim 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            30% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            70% { transform: translate(-50%, -70%) scale(1.05); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(0.8); opacity: 0; }
+        }
+        
+        #question-timer-bar {
+            background-color: var(--primary-amber);
+        }
+
+        /* Responsive adjustments for buttons */
+        #answer-buttons > button {
+            white-space: normal;
+            line-height: 1.5;
+            min-height: 5rem;
+            word-break: break-word;
+        }
+
+        @media (max-width: 768px) {
+            #answer-buttons > button {
+                font-size: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white game-card !bg-transparent p-0 shadow-none">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Powering Potential Challenge</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge of renewable energy and education. You have 10 minutes to answer 25 questions. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl md:text-2xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-amber-300 focus:outline-none">
+            <button id="start-btn" class="w-full md:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-8 rounded-full text-2xl md:text-3xl answer-btn" disabled>Enter Name to Start</button>
+            
+            <!-- Leaderboard Display on Start Screen -->
+            <div id="leaderboard" class="mt-8">
+                <h2 class="text-3xl font-bold mb-4">Top Scores</h2>
+                <ul id="leaderboard-list" class="text-xl space-y-2">
+                    <!-- Leaderboard entries will be dynamically inserted here -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <!-- Game Header with Timer, Score, and Badges -->
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full text-sm md:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">10:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full text-sm md:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-6 md:w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                    <!-- Mute Button -->
+                    <button id="mute-btn" class="flex items-center space-x-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-4 py-2 rounded-full text-sm md:text-base answer-btn">
+                        <i id="mute-icon" class="fa-solid fa-volume-high"></i>
+                    </button>
+                </div>
+                
+                <div id="badges-container" class="flex items-center justify-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-sm font-bold text-amber-700" id="question-counter">Question 1 / 25</p>
+                        <!-- Timer countdown for each question -->
+                        <div class="flex items-center space-x-1 text-sm font-bold text-red-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V6z" clip-rule="evenodd" /></svg>
+                            <span id="question-timer-countdown">20</span>
+                        </div>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full mb-6">
+                        <!-- This bar visually represents the time left to answer each question -->
+                        <div id="question-timer-bar" class="rounded-full transition-all duration-[20s] linear"></div>
+                    </div>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 text-center min-h-[100px]"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white game-card !bg-transparent p-0 shadow-none">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center flex-wrap gap-4 mb-8"></div>
+            <p id="final-message" class="text-xl mt-4"></p>
+            <button id="restart-btn" class="w-full md:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold py-4 px-8 rounded-full text-2xl md:text-3xl answer-btn mt-8">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 id="feedback-title" class="text-3xl font-bold mb-4"></h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const muteBtn = document.getElementById('mute-btn');
+            const muteIcon = document.getElementById('mute-icon');
+
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTimerCountdownEl = document.getElementById('question-timer-countdown');
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+            const questionTimerBar = document.getElementById('question-timer-bar');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackTitle = document.getElementById('feedback-title');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+            const finalMessageEl = document.getElementById('final-message');
+            const leaderboardList = document.getElementById('leaderboard-list');
+
+            // --- Game State Variables ---
+            let score = 0;
+            let timer;
+            let questionTimer;
+            let timeLeft = 600; // 10 minutes in seconds
+            let questionTimeLeft = 20; // 20 seconds per question
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let streakCounter = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let audioInitialized = false;
+            let isMuted = false;
+            let totalQuestions = 25;
+
+            // --- Audio Synthesizers ---
+            let correctSound, wrongSound, badgeSound, praiseSound;
+
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!", "Fantastic!", "Well done!", "You got it!"];
+            
+            // --- New Question Data ---
+            const questionBank = [
+                { question: "What does 'Renewable' mean for an energy source?", answers: [{text: "It is very expensive", correct: false}, {text: "It is not depleted when used", correct: true}, {text: "It is owned by the government", correct: false}, {text: "It causes pollution", correct: false}], explanation: "'Renewable' means the source is not depleted when used, like the sun or wind." },
+                { question: "What is the main function of a 'Solar Panel'?", answers: [{text: "To create shade", correct: false}, {text: "To heat water", correct: false}, {text: "To convert sunlight into electricity", correct: true}, {text: "To store electricity", correct: false}], explanation: "A 'Solar Panel' converts light from the sun into electricity." },
+                { question: "A community that is 'Off-grid' is...", answers: [{text: "Not on any maps", correct: false}, {text: "Not connected to the main electricity network", correct: true}, {text: "A very unfriendly place", correct: false}, {text: "Located on an island", correct: false}], explanation: "'Off-grid' means not connected to the main electricity supply network." },
+                { question: "The main network for distributing electricity is called the...", answers: [{text: "Power Web", correct: false}, {text: "Energy System", correct: false}, {text: "Power Grid", correct: true}, {text: "Electrical Matrix", correct: false}], explanation: "The 'Power Grid' is the network for distributing electricity over a large area." },
+                { question: "What is 'Energy Equity'?", answers: [{text: "Making sure all energy is the same price", correct: false}, {text: "The fair distribution of energy benefits", correct: true}, {text: "Using only one type of energy", correct: false}, {text: "A new type of battery", correct: false}], explanation: "'Energy Equity' is the fair distribution of the benefits and burdens of energy production and consumption." },
+                { question: "The 'Digital Divide' refers to the gap in access to...", answers: [{text: "Books", correct: false}, {text: "Modern technology like the internet", correct: true}, {text: "Clean water", correct: false}, {text: "Public transportation", correct: false}], explanation: "The 'Digital Divide' is the gap between people who have access to modern technology and those who do not." },
+                { question: "Basic physical systems like roads and power lines are called...", answers: [{text: "Development", correct: false}, {text: "Infrastructure", correct: true}, {text: "A Power Grid", correct: false}, {text: "A Community", correct: false}], explanation: "'Infrastructure' refers to the basic physical systems of a country or organization." },
+                { question: "A wind 'Turbine' is a machine that...", answers: [{text: "Stores electricity", correct: false}, {text: "Spins to generate power", correct: true}, {text: "Cleans the air", correct: false}, {text: "Pumps water", correct: false}], explanation: "A 'Turbine' is a machine with a rotor, driven by a moving fluid (like wind) to produce power." },
+                { question: "What is the primary purpose of a 'Battery' in a solar power system?", answers: [{text: "To make the system look nice", correct: false}, {text: "To store electricity for later use", correct: true}, {text: "To convert sunlight to electricity", correct: false}, {text: "To clean the solar panels", correct: false}], explanation: "A 'Battery' is a device that stores electrical energy, often for use when the sun isn't shining." },
+                { question: "Access to reliable energy is crucial for economic...", answers: [{text: "Problems", correct: false}, {text: "Development", correct: true}, {text: "Equity", correct: false}, {text: "Infrastructure", correct: false}], explanation: "Access to reliable energy is crucial for economic 'Development'." },
+                { question: "According to the A2 text, what can students NOT do when it gets dark in an off-grid village?", answers: [{text: "Play outside", correct: false}, {text: "Read books or do homework", correct: true}, {text: "Talk to their families", correct: false}, {text: "Eat dinner", correct: false}], explanation: "The A2 text states that students 'cannot read books or do homework' without light." },
+                { question: "In the A2 text, what do solar panels charge during the day?", answers: [{text: "A light bulb", correct: false}, {text: "A battery", correct: true}, {text: "A computer", correct: false}, {text: "The power grid", correct: false}], explanation: "The A2 text explains that 'This electricity can charge a battery'." },
+                { question: "What is the main benefit for students mentioned in the A2 text?", answers: [{text: "They get more holidays", correct: false}, {text: "They can study for more hours", correct: true}, {text: "They can watch more TV", correct: false}, {text: "They get free computers", correct: false}], explanation: "The main benefit is that 'students can study for more hours and learn more'." },
+                { question: "The B1 text says a lack of electricity is a major 'barrier' to what?", answers: [{text: "Friendship", correct: false}, {text: "Education", correct: true}, {text: "Transportation", correct: false}, {text: "Sports", correct: false}], explanation: "The B1 text states that a lack of electricity is a 'major barrier to education'." },
+                { question: "According to the B1 text, what does simple infrastructure like solar panels allow students to do besides use lights?", answers: [{text: "Cook dinner", correct: false}, {text: "Use computers and access the internet", correct: true}, {text: "Listen to the radio", correct: false}, {text: "Power their homes", correct: false}], explanation: "The B1 text says it 'allows students to use computers, access the internet, and connect with a world of information'." },
+                { question: "What does the B2 text say is a 'cornerstone of modern education'?", answers: [{text: "Access to reliable electricity", correct: true}, {text: "Using kerosene lamps", correct: false}, {text: "Living in a large city", correct: false}, {text: "Having a long school day", correct: false}], explanation: "The B2 text identifies 'Access to reliable electricity' as a cornerstone of modern education." },
+                { question: "What is a negative aspect of using kerosene lamps mentioned in the B2 text?", answers: [{text: "They are too bright", correct: false}, {text: "They are a health hazard", correct: true}, {text: "They are a renewable resource", correct: false}, {text: "They are free", correct: false}], explanation: "The B2 text calls the reliance on kerosene lamps a 'health hazard'." },
+                { question: "What does 'decentralized' mean for renewable energy systems in the B2 text?", answers: [{text: "They are very large and in one place", correct: false}, {text: "They are small-scale and local", correct: true}, {text: "They are owned by the government", correct: false}, {text: "They are not very effective", correct: false}], explanation: "'Decentralized' refers to small-scale, local systems not connected to a large, central grid." },
+                { question: "According to the B2 text, what does a typical solar system for a community involve?", answers: [{text: "One large turbine", correct: false}, {text: "Solar panels and a battery bank", correct: true}, {text: "A connection to the main power grid", correct: false}, {text: "A large diesel generator", correct: false}], explanation: "The B2 text describes a typical system as involving 'photovoltaic solar panels that charge a battery bank'." },
+                { question: "The B2 text says that providing electricity does more than illuminate a room; it...", answers: [{text: "Creates pollution", correct: false}, {text: "Powers potential", correct: true}, {text: "Is a temporary solution", correct: false}, {text: "Costs a lot of money", correct: false}], explanation: "The text states that this technology 'powers potential'." },
+                { question: "What is a major theme of all three texts?", answers: [{text: "The history of electricity", correct: false}, {text: "The link between renewable energy and educational opportunity", correct: true}, {text: "The dangers of solar power", correct: false}, {text: "How to build a wind turbine", correct: false}], explanation: "All three texts focus on the connection between providing renewable energy and improving education." },
+                { question: "What problem does a battery solve in a solar power system?", answers: [{text: "It makes the solar panels work faster", correct: false}, {text: "It provides power at night when the sun is not shining", correct: true}, {text: "It cleans the solar panels", correct: false}, {text: "It makes the electricity cheaper", correct: false}], explanation: "A battery stores energy collected during the day for use at night." },
+                { question: "The term 'off-grid' implies a lack of connection to what?", answers: [{text: "The internet", correct: false}, {text: "The main power grid", correct: true}, {text: "The local community", correct: false}, {text: "The school system", correct: false}], explanation: "'Off-grid' specifically means not being connected to the main electricity supply network." },
+                { question: "What is Germany's 'Energiewende'?", answers: [{text: "A type of solar panel", correct: false}, {text: "A national policy for energy transition", correct: true}, {text: "A famous German university", correct: false}, {text: "A student exchange program", correct: false}], explanation: "Germany's 'Energiewende' is its national policy for transitioning to renewable energy." },
+                { question: "Why is energy access considered an issue of 'equity'?", answers: [{text: "Because it costs a lot of money", correct: false}, {text: "Because lack of access creates an unfair disadvantage", correct: true}, {text: "Because it is only available in cities", correct: false}, {text: "Because it is not a serious problem", correct: false}], explanation: "It's an issue of equity because a lack of access to energy creates an unfair disadvantage in education and economic opportunity." }
+            ];
+            
+            const badges = {
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '�', earned: false, condition: () => streakCounter >= 5 },
+                quick: { id: 'quick', name: 'Quick Thinker', icon: '⚡', earned: false, condition: () => timeLeft > 480 }, // Answered all in under 2 mins
+                perfect: { id: 'perfect', name: 'Perfect Score', icon: '🏆', earned: false, condition: () => score === 100 }
+            };
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-yellow-400', 'text-white');
+                
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+            
+            function setupGame() {
+                playerName = playerNameInput.value || "Player";
+                questions = shuffleArray([...questionBank]);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 600; // 10 minutes for 25 questions
+                correctAnswers = 0;
+                mistakes = 0;
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+                
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= questions.length) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${questions.length}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+            }
+            
+            function showPraise() {
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1200);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        if(audioInitialized) badgeSound.triggerAttackRelease(["C4", "E4", "G4"], "8n");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                const button = e.target;
+                const isCorrect = button.dataset.correct === 'true';
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    score += 4; // 25 questions * 4 points = 100
+                    correctAnswers++;
+                    streakCounter++;
+                    
+                    updateScore();
+                    if(audioInitialized) correctSound.triggerAttackRelease("C5", "8n");
+                    showPraise();
+                    button.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        displayQuestion();
+                    }, 1200);
+
+                } else {
+                    mistakes++;
+                    streakCounter = 0; // Reset streak
+                    if(audioInitialized) wrongSound.triggerAttackRelease("C3", "8n");
+                    button.classList.add('incorrect-flash');
+                    
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    correctButton.classList.add('correct-flash');
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation) {
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                checkBadges(); 
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+
+                if (completed) {
+                    endTitleEl.textContent = `Great work, ${playerName}!`;
+                } else {
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+                endMessageEl.textContent = "Your final score is:";
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        const badgeEl = createBadgeElement(badgeData);
+                        badgeEl.classList.add('earned');
+                        finalBadgesContainer.appendChild(badgeEl);
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+            
+            async function initAudioAndStart() {
+                 if (!audioInitialized && typeof Tone !== 'undefined') {
+                    try {
+                        await Tone.start();
+                        correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination();
+                        wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+                        badgeSound = new Tone.PolySynth(Tone.Synth, { oscillator: { type: "sine" } }).toDestination();
+                        audioInitialized = true;
+                        console.log("Audio context started.");
+                    } catch (e) {
+                        console.error("Could not start audio context:", e);
+                    }
+                }
+                setupGame();
+            }
+
+            function main() {
+                playerNameInput.addEventListener('input', () => {
+                    if (playerNameInput.value.trim() !== '') {
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Start Challenge';
+                    } else {
+                        startBtn.disabled = true;
+                        startBtn.textContent = 'Enter Name to Start';
+                    }
+                });
+
+                restartBtn.addEventListener('click', () => {
+                    gameUI.classList.add('hidden');
+                    endScreen.classList.add('hidden');
+                    startScreen.classList.remove('hidden');
+                });
+                nextQuestionBtn.addEventListener('click', hideFeedback);
+
+                startBtn.addEventListener('click', initAudioAndStart);
+            }
+
+            main();
+        });
+    </script>
+</body>
+</html>

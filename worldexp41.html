@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joel Mitchell's Earth Exploration</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+            transition: background-color 1s ease-in-out;
+        }
+        #main-container {
+            background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+            transition: background 1s ease-in-out;
+        }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        .option-btn, .unit-btn, .themed-btn { transition: all 0.3s ease-in-out; }
+        .option-btn.correct {
+            background-color: var(--theme-correct, #22c55e) !important;
+            color: white !important;
+            transform: scale(1.05);
+            border-color: var(--theme-correct-dark, #16a34a) !important;
+        }
+        .option-btn.incorrect {
+            background-color: var(--theme-incorrect, #ef4444) !important;
+            color: white !important;
+            border-color: var(--theme-incorrect-dark, #dc2626) !important;
+        }
+        .option-btn:disabled { cursor: not-allowed; }
+        #toast {
+            position: fixed;
+            bottom: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 9999px;
+            color: white;
+            font-weight: 600;
+            transition: all 0.5s ease-in-out;
+            z-index: 100;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        #toast.show { bottom: 30px; }
+        
+        /* Animations */
+        @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        .pop { animation: pop 0.3s ease-in-out; }
+        
+        @keyframes shrink { from { width: 100%; } to { width: 0%; } }
+        #timer-bar.active { animation: shrink 15s linear forwards; }
+    </style>
+</head>
+<body id="main-container" class="bg-slate-200">
+
+    <div class="flex items-center justify-center min-h-screen p-4">
+        <div id="game-container" class="w-full max-w-4xl mx-auto relative">
+            <button id="mute-btn" class="absolute top-4 right-4 text-slate-500 hover:text-slate-800 z-20">
+                <!-- SVG Icon for Mute/Unmute -->
+            </button>
+
+            <!-- Unit Selection Screen -->
+            <div id="unit-selection-screen" class="screen active bg-white/80 backdrop-blur-sm p-6 md:p-8 rounded-2xl shadow-lg">
+                <div class="text-center mb-6">
+                    <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold text-slate-800 mb-2">Vocabulary Challenge</h1>
+                    <div class="max-w-md mx-auto">
+                         <label for="player-name-main" class="block text-base md:text-lg font-medium text-slate-700">Welcome! What's your name?</label>
+                         <input type="text" id="player-name-main" class="w-full text-center text-xl md:text-2xl font-bold text-slate-800 bg-transparent border-b-2 border-slate-300 focus:border-slate-500 focus:outline-none py-1" placeholder="Champion">
+                    </div>
+                </div>
+                <div id="unit-categories-container" class="grid md:grid-cols-2 gap-x-8">
+                    <!-- Categories and unit buttons will be injected here -->
+                </div>
+            </div>
+
+            <!-- Start Screen -->
+            <div id="start-screen" class="screen text-center bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg">
+                <h1 id="unit-title-display" class="text-3xl md:text-4xl font-bold mb-2">Unit Title</h1>
+                <p id="unit-highscore-display" class="text-base font-semibold text-slate-500 mb-8">High Score: 0</p>
+                <p class="text-xl md:text-2xl mb-6 font-medium">Ready, <span class="font-bold" id="start-screen-name"></span>?</p>
+                <button id="start-btn" class="themed-btn w-full text-white font-bold py-3 px-6 rounded-lg text-lg md:text-xl transition-transform transform hover:scale-105 shadow-md">
+                    Start Quiz
+                </button>
+                <button id="back-to-units-btn" class="w-full mt-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg text-base">
+                    Back to Units
+                </button>
+            </div>
+
+            <!-- Game Screen -->
+            <div id="game-screen" class="screen">
+                <div class="bg-white/80 backdrop-blur-sm p-6 md:p-8 rounded-2xl shadow-lg">
+                    <div class="flex justify-between items-center mb-4 text-base">
+                        <div id="player-info" class="font-semibold text-slate-600">Player: Champion</div>
+                        <div id="streak-display" class="font-bold text-orange-500"></div>
+                    </div>
+                    <div class="flex justify-between items-center mb-4">
+                        <div id="question-counter" class="text-base font-semibold text-slate-600">Question 1 / 10</div>
+                        <div id="score-display" class="text-xl md:text-2xl font-bold">Score: 0</div>
+                    </div>
+                    
+                    <div class="w-full bg-slate-200 rounded-full h-2.5 mb-4 overflow-hidden">
+                        <div id="timer-bar" class="h-2.5 rounded-full"></div>
+                    </div>
+
+                    <div id="question-container" class="mb-6 min-h-[6rem] flex items-center justify-center">
+                        <p id="question-text" class="text-xl md:text-2xl font-semibold leading-relaxed text-slate-800 text-center"></p>
+                    </div>
+                    <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+            </div>
+
+            <!-- Game Over Screen -->
+            <div id="game-over-screen" class="screen text-center bg-white/80 backdrop-blur-sm p-8 rounded-2xl shadow-lg">
+                <h2 id="game-over-title" class="text-4xl md:text-5xl font-bold text-slate-800 mb-2">Quiz Complete!</h2>
+                <p id="final-greeting" class="text-lg font-semibold text-slate-600 mb-4">Your final score is:</p>
+                <p id="final-score" class="text-7xl md:text-8xl font-bold mb-2">0</p>
+                <p id="final-highscore-msg" class="text-base text-amber-500 font-bold mb-6"></p>
+                <div id="mistakes-container" class="mb-8"></div>
+                <div class="flex flex-col md:flex-row gap-4">
+                    <button id="restart-btn" class="themed-btn w-full text-white font-bold py-3 px-6 rounded-lg text-lg md:text-xl shadow-md">
+                        Play Again
+                    </button>
+                    <button id="review-mistakes-btn" class="w-full bg-slate-500 hover:bg-slate-600 text-white font-bold py-3 px-6 rounded-lg text-lg md:text-xl shadow-md">
+                        Review Mistakes
+                    </button>
+                </div>
+                <button id="main-menu-btn" class="w-full mt-4 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-2 px-4 rounded-lg text-base">
+                    Back to Main Menu
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script type="module">
+        const UNITS_DATA = {
+            "Category I: Urban & Environmental Design": {
+                1: { title: "Greening the Skyline", theme: { main: '#22c55e', accent: '#16a34a', bg1: '#f0fdf4', bg2: '#dcfce7' }, vocab: ['urban', 'biodiversity', 'ecosystem', 'insulation', 'irrigation', 'harvest', 'compost', 'sustainability', 'heat island', 'community'], defs: [ { id: 'u1_1', word: 'urban', q: 'Relating to, or characteristic of a town or city.' }, { id: 'u1_2', word: 'biodiversity', q: 'The variety of plant and animal life in a particular habitat.' }, { id: 'u1_3', word: 'ecosystem', q: 'A biological community of interacting organisms and their physical environment.' }, { id: 'u1_4', word: 'insulation', q: 'Material used to prevent the loss of heat, reducing energy needs.' }, { id: 'u1_5', word: 'irrigation', q: 'The artificial application of water to land to assist in growing crops.' }, { id: 'u1_6', word: 'harvest', q: 'The process or period of gathering in crops.' }, { id: 'u1_7', word: 'compost', q: 'Decayed organic material used as a plant fertilizer.' }, { id: 'u1_8', word: 'sustainability', q: 'Meeting present needs without compromising the future.' }, { id: 'u1_9', word: 'heat island', q: 'An urban area that is significantly warmer than its surrounding rural areas.' }, { id: 'u1_10', word: 'community', q: 'A group of people living in the same place or having a particular characteristic in common.' } ] },
+                2: { title: "The Future of Materials", theme: { main: '#a855f7', accent: '#9333ea', bg1: '#faf5ff', bg2: '#f3e8ff' }, vocab: ['bioplastic', 'mycelium', 'biodegradable', 'compostable', 'polymer', 'lifecycle', 'cradle-to-cradle', 'single-use', 'resource', 'innovation'], defs: [ { id: 'u2_1', word: 'bioplastic', q: 'Plastics derived from renewable biomass sources, such as vegetable fats and oils.' }, { id: 'u2_2', word: 'mycelium', q: 'The root structure of mushrooms, used to create sustainable materials.' }, { id: 'u2_3', word: 'biodegradable', q: 'Capable of being decomposed by bacteria or other living organisms.' }, { id: 'u2_4', word: 'compostable', q: 'Able to break down into natural elements in a specific environment.' }, { id: 'u2_5', word: 'polymer', q: 'A substance that has a molecular structure consisting chiefly or entirely of a large number of similar units bonded together.' }, { id: 'u2_6', word: 'lifecycle', q: 'The series of changes in the life of a product, from creation to disposal.' }, { id: 'u2_7', word: 'cradle-to-cradle', q: 'A design philosophy that models human industry on nature\'s processes.' }, { id: 'u2_8', word: 'single-use', q: 'Designed to be used only once and then disposed of.' }, { id: 'u2_9', word: 'resource', q: 'A stock or supply of materials that can be drawn on by a person or organization.' }, { id: 'u2_10', word: 'innovation', q: 'A new method, idea, or product.' } ] },
+                3: { title: "Renewable Energy & Education", theme: { main: '#f59e0b', accent: '#d97706', bg1: '#fffbeb', bg2: '#fef3c7' }, vocab: ['solar', 'wind', 'geothermal', 'curriculum', 'outreach', 'policy', 'grid', 'literacy', 'empowerment', 'renewable'], defs: [ { id: 'u3_1', word: 'solar', q: 'Energy derived from the sun\'s radiation.' }, { id: 'u3_2', word: 'wind', q: 'Energy derived from the movement of air.' }, { id: 'u3_3', word: 'geothermal', q: 'Energy derived from the heat of the earth.' }, { id: 'u3_4', word: 'curriculum', q: 'The subjects comprising a course of study in a school or college.' }, { id: 'u3_5', word: 'outreach', q: 'An organization\'s involvement with or influence in the community.' }, { id: 'u3_6', word: 'policy', q: 'A course or principle of action adopted or proposed by a government or organization.' }, { id: 'u3_7', word: 'grid', q: 'A network for distributing electrical power.' }, { id: 'u3_8', word: 'literacy', q: 'Competence or knowledge in a specified area.' }, { id: 'u3_9', word: 'empowerment', q: 'The process of becoming stronger and more confident.' }, { id: 'u3_10', word: 'renewable', q: 'Energy from a source that is not depleted when used.' } ] },
+                4: { title: "Animal Crossings & Biodiversity", theme: { main: '#10b981', accent: '#059669', bg1: '#ecfdf5', bg2: '#d1fae5' }, vocab: ['corridor', 'habitat', 'fragmentation', 'overpass', 'underpass', 'migration', 'wildlife', 'conservation', 'connectivity', 'biodiversity'], defs: [ { id: 'u4_1', word: 'corridor', q: 'A strip of natural habitat connecting wildlife populations separated by human activities.' }, { id: 'u4_2', word: 'habitat', q: 'The natural home or environment of an animal, plant, or other organism.' }, { id: 'u4_3', word: 'fragmentation', q: 'The process by which a large habitat is transformed into smaller, isolated patches.' }, { id: 'u4_4', word: 'overpass', q: 'A bridge-like structure that allows animals to cross a busy road safely.' }, { id: 'u4_5', word: 'underpass', q: 'A tunnel-like structure that allows animals to cross a busy road safely.' }, { id: 'u4_6', word: 'migration', q: 'Seasonal movement of animals from one region to another.' }, { id: 'u4_7', word: 'wildlife', q: 'Wild animals collectively; the native fauna of a region.' }, { id: 'u4_8', word: 'conservation', q: 'The protection of animals, plants, and natural resources.' }, { id: 'u4_9', word: 'connectivity', q: 'The degree to which the landscape facilitates animal movement.' }, { id: 'u4_10', word: 'biodiversity', q: 'The variety of life in the world or in a particular habitat or ecosystem.' } ] },
+                5: { title: "The Zero-Waste Challenge", theme: { main: '#64748b', accent: '#475569', bg1: '#f8fafc', bg2: '#f1f5f9' }, vocab: ['reduce', 'reuse', 'recycle', 'compost', 'landfill', 'consumption', 'packaging', 'single-use', 'circular', 'upcycle'], defs: [ { id: 'u5_1', word: 'reduce', q: 'To make smaller or less in amount, degree, or size.' }, { id: 'u5_2', word: 'reuse', q: 'To use again or more than once.' }, { id: 'u5_3', word: 'recycle', q: 'To convert waste into reusable material.' }, { id: 'u5_4', word: 'compost', q: 'To treat organic matter so it can be used as a soil fertilizer.' }, { id: 'u5_5', word: 'landfill', q: 'A place where waste material is buried.' }, { id: 'u5_6', word: 'consumption', q: 'The action of using up a resource.' }, { id: 'u5_7', word: 'packaging', q: 'Materials used to wrap or protect goods.' }, { id: 'u5_8', word: 'single-use', q: 'Designed to be used only once and then disposed of.' }, { id: 'u5_9', word: 'circular', q: 'An economic system aimed at eliminating waste and the continual use of resources.' }, { id: 'u5_10', word: 'upcycle', q: 'To reuse discarded material to create a product of higher value.' } ] }
+            },
+            "Category II: Technology and Society": {
+                6: { title: "AI for Global Good", theme: { main: '#3b82f6', accent: '#2563eb', bg1: '#eff6ff', bg2: '#dbeafe' }, vocab: ['algorithm', 'machine learning', 'data', 'ethics', 'bias', 'humanitarian', 'predictive model', 'accessibility', 'social impact', 'AI'], defs: [ { id: 'u6_1', word: 'algorithm', q: 'A process or set of rules to be followed in calculations, especially by a computer.' }, { id: 'u6_2', word: 'machine learning', q: 'The use of computer systems that are able to learn and adapt without explicit instructions.' }, { id: 'u6_3', word: 'data', q: 'Facts and statistics collected together for reference or analysis.' }, { id: 'u6_4', word: 'ethics', q: 'Moral principles that govern the conducting of an activity.' }, { id: 'u6_5', word: 'bias', q: 'A systematic error in AI systems that results in unfair outcomes.' }, { id: 'u6_6', word: 'humanitarian', q: 'Concerned with or seeking to promote human welfare.' }, { id: 'u6_7', word: 'predictive model', q: 'A tool that uses data and statistics to forecast outcomes.' }, { id: 'u6_8', word: 'accessibility', q: 'The quality of being easy to obtain, use, or understand.' }, { id: 'u6_9', word: 'social impact', q: 'The effect an organization\'s actions have on the well-being of the community.' }, { id: 'u6_10', word: 'AI', q: 'Computer systems able to perform tasks that normally require human intelligence.' } ] },
+                7: { title: "Solar Desalination", theme: { main: '#0ea5e9', accent: '#0284c7', bg1: '#f0f9ff', bg2: '#e0f2fe' }, vocab: ['desalination', 'solar still', 'reverse osmosis', 'brine', 'potable', 'freshwater', 'renewable', 'membrane', 'purification', 'salinity'], defs: [ { id: 'u7_1', word: 'desalination', q: 'The process of removing salt from seawater to make it drinkable.' }, { id: 'u7_2', word: 'solar still', q: 'A device that uses heat from the sun to evaporate water, leaving salts behind.' }, { id: 'u7_3', word: 'reverse osmosis', q: 'A water purification process that uses a partially permeable barrier.' }, { id: 'u7_4', word: 'brine', q: 'Highly concentrated salt water, often a byproduct of desalination.' }, { id: 'u7_5', word: 'potable', q: 'Safe to drink; drinkable.' }, { id: 'u7_6', word: 'freshwater', q: 'Water that does not contain a large amount of salt.' }, { id: 'u7_7', word: 'renewable', q: 'Energy from a source that is not depleted when used.' }, { id: 'u7_8', word: 'membrane', q: 'A thin, flexible sheet of material that acts as a filter.' }, { id: 'u7_9', word: 'purification', q: 'The process of removing contaminants from something.' }, { id: 'u7_10', word: 'salinity', q: 'The concentration of dissolved salts in water.' } ] },
+                8: { title: "Smartwatches and Health", theme: { main: '#ef4444', accent: '#dc2626', bg1: '#fef2f2', bg2: '#fee2e2' }, vocab: ['wearable', 'sensor', 'biometric', 'data', 'fitness', 'ECG', 'sleep tracking', 'preventative', 'health metric', 'haptic'], defs: [ { id: 'u8_1', word: 'wearable', q: 'A small electronic device worn on the body as an accessory.' }, { id: 'u8_2', word: 'sensor', q: 'A device which detects or measures a physical property.' }, { id: 'u8_3', word: 'biometric', q: 'Relating to the application of statistical analysis to biological data.' }, { id: 'u8_4', word: 'data', q: 'Facts and statistics collected for reference or analysis.' }, { id: 'u8_5', word: 'fitness', q: 'The condition of being physically fit and healthy.' }, { id: 'u8_6', word: 'ECG', q: 'A recording of the electrical activity of the heart (Electrocardiogram).' }, { id: 'u8_7', word: 'sleep tracking', q: 'The process of monitoring a person\'s sleep patterns.' }, { id: 'u8_8', 'word': 'preventative', q: 'Designed to keep something undesirable from occurring.' }, { id: 'u8_9', 'word': 'health metric', q: 'A measurement related to the state of a person\'s health.' }, { id: 'u8_10', 'word': 'haptic', q: 'Relating to the sense of touch.' } ] },
+                9: { title: "E-Bikes and E-Buses", theme: { main: '#84cc16', accent: '#65a30d', bg1: '#f7fee7', bg2: '#ecfccb' }, vocab: ['e-bike', 'e-bus', 'emission-free', 'micro-mobility', 'public transit', 'infrastructure', 'last-mile', 'rechargeable', 'sustainable', 'pedal-assist'], defs: [ { id: 'u9_1', word: 'e-bike', q: 'A bicycle with an integrated electric motor for propulsion.' }, { id: 'u9_2', word: 'e-bus', q: 'A bus that is powered by electricity.' }, { id: 'u9_3', word: 'emission-free', q: 'Producing no greenhouse gases or other pollutants.' }, { id: 'u9_4', word: 'micro-mobility', q: 'A category of transportation made up of very light vehicles like e-scooters.' }, { id: 'u9_5', word: 'public transit', q: 'A shared passenger-transport service available to the general public.' }, { id: 'u9_6', word: 'infrastructure', q: 'The basic physical systems of a business, region, or nation.' }, { id: 'u9_7', word: 'last-mile', q: 'The final step of the journey from a transportation hub to the final destination.' }, { id: 'u9_8', word: 'rechargeable', q: 'Able to be charged with electricity again.' }, { id: 'u9_9', word: 'sustainable', q: 'Able to be maintained at a certain rate or level.' }, { id: 'u9_10', word: 'pedal-assist', q: 'A mode on an e-bike where the motor provides power when the rider is pedaling.' } ] },
+                10: { title: "Celebrating Global Cultures", theme: { main: '#d946ef', accent: '#c026d3', bg1: '#fdf4ff', bg2: '#fae8ff' }, vocab: ['culture', 'tradition', 'heritage', 'diversity', 'festival', 'ritual', 'values', 'community', 'global citizen', 'perspective'], defs: [ { id: 'u10_1', word: 'culture', q: 'The customs, arts, and social institutions of a particular nation or group.' }, { id: 'u10_2', word: 'tradition', q: 'The transmission of customs or beliefs from generation to generation.' }, { id: 'u10_3', word: 'heritage', q: 'Valued objects and qualities such as cultural traditions that have been passed down.' }, { id: 'u10_4', word: 'diversity', q: 'The state of being diverse; variety.' }, { id: 'u10_5', word: 'festival', q: 'A day or period of celebration.' }, { id: 'u10_6', word: 'ritual', q: 'A ceremony consisting of a series of actions performed according to a prescribed order.' }, { id: 'u10_7', word: 'values', q: 'A person\'s principles or standards of behavior.' }, { id: 'u10_8', word: 'community', q: 'A group of people living in the same place or having a particular characteristic in common.' }, { id: 'u10_9', word: 'global citizen', q: 'Someone who identifies with being part of an emerging world community.' }, { id: 'u10_10', word: 'perspective', q: 'A particular attitude toward or way of regarding something; a point of view.' } ] }
+            }
+        };
+        
+        class TTSEngine {
+            constructor() {
+                this.synth = window.speechSynthesis;
+                this.voices = [];
+                this.selectedVoice = null;
+                this.isMuted = false;
+                this.keepAliveInterval = null;
+                this.praisePhrases = [
+                    "Nice one!", "Great job!", "Excellent!", "Awesome!", "You've got this!", 
+                    "Keep it up!", "Fantastic!", "Brilliant!", "Well done!", "Superb!", "That's it!"
+                ];
+                this.streakPhrases = [
+                    "Streak!", "On a roll!", "Fire!", "Combo!", "Amazing streak!"
+                ];
+                this.loadVoices();
+                if (this.synth.onvoiceschanged !== undefined) {
+                    this.synth.onvoiceschanged = () => this.loadVoices();
+                }
+            }
+
+            loadVoices() {
+                this.voices = this.synth.getVoices();
+                const neuralVoice = this.voices.find(v => v.name.toLowerCase().includes('neural') && v.lang.startsWith('en'));
+                const premiumVoice = this.voices.find(v => v.name.toLowerCase().includes('premium') && v.lang.startsWith('en'));
+                const aDefaultVoice = this.voices.find(v => v.lang.startsWith('en') && v.default);
+                this.selectedVoice = neuralVoice || premiumVoice || aDefaultVoice || this.voices.find(v => v.lang.startsWith('en'));
+            }
+
+            speak(text, priority = false) {
+                if (this.isMuted || !this.selectedVoice) return;
+                if (this.synth.speaking && !priority) return;
+                
+                if(this.synth.speaking && priority) {
+                    this.synth.cancel();
+                }
+
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.voice = this.selectedVoice;
+                utterance.pitch = 1;
+                utterance.rate = 0.85;
+                utterance.volume = 0.8;
+                this.synth.speak(utterance);
+            }
+
+            speakPraise() {
+                const phrase = this.praisePhrases[Math.floor(Math.random() * this.praisePhrases.length)];
+                this.speak(phrase);
+            }
+
+            speakStreak(streakCount) {
+                 const phrase = this.streakPhrases[Math.floor(Math.random() * this.streakPhrases.length)];
+                 this.speak(`${phrase} ${streakCount} in a row!`, true);
+            }
+
+            toggleMute() {
+                this.isMuted = !this.isMuted;
+                if (this.isMuted) {
+                    this.synth.cancel();
+                }
+                return this.isMuted;
+            }
+
+            startKeepAlive() {
+                if (this.keepAliveInterval) return;
+                this.keepAliveInterval = setInterval(() => {
+                    if (this.synth.speaking) return;
+                    const utterance = new SpeechSynthesisUtterance('');
+                    this.synth.speak(utterance);
+                }, 10000);
+            }
+        }
+
+        class VocabularyQuiz {
+            constructor() {
+                this.elements = {
+                    mainContainer: document.getElementById('main-container'),
+                    unitSelectionScreen: document.getElementById('unit-selection-screen'),
+                    unitCategoriesContainer: document.getElementById('unit-categories-container'),
+                    startScreen: document.getElementById('start-screen'),
+                    gameScreen: document.getElementById('game-screen'),
+                    gameOverScreen: document.getElementById('game-over-screen'),
+                    startBtn: document.getElementById('start-btn'),
+                    restartBtn: document.getElementById('restart-btn'),
+                    reviewMistakesBtn: document.getElementById('review-mistakes-btn'),
+                    mainMenuBtn: document.getElementById('main-menu-btn'),
+                    backToUnitsBtn: document.getElementById('back-to-units-btn'),
+                    playerNameInput: document.getElementById('player-name-main'),
+                    startScreenName: document.getElementById('start-screen-name'),
+                    unitTitleDisplay: document.getElementById('unit-title-display'),
+                    unitHighscoreDisplay: document.getElementById('unit-highscore-display'),
+                    playerInfo: document.getElementById('player-info'),
+                    questionCounter: document.getElementById('question-counter'),
+                    scoreDisplay: document.getElementById('score-display'),
+                    streakDisplay: document.getElementById('streak-display'),
+                    timerBar: document.getElementById('timer-bar'),
+                    questionText: document.getElementById('question-text'),
+                    optionsContainer: document.getElementById('options-container'),
+                    finalScore: document.getElementById('final-score'),
+                    finalGreeting: document.getElementById('final-greeting'),
+                    finalHighscoreMsg: document.getElementById('final-highscore-msg'),
+                    mistakesContainer: document.getElementById('mistakes-container'),
+                    toast: document.getElementById('toast'),
+                    gameOverTitle: document.getElementById('game-over-title'),
+                    muteBtn: document.getElementById('mute-btn'),
+                };
+                
+                this.state = {};
+                this.playerData = {};
+                this.timePerQuestion = 15;
+                this.tts = new TTSEngine();
+                this.sounds = {
+                    correct: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination(),
+                    incorrect: new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0, release: 0.2 } }).toDestination(),
+                    timeup: new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.01, decay: 0.3, sustain: 0, release: 0.1 } }).toDestination(),
+                    newHighscore: new Tone.Player("https://tonejs.github.io/audio/berklee/gong_1.mp3").toDestination(),
+                };
+                
+                this.init();
+            }
+
+            init() {
+                this.loadPlayerData();
+                this.populateUnitSelection();
+                this.bindEvents();
+                this.elements.playerNameInput.value = this.playerData.name;
+                this.updateMuteButton();
+            }
+
+            loadPlayerData() {
+                const data = localStorage.getItem('vocabChallengeData');
+                this.playerData = data ? JSON.parse(data) : { name: '', scores: {}, mistakes: {}, muted: false };
+                this.tts.isMuted = this.playerData.muted;
+            }
+
+            savePlayerData() {
+                this.playerData.muted = this.tts.isMuted;
+                localStorage.setItem('vocabChallengeData', JSON.stringify(this.playerData));
+            }
+
+            populateUnitSelection() {
+                this.elements.unitCategoriesContainer.innerHTML = '';
+                for (const categoryName in UNITS_DATA) {
+                    const categoryDiv = document.createElement('div');
+                    categoryDiv.classList.add('mb-6');
+
+                    const categoryTitle = document.createElement('h2');
+                    categoryTitle.textContent = categoryName;
+                    categoryTitle.classList.add('text-xl', 'lg:text-2xl', 'font-bold', 'text-slate-700', 'mb-3', 'border-b-2', 'pb-2', 'border-slate-200');
+                    categoryDiv.appendChild(categoryTitle);
+
+                    const unitList = document.createElement('div');
+                    unitList.classList.add('space-y-2');
+                    
+                    const units = UNITS_DATA[categoryName];
+                    for (const unitId in units) {
+                        const unit = units[unitId];
+                        const button = document.createElement('button');
+                        button.dataset.unitId = unitId;
+                        button.dataset.category = categoryName;
+                        button.classList.add('unit-btn', 'w-full', 'p-4', 'border', 'border-slate-300', 'rounded-lg', 'text-left', 'hover:bg-slate-100', 'hover:border-slate-400', 'bg-white', 'flex', 'justify-between', 'items-center');
+                        button.innerHTML = `
+                            <div>
+                                <span class="font-bold block text-slate-800 text-base md:text-lg">${unit.title}</span>
+                            </div>
+                            <span class="text-sm font-semibold text-slate-500 bg-slate-100 px-2 py-1 rounded-full">Score: ${this.playerData.scores[unitId] || 0}</span>`;
+                        button.addEventListener('click', () => this.selectUnit(categoryName, unitId));
+                        unitList.appendChild(button);
+                    }
+                    categoryDiv.appendChild(unitList);
+                    this.elements.unitCategoriesContainer.appendChild(categoryDiv);
+                }
+            }
+            
+            applyTheme(theme) {
+                this.elements.mainContainer.style.background = `linear-gradient(135deg, ${theme.bg1}, ${theme.bg2})`;
+                const style = document.documentElement.style;
+                style.setProperty('--theme-main', theme.main);
+                style.setProperty('--theme-accent', theme.accent);
+                this.elements.startBtn.style.backgroundColor = theme.main;
+                this.elements.restartBtn.style.backgroundColor = theme.main;
+                this.elements.scoreDisplay.style.color = theme.main;
+                this.elements.timerBar.style.backgroundColor = theme.main;
+            }
+
+            updateMuteButton() {
+                const icon = this.tts.isMuted ? 
+                `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>` :
+                `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+                this.elements.muteBtn.innerHTML = icon;
+            }
+
+            bindEvents() {
+                this.elements.startBtn.addEventListener('click', () => this.startGame());
+                this.elements.restartBtn.addEventListener('click', () => this.startGame());
+                this.elements.reviewMistakesBtn.addEventListener('click', () => this.reviewMistakes());
+                this.elements.mainMenuBtn.addEventListener('click', () => this.resetToMainMenu());
+                this.elements.backToUnitsBtn.addEventListener('click', () => this.resetToMainMenu());
+                this.elements.playerNameInput.addEventListener('input', (e) => {
+                    this.playerData.name = e.target.value;
+                    this.savePlayerData();
+                });
+                this.elements.muteBtn.addEventListener('click', () => {
+                    this.tts.toggleMute();
+                    this.updateMuteButton();
+                    this.savePlayerData();
+                });
+            }
+
+            selectUnit(categoryName, unitId) {
+                Tone.start();
+                this.tts.startKeepAlive();
+
+                this.state.unitId = unitId;
+                this.state.selectedUnitData = UNITS_DATA[categoryName][unitId];
+                this.elements.unitTitleDisplay.textContent = this.state.selectedUnitData.title;
+                this.elements.unitHighscoreDisplay.textContent = `High Score: ${this.playerData.scores[unitId] || 0}`;
+                this.elements.startScreenName.textContent = this.playerData.name || 'Champion';
+                this.applyTheme(this.state.selectedUnitData.theme);
+                this.showScreen('start-screen');
+            }
+
+            resetToMainMenu() {
+                this.populateUnitSelection();
+                this.showScreen('unit-selection-screen');
+                this.elements.mainContainer.style.background = `linear-gradient(135deg, #f1f5f9, #e2e8f0)`;
+            }
+            
+            startGame() {
+                if (!this.state.selectedUnitData) return;
+                this.state.playerName = this.playerData.name || 'Champion';
+                this.elements.playerInfo.textContent = `Player: ${this.state.playerName}`;
+                this.state.currentQuestionIndex = 0;
+                this.state.score = 0;
+                this.state.streak = 0;
+                this.state.mistakes = [];
+                this.state.isReviewing = false;
+                this.getQuestions();
+                this.updateScoreDisplay();
+                this.updateStreakDisplay();
+                this.showScreen('game-screen');
+                this.displayQuestion();
+                this.tts.speak(`Starting ${this.state.selectedUnitData.title}. Good luck!`);
+            }
+
+            getQuestions() {
+                const { defs } = this.state.selectedUnitData;
+                const unitId = this.state.unitId;
+                const pastMistakes = this.playerData.mistakes[unitId] || [];
+                let questions = [];
+
+                if (pastMistakes.length > 0) {
+                    const mistakesToRecycleCount = Math.min(pastMistakes.length, Math.floor(defs.length * 0.4));
+                    const shuffledMistakes = [...pastMistakes].sort(() => 0.5 - Math.random());
+                    const mistakeIdsToRecycle = shuffledMistakes.slice(0, mistakesToRecycleCount);
+                    
+                    mistakeIdsToRecycle.forEach(mistakeId => {
+                        const question = defs.find(d => d.id === mistakeId);
+                        if(question) questions.push(question);
+                    });
+                }
+                
+                const remainingQuestionsCount = defs.length - questions.length;
+                const nonMistakeQuestions = defs.filter(d => !questions.some(q => q.id === d.id));
+                const shuffledNew = [...nonMistakeQuestions].sort(() => 0.5 - Math.random());
+                
+                questions.push(...shuffledNew.slice(0, remainingQuestionsCount));
+
+                this.state.questions = questions.sort(() => 0.5 - Math.random()).map(def => {
+                    const correctAnswer = def.word;
+                    let options = [correctAnswer];
+                    while (options.length < 4) {
+                        const randomWord = this.state.selectedUnitData.vocab[Math.floor(Math.random() * this.state.selectedUnitData.vocab.length)];
+                        if (!options.includes(randomWord)) options.push(randomWord);
+                    }
+                    return { ...def, options: options.sort(() => 0.5 - Math.random()), answer: correctAnswer };
+                });
+            }
+
+            displayQuestion() {
+                this.state.isAnswered = false;
+                const questionSet = this.state.isReviewing ? this.state.mistakes : this.state.questions;
+                const questionData = questionSet[this.state.currentQuestionIndex];
+                
+                if (!questionData) {
+                    this.endGame();
+                    return;
+                }
+
+                this.updateProgress();
+                this.elements.questionText.textContent = questionData.q;
+                this.elements.optionsContainer.innerHTML = '';
+
+                questionData.options.forEach(option => {
+                    const button = document.createElement('button');
+                    button.textContent = option;
+                    button.classList.add('option-btn', 'w-full', 'p-4', 'text-base', 'md:text-lg', 'font-medium', 'border-2', 'border-slate-300', 'rounded-lg', 'text-left', 'hover:bg-slate-200', 'hover:border-slate-400', 'focus:outline-none', 'focus:ring-2', 'bg-white');
+                    button.addEventListener('click', () => this.checkAnswer(option, button));
+                    this.elements.optionsContainer.appendChild(button);
+                });
+                
+                if (!this.state.isReviewing) this.startTimer();
+            }
+
+            checkAnswer(selectedOption, button) {
+                if (this.state.isAnswered) return;
+                this.state.isAnswered = true;
+                clearTimeout(this.state.timerInterval);
+                this.elements.timerBar.style.animation = 'none';
+
+                const questionSet = this.state.isReviewing ? this.state.mistakes : this.state.questions;
+                const currentQuestion = questionSet[this.state.currentQuestionIndex];
+                const correctOption = currentQuestion.answer;
+                
+                const allButtons = this.elements.optionsContainer.querySelectorAll('button');
+                allButtons.forEach(btn => btn.disabled = true);
+
+                if (selectedOption === correctOption) {
+                    this.state.streak++;
+                    const points = 10 * this.state.streak;
+                    this.state.score += points;
+                    button.classList.add('correct');
+                    this.sounds.correct.triggerAttackRelease('C5', '0.2');
+                    if (this.state.streak > 2) {
+                        this.tts.speakStreak(this.state.streak);
+                    } else {
+                        this.tts.speakPraise();
+                    }
+                    this.showToast(`Correct! +${points} points`, 'bg-green-500');
+                } else {
+                    this.state.streak = 0;
+                    button.classList.add('incorrect');
+                    if (!this.state.isReviewing) {
+                       this.state.mistakes.push(currentQuestion);
+                       const unitMistakes = this.playerData.mistakes[this.state.unitId] || [];
+                       if (!unitMistakes.includes(currentQuestion.id)) {
+                           unitMistakes.push(currentQuestion.id);
+                           this.playerData.mistakes[this.state.unitId] = unitMistakes;
+                       }
+                    }
+                    this.sounds.incorrect.triggerAttackRelease('C3', '0.4');
+                    this.showToast(`Incorrect. The answer is ${correctOption}.`, 'bg-red-500');
+                    allButtons.forEach(btn => { if (btn.textContent === correctOption) btn.classList.add('correct'); });
+                }
+                
+                if (this.state.isReviewing) {
+                   this.state.mistakes.splice(this.state.currentQuestionIndex, 1);
+                   this.state.currentQuestionIndex--; 
+                }
+
+                this.updateScoreDisplay(true);
+                this.updateStreakDisplay();
+
+                setTimeout(() => {
+                    this.state.currentQuestionIndex++;
+                    this.displayQuestion();
+                }, 2000);
+            }
+
+            timeUp() {
+                if (this.state.isAnswered) return;
+                this.state.isAnswered = true;
+                this.elements.timerBar.style.animation = 'none';
+                
+                this.sounds.timeup.triggerAttackRelease('A2', '0.3');
+                const questionSet = this.state.isReviewing ? this.state.mistakes : this.state.questions;
+                const currentQuestion = questionSet[this.state.currentQuestionIndex];
+                const correctOption = currentQuestion.answer;
+                
+                this.state.streak = 0;
+                this.updateStreakDisplay();
+                if (!this.state.isReviewing) {
+                    this.state.mistakes.push(currentQuestion);
+                    const unitMistakes = this.playerData.mistakes[this.state.unitId] || [];
+                    if (!unitMistakes.includes(currentQuestion.id)) {
+                        unitMistakes.push(currentQuestion.id);
+                        this.playerData.mistakes[this.state.unitId] = unitMistakes;
+                    }
+                }
+
+                const allButtons = this.elements.optionsContainer.querySelectorAll('button');
+                allButtons.forEach(btn => {
+                    btn.disabled = true;
+                    if (btn.textContent === correctOption) btn.classList.add('correct');
+                    else btn.classList.add('incorrect');
+                });
+                
+                this.showToast(`Time's up! The answer was ${correctOption}.`, 'bg-red-500');
+                
+                setTimeout(() => {
+                    this.state.currentQuestionIndex++;
+                    this.displayQuestion();
+                }, 2000);
+            }
+
+            endGame() {
+                this.showScreen('game-over-screen');
+                this.elements.finalScore.textContent = this.state.score;
+                this.elements.finalGreeting.textContent = `Great job, ${this.state.playerName}!`;
+                this.elements.finalHighscoreMsg.textContent = '';
+
+                const currentHighscore = this.playerData.scores[this.state.unitId] || 0;
+                if (this.state.score > currentHighscore) {
+                    this.elements.finalHighscoreMsg.textContent = `New High Score!`;
+                    this.elements.gameOverTitle.textContent = "High Score!";
+                    this.playerData.scores[this.state.unitId] = this.state.score;
+                    this.sounds.newHighscore.start();
+                    this.tts.speak(`Wow! New high score! ${this.state.score} points!`, true);
+                } else {
+                     this.elements.gameOverTitle.textContent = "Quiz Complete!";
+                     this.tts.speak(`Quiz complete! You scored ${this.state.score} points.`, true);
+                }
+                
+                this.savePlayerData();
+
+                if (this.state.mistakes.length > 0) {
+                    this.elements.mistakesContainer.innerHTML = `<p class="font-semibold mb-2">You had ${this.state.mistakes.length} incorrect answers.</p>`;
+                    this.elements.reviewMistakesBtn.style.display = 'block';
+                } else {
+                    this.elements.mistakesContainer.innerHTML = `<p class="font-bold">Perfect Score! You're a true master!</p>`;
+                    this.elements.reviewMistakesBtn.style.display = 'none';
+                }
+            }
+
+            reviewMistakes() {
+                if (this.state.mistakes.length === 0) return;
+                this.state.isReviewing = true;
+                this.state.currentQuestionIndex = 0;
+                this.showScreen('game-screen');
+                this.displayQuestion();
+            }
+            
+            startTimer() {
+                const timerBar = this.elements.timerBar;
+                timerBar.style.animation = 'none';
+                void timerBar.offsetWidth; 
+                timerBar.style.animation = `shrink ${this.timePerQuestion}s linear forwards`;
+                this.state.timerInterval = setTimeout(() => this.timeUp(), this.timePerQuestion * 1000);
+            }
+
+            showScreen(screenId) {
+                document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+                document.getElementById(screenId).classList.add('active');
+            }
+
+            updateScoreDisplay(animate = false) {
+                this.elements.scoreDisplay.textContent = `Score: ${this.state.score}`;
+                if (animate) {
+                    this.elements.scoreDisplay.classList.add('pop');
+                    this.elements.scoreDisplay.addEventListener('animationend', () => {
+                        this.elements.scoreDisplay.classList.remove('pop');
+                    }, { once: true });
+                }
+            }
+            
+            updateStreakDisplay() {
+                if (this.state.streak > 1) {
+                    this.elements.streakDisplay.textContent = `${this.state.streak}x Streak!`;
+                } else {
+                    this.elements.streakDisplay.textContent = '';
+                }
+            }
+
+            updateProgress() {
+                const questionSet = this.state.isReviewing ? this.state.mistakes : this.state.questions;
+                const totalQuestions = this.state.isReviewing ? questionSet.length : this.state.questions.length;
+                this.elements.questionCounter.textContent = `Question ${this.state.currentQuestionIndex + 1} / ${totalQuestions}`;
+            }
+
+            showToast(message, bgColor) {
+                const toast = this.elements.toast;
+                toast.textContent = message;
+                toast.style.backgroundColor = bgColor;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 2200);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => new VocabularyQuiz());
+    </script>
+</body>
+</html>

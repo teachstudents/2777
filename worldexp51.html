@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rooftop Forest Challenge</title>
+
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+
+    <style>
+        /* Custom styles for the theme and animations */
+        :root {
+            --primary-green: #22c55e;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Dynamic gradient background as requested */
+            background: linear-gradient(-45deg, #166534, #15803d, #16a34a, #22c55e);
+            background-size: 400% 400%;
+            animation: gradientBG 35s ease infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            /* Prevents scrolling on all devices */
+            overflow: hidden;
+            padding: 1rem;
+        }
+        
+        /* New: More dynamic gradient animation for background */
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            25% { background-position: 50% 100%; }
+            50% { background-position: 100% 50%; }
+            75% { background-position: 50% 0%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .game-card {
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            animation: fadeInScale 0.8s ease-out forwards;
+        }
+
+        @keyframes fadeInScale {
+            0% { opacity: 0; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .answer-btn {
+            transition: all 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .answer-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .answer-btn:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .feedback-modal {
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        /* Enhanced Flash Animations */
+        .correct-flash {
+            animation: correct-pulse 0.6s ease-out forwards;
+        }
+        .incorrect-flash {
+            animation: incorrect-pulse 0.6s ease-out forwards;
+        }
+
+        @keyframes correct-pulse {
+            0% { background-color: #4ade80; color: white; transform: scale(1.01); }
+            50% { background-color: #22c55e; color: white; transform: scale(1.03); }
+            100% { background-color: #4ade80; color: white; transform: scale(1); }
+        }
+        @keyframes incorrect-pulse {
+            0% { background-color: #f87171; color: white; transform: scale(1.01); }
+            50% { background-color: #ef4444; color: white; transform: scale(1.03); }
+            100% { background-color: #f87171; color: white; transform: scale(1); }
+        }
+
+        /* Enhanced Badge Reveal Animation */
+        .badge {
+            transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            transform: scale(0) rotate(-180deg);
+            opacity: 0;
+            flex-shrink: 0;
+        }
+        .badge.earned {
+            transform: scale(1) rotate(0deg);
+            opacity: 1;
+        }
+
+        /* Praise Animation */
+        #praise-feedback {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 100;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        #praise-feedback.show {
+            animation: praise-anim 1.5s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+        }
+
+        @keyframes praise-anim {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+            30% { transform: translate(-50%, -60%) scale(1.1); opacity: 1; }
+            70% { transform: translate(-50%, -70%) scale(1.05); opacity: 1; }
+            100% { transform: translate(-50%, -100%) scale(0.8); opacity: 0; }
+        }
+        
+        /* Updated: Only the question timer bar uses this color */
+        #question-timer-bar {
+            background-color: var(--primary-green);
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto p-4 relative">
+        <div id="praise-feedback"></div>
+
+        <!-- Start Screen -->
+        <div id="start-screen" class="text-center text-white game-card !bg-transparent p-0 shadow-none">
+            <h1 class="text-5xl md:text-6xl font-bold mb-4 text-shadow">Rooftop Forest Challenge</h1>
+            <p class="text-lg md:text-xl mb-6">Test your knowledge of greening the skyline. You have 10 minutes to answer 40 questions. Aim for 100 points and earn all the badges!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="text-center text-xl md:text-2xl p-3 rounded-full mb-4 w-full max-w-sm text-gray-800 focus:ring-4 focus:ring-green-300 focus:outline-none">
+            <button id="start-btn" class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-2xl md:text-3xl answer-btn" disabled>Enter Name to Start</button>
+            
+            <!-- New: Leaderboard Display on Start Screen -->
+            <div id="leaderboard" class="mt-8">
+                <h2 class="text-3xl font-bold mb-4">Top Scores</h2>
+                <ul id="leaderboard-list" class="text-xl space-y-2">
+                    <!-- Leaderboard entries will be dynamically inserted here -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden">
+            <div class="game-card rounded-2xl p-6 md:p-8 shadow-2xl">
+                <!-- Game Header with Timer, Score, and Badges -->
+                <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                    <div class="flex items-center space-x-2 bg-gray-200 text-gray-700 font-semibold px-4 py-2 rounded-full text-sm md:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-6 md:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span id="timer">10:00</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-yellow-400 text-yellow-900 font-semibold px-4 py-2 rounded-full text-sm md:text-base">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 md:h-6 md:w-6" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                        <span id="score">0 / 100 Points</span>
+                    </div>
+                    <!-- New: Mute Button -->
+                    <button id="mute-btn" class="flex items-center space-x-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold px-4 py-2 rounded-full text-sm md:text-base answer-btn">
+                        <i id="mute-icon" class="fa-solid fa-volume-high"></i>
+                    </button>
+                </div>
+                
+                <div id="badges-container" class="flex items-center justify-center space-x-4 mb-6 h-12">
+                    <!-- Badges will appear here when earned -->
+                </div>
+
+                <div id="question-area">
+                    <div class="flex justify-between items-center mb-2">
+                        <p class="text-sm font-bold text-green-700" id="question-counter">Question 1 / 40</p>
+                        <!-- New: Timer countdown for each question -->
+                        <div class="flex items-center space-x-1 text-sm font-bold text-red-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l3 3a1 1 0 001.414-1.414L11 9.586V6z" clip-rule="evenodd" /></svg>
+                            <span id="question-timer-countdown">20</span>
+                        </div>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full mb-6">
+                        <!-- New: This bar visually represents the time left to answer each question -->
+                        <div id="question-timer-bar" class="rounded-full transition-all duration-[20s] linear"></div>
+                    </div>
+                    <p id="question-text" class="text-xl md:text-2xl font-semibold mb-6 text-center min-h-[100px]"></p>
+                    <div id="answer-buttons" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Answer buttons will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="hidden text-center text-white game-card !bg-transparent p-0 shadow-none">
+            <h1 id="end-title" class="text-5xl md:text-6xl font-bold mb-4">Game Over!</h1>
+            <p id="end-message" class="text-lg md:text-xl mb-2">Your final score is:</p>
+            <p id="final-score" class="text-7xl font-bold mb-6">0</p>
+            <div id="final-badges" class="flex justify-center items-center flex-wrap gap-4 mb-8"></div>
+            <p id="final-message" class="text-xl mt-4"></p>
+            <button id="restart-btn" class="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-2xl md:text-3xl answer-btn mt-8">Play Again</button>
+        </div>
+    </div>
+
+    <!-- Feedback Modal -->
+    <div id="feedback-modal" class="hidden fixed inset-0 flex items-center justify-center p-4 feedback-modal z-50">
+        <div class="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+            <h2 id="feedback-title" class="text-3xl font-bold mb-4"></h2>
+            <p id="feedback-text" class="text-lg mb-6"></p>
+            <button id="next-question-btn" class="w-full bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-full text-xl answer-btn">Continue</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const startScreen = document.getElementById('start-screen');
+            const gameUI = document.getElementById('game-ui');
+            const endScreen = document.getElementById('end-screen');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+            const playerNameInput = document.getElementById('player-name-input');
+            const muteBtn = document.getElementById('mute-btn');
+            const muteIcon = document.getElementById('mute-icon');
+
+            const timerEl = document.getElementById('timer');
+            const scoreEl = document.getElementById('score');
+            const badgesContainer = document.getElementById('badges-container');
+            const questionCounterEl = document.getElementById('question-counter');
+            const questionTimerCountdownEl = document.getElementById('question-timer-countdown'); // New element for numerical countdown
+            const questionTextEl = document.getElementById('question-text');
+            const answerButtonsEl = document.getElementById('answer-buttons');
+            const praiseFeedbackEl = document.getElementById('praise-feedback');
+            const questionTimerBar = document.getElementById('question-timer-bar');
+
+            const feedbackModal = document.getElementById('feedback-modal');
+            const feedbackTitle = document.getElementById('feedback-title');
+            const feedbackText = document.getElementById('feedback-text');
+            const nextQuestionBtn = document.getElementById('next-question-btn');
+            
+            const finalScoreEl = document.getElementById('final-score');
+            const endTitleEl = document.getElementById('end-title');
+            const endMessageEl = document.getElementById('end-message');
+            const finalBadgesContainer = document.getElementById('final-badges');
+            const finalMessageEl = document.getElementById('final-message');
+            const leaderboardList = document.getElementById('leaderboard-list');
+
+            // --- Game State Variables ---
+            let score = 0;
+            let timer;
+            let questionTimer;
+            let timeLeft = 600; // 10 minutes in seconds
+            let questionTimeLeft = 20; // 20 seconds per question
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let streakCounter = 0;
+            let playerName = "Player";
+            let earnedBadges = new Set();
+            let audioInitialized = false;
+            let isMuted = false;
+            let totalQuestions = 40; // The actual number of questions in the bank
+
+            // --- Audio Synthesizers ---
+            let correctSound, wrongSound, badgeSound, praiseSound;
+
+            const praiseWords = ["Excellent!", "Brilliant!", "Superb!", "Correct!", "Great thinking!", "Awesome!", "Fantastic!", "Well done!", "You got it!"];
+            
+            // --- Question Data from the original code, but I'll make it a separate constant for clarity ---
+            const questionBank = [
+                { question: "What does the word 'Urban' mean?", answers: [{text: "Relating to the countryside", correct: false}, {text: "Relating to a city or town", correct: true}, {text: "Relating to the forest", correct: false}, {text: "Relating to the ocean", correct: false}], explanation: "'Urban' relates to a city or town." },
+                { question: "Which word means 'meeting our needs without compromising the future'?", answers: [{text: "Biodiversity", correct: false}, {text: "Sustainability", correct: true}, {text: "Insulation", correct: false}, {text: "Irrigation", correct: false}], explanation: "'Sustainability' is the ability to meet our own needs without compromising the ability of future generations to meet their own needs." },
+                { question: "What is 'Biodiversity'?", answers: [{text: "The variety of buildings in a city", correct: false}, {text: "The study of biology", correct: false}, {text: "The variety of plant and animal life", correct: true}, {text: "A type of garden", correct: false}], explanation: "'Biodiversity' refers to the variety of plant and animal life in the world or in a particular habitat." },
+                { question: "What is 'Insulation' used for?", answers: [{text: "To make things hotter", correct: false}, {text: "To stop heat or sound from escaping", correct: true}, {text: "To water plants", correct: false}, {text: "To build walls", correct: false}], explanation: "'Insulation' is material used to stop heat, sound, or electricity from escaping or entering." },
+                { question: "The supply of water to crops is called...", answers: [{text: "Harvest", correct: false}, {text: "Photosynthesis", correct: false}, {text: "Irrigation", correct: true}, {text: "Compost", correct: false}], explanation: "'Irrigation' is the artificial application of water to land to assist in the production of crops." },
+                { question: "What is the process of gathering crops called?", answers: [{text: "Harvest", correct: true}, {text: "Planting", correct: false}, {text: "Insulation", correct: false}, {text: "Ecosystem", correct: false}], explanation: "The 'Harvest' is the process or period of gathering in crops." },
+                { question: "What process do plants use to make food from sunlight?", answers: [{text: "Irrigation", correct: false}, {text: "Photosynthesis", correct: true}, {text: "Biodiversity", correct: false}, {text: "Compost", correct: false}], explanation: "'Photosynthesis' is the process used by plants, algae, and certain bacteria to harness energy from sunlight and turn it into chemical energy." },
+                { question: "Decayed organic material used as fertilizer is called...", answers: [{text: "Insulation", correct: false}, {text: "Compost", correct: true}, {text: "Harvest", correct: false}, {text: "Irrigation", correct: false}], explanation: "'Compost' is decayed organic material used as a plant fertilizer." },
+                { question: "A community of interacting organisms and their environment is an...", answers: [{text: "Ecosystem", correct: true}, {text: "Urban Area", correct: false}, {text: "Heat Island", correct: false}, {text: "Insulation", correct: false}], explanation: "An 'Ecosystem' is a biological community of interacting organisms and their physical environment." },
+                { question: "What is a garden on a roof typically called?", answers: [{text: "A sky garden", correct: false}, {text: "A rooftop garden", correct: true}, {text: "A city garden", correct: false}, {text: "A green building", correct: false}], explanation: "They are commonly referred to as 'rooftop gardens'." },
+                { question: "What is one benefit of rooftop gardens mentioned early on?", answers: [{text: "They make the building hotter", correct: false}, {text: "They use a lot of energy", correct: false}, {text: "They provide fresh food", correct: true}, {text: "They are noisy", correct: false}], explanation: "Rooftop gardens can provide fresh food, reducing food miles." },
+                { question: "How do rooftop gardens save energy according to the text?", answers: [{text: "By producing electricity", correct: false}, {text: "By making the building cool in the summer", correct: true}, {text: "By blocking the sun completely", correct: false}, {text: "By using special lights", correct: false}], explanation: "They provide insulation, cooling the building in summer and reducing AC use." },
+                { question: "What kind of wildlife likes the flowers in a rooftop garden?", answers: [{text: "Cats and dogs", correct: false}, {text: "Fish and turtles", correct: false}, {text: "Birds and bees", correct: true}, {text: "People only", correct: false}], explanation: "The text mentions birds and bees are attracted to the flowers, enhancing urban biodiversity." },
+                { question: "How does a rooftop garden improve food security in a community?", answers: [{text: "By selling food cheaply", correct: false}, {text: "By importing food from other countries", correct: false}, {text: "By allowing residents to grow their own produce locally", correct: true}, {text: "By creating large food factories", correct: false}], explanation: "They enable communities to grow food locally, increasing food security." },
+                { question: "What is the 'Urban Heat Island' effect, which green roofs help reduce?", answers: [{text: "An urban area with lots of trees", correct: false}, {text: "A city area that is significantly warmer than surrounding rural areas", correct: true}, {text: "A type of urban park", correct: false}, {text: "The effect of traffic on city temperature", correct: false}], explanation: "The 'Urban Heat Island' effect is when cities are much warmer due to heat absorption by materials." },
+                { question: "Why are cities hotter than the countryside, contributing to the Heat Island effect?", answers: [{text: "They have more trees", correct: false}, {text: "They have more people", correct: false}, {text: "Materials like concrete and asphalt absorb and retain heat", correct: true}, {text: "They have more wind", correct: false}], explanation: "Common urban materials absorb and hold heat, making cities warmer." },
+                { question: "Rooftop gardens create small ecosystems that are homes for which creatures?", answers: [{text: "Fish and turtles", correct: false}, {text: "Desert animals", correct: false}, {text: "Important pollinators like bees, butterflies, and birds", correct: true}, {text: "Large mammals", correct: false}], explanation: "They provide crucial habitats for urban pollinators." },
+                { question: "What is the primary benefit of an 'extensive' green roof?", answers: [{text: "Growing a wide variety of vegetables", correct: false}, {text: "Requiring minimal maintenance and irrigation due to shallow soil", correct: true}, {text: "Supporting heavy foot traffic", correct: false}, {text: "Providing maximum structural support", correct: false}], explanation: "Extensive green roofs are lightweight with shallow soil, suitable for hardy, low-maintenance plants." },
+                { question: "Which type of green roof is designed to support larger plants, shrubs, and even small trees, often used as accessible rooftop parks?", answers: [{text: "Intensive green roof", correct: true}, {text: "Extensive green roof", correct: false}, {text: "Semi-intensive green roof", correct: false}, {text: "Modular green roof", correct: false}], explanation: "Intensive green roofs have deeper soil layers to support larger vegetation and human use." },
+                { question: "What is the main function of the drainage layer in a green roof system?", answers: [{text: "To hold water for the plants", correct: false}, {text: "To filter out pollutants from rainwater", correct: false}, {text: "To allow excess water to drain away from the roof structure", correct: true}, {text: "To provide insulation", correct: false}], explanation: "The drainage layer prevents water from accumulating and damaging the roof structure." },
+                { question: "What is the most critical layer for protecting the building structure from water damage in a green roof system?", answers: [{text: "The growing medium", correct: false}, {text: "The root barrier", correct: false}, {text: "The waterproof membrane", correct: true}, {text: "The drainage layer", correct: false}], explanation: "The waterproof membrane is the primary barrier against leaks." },
+                { question: "Which layer in a green roof specifically prevents plant roots from growing into and damaging the waterproof membrane?", answers: [{text: "Drainage layer", correct: false}, {text: "Filter fabric", correct: false}, {text: "Root barrier", correct: true}, {text: "Insulation layer", correct: false}], explanation: "The root barrier is designed to withstand root penetration." },
+                { question: "What is the 'substrate' or 'growing medium' in a green roof system?", answers: [{text: "The gravel layer on top", correct: false}, {text: "The specialized lightweight soil mix that plants grow in", correct: true}, {text: "The layer that drains water", correct: false}, {text: "The protective membrane", correct: false}], explanation: "The substrate is the engineered soil mix providing nutrients and support for plants." },
+                { question: "What does 'stormwater runoff management' mean in the context of green roofs?", answers: [{text: "Using sprinklers to water the roof garden", correct: false}, {text: "Collecting rainwater to drink", correct: false}, {text: "Reducing the amount and speed of rainwater flowing off buildings", correct: true}, {text: "Cleaning polluted rainwater", correct: false}], explanation: "Green roofs absorb and slow down rainwater, reducing runoff into sewage systems." },
+                { question: "Besides cooling, how else do green roofs improve the urban environment?", answers: [{text: "By making buildings taller", correct: false}, {text: "By improving air quality and reducing air pollution", correct: true}, {text: "By increasing traffic", correct: false}, {text: "By making pavements smoother", correct: false}], explanation: "Plants filter air pollutants, contributing to cleaner air." },
+                { question: "Lowering 'food miles' by growing food locally on rooftops helps reduce...", answers: [{text: "The cost of food", correct: false}, {text: "The amount of water used", correct: false}, {text: "Carbon emissions from transportation", correct: true}, {text: "The variety of food available", correct: false}], explanation: "Transporting food over shorter distances significantly reduces associated carbon emissions." },
+                { question: "What kind of plants are ideal for extensive green roofs in dry climates?", answers: [{text: "Large trees", correct: false}, {text: "Tropical flowers", correct: false}, {text: "Drought-tolerant succulents like Sedum", correct: true}, {text: "Water lilies", correct: false}], explanation: "Succulents are hardy and require minimal water, perfect for extensive roofs." },
+                { question: "What is a 'cool roof' and how does it differ from a green roof?", answers: [{text: "A roof painted white; it reflects heat but doesn't have plants", correct: true}, {text: "A roof with fans; it's the same as a green roof but uses more energy", correct: false}, {text: "A roof with solar panels; it generates energy instead of cooling", correct: false}, {text: "A roof made of ice; it's only used in cold places", correct: false}], explanation: "A cool roof uses reflective materials, while a green roof uses vegetation for cooling and other benefits." },
+                { question: "What is a significant challenge when adding a green roof to an older building?", answers: [{text: "Getting plants to grow", correct: false}, {text: "Ensuring the building's structure can support the weight", correct: true}, {text: "Finding a reliable water source", correct: false}, {text: "The roof being too steep", correct: false}], explanation: "The structural capacity is a major consideration for retrofitting green roofs." },
+                { question: "How do green roofs help insulate buildings?", answers: [{text: "By creating a vacuum layer", correct: false}, {text: "By trapping air within the soil and plant layers", correct: true}, {text: "By using special reflective paint", correct: false}, {text: "By increasing the amount of sunlight hitting the roof", correct: false}], explanation: "The layers of soil, plants, and trapped air provide insulation." },
+                { question: "Apart from temperature regulation, what other benefit do green roofs provide regarding sound?", answers: [{text: "They amplify city sounds", correct: false}, {text: "They reduce noise pollution", correct: true}, {text: "They create echoes", correct: false}, {text: "They are completely silent", correct: false}], explanation: "The soil and plant layers can absorb and block urban noise." },
+                { question: "Increasing urban biodiversity through green roofs helps support...", answers: [{text: "The number of cars in the city", correct: false}, {text: "The health of the urban ecosystem", correct: true}, {text: "The height of buildings", correct: false}, {text: "The amount of concrete used", correct: false}], explanation: "Supporting diverse plant and animal life is crucial for a healthy urban ecosystem." },
+                { question: "Green roofs can help extend the lifespan of a roof's waterproof membrane by...", answers: [{text: "Making it thicker", correct: false}, {text: "Protecting it from UV radiation and temperature fluctuations", correct: true}, {text: "Exposing it to more rain", correct: false}, {text: "Adding chemicals to it", correct: false}], explanation: "The layers above the membrane shield it from harsh weather and temperature extremes." },
+                { question: "What is a rain garden?", answers: [{text: "A garden that is watered with a sprinkler", correct: false}, {text: "A depressed landscape that collects rainwater runoff", correct: true}, {text: "A garden on a balcony", correct: false}, {text: "A garden that only grows in the rain", correct: false}], explanation: "A rain garden is a depressed area in the landscape that collects water from a downspout or a driveway and allows it to soak into the ground." },
+                { question: "Which of these is NOT a component of a green roof?", answers: [{text: "A waterproof membrane", correct: false}, {text: "An irrigation system", correct: false}, {text: "A drainage layer", correct: false}, {text: "A solar panel array", correct: true}], explanation: "Solar panel arrays are a separate type of roof technology, though they can be combined with green roofs." },
+                { question: "What is the primary goal of green roof 'stormwater management'?", answers: [{text: "To create beautiful waterfalls", correct: false}, {text: "To prevent flooding and reduce pollution in waterways", correct: true}, {text: "To save water for later use", correct: false}, {text: "To irrigate the plants", correct: false}], explanation: "By absorbing and filtering rainwater, green roofs reduce the burden on municipal storm sewers and prevent pollutants from entering waterways." },
+                { question: "What is a 'living wall'?", answers: [{text: "A wall made of brick", correct: false}, {text: "A wall with plants growing on it vertically", correct: true}, {text: "A wall that is painted green", correct: false}, {text: "A wall that is alive with insects", correct: false}], explanation: "A 'living wall' or 'vertical garden' is a wall covered with living plants that are grown using a hydroponics system or other means." },
+                { question: "Which country is a leader in green roof technology and policy?", answers: [{text: "Brazil", correct: false}, {text: "Germany", correct: true}, {text: "Australia", correct: false}, {text: "China", correct: false}], explanation: "Germany is often cited as a pioneer and global leader in green roof policy and implementation." },
+                { question: "What term describes the psychological and physical benefits of being around nature, a benefit of green roofs?", answers: [{text: "Biophilia", correct: true}, {text: "Ecosystem services", correct: false}, {text: "Urban ecology", correct: false}, {text: "Sustenance", correct: false}], explanation: "Biophilia is the innate human connection to nature, and green spaces help to satisfy this need." },
+                { question: "How can green roofs help with food production in a city?", answers: [{text: "By growing plants that can be eaten", correct: true}, {text: "By making the air cooler", correct: false}, {text: "By providing a place for animals to live", correct: false}, {text: "By making the building stronger", correct: false}], explanation: "They can be used for urban agriculture, growing fresh fruits and vegetables." },
+                { question: "What is the primary purpose of the 'filter fabric' layer in a green roof system?", answers: [{text: "To keep the plants warm", correct: false}, {text: "To prevent the growing medium from clogging the drainage layer", correct: true}, {text: "To block out sunlight", correct: false}, {text: "To hold water in the system", correct: false}], explanation: "The filter fabric is a crucial layer that separates the growing medium from the drainage layer, preventing soil from washing away." },
+                { question: "What is the term for a roof that is primarily designed to host solar panels?", answers: [{text: "A green roof", correct: false}, {text: "A cool roof", correct: false}, {text: "A blue roof", correct: false}, {text: "A photovoltaic roof", correct: true}], explanation: "A photovoltaic (PV) roof is a type of roof with solar panels that convert sunlight into electricity." }
+            ];
+            
+            totalQuestions = questionBank.length;
+
+            const badges = {
+                // New: Thematic icons for badges
+                quick: { id: 'quick', name: 'Quick Thinker', icon: '⚡', earned: false, condition: () => timeLeft > (600 - 60) }, // Earned by completing in under 1 minute
+                streak: { id: 'streak', name: 'Hot Streak!', icon: '🦋', earned: false, condition: () => streakCounter >= 5 },
+                perfect: { id: 'perfect', name: 'Perfect Score', icon: '�', earned: false, condition: () => score >= 90 && currentQuestionIndex === totalQuestions } // Adjusted for dynamic question count
+            };
+
+            // --- Utility Functions ---
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+                return array;
+            }
+
+            function createBadgeElement(badge) {
+                const badgeEl = document.createElement('div');
+                // New: Badge text color is now dark for better contrast
+                badgeEl.classList.add('badge', 'p-2', 'rounded-full', 'flex', 'items-center', 'space-x-2', 'bg-yellow-400', 'text-gray-900');
+                const icon = document.createElement('span');
+                icon.textContent = badge.icon;
+                icon.classList.add('text-2xl');
+                const name = document.createElement('span');
+                name.textContent = badge.name;
+                name.classList.add('font-semibold', 'hidden', 'md:inline');
+                badgeEl.appendChild(icon);
+                badgeEl.appendChild(name);
+                return badgeEl;
+            }
+
+            // --- Game Logic ---
+            function loadLeaderboard() {
+                try {
+                    const highScores = JSON.parse(localStorage.getItem('rooftop-forest-highscores')) || [];
+                    leaderboardList.innerHTML = '';
+                    if (highScores.length === 0) {
+                        leaderboardList.innerHTML = '<li class="text-white opacity-70">No scores yet. Be the first!</li>';
+                    } else {
+                        highScores.sort((a, b) => b.score - a.score);
+                        highScores.slice(0, 5).forEach((entry, index) => {
+                            const li = document.createElement('li');
+                            li.classList.add('flex', 'justify-between', 'text-white', 'p-2', 'rounded-lg', 'bg-black', 'bg-opacity-20');
+                            li.innerHTML = `
+                                <span>${index + 1}. ${entry.name}</span>
+                                <span class="font-bold">${entry.score} pts</span>
+                            `;
+                            leaderboardList.appendChild(li);
+                        });
+                    }
+                } catch (e) {
+                    console.error("Could not load leaderboard from local storage:", e);
+                }
+            }
+
+            function saveScore(score, name) {
+                try {
+                    const highScores = JSON.parse(localStorage.getItem('rooftop-forest-highscores')) || [];
+                    highScores.push({ name: name, score: score });
+                    localStorage.setItem('rooftop-forest-highscores', JSON.stringify(highScores));
+                } catch (e) {
+                    console.error("Could not save score to local storage:", e);
+                }
+            }
+
+            function setupGame() {
+                playerName = playerNameInput.value.trim() || "Player";
+                questions = shuffleArray([...questionBank]);
+
+                currentQuestionIndex = 0;
+                score = 0;
+                timeLeft = 600;
+                streakCounter = 0;
+                earnedBadges.clear();
+                badgesContainer.innerHTML = '';
+                
+                startScreen.classList.add('hidden');
+                endScreen.classList.add('hidden');
+                gameUI.classList.remove('hidden');
+
+                updateScore();
+                displayQuestion();
+                startTimer();
+            }
+
+            function startTimer() {
+                clearInterval(timer);
+                timer = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerEl.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+                    if (timeLeft <= 0) {
+                        endGame(false);
+                    }
+                }, 1000);
+            }
+
+            // Removed the updateMainProgressBar function as it is no longer needed
+            // function updateMainProgressBar() {
+            //     const progress = (currentQuestionIndex / totalQuestions) * 100;
+            //     mainProgressBar.style.width = `${progress}%`;
+            // }
+
+            function startQuestionTimer() {
+                questionTimeLeft = 20;
+                questionTimerBar.style.transition = 'none';
+                questionTimerBar.style.width = '100%';
+                
+                setTimeout(() => {
+                    questionTimerBar.style.transition = 'width 20s linear';
+                    questionTimerBar.style.width = '0%';
+                }, 50);
+
+                clearInterval(questionTimer);
+                questionTimer = setInterval(() => {
+                    questionTimeLeft--;
+                    questionTimerCountdownEl.textContent = questionTimeLeft; // New: Update the numerical timer
+                    if (questionTimeLeft <= 0) {
+                        clearInterval(questionTimer);
+                        selectAnswer(null); // Pass null on timeout
+                    }
+                }, 1000);
+            }
+
+            function displayQuestion() {
+                if (currentQuestionIndex >= totalQuestions) {
+                    endGame(true);
+                    return;
+                }
+
+                questionCounterEl.textContent = `Question ${currentQuestionIndex + 1} / ${totalQuestions}`;
+                const question = questions[currentQuestionIndex];
+                questionTextEl.textContent = question.question;
+                answerButtonsEl.innerHTML = '';
+
+                const shuffledAnswers = shuffleArray([...question.answers]);
+
+                shuffledAnswers.forEach(answerObj => {
+                    const button = document.createElement('button');
+                    button.textContent = answerObj.text;
+                    button.dataset.correct = answerObj.correct;
+                    button.classList.add('w-full', 'p-4', 'rounded-lg', 'text-lg', 'font-semibold', 'answer-btn', 'bg-white', 'hover:bg-gray-100');
+                    button.addEventListener('click', selectAnswer);
+                    answerButtonsEl.appendChild(button);
+                });
+
+                startQuestionTimer();
+            }
+
+            function showPraise() {
+                if (isMuted) return;
+                const praise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                praiseFeedbackEl.textContent = praise;
+                praiseFeedbackEl.classList.add('show');
+                // New: Praise sound for positive feedback pop-up
+                if (audioInitialized && !isMuted) praiseSound.triggerAttackRelease("A4", "16n"); 
+                
+                setTimeout(() => {
+                    praiseFeedbackEl.classList.remove('show');
+                }, 1500);
+            }
+
+            function checkBadges() {
+                Object.values(badges).forEach(badge => {
+                    if (!earnedBadges.has(badge.id) && badge.condition()) {
+                        earnedBadges.add(badge.id);
+                        const badgeEl = createBadgeElement(badge);
+                        badgesContainer.appendChild(badgeEl);
+                        setTimeout(() => badgeEl.classList.add('earned'), 100);
+                        if(audioInitialized && !isMuted) badgeSound.triggerAttackRelease(["E4", "G#4", "B4"], "0.4");
+                    }
+                });
+            }
+
+            function selectAnswer(e) {
+                clearInterval(questionTimer);
+                questionTimerBar.style.transition = 'none';
+                questionTimerBar.style.width = '100%';
+
+                const button = e ? e.target : null;
+                const isCorrect = button ? button.dataset.correct === 'true' : false;
+                const question = questions[currentQuestionIndex];
+
+                Array.from(answerButtonsEl.children).forEach(btn => btn.disabled = true);
+
+                if (isCorrect) {
+                    if(button) button.classList.add('correct-flash');
+                    score += Math.ceil(100 / totalQuestions);
+                    streakCounter++;
+                    updateScore();
+                    showPraise();
+                    // New: Correct answer sound
+                    if(audioInitialized && !isMuted) correctSound.triggerAttackRelease("G4", "8n");
+                    
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        checkBadges();
+                        // Removed the call to updateMainProgressBar()
+                        displayQuestion();
+                    }, 1500);
+                } else {
+                    if(button) button.classList.add('incorrect-flash');
+                    const correctButton = answerButtonsEl.querySelector(`[data-correct='true']`);
+                    if (correctButton) correctButton.classList.add('correct-flash');
+                    streakCounter = 0;
+                    // New: Incorrect answer sound
+                    if(audioInitialized && !isMuted) wrongSound.triggerAttackRelease("C3", "8n");
+                    
+                    setTimeout(() => {
+                        showFeedback(question.explanation, false);
+                    }, 1000);
+                }
+            }
+
+            function showFeedback(explanation, isCorrect) {
+                if (isCorrect) {
+                    feedbackTitle.textContent = "Correct!";
+                    feedbackTitle.classList.remove('text-red-500');
+                    feedbackTitle.classList.add('text-green-500');
+                } else {
+                    feedbackTitle.textContent = "Not Quite!";
+                    feedbackTitle.classList.remove('text-green-500');
+                    feedbackTitle.classList.add('text-red-500');
+                }
+                feedbackText.textContent = explanation;
+                feedbackModal.classList.remove('hidden');
+            }
+
+            function hideFeedback() {
+                feedbackModal.classList.add('hidden');
+                currentQuestionIndex++;
+                // Removed the call to updateMainProgressBar()
+                displayQuestion();
+            }
+
+            function updateScore() {
+                scoreEl.textContent = `${score} / 100 Points`;
+            }
+
+            function endGame(completed) {
+                clearInterval(timer);
+                clearInterval(questionTimer);
+                checkBadges(); // Final check for badges
+                
+                gameUI.classList.add('hidden');
+                endScreen.classList.remove('hidden');
+                finalScoreEl.textContent = `${score}`;
+                
+                // Final message based on performance
+                if (score >= 90) {
+                    endMessageEl.textContent = `You're a Rooftop Forest expert! You earned an amazing ${score} points!`;
+                    endTitleEl.textContent = `You did it, ${playerName}!`;
+                } else if (score >= 50) {
+                    endMessageEl.textContent = `A solid effort! You earned ${score} points. Keep planting!`;
+                    endTitleEl.textContent = `Good game, ${playerName}!`;
+                } else {
+                    endMessageEl.textContent = `A great start. You earned ${score} points. Try again to get a higher score!`;
+                    endTitleEl.textContent = `Time's Up, ${playerName}!`;
+                }
+
+                // Save score to leaderboard
+                saveScore(score, playerName);
+
+                finalBadgesContainer.innerHTML = '';
+                if(earnedBadges.size > 0){
+                    earnedBadges.forEach(badgeId => {
+                        const badgeData = badges[badgeId];
+                        if(badgeData) {
+                            const badgeEl = createBadgeElement(badgeData);
+                            badgeEl.classList.add('earned');
+                            finalBadgesContainer.appendChild(badgeEl);
+                        }
+                    });
+                } else {
+                    finalBadgesContainer.innerHTML = '<p class="text-lg">No badges earned this time. Try again!</p>';
+                }
+            }
+
+            async function initAudioAndStart() {
+                if (!audioInitialized && typeof Tone !== 'undefined') {
+                    try {
+                        await Tone.start();
+                        // New: Correct answer sound
+                        correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.8 } }).toDestination();
+                        // New: Incorrect answer sound
+                        wrongSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.3 } }).toDestination();
+                        badgeSound = new Tone.PolySynth({ oscillator: { type: "sine" }, envelope: { attack: 0.02, decay: 0.3, sustain: 0.5, release: 1 } }).toDestination();
+                        // New: Praise sound for positive feedback pop-up
+                        praiseSound = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.1 } }).toDestination();
+                        audioInitialized = true;
+                        console.log("Audio context started.");
+                    } catch (e) {
+                        console.error("Could not initialize audio:", e);
+                    }
+                }
+                setupGame();
+            }
+
+            function toggleMute() {
+                isMuted = !isMuted;
+                if (isMuted) {
+                    muteIcon.classList.remove('fa-volume-high');
+                    muteIcon.classList.add('fa-volume-xmark');
+                } else {
+                    muteIcon.classList.remove('fa-volume-xmark');
+                    muteIcon.classList.add('fa-volume-high');
+                }
+            }
+
+            // --- Event Listeners and Main Function ---
+            function main() {
+                playerNameInput.addEventListener('input', () => {
+                    if (playerNameInput.value.trim() !== '') {
+                        startBtn.disabled = false;
+                        startBtn.textContent = 'Start Challenge';
+                    } else {
+                        startBtn.disabled = true;
+                        startBtn.textContent = 'Enter Name to Start';
+                    }
+                });
+                
+                startBtn.addEventListener('click', initAudioAndStart);
+                restartBtn.addEventListener('click', () => {
+                    loadLeaderboard(); // Reload leaderboard on return to start screen
+                    gameUI.classList.add('hidden');
+                    endScreen.classList.add('hidden');
+                    startScreen.classList.remove('hidden');
+                });
+                nextQuestionBtn.addEventListener('click', hideFeedback);
+                muteBtn.addEventListener('click', toggleMute);
+
+                loadLeaderboard();
+            }
+            
+            main();
+        });
+    </script>
+</body>
+</html>

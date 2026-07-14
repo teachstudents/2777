@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sahara Desert Vocabulary Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', 'Tahoma', sans-serif;
+            overscroll-behavior: none;
+            /* New Desert Color Scheme */
+            background: linear-gradient(135deg, #f59e0b 0%, #4a2c2a 100%);
+        }
+        .screen {
+            display: none;
+        }
+        .screen.active {
+            display: flex;
+        }
+        /* Adjusted glass card for new theme */
+        .glass-card {
+            background: rgba(15, 23, 42, 0.6); /* Darker for contrast */
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        #timer-bar-inner {
+            transition: width 1s linear;
+        }
+        .badge-unlocked {
+             animation: popIn 0.5s ease-out;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+         #badge-modal {
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        /* Higher contrast buttons for the new theme */
+        .mcq-option {
+            background-color: rgba(92, 65, 48, 0.7); 
+        }
+        .mcq-option:hover {
+            background-color: rgba(120, 81, 56, 0.9);
+        }
+        .mcq-option:disabled {
+            opacity: 0.8;
+        }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="w-screen h-screen flex items-center justify-center p-4 overflow-hidden">
+
+    <div id="game-container" class="w-full max-w-lg mx-auto">
+        <!-- Start Screen -->
+        <div id="start-screen" class="screen active flex-col items-center justify-center text-white text-center p-6 md:p-8">
+            <h1 class="text-4xl md:text-5xl font-bold mb-4">Sahara Desert Challenge</h1>
+            <p class="text-lg md:text-xl mb-8 text-amber-200">Test your knowledge of the world's largest hot desert.</p>
+            <button id="start-game-btn" class="bg-white text-amber-800 font-bold py-4 px-10 text-lg rounded-full shadow-lg hover:bg-amber-100 transition-all transform hover:scale-105 focus:outline-none">Start Game</button>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen flex-col w-full glass-card rounded-2xl p-6 md:p-8">
+            <div class="flex justify-between items-center mb-4">
+                <div class="text-white text-lg font-bold">Score: <span id="score">0</span></div>
+                <div class="text-white text-lg font-bold">Question <span id="question-counter">1</span>/<span id="total-questions">50</span></div>
+            </div>
+            <div id="timer-bar" class="w-full bg-white/20 rounded-full h-2.5 mb-4">
+                <div id="timer-bar-inner" class="bg-amber-400 h-2.5 rounded-full" style="width: 100%"></div>
+            </div>
+            
+            <div id="question-area" class="text-center mb-6 h-24 flex items-center justify-center">
+                <p id="question-text" class="text-white text-xl md:text-2xl font-semibold"></p>
+            </div>
+
+            <div id="options-area" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                <!-- Options will be populated by JS -->
+            </div>
+
+            <div id="feedback-area" class="mt-4 text-center h-8">
+                <p id="feedback-text" class="text-xl font-bold"></p>
+            </div>
+             <div id="badge-display" class="mt-4 flex justify-center gap-4 h-12">
+                <!-- Badges will be shown here -->
+             </div>
+        </div>
+
+        <!-- End Screen -->
+        <div id="end-screen" class="screen flex-col items-center justify-center text-white text-center p-6 md:p-8">
+            <h2 class="text-3xl md:text-4xl font-bold mb-2">Game Over!</h2>
+            <p class="text-xl md:text-2xl mb-4">Final Score: <span id="final-score" class="font-bold"></span></p>
+            <div id="final-badges" class="mb-8 flex flex-wrap justify-center gap-4">
+                <!-- Final badges earned -->
+            </div>
+            <button id="play-again-btn" class="bg-white text-amber-800 font-bold py-4 px-10 text-lg rounded-full shadow-lg hover:bg-amber-100 transition-all transform hover:scale-105 focus:outline-none">Play Again</button>
+        </div>
+    </div>
+    
+    <!-- Badge Unlocked Modal -->
+    <div id="badge-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 opacity-0 pointer-events-none transform scale-95">
+        <div class="glass-card text-white text-center p-8 rounded-2xl max-w-sm w-full">
+            <h3 id="badge-modal-title" class="text-3xl font-bold text-yellow-300">Badge Unlocked!</h3>
+            <p id="badge-modal-name" class="text-xl mt-2"></p>
+            <p id="badge-modal-desc" class="text-amber-200 mt-1"></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const vocabulary = [
+                { keyword: 'desertification', definition: 'The process by which fertile land becomes desert, typically as a result of drought, deforestation, or inappropriate agriculture.' },
+                { keyword: 'ergs', definition: 'Vast areas of sand with tall, shifting dunes; also known as sand seas.' },
+                { keyword: 'hamadas', definition: 'Barren, rocky plateaus that are common landscapes in the Sahara.' },
+                { keyword: 'Green Sahara', definition: 'A period in the past when the Sahara was a much wetter, greener savanna environment.' },
+                { keyword: 'rock art', definition: 'Human-made markings placed on natural stone, depicting historical life and animals.' },
+                { keyword: 'Trans-Saharan trade', definition: 'A historical network of trade routes that connected West Africa with the Mediterranean world across the desert.' },
+                { keyword: 'camel caravans', definition: 'Groups of camels traveling together, historically used for trade across the Sahara.' },
+                { keyword: 'Tuareg', definition: 'A nomadic Berber people who are the principal inhabitants of the Saharan interior.' },
+                { keyword: 'nomadic', definition: 'Living the life of a nomad; wandering from place to place.' },
+                { keyword: 'solar energy', definition: 'Radiant energy emitted by the sun, which the Sahara has immense potential for.' },
+                { keyword: 'climate change', definition: 'A long-term change in the average weather patterns, which is accelerating desertification.' },
+                { keyword: 'adaptation', definition: 'The process of change by which an organism or species becomes better suited to its environment.' },
+                { keyword: 'oases', definition: 'Fertile spots in a desert where water is found.' },
+                { keyword: 'crossroads', definition: 'A place where two or more roads cross; a central meeting point.' },
+                { keyword: 'barren', definition: 'Too poor to produce much or any vegetation.' },
+                { keyword: 'savanna', definition: 'A grassy plain in tropical or subtropical regions, with few trees.' },
+                { keyword: 'livelihoods', definition: 'The means of securing the necessities of life.' },
+                { keyword: 'acceleration', definition: 'An increase in the rate or speed of something.' },
+                { keyword: 'hyper-arid', definition: 'Extremely dry, receiving very little rainfall.' },
+                { keyword: 'immense', definition: 'Extremely large or great, especially in scale or degree.' }
+            ];
+            
+            const readingQuestions = [
+                { type: 'mcq', text: "What is the primary characteristic of a 'hamada'?", options: ["Vast sand dunes", "A fertile water source", "Barren, rocky plateaus", "Dry riverbeds"], answer: "Barren, rocky plateaus" },
+                { type: 'mcq', text: "What does rock art from the 'Green Sahara' period depict?", options: ["Modern cities", "Desert landscapes", "Elephants and giraffes", "Camel caravans"], answer: "Elephants and giraffes" },
+                { type: 'mcq', text: "What was the main purpose of the Trans-Saharan trade routes?", options: ["Tourism", "Connecting West Africa and the Mediterranean", "Scientific exploration", "Military campaigns"], answer: "Connecting West Africa and the Mediterranean" },
+                { type: 'tf', text: "True or False: The Sahara Desert has always been a hyper-arid desert.", options: ["True", "False"], answer: "False" },
+                { type: 'tf', text: "True or False: The passage states that desertification is slowing down due to climate change.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "What is a major modern opportunity mentioned for the Sahara?", options: ["Large-scale solar energy projects", "Gold mining", "Farming", "Building new cities"], answer: "Large-scale solar energy projects" },
+                { type: 'tf', text: "True or False: Camel caravans were historically unimportant for the Sahara region.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "The Tuareg people are best known for their ____ lifestyle.", options: ["Urban", "Farming", "Nomadic", "Fishing"], answer: "Nomadic" },
+                { type: 'tf', text: "True or False: The Sahara Desert is the largest desert of any kind in the world.", options: ["True", "False"], answer: "False" },
+                { type: 'mcq', text: "The expansion of the desert, which threatens livelihoods, is known as ____.", options: ["Acceleration", "Conservation", "Desertification", "Adaptation"], answer: "Desertification" }
+            ];
+            
+            const fillInBlankQuestions = [
+                { type: 'mcq', text: "The Sahara is an ____ desert, spanning millions of square miles.", options: ["immense", "barren", "delicate", "small"], answer: "immense" },
+                { type: 'mcq', text: "The fennec fox has a remarkable ____ to desert life.", options: ["acceleration", "adaptation", "livelihood", "crossroads"], answer: "adaptation" },
+                { type: 'mcq', text: "Historically, the Sahara was a ____ of cultures, not a barrier.", options: ["crossroads", "savanna", "desert", "hamada"], answer: "crossroads" },
+                { type: 'mcq', text: "The ____ of desertification is a major concern.", options: ["acceleration", "conservation", "adaptation", "livelihood"], answer: "acceleration" },
+                { type: 'mcq', text: "The land is so ____ it can barely support any plant life.", options: ["barren", "immense", "nomadic", "hyper-arid"], answer: "barren" },
+                { type: 'mcq', text: "The process of land turning into desert is called ____.", options: ["desertification", "conservation", "adaptation", "acceleration"], answer: "desertification" },
+                { type: 'mcq', text: "The Tuareg people lead a ____ lifestyle, moving from place to place.", options: ["nomadic", "settled", "barren", "hyper-arid"], answer: "nomadic" },
+                { type: 'mcq', text: "Fertile spots in the desert with water are known as ____.", options: ["oases", "ergs", "hamadas", "wadis"], answer: "oases" },
+                { type: 'mcq', text: "Vast seas of sand and dunes are called ____.", options: ["ergs", "hamadas", "oases", "savannas"], answer: "ergs" },
+                { type: 'mcq', text: "The Sahara was once a lush ____ teeming with wildlife.", options: ["savanna", "desert", "ice sheet", "ocean"], answer: "savanna" },
+                { type: 'mcq', text: "Rock art from the ____ period shows a different climate.", options: ["Ice Age", "Green Sahara", "Modern Era", "Stone Age"], answer: "Green Sahara" },
+                { type: 'mcq', text: "Trade was conducted for centuries using ____.", options: ["camel caravans", "trucks", "ships", "airplanes"], answer: "camel caravans" },
+                { type: 'mcq', text: "Climate change threatens the ____ of millions of people in the Sahel.", options: ["livelihoods", "oases", "caravans", "ergs"], answer: "livelihoods" },
+                { type: 'mcq', text: "The Sahara has great potential for generating ____.", options: ["solar energy", "hydroelectric power", "wind energy", "geothermal energy"], answer: "solar energy" },
+                { type: 'mcq', text: "The Atacama is a ____ desert, one of the driest on Earth.", options: ["hyper-arid", "nomadic", "barren", "immense"], answer: "hyper-arid" },
+                { type: 'mcq', text: "Barren, rocky plateaus in the desert are called ____.", options: ["hamadas", "ergs", "oases", "savannas"], answer: "hamadas" },
+                { type: 'mcq', text: "Ancient ____ depicts animals like giraffes and crocodiles.", options: ["rock art", "maps", "books", "pottery"], answer: "rock art" },
+                { type: 'mcq', text: "The ____ connected West Africa with the Mediterranean.", options: ["Trans-Saharan trade", "Silk Road", "Spice Route", "Nile River"], answer: "Trans-Saharan trade" },
+                { type: 'mcq', text: "The ____ people are famous for their knowledge of the desert.", options: ["Tuareg", "Maasai", "Inuit", "Aboriginal"], answer: "Tuareg" },
+                { type: 'mcq', text: "____ is a major factor accelerating desertification.", options: ["Climate change", "Conservation", "Tourism", "Solar energy"], answer: "Climate change" }
+            ];
+
+            const badges = {
+                quickThinker: { name: 'Quick Thinker', desc: 'Answer 5 questions with over half the time remaining.', icon: '⚡️', earned: false },
+                perfectStreak: { name: 'Perfect Streak', desc: 'Answer 10 questions correctly in a row.', icon: '🎯', earned: false },
+                virtuoso: { name: 'Desert Navigator', desc: 'Score 90 points or more in a single game.', icon: '🏆', earned: false },
+            };
+
+            const positivePraises = ["Correct!", "Excellent!", "Great job!", "You got it!", "Awesome!"];
+
+            // DOM Elements and Game State variables (remain the same)
+             const startScreen = document.getElementById('start-screen');
+            const gameScreen = document.getElementById('game-screen');
+            const endScreen = document.getElementById('end-screen');
+            const startGameBtn = document.getElementById('start-game-btn');
+            const playAgainBtn = document.getElementById('play-again-btn');
+
+            const scoreDisplay = document.getElementById('score');
+            const questionCounterDisplay = document.getElementById('question-counter');
+            const totalQuestionsDisplay = document.getElementById('total-questions');
+            const timerBarInner = document.getElementById('timer-bar-inner');
+            const questionText = document.getElementById('question-text');
+            const optionsArea = document.getElementById('options-area');
+            const feedbackText = document.getElementById('feedback-text');
+
+            const finalScoreDisplay = document.getElementById('final-score');
+            const badgeDisplay = document.getElementById('badge-display');
+            const finalBadgesDisplay = document.getElementById('final-badges');
+            const badgeModal = document.getElementById('badge-modal');
+            const badgeModalTitle = document.getElementById('badge-modal-title');
+            const badgeModalName = document.getElementById('badge-modal-name');
+            const badgeModalDesc = document.getElementById('badge-modal-desc');
+
+            let score = 0;
+            let currentQuestionIndex = 0;
+            let questions = [];
+            let timer;
+            let timeLeft;
+
+            let correctStreak = 0;
+            let quickAnswerCount = 0;
+            
+            let correctSound, incorrectSound;
+            let feedbackVoice = null;
+
+            function shuffleArray(array) {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            }
+            
+            async function initializeAudio() {
+                if (Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+                correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 0.5 } }).toDestination();
+                incorrectSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } }).toDestination();
+                
+                if ('speechSynthesis' in window) {
+                     if (speechSynthesis.onvoiceschanged !== undefined) {
+                        speechSynthesis.onvoiceschanged = getFeedbackVoice;
+                    }
+                    getFeedbackVoice();
+                }
+            }
+
+            function getFeedbackVoice() {
+                const voices = speechSynthesis.getVoices();
+                // Change voice preference for variety
+                 feedbackVoice = voices.find(v => v.lang === 'en-US' && v.name.includes('Ava')) ||
+                                voices.find(v => v.lang === 'en-US' && v.name.includes('Emma')) ||
+                                voices.find(v => v.lang.startsWith('en') && (v.name.includes('Female') || v.name.includes('Google') || v.name.includes('Zira')));
+            }
+            
+            function generateQuestions() {
+                const vocabQuestions = vocabulary.map((item) => {
+                    const distractors = vocabulary
+                        .filter(d => d.keyword !== item.keyword)
+                        .slice(0, 3)
+                        .map(d => d.keyword);
+
+                    const options = [item.keyword, ...distractors];
+                    shuffleArray(options);
+                    
+                    return {
+                        type: 'mcq',
+                        text: `Which word means: "${item.definition}"`,
+                        options: options,
+                        answer: item.keyword
+                    };
+                });
+                
+                questions = [...vocabQuestions, ...readingQuestions, ...fillInBlankQuestions];
+                shuffleArray(questions);
+                totalQuestionsDisplay.textContent = questions.length;
+            }
+
+            function startGame() {
+                score = 0;
+                currentQuestionIndex = 0;
+                correctStreak = 0;
+                quickAnswerCount = 0;
+                Object.values(badges).forEach(b => b.earned = false);
+                
+                generateQuestions();
+                
+                startScreen.classList.remove('active');
+                endScreen.classList.remove('active');
+                gameScreen.classList.add('active');
+                badgeDisplay.innerHTML = '';
+                
+                showNextQuestion();
+            }
+
+            function showNextQuestion() {
+                resetState();
+                if (currentQuestionIndex >= questions.length) {
+                    endGame();
+                    return;
+                }
+
+                const question = questions[currentQuestionIndex];
+                questionText.textContent = question.text;
+                
+                if (question.options.length <= 2) {
+                    optionsArea.classList.remove('md:grid-cols-2');
+                    optionsArea.classList.add('md:grid-cols-1', 'max-w-sm', 'mx-auto');
+                } else {
+                    optionsArea.classList.remove('md:grid-cols-1', 'max-w-sm', 'mx-auto');
+                    optionsArea.classList.add('md:grid-cols-2');
+                }
+
+                question.options.forEach(option => {
+                    const button = document.createElement('button');
+                    button.textContent = option;
+                    button.classList.add('mcq-option', 'text-white', 'py-3', 'px-4', 'rounded-lg', 'text-base', 'md:text-lg', 'transition-colors', 'duration-200');
+                    button.addEventListener('click', () => selectAnswer(option, question.answer));
+                    optionsArea.appendChild(button);
+                });
+
+                questionCounterDisplay.textContent = `${currentQuestionIndex + 1}`;
+                scoreDisplay.textContent = score;
+
+                timeLeft = 15;
+                startTimer();
+            }
+
+            function startTimer() {
+                timerBarInner.style.transition = 'none';
+                timerBarInner.style.width = '100%';
+                timerBarInner.style.backgroundColor = '#fbbf24'; // amber-400
+                
+                setTimeout(() => {
+                    timerBarInner.style.transition = `width ${timeLeft}s linear`;
+                    timerBarInner.style.width = '0%';
+                }, 100);
+
+                timer = setInterval(() => {
+                    timeLeft--;
+                     if (timeLeft < 8) {
+                        timerBarInner.style.backgroundColor = '#f97316'; // orange-500
+                    }
+                    if (timeLeft < 4) {
+                        timerBarInner.style.backgroundColor = '#ef4444'; // red-500
+                    }
+                    if (timeLeft <= 0) {
+                        clearInterval(timer);
+                        selectAnswer(null, questions[currentQuestionIndex].answer);
+                    }
+                }, 1000);
+            }
+
+            function selectAnswer(selected, correct) {
+                clearInterval(timer);
+                const isCorrect = selected === correct;
+
+                optionsArea.childNodes.forEach(button => {
+                    button.disabled = true;
+                    if (button.textContent === correct) {
+                        button.classList.add('!bg-green-500', 'border-2', 'border-white');
+                    }
+                    if (button.textContent === selected && !isCorrect) {
+                        button.classList.add('!bg-red-500');
+                    }
+                });
+
+                if (isCorrect) {
+                    score += 2;
+                    feedbackText.textContent = 'Correct!';
+                    feedbackText.classList.add('text-green-300');
+                    correctStreak++;
+                    if (timeLeft > 7) { 
+                        quickAnswerCount++;
+                    }
+                    
+                    correctSound?.triggerAttackRelease("C5", "8n");
+                    
+                    if (feedbackVoice && speechSynthesis.speaking === false) {
+                        const praise = positivePraises[Math.floor(Math.random() * positivePraises.length)];
+                        const utterance = new SpeechSynthesisUtterance(praise);
+                        utterance.voice = feedbackVoice;
+                        speechSynthesis.speak(utterance);
+                    }
+
+                } else {
+                    feedbackText.textContent = `Correct: "${correct}"`;
+                    feedbackText.classList.add('text-red-300');
+                    correctStreak = 0;
+                    
+                    incorrectSound?.triggerAttackRelease("A2", "8n", Tone.now() + 0.1);
+                }
+                
+                checkBadges();
+
+                scoreDisplay.textContent = score;
+                currentQuestionIndex++;
+                
+                setTimeout(showNextQuestion, 2000);
+            }
+            
+            function checkBadges() {
+                if (quickAnswerCount >= 5 && !badges.quickThinker.earned) {
+                    badges.quickThinker.earned = true;
+                    showBadge(badges.quickThinker);
+                }
+                if (correctStreak >= 10 && !badges.perfectStreak.earned) {
+                    badges.perfectStreak.earned = true;
+                    showBadge(badges.perfectStreak);
+                }
+                if (score >= 90 && !badges.virtuoso.earned) {
+                    badges.virtuoso.earned = true;
+                    showBadge(badges.virtuoso);
+                }
+            }
+
+            function showBadge(badge) {
+                const badgeEl = document.createElement('div');
+                badgeEl.textContent = badge.icon;
+                badgeEl.title = `${badge.name}: ${badge.desc}`;
+                badgeEl.classList.add('text-3xl', 'badge-unlocked');
+                badgeDisplay.appendChild(badgeEl);
+                
+                badgeModalName.textContent = badge.name;
+                badgeModalDesc.textContent = badge.desc;
+                badgeModal.classList.remove('opacity-0', 'pointer-events-none', 'scale-95');
+                badgeModal.classList.add('opacity-100', 'scale-100');
+                
+                setTimeout(() => {
+                    badgeModal.classList.add('opacity-0', 'pointer-events-none', 'scale-95');
+                    badgeModal.classList.remove('opacity-100', 'scale-100');
+                }, 3000);
+            }
+
+            function resetState() {
+                clearInterval(timer);
+                optionsArea.innerHTML = '';
+                feedbackText.textContent = '';
+                feedbackText.classList.remove('text-green-300', 'text-red-300');
+            }
+
+            function endGame() {
+                gameScreen.classList.remove('active');
+                endScreen.classList.add('active');
+                finalScoreDisplay.textContent = score;
+                
+                finalBadgesDisplay.innerHTML = '';
+                Object.values(badges).forEach(badge => {
+                    if (badge.earned) {
+                        const badgeEl = document.createElement('div');
+                        badgeEl.classList.add('text-center', 'p-2');
+                        badgeEl.innerHTML = `<div class="text-4xl">${badge.icon}</div><div class="font-semibold">${badge.name}</div>`;
+                        finalBadgesDisplay.appendChild(badgeEl);
+                    }
+                });
+            }
+
+            startGameBtn.addEventListener('click', () => {
+                initializeAudio().then(() => {
+                    startGame();
+                });
+            });
+            playAgainBtn.addEventListener('click', startGame);
+
+        });
+    </script>
+</body>
+</html>

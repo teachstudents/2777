@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EFL Interactive Quiz</title>
+    
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for modern typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Tone.js for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+
+    <style>
+        /* Custom styles to complement Tailwind */
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background 1s ease;
+        }
+        h1, h2, h3 {
+            font-family: 'Poppins', sans-serif;
+        }
+        .timer-bar {
+            transition: width 0.2s linear;
+        }
+        @keyframes gradient-animation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .animated-background {
+            background: linear-gradient(-45deg, #e0f7fa, #e8eaf6, #fce4ec, #f3e5f5);
+            background-size: 400% 400%;
+            animation: gradient-animation 30s ease infinite;
+        }
+        .firework {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background-color: #fff;
+            border-radius: 50%;
+            opacity: 1;
+            animation: firework-explode 0.7s forwards;
+        }
+        @keyframes firework-explode {
+            to {
+                transform: scale(25);
+                opacity: 0;
+            }
+        }
+        .badge {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.75rem;
+            color: #4b5563;
+        }
+        .badge i {
+            font-size: 1.5rem;
+            padding: 0.5rem;
+            border-radius: 50%;
+            color: white;
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body class="text-slate-800 animated-background">
+
+    <!-- Main Container -->
+    <div id="app-container" class="container mx-auto p-4 md:p-8">
+
+        <!-- Home Page -->
+        <div id="home-page">
+            <header class="text-center mb-8">
+                <h1 class="text-4xl md:text-5xl font-bold text-slate-800">Select a Unit to Begin</h1>
+            </header>
+            <div class="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+                <div class="mb-6">
+                    <label for="name" class="block text-lg font-semibold text-slate-700 mb-2">Enter Your Name:</label>
+                    <input type="text" id="name" class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500" placeholder="Your Name">
+                </div>
+                <div id="unit-selection" class="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                    <!-- Unit buttons will be inserted here by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Quiz Page -->
+        <div id="quiz-page" class="hidden">
+            <header class="text-center mb-8">
+                <div class="flex justify-center items-center gap-4">
+                    <i id="quiz-icon" class="text-4xl fas"></i>
+                    <h1 id="quiz-title" class="text-3xl md:text-4xl font-bold text-slate-800"></h1>
+                </div>
+                <div class="flex justify-between items-center mt-4 text-lg">
+                    <div id="question-counter" class="font-semibold"></div>
+                    <div id="token-counter" class="font-semibold flex items-center text-xl"><i class="fas fa-star text-yellow-400 mr-2"></i><span id="token-count">0</span></div>
+                    <div id="total-timer" class="font-semibold"></div>
+                </div>
+            </header>
+            <div class="bg-white p-8 rounded-lg shadow-lg">
+                <div id="question-timer-bar-container" class="w-full bg-slate-200 rounded-full h-4 mb-4 overflow-hidden">
+                    <div id="question-timer-bar" class="h-4 rounded-full"></div>
+                </div>
+                <h2 id="question-text" class="text-2xl font-semibold mb-6"></h2>
+                <div id="options-container" class="space-y-4"></div>
+            </div>
+        </div>
+
+        <!-- Review Page -->
+        <div id="review-page" class="hidden text-center relative">
+             <div id="fireworks-container" class="absolute inset-0 overflow-hidden -z-10"></div>
+            <header class="mb-8">
+                <h1 class="text-4xl md:text-5xl font-bold text-slate-800">Quiz Complete!</h1>
+            </header>
+            <div class="max-w-md mx-auto bg-white p-8 rounded-lg shadow-lg">
+                <h2 id="final-score" class="text-3xl font-bold mb-2"></h2>
+                <p id="final-tokens" class="text-2xl mb-4 flex items-center justify-center"></p>
+                <div id="badge-container" class="flex justify-center space-x-4 mb-4"></div>
+                <p id="completion-time" class="text-lg mb-8"></p>
+                <button id="back-to-home" class="w-full bg-sky-600 text-white font-bold py-3 rounded-lg hover:bg-sky-700 transition-transform transform hover:scale-105">Back to Homepage</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Quiz Data
+        const quizData = {
+            1: {
+                title: "Unit 1: Greening the Skyline",
+                theme: { icon: 'fa-leaf', color: 'emerald' },
+                questions: [
+                    { question: "What does the word 'Urban' mean?", options: ["Relating to the countryside", "Relating to a city or town", "Relating to the forest", "Relating to the ocean"], answer: "Relating to a city or town" },
+                    { question: "Which word means 'meeting our needs without compromising the future'?", options: ["Biodiversity", "Sustainability", "Insulation", "Irrigation"], answer: "Sustainability" },
+                    { question: "What is 'Biodiversity'?", options: ["The variety of buildings in a city", "The study of biology", "The variety of plant and animal life", "A type of garden"], answer: "The variety of plant and animal life" },
+                    { question: "What is 'Insulation' used for?", options: ["To make things hotter", "To stop heat or sound from escaping", "To water plants", "To build walls"], answer: "To stop heat or sound from escaping" },
+                    { question: "The supply of water to crops is called...", options: ["Harvest", "Photosynthesis", "Irrigation", "Compost"], answer: "Irrigation" },
+                    { question: "What is the process of gathering crops called?", options: ["Harvest", "Planting", "Insulation", "Ecosystem"], answer: "Harvest" },
+                    { question: "What process do plants use to make food from sunlight?", options: ["Irrigation", "Photosynthesis", "Biodiversity", "Compost"], answer: "Photosynthesis" },
+                    { question: "An urban area that is much warmer than its surroundings is a...", options: ["Heat Island", "Green Roof", "Ecosystem", "Compost Pile"], answer: "Heat Island" },
+                    { question: "Decayed organic material used as fertilizer is called...", options: ["Insulation", "Compost", "Harvest", "Irrigation"], answer: "Compost" },
+                    { question: "A community of interacting organisms and their environment is an...", options: ["Ecosystem", "Urban Area", "Heat Island", "Insulation"], answer: "Ecosystem" },
+                    { question: "According to paragraph 1, what is a garden on a roof called?", options: ["A sky garden", "A rooftop garden", "A city garden", "A green building"], answer: "A rooftop garden" },
+                    { question: "What is one benefit of rooftop gardens mentioned in paragraph 1?", options: ["They make the building hotter", "They use a lot of energy", "They provide fresh food", "They are noisy"], answer: "They provide fresh food" },
+                    { question: "How do rooftop gardens save energy according to paragraph 1?", options: ["By producing electricity", "By making the building cool in the summer", "By blocking the sun completely", "By using special lights"], answer: "By making the building cool in the summer" },
+                    { question: "Who likes the flowers in a rooftop garden, according to paragraph 1?", options: ["Cats and dogs", "Fish and turtles", "Birds and bees", "People only"], answer: "Birds and bees" },
+                    { question: "Paragraph 1 describes a rooftop garden as a...", options: ["Busy, gray space", "Beautiful, green space", "Small, empty space", "Noisy, crowded space"], answer: "Beautiful, green space" },
+                    { question: "Paragraph 2 says rooftop gardens help fight the...", options: ["'Urban jungle' effect", "'Urban heat island' effect", "'City noise' effect", "'Concrete desert' effect"], answer: "'Urban heat island' effect" },
+                    { question: "According to paragraph 2, why are cities hotter than the countryside?", options: ["They have more trees", "They have more people", "Materials like concrete absorb heat", "They have more wind"], answer: "Materials like concrete absorb heat" },
+                    { question: "How do rooftop gardens improve food security, according to paragraph 2?", options: ["By selling food cheaply", "By importing food from other countries", "By allowing communities to grow their own produce", "By creating food factories"], answer: "By allowing communities to grow their own produce" },
+                    { question: "What does 'reducing the distance food has to travel' make our food system, according to paragraph 2?", options: ["More expensive", "More complicated", "More sustainable", "Less healthy"], answer: "More sustainable" },
+                    { question: "What kind of small ecosystem do rooftop gardens create, according to paragraph 2?", options: ["A home for fish", "A home for desert animals", "A home for bees, butterflies, and birds", "A home for large mammals"], answer: "A home for bees, butterflies, and birds" },
+                    { question: "Paragraph 3 states that rooftop gardens transform unused space into...", options: ["Parking lots", "Productive and living ecosystems", "Storage areas", "Solar panel farms"], answer: "Productive and living ecosystems" },
+                    { question: "What is the process that actively cools the air around a green roof, according to paragraph 3?", options: ["Photosynthesis", "Evapotranspiration", "Insulation", "Condensation"], answer: "Evapotranspiration" },
+                    { question: "What are 'food miles', as mentioned in paragraph 3?", options: ["The calories in food", "The distance food is transported", "The time it takes to cook food", "A type of food festival"], answer: "The distance food is transported" },
+                    { question: "According to paragraph 3, lowering 'food miles' also lowers...", options: ["Food quality", "Carbon emissions", "Food prices", "The number of farms"], answer: "Carbon emissions" },
+                    { question: "According to paragraph 3, what are rooftop gardens crucial for?", options: ["Increasing city population", "Enhancing urban biodiversity", "Reducing the number of parks", "Making buildings taller"], answer: "Enhancing urban biodiversity" },
+                ]
+            },
+            2: {
+                title: "Unit 2: Beyond the Plastic Bottle",
+                theme: { icon: 'fa-recycle', color: 'sky' },
+                questions: [
+                    { question: "What does 'Single-use' mean?", options: ["Can be used many times", "Designed to be used only once", "Made from a single material", "Very expensive"], answer: "Designed to be used only once" },
+                    { question: "A material that can be broken down naturally by bacteria is...", options: ["Compostable", "Renewable", "Biodegradable", "Single-use"], answer: "Biodegradable" },
+                    { question: "What are 'Microplastics'?", options: ["A type of soft plastic", "Plastic that can be seen from space", "Extremely small pieces of plastic", "Plastic used in microscopes"], answer: "Extremely small pieces of plastic" },
+                    { question: "The full journey of a product from creation to disposal is its...", options: ["Life Cycle", "Circular Economy", "Alternative", "Pollution"], answer: "Life Cycle" },
+                    { question: "A resource that can be replaced naturally, like bamboo, is called...", options: ["Fossil Fuel", "Renewable", "Single-use", "Biodegradable"], answer: "Renewable" },
+                    { question: "Most plastics are made from...", options: ["Plants", "Fossil Fuels", "Recycled materials", "Water"], answer: "Fossil Fuels" },
+                    { question: "An economic system aimed at eliminating waste is a...", options: ["Linear Economy", "Fossil Fuel Economy", "Plastic Economy", "Circular Economy"], answer: "Circular Economy" },
+                    { question: "What is an 'Alternative'?", options: ["The original version of something", "A different choice", "The most popular option", "Something that is required"], answer: "A different choice" },
+                    { question: "Damage caused to the environment by harmful waste is called...", options: ["Pollution", "Life Cycle", "Alternative", "Sustainability"], answer: "Pollution" },
+                    { question: "A material that can be turned into compost under specific conditions is...", options: ["Biodegradable", "Recyclable", "Compostable", "Renewable"], answer: "Compostable" },
+                    { question: "According to paragraph 1, what is a problem with plastic?", options: ["It disappears too quickly", "It is made from plants", "It stays in the environment for hundreds of years", "It is difficult to make"], answer: "It stays in the environment for hundreds of years" },
+                    { question: "Paragraph 1 states that many plastic items are...", options: ["Reusable", "Expensive", "Single-use", "Edible"], answer: "Single-use" },
+                    { question: "What can plastic trash in the ocean do, according to paragraph 1?", options: ["Help animals swim", "Create new islands", "Hurt animals", "Clean the water"], answer: "Hurt animals" },
+                    { question: "What does paragraph 1 say we need to do about plastic?", options: ["Use more of it", "Use less and find alternatives", "Throw it in the ocean", "Make it from better fossil fuels"], answer: "Use less and find alternatives" },
+                    { question: "What are plastics made from, according to paragraph 1?", options: ["Fossil fuels", "Renewable sources", "Plants", "Recycled paper"], answer: "Fossil fuels" },
+                    { question: "According to paragraph 2, what does the convenience of plastic come at a high price for?", options: ["The economy", "The environment", "The consumer", "The manufacturer"], answer: "The environment" },
+                    { question: "What do tiny pieces of plastic in the ocean, called microplastics, do?", options: ["They provide food for fish", "They clean the ocean", "They harm marine life", "They dissolve quickly"], answer: "They harm marine life" },
+                    { question: "What is the goal of a 'circular economy' mentioned in paragraph 2?", options: ["To make more single-use products", "To throw everything away", "To reuse materials instead of throwing them away", "To use only fossil fuels"], answer: "To reuse materials instead of throwing them away" },
+                    { question: "Paragraph 2 mentions that innovators are developing 'bioplastics' from plants like...", options: ["Trees", "Bamboo", "Corn", "Seaweed"], answer: "Corn" },
+                    { question: "Why does almost every piece of plastic ever made still exist today?", options: ["Because it is valuable", "Because it is not biodegradable", "Because we are good at recycling", "Because it is easy to store"], answer: "Because it is not biodegradable" },
+                    { question: "Paragraph 3 describes the life cycle of plastic as...", options: ["Circular", "Renewable", "Linear: extract, produce, use, and discard", "Sustainable"], answer: "Linear: extract, produce, use, and discard" },
+                    { question: "What promising alternative to plastic packaging can be grown from mushrooms?", options: ["Seaweed", "Mycelium", "Bamboo", "Corn starch"], answer: "Mycelium" },
+                    { question: "What is a problem with some 'bioplastics' mentioned in paragraph 3?", options: ["They are too expensive", "They only break down in industrial composting facilities", "They are not strong enough", "They are made from fossil fuels"], answer: "They only break down in industrial composting facilities" },
+                    { question: "What is essential for finding truly sustainable solutions, according to paragraph 3?", options: ["Making plastic cheaper", "Evaluating a material's entire life cycle", "Banning all plastic immediately", "Only using glass"], answer: "Evaluating a material's entire life cycle" },
+                    { question: "Seaweed is being transformed into what kind of alternative products?", options: ["Building materials", "Edible films and sachets", "Car parts", "Clothing"], answer: "Edible films and sachets" },
+                ]
+            },
+            3: {
+                title: "Unit 3: Powering Potential",
+                theme: { icon: 'fa-solar-panel', color: 'amber' },
+                questions: [
+                    { question: "An energy source that is not depleted when used, like the sun, is called...", options: ["Fossil Fuel", "Renewable", "Off-grid", "Limited"], answer: "Renewable" },
+                    { question: "What does a 'Solar Panel' do?", options: ["It stores heat", "It converts sunlight into electricity", "It cleans water", "It blocks the sun"], answer: "It converts sunlight into electricity" },
+                    { question: "What does it mean to be 'Off-grid'?", options: ["To live in the city", "To use a lot of electricity", "Not connected to the main electricity supply", "To have no internet"], answer: "Not connected to the main electricity supply" },
+                    { question: "A network for distributing electricity is called a...", options: ["Power Grid", "Digital Divide", "Solar Panel", "Turbine"], answer: "Power Grid" },
+                    { question: "What is 'Energy Equity'?", options: ["Everyone paying the same for power", "The fair distribution of energy benefits", "Using only one type of energy", "Storing energy in batteries"], answer: "The fair distribution of energy benefits" },
+                    { question: "The gap between people with and without access to technology is the...", options: ["Digital Divide", "Power Grid", "Energy Equity", "Development Gap"], answer: "Digital Divide" },
+                    { question: "Basic physical systems like energy and transport are called...", options: ["Infrastructure", "Development", "Turbines", "Batteries"], answer: "Infrastructure" },
+                    { question: "A machine with a rotor, often used to generate wind power, is a...", options: ["Solar Panel", "Battery", "Turbine", "Grid"], answer: "Turbine" },
+                    { question: "What device stores electrical energy?", options: ["A Turbine", "A Solar Panel", "A Grid", "A Battery"], answer: "A Battery" },
+                    { question: "The process of a country becoming more advanced is called...", options: ["Development", "Infrastructure", "Equity", "Division"], answer: "Development" },
+                    { question: "According to paragraph 1, what is a big problem for students in off-grid villages?", options: ["It is too noisy to study", "They have no books", "They cannot study at night because it is dark", "The schools are too far away"], answer: "They cannot study at night because it is dark" },
+                    { question: "What solution does paragraph 1 suggest for this problem?", options: ["Using candles", "Studying only during the day", "Renewable energy like solar panels", "Moving to the city"], answer: "Renewable energy like solar panels" },
+                    { question: "What do solar panels do with the electricity they make during the day?", options: ["Sell it to the power grid", "Use it immediately for lights", "Charge a battery", "Heat up water"], answer: "Charge a battery" },
+                    { question: "According to paragraph 1, what is the direct benefit of having light at night?", options: ["Students can play games", "Students can study for more hours", "Families can watch TV", "It keeps animals away"], answer: "Students can study for more hours" },
+                    { question: "Paragraph 1 states that some villages are 'off-grid'. This means they lack...", options: ["Water", "Schools", "Electricity from the main grid", "Internet access"], answer: "Electricity from the main grid" },
+                    { question: "What is the 'digital divide' as described in paragraph 2?", options: ["A problem with computers", "The gap in access to technology", "A line on a map", "A type of renewable energy"], answer: "The gap in access to technology" },
+                    { question: "According to paragraph 2, renewable energy does more than just power lights. What else does it allow students to do?", options: ["Use computers and access the internet", "Cook their meals", "Power their cars", "Listen to the radio"], answer: "Use computers and access the internet" },
+                    { question: "What does paragraph 2 say is a 'powerful solution' to the problem?", options: ["Building bigger schools", "Providing more books", "Renewable energy", "Longer school days"], answer: "Renewable energy" },
+                    { question: "Where can solar panels be installed to help a community?", options: ["On a school or community center", "Only on houses", "Underground", "In the forest"], answer: "On a school or community center" },
+                    { question: "Achieving 'energy equity' is a key step for...", options: ["Economic development only", "Educational development", "Building more power grids", "Making electricity more expensive"], answer: "Educational development" },
+                    { question: "What does paragraph 3 call 'a cornerstone of modern education'?", options: ["Access to reliable electricity", "Having many books", "School uniforms", "Long holidays"], answer: "Access to reliable electricity" },
+                    { question: "What are decentralized renewable energy systems?", options: ["Large, centralized power plants", "Small-scale solar and wind installations", "Systems that don't work", "Power grids for entire countries"], answer: "Small-scale solar and wind installations" },
+                    { question: "According to paragraph 3, what does a typical decentralized system involve?", options: ["A large turbine and a generator", "Photovoltaic solar panels that charge a battery bank", "Kerosene lamps and candles", "A connection to the main power grid"], answer: "Photovoltaic solar panels that charge a battery bank" },
+                    { question: "Paragraph 3 says that this technology 'powers potential'. What does this mean?", options: ["It creates electricity", "It enables learning and access to information", "It makes batteries more powerful", "It is very expensive"], answer: "It enables learning and access to information" },
+                    { question: "What does paragraph 3 say perpetuates a cycle of educational disadvantage?", options: ["A lack of teachers", "A lack of energy infrastructure", "The digital divide", "Students not wanting to learn"], answer: "A lack of energy infrastructure" },
+                ]
+            },
+            4: {
+                title: "Unit 4: Bridging Worlds",
+                theme: { icon: 'fa-paw', color: 'indigo' },
+                questions: [
+                    { question: "The natural home of an animal is its...", options: ["Corridor", "Habitat", "Overpass", "Infrastructure"], answer: "Habitat" },
+                    { question: "When a habitat is broken into smaller, separate parts, this is called...", options: ["Fragmentation", "Migration", "Conservation", "Coexistence"], answer: "Fragmentation" },
+                    { question: "A strip of land that connects two habitats is a...", options: ["Corridor", "Overpass", "Underpass", "Road"], answer: "Corridor" },
+                    { question: "The variety of plant and animal life in an area is its...", options: ["Biodiversity", "Population", "Ecosystem", "Community"], answer: "Biodiversity" },
+                    { question: "When humans and wildlife live together peacefully, it is called...", options: ["Fragmentation", "Migration", "Coexistence", "Conservation"], answer: "Coexistence" },
+                    { question: "Roads, bridges, and railways are examples of...", options: ["Infrastructure", "Habitats", "Corridors", "Ecosystems"], answer: "Infrastructure" },
+                    { question: "The seasonal movement of animals is called...", options: ["Hibernation", "Migration", "Vacation", "Transportation"], answer: "Migration" },
+                    { question: "A bridge built for animals to cross over a highway is an...", options: ["Overpass", "Underpass", "Corridor", "Footbridge"], answer: "Overpass" },
+                    { question: "A tunnel for animals to cross under a road is an...", options: ["Overpass", "Underpass", "Subway", "Cave"], answer: "Underpass" },
+                    { question: "The protection of animals, plants, and natural resources is...", options: ["Construction", "Development", "Conservation", "Fragmentation"], answer: "Conservation" },
+                    { question: "According to paragraph 1, what happens when a big road cuts a forest in two?", options: ["It creates a new river", "It causes habitat fragmentation", "It helps animals find food", "It makes the forest bigger"], answer: "It causes habitat fragmentation" },
+                    { question: "Why is it a problem for animals if their habitat is fragmented?", options: ["They get lost easily", "They cannot move to find food or meet other animals", "There are too many trees", "It gets too noisy"], answer: "They cannot move to find food or meet other animals" },
+                    { question: "What is an 'overpass' for animals?", options: ["A tunnel under the road", "A special type of road", "A bridge over the road", "A sign for animals to stop"], answer: "A bridge over the road" },
+                    { question: "What is an 'underpass' for animals?", options: ["A bridge over the road", "A tunnel under the road", "A rest area for animals", "A water source"], answer: "A tunnel under the road" },
+                    { question: "Why are these animal bridges covered with grass and trees?", options: ["To make them look nice for humans", "To make them feel like a real habitat for animals", "To protect them from the rain", "To make them stronger"], answer: "To make them feel like a real habitat for animals" },
+                    { question: "What problem does human infrastructure like highways create for wildlife, according to paragraph 2?", options: ["It provides them with shelter", "It creates habitat fragmentation", "It gives them a source of water", "It makes migration easier"], answer: "It creates habitat fragmentation" },
+                    { question: "When a road cuts through a forest, it creates two smaller, isolated...", options: ["Parks", "Cities", "Islands of land", "Rivers"], answer: "Islands of land" },
+                    { question: "What can happen to animal populations that become trapped in a fragmented habitat?", options: ["They grow larger", "They learn to fly", "They can decline in number", "They build their own bridges"], answer: "They can decline in number" },
+                    { question: "What is the solution to connect fragmented habitats, according to paragraph 2?", options: ["Building more roads", "Creating wildlife corridors", "Moving the animals to a zoo", "Cutting down more trees"], answer: "Creating wildlife corridors" },
+                    { question: "Besides helping animals, what is another benefit of wildlife crossings mentioned in paragraph 2?", options: ["They are good for tourism", "They prevent vehicle collisions", "They generate electricity", "They are cheap to build"], answer: "They prevent vehicle collisions" },
+                    { question: "According to paragraph 3, what is one of the greatest threats to global biodiversity?", options: ["Too many animals", "Loss of connectivity due to fragmentation", "Climate change", "Lack of food"], answer: "Loss of connectivity due to fragmentation" },
+                    { question: "What does 'restricting genetic exchange' mean for animal populations?", options: ["They become healthier", "They can't mix with other groups, which is bad for their long-term survival", "They have more babies", "They communicate better"], answer: "They can't mix with other groups, which is bad for their long-term survival" },
+                    { question: "What is described as 'a science in itself' in paragraph 3?", options: ["Building roads", "The design of wildlife corridors", "Studying animal migration", "Counting animals"], answer: "The design of wildlife corridors" },
+                    { question: "Which of these is NOT a critical factor for a successful wildlife corridor mentioned in paragraph 3?", options: ["Location and width", "The color of the bridge", "Noise-dampening barriers", "Type of vegetation"], answer: "The color of the bridge" },
+                    { question: "By reducing wildlife-vehicle collisions, these structures also enhance...", options: ["Animal intelligence", "Human safety", "Traffic speed", "Gasoline prices"], answer: "Human safety" },
+                ]
+            },
+            5: {
+                title: "Unit 5: The Zero-Waste Challenge",
+                theme: { icon: 'fa-trash-can', color: 'rose' },
+                questions: [
+                    { question: "What is the main goal of a 'Zero-waste' philosophy?", options: ["To recycle everything", "To send nothing to a landfill", "To buy fewer things", "To compost all food"], answer: "To send nothing to a landfill" },
+                    { question: "The action of using up a resource is called...", options: ["Consumption", "Upcycling", "Auditing", "Packaging"], answer: "Consumption" },
+                    { question: "Where is waste buried under the ground?", options: ["In a compost bin", "In a recycling center", "In a landfill", "In an incinerator"], answer: "In a landfill" },
+                    { question: "What does it mean to 'Upcycle'?", options: ["To recycle something into a lower quality product", "To reuse something for the same purpose", "To create a higher value product from discarded objects", "To throw something away"], answer: "To create a higher value product from discarded objects" },
+                    { question: "Decayed organic material used as fertilizer is...", options: ["Packaging", "Landfill", "Compost", "Plastic"], answer: "Compost" },
+                    { question: "An official inspection, like checking what you throw away, is an...", options: ["Audit", "Consumption", "Upcycle", "Mindset"], answer: "Audit" },
+                    { question: "An item intended to be used once and then thrown away is...", options: ["Reusable", "Durable", "Disposable", "Upcycled"], answer: "Disposable" },
+                    { question: "A supply of materials that can be used is a...", options: ["Resource", "Product", "Package", "Waste"], answer: "Resource" },
+                    { question: "The established set of attitudes held by someone is their...", options: ["Audit", "Mindset", "Consumption", "Resource"], answer: "Mindset" },
+                    { question: "Materials used to wrap or protect goods are called...", options: ["Resources", "Compost", "Landfill", "Packaging"], answer: "Packaging" },
+
+                    { question: "According to paragraph 1, what is the first 'R' of zero-waste?", options: ["Reduce", "Reuse", "Recycle", "Refuse"], answer: "Refuse" },
+                    { question: "What is an example of 'Refuse' given in paragraph 1?", options: ["Using a reusable water bottle", "Saying 'no' to a plastic bag", "Composting food scraps", "Recycling a can"], answer: "Saying 'no' to a plastic bag" },
+                    { question: "What does 'Rot' mean in the context of the 5 Rs?", options: ["To let food go bad", "To throw away old things", "To compost food scraps", "To recycle plastic"], answer: "To compost food scraps" },
+                    { question: "Paragraph 1 says that the zero-waste idea requires a new...", options: ["Law", "Mindset", "Tax", "Technology"], answer: "Mindset" },
+                    { question: "What are the 5 Rs mentioned in paragraph 1?", options: ["Refuse, Reduce, Reuse, Recycle, Rot", "Read, Rethink, Repair, Recycle, Rot", "Refuse, Repair, Reuse, Recycle, Reward", "Reduce, Reuse, Repair, Rebuy, Recycle"], answer: "Refuse, Reduce, Reuse, Recycle, Rot" },
+
+                    { question: "According to paragraph 2, what is the most important step of the 5 Rs?", options: ["Recycle", "Reuse", "Reduce", "Refuse"], answer: "Refuse" },
+                    { question: "What is an example of 'Reuse' from paragraph 2?", options: ["Composting apples", "Using cloth bags instead of plastic ones", "Buying less stuff", "Recycling paper"], answer: "Using cloth bags instead of plastic ones" },
+                    { question: "In the 5R hierarchy, recycling should be seen as a...", options: ["First option", "Last option", "Fun activity", "Way to make money"], answer: "Last option" },
+                    { question: "What does paragraph 2 say is the goal of the zero-waste movement?", options: ["To achieve perfection", "To make conscious choices", "To ban all plastic", "To live without stuff"], answer: "To make conscious choices" },
+                    { question: "What does 'Reduce' mean in the 5 Rs?", options: ["To cut things into small pieces", "To lower your consumption of goods", "To refuse free items", "To make things smaller"], answer: "To lower your consumption of goods" },
+
+                    { question: "Paragraph 3 states that the zero-waste philosophy challenges which model?", options: ["The circular 'reuse-repair-recycle' model", "The linear 'take-make-dispose' model", "The sustainable 'grow-eat-compost' model", "The service 'lease-use-return' model"], answer: "The linear 'take-make-dispose' model" },
+                    { question: "What is 'pre-cycling' as described in paragraph 3?", options: ["Recycling before you use something", "Preventing waste from being created in the first place", "A special type of bicycle", "Sorting your trash"], answer: "Preventing waste from being created in the first place" },
+                    { question: "According to paragraph 3, why is recycling positioned near the end of the 5R hierarchy?", options: ["Because it is the most important step", "Because it is difficult to do", "Because it still consumes significant energy", "Because it is a new idea"], answer: "Because it still consumes significant energy" },
+                    { question: "What does paragraph 3 suggest that trash is?", options: ["A personal failing only", "A sign of wealth", "A design flaw in our systems", "A necessary part of life"], answer: "A design flaw in our systems" },
+                    { question: "What does a personal waste audit help you do?", options: ["Get paid for your trash", "Understand your impact and find alternatives", "Separate compost from recycling", "Meet your neighbors"], answer: "Understand your impact and find alternatives" },
+                ]
+            },
+            6: {
+                title: "Unit 6: AI for Global Good",
+                theme: { icon: 'fa-robot', color: 'teal' },
+                questions: [
+                    // Keywords
+                    { question: "What is Artificial Intelligence (AI)?", options: ["A type of human intelligence", "The ability of computers to perform human-like tasks", "A new kind of computer", "A type of algorithm"], answer: "The ability of computers to perform human-like tasks" },
+                    { question: "A set of rules for a computer to follow is an...", options: ["Algorithm", "Data Set", "Prediction", "Diagnosis"], answer: "Algorithm" },
+                    { question: "What is Machine Learning?", options: ["When a person learns to use a machine", "When a machine learns from experience", "A type of computer", "A collection of data"], answer: "When a machine learns from experience" },
+                    { question: "A collection of related information is a...", options: ["Data Set", "Bias", "Diagnosis", "Prediction"], answer: "Data Set" },
+                    { question: "Relating to moral principles is being...", options: ["Biased", "Ethical", "Automated", "Optimized"], answer: "Ethical" },
+                    { question: "A prejudice in favor of or against something is a...", options: ["Bias", "Prediction", "Diagnosis", "Data Set"], answer: "Bias" },
+                    { question: "The use of automatic equipment in a system is...", options: ["Optimization", "Automation", "Diagnosis", "Prediction"], answer: "Automation" },
+                    { question: "A statement about what might happen in the future is a...", options: ["Diagnosis", "Prediction", "Data Set", "Bias"], answer: "Prediction" },
+                    { question: "The identification of an illness is a...", options: ["Prediction", "Diagnosis", "Bias", "Data Set"], answer: "Diagnosis" },
+                    { question: "Making the best or most effective use of a resource is...", options: ["Automation", "Optimization", "Prediction", "Bias"], answer: "Optimization" },
+
+                    // Reading Comprehension (Paragraph 1)
+                    { question: "According to paragraph 1, what can AI help a farmer do?", options: ["Plant seeds faster", "Tell if plants are sick", "Water the crops", "Harvest the food"], answer: "Tell if plants are sick" },
+                    { question: "In hospitals, what can AI help doctors with, according to paragraph 1?", options: ["Performing surgery", "Making a faster diagnosis", "Talking to patients", "Cleaning the rooms"], answer: "Making a faster diagnosis" },
+                    { question: "What is a potential problem with an AI's algorithm mentioned in paragraph 1?", options: ["It can be too slow", "It can have a bias", "It can break easily", "It uses too much energy"], answer: "It can have a bias" },
+                    { question: "What does it mean if an AI has a bias?", options: ["It is very smart", "It is always correct", "It can be unfair", "It is very creative"], answer: "It can be unfair" },
+                    { question: "Paragraph 1 concludes that we must make sure AI is...", options: ["Fast and cheap", "Available to everyone", "Safe and ethical", "Smarter than humans"], answer: "Safe and ethical" },
+
+                    // Reading Comprehension (Paragraph 2)
+                    { question: "What can machine learning do with enormous data sets, according to paragraph 2?", options: ["Delete them", "Find patterns that humans might miss", "Make them smaller", "Create new data"], answer: "Find patterns that humans might miss" },
+                    { question: "What is an example of an AI prediction mentioned in paragraph 2?", options: ["Predicting the weather", "Predicting where a natural disaster might strike", "Predicting stock prices", "Predicting who will win a game"], answer: "Predicting where a natural disaster might strike" },
+                    { question: "What is one of the biggest ethical risks of using AI, according to paragraph 2?", options: ["The AI will become too powerful", "The AI will be too expensive", "Bias in the AI's decisions", "The AI will take all our jobs"], answer: "Bias in the AI's decisions" },
+                    { question: "How can an AI become biased?", options: ["By making its own decisions", "If it is trained on a biased data set", "If it learns too quickly", "By talking to biased people"], answer: "If it is trained on a biased data set" },
+                    { question: "Paragraph 2 warns that as we use AI for more tasks, we must ensure it does not create new problems of...", options: ["Unemployment", "Inequality", "Pollution", "Data loss"], answer: "Inequality" },
+
+                    // Reading Comprehension (Paragraph 3)
+                    { question: "Paragraph 3 describes machine learning as a 'paradigm shift'. What does this mean?", options: ["A small improvement", "A new type of computer", "A fundamental change in approach", "A temporary trend"], answer: "A fundamental change in approach" },
+                    { question: "What is an example of AI optimization mentioned in paragraph 3?", options: ["Optimizing traffic flow", "Optimizing energy grids to reduce waste", "Optimizing your computer's speed", "Optimizing your daily schedule"], answer: "Optimizing energy grids to reduce waste" },
+                    { question: "What is 'encoded bias'?", options: ["A secret code", "When historical biases are reflected in the AI's algorithm", "A type of ethical AI", "A secure way to store data"], answer: "When historical biases are reflected in the AI's algorithm" },
+                    { question: "What does paragraph 3 say is a concern about automation?", options: ["It is not fast enough", "Job displacement and economic inequality", "The machines will use too much power", "It is too difficult to program"], answer: "Job displacement and economic inequality" },
+                    { question: "Developing AI for good requires a multi-disciplinary approach that integrates computer science with...", options: ["History and art", "Ethics, sociology, and public policy", "Mathematics and physics", "Business and marketing"], answer: "Ethics, sociology, and public policy" },
+                ]
+            },
+            7: {
+                title: "Unit 7: The Sun and the Sea",
+                theme: { icon: 'fa-water', color: 'cyan' },
+                questions: [
+                    { question: "What is 'Desalination'?", options: ["Removing pollution from water", "Removing salt from seawater", "Adding salt to water", "Making water hot"], answer: "Removing salt from seawater" },
+                    { question: "Water that is safe to drink is called...", options: ["Saline", "Brackish", "Potable", "Vapor"], answer: "Potable" },
+                    { question: "The concentration of dissolved salt in water is its...", options: ["Salinity", "Purity", "Efficiency", "Scarcity"], answer: "Salinity" },
+                    { question: "The process of a liquid turning into a vapor is...", options: ["Condensation", "Evaporation", "Purification", "Scarcity"], answer: "Evaporation" },
+                    { question: "The process of a vapor turning into a liquid is...", options: ["Condensation", "Evaporation", "Desalination", "Salinity"], answer: "Condensation" },
+                    { question: "A device that uses heat from the sun to purify water is a...", options: ["Solar Panel", "Solar Still", "Solar Heater", "Solar Light"], answer: "Solar Still" },
+                    { question: "Water that is slightly salty is called...", options: ["Potable", "Brackish", "Pure", "Vapor"], answer: "Brackish" },
+                    { question: "Working in a well-organized way without waste is...", options: ["Scarcity", "Efficiency", "Salinity", "Purification"], answer: "Efficiency" },
+                    { question: "The process of removing harmful substances is...", options: ["Purification", "Evaporation", "Condensation", "Desalination"], answer: "Purification" },
+                    { question: "When something is in short supply, there is a...", options: ["Scarcity", "Surplus", "Still", "Salinity"], answer: "Scarcity" },
+                ]
+            },
+            8: {
+                title: "Unit 8: The Pulse of Progress",
+                theme: { icon: 'fa-heart-pulse', color: 'fuchsia' },
+                questions: [
+                    { question: "Data related to the body, like a heartbeat, is called...", options: ["Biometric", "Sensor", "Monitor", "Gamification"], answer: "Biometric" },
+                    { question: "A device that detects or measures something is a...", options: ["Monitor", "Sensor", "Tracker", "Calorie"], answer: "Sensor" },
+                    { question: "To observe and check the progress of something is to...", options: ["Monitor", "Gamify", "Track", "Sense"], answer: "Monitor" },
+                    { question: "A device for tracking fitness metrics is an...", options: ["Activity Tracker", "Smartwatch", "Pedometer", "Heart Rate Monitor"], answer: "Activity Tracker" },
+                    { question: "Spending a lot of time seated or inactive is being...", options: ["Active", "Sedentary", "Healthy", "Fit"], answer: "Sedentary" },
+                    { question: "Applying game-like elements to other activities is...", options: ["Gamification", "Competition", "Playing", "Wellness"], answer: "Gamification" },
+                    { question: "The state of being free from observation by others is...", options: ["Privacy", "Security", "Wellness", "Health"], answer: "Privacy" },
+                    { question: "The state of being in good health as an actively pursued goal is...", options: ["Fitness", "Wellness", "Happiness", "Activity"], answer: "Wellness" },
+                    { question: "A unit of energy from food is a...", options: ["Gram", "Calorie", "Joule", "Watt"], answer: "Calorie" },
+                    { question: "Information about your performance is...", options: ["Data", "Feedback", "Privacy", "Metrics"], answer: "Feedback" },
+                ]
+            },
+            9: {
+                title: "Unit 9: The Electric Avenue",
+                theme: { icon: 'fa-bicycle', color: 'lime' },
+                questions: [
+                    { question: "The ability to move freely and easily is...", options: ["Mobility", "Emission", "Congestion", "Transit"], answer: "Mobility" },
+                    { question: "The discharge of gas from a vehicle's tailpipe is an...", options: ["Emission", "Congestion", "Subsidy", "Infrastructure"], answer: "Emission" },
+                    { question: "The state of being crowded with traffic is...", options: ["Mobility", "Congestion", "Transit", "Planning"], answer: "Congestion" },
+                    { question: "Basic systems like roads and charging stations are...", options: ["Infrastructure", "Subsidies", "Mobility", "Emissions"], answer: "Infrastructure" },
+                    { question: "Money from the government to help people buy something is a...", options: ["Tax", "Fine", "Subsidy", "Loan"], answer: "Subsidy" },
+                    { question: "A feature on an e-bike where the motor helps you pedal is...", options: ["Throttle", "Pedal-assist", "Gear-shift", "Turbo-boost"], answer: "Pedal-assist" },
+                    { question: "Transportation using very light vehicles like e-bikes is...", options: ["Public Transit", "Mass Transit", "Micro-mobility", "Sustainable Mobility"], answer: "Micro-mobility" },
+                    { question: "Buses, trains, and subways are forms of...", options: ["Public Transit", "Private Transit", "Micro-mobility", "Active Transit"], answer: "Public Transit" },
+                    { question: "Something that causes little or no damage to the environment is...", options: ["Sustainable", "Renewable", "Efficient", "Economical"], answer: "Sustainable" },
+                    { question: "The planning of the physical development of cities is...", options: ["Urban Planning", "City Design", "Architecture", "Civil Engineering"], answer: "Urban Planning" },
+                ]
+            },
+            10: {
+                title: "Unit 10: A Festival of Values",
+                theme: { icon: 'fa-landmark', color: 'orange' },
+                questions: [
+                    { question: "A period of celebration for cultural reasons is a...", options: ["Festival", "Holiday", "Ritual", "Tradition"], answer: "Festival" },
+                    { question: "The ideas, customs, and social behavior of a society is its...", options: ["Culture", "Heritage", "Identity", "Value"], answer: "Culture" },
+                    { question: "A belief or custom passed down from generation to generation is a...", options: ["Ritual", "Tradition", "Value", "Celebration"], answer: "Tradition" },
+                    { question: "A ceremony with a series of actions performed in a specific order is a...", options: ["Ritual", "Festival", "Tradition", "Celebration"], answer: "Ritual" },
+                    { question: "A person's principles or judgment of what is important in life is their...", options: ["Value", "Identity", "Heritage", "Culture"], answer: "Value" },
+                    { question: "The state of being diverse or having variety is...", options: ["Diversity", "Culture", "Heritage", "Identity"], answer: "Diversity" },
+                    { question: "Valued traditions passed down from previous generations are our...", options: ["Heritage", "Identity", "Culture", "Values"], answer: "Heritage" },
+                    { question: "The characteristics that determine who a person is are their...", options: ["Identity", "Heritage", "Culture", "Values"], answer: "Identity" },
+                    { question: "Someone who identifies with being part of a world community is a...", options: ["Global Citizen", "Tourist", "Immigrant", "Local"], answer: "Global Citizen" },
+                    { question: "Marking a significant event with a social gathering is a...", options: ["Celebration", "Ritual", "Tradition", "Festival"], answer: "Celebration" },
+                ]
+            },
+        };
+
+        // Application State
+        let currentUnit = null;
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let tokens = 0;
+        let streak = 0;
+        let badges = [];
+        let missedQuestions = [];
+        let questionTimer;
+        let totalTimer;
+        let totalTime = 500; // 25 questions * 20 seconds
+        let questionsForCurrentUnit = [];
+
+        // DOM Elements
+        const homePage = document.getElementById('home-page');
+        const quizPage = document.getElementById('quiz-page');
+        const reviewPage = document.getElementById('review-page');
+        const unitSelection = document.getElementById('unit-selection');
+        const quizTitle = document.getElementById('quiz-title');
+        const quizIcon = document.getElementById('quiz-icon');
+        const questionCounter = document.getElementById('question-counter');
+        const totalTimerDisplay = document.getElementById('total-timer');
+        const tokenCountDisplay = document.getElementById('token-count');
+        const questionTimerBar = document.getElementById('question-timer-bar');
+        const questionText = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+        const finalScore = document.getElementById('final-score');
+        const finalTokens = document.getElementById('final-tokens');
+        const badgeContainer = document.getElementById('badge-container');
+        const completionTime = document.getElementById('completion-time');
+        const backToHomeBtn = document.getElementById('back-to-home');
+        const fireworksContainer = document.getElementById('fireworks-container');
+
+        // Sound Effects (using Tone.js)
+        let synth, polySynth;
+
+        const correctSounds = [
+            () => synth.triggerAttackRelease("C5", "8n"),
+            () => polySynth.triggerAttackRelease(["E5", "G5", "B5"], "8n"),
+            () => synth.triggerAttackRelease("G5", "16n", Tone.now(), 0.8)
+        ];
+        const incorrectSound = () => synth.triggerAttackRelease("C3", "8n");
+        const badgeSound = () => polySynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n");
+
+        // Praise Messages
+        const praiseMessages = ["Great job!", "Excellent!", "You're a star!", "Amazing!", "Keep it up!", "Fantastic!", "Well done!"];
+
+        // Initialize
+        function init() {
+            for (let i = 1; i <= 10; i++) {
+                if (quizData[i] && quizData[i].questions.length > 0) {
+                    const button = document.createElement('button');
+                    button.textContent = `Unit ${i}`;
+                    button.className = "w-full bg-emerald-600 text-white font-bold py-3 rounded-lg hover:bg-emerald-700 transition-transform transform hover:scale-105";
+                    button.onclick = () => startQuiz(i);
+                    unitSelection.appendChild(button);
+                }
+            }
+            backToHomeBtn.onclick = () => location.reload();
+        }
+
+        async function startQuiz(unit) {
+            await Tone.start();
+            // Initialize synths here after user interaction
+            synth = new Tone.Synth().toDestination();
+            polySynth = new Tone.PolySynth(Tone.Synth).toDestination();
+
+            const name = document.getElementById('name').value;
+            if (!name) {
+                showModal("Please enter your name to begin.");
+                return;
+            }
+            currentUnit = unit;
+            currentQuestionIndex = 0;
+            score = 0;
+            tokens = 0;
+            streak = 0;
+            badges = [];
+            missedQuestions = [];
+            totalTime = 500;
+            questionsForCurrentUnit = [...quizData[unit].questions];
+            tokenCountDisplay.textContent = tokens;
+
+            homePage.classList.add('hidden');
+            reviewPage.classList.add('hidden');
+            quizPage.classList.remove('hidden');
+            quizTitle.textContent = quizData[unit].title;
+            startTotalTimer();
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            if (currentQuestionIndex >= questionsForCurrentUnit.length) {
+                if (missedQuestions.length > 0) {
+                    questionsForCurrentUnit = [...missedQuestions];
+                    missedQuestions = [];
+                    currentQuestionIndex = 0;
+                    showModal("Let's try the questions you missed one more time!");
+                } else {
+                    endQuiz();
+                    return;
+                }
+            }
+
+            const question = questionsForCurrentUnit[currentQuestionIndex];
+            questionCounter.textContent = `Question ${currentQuestionIndex + 1} of ${questionsForCurrentUnit.length}`;
+            questionText.textContent = question.question;
+            optionsContainer.innerHTML = '';
+            const shuffledOptions = [...question.options].sort(() => Math.random() - 0.5);
+            shuffledOptions.forEach(option => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.className = "w-full bg-white border-2 border-slate-300 text-slate-700 font-semibold py-3 rounded-lg hover:bg-slate-100 transition-colors";
+                button.onclick = () => selectAnswer(option, question.answer, button);
+                optionsContainer.appendChild(button);
+            });
+            startQuestionTimer();
+        }
+
+        function selectAnswer(selected, correct, button) {
+            clearInterval(questionTimer);
+            const buttons = optionsContainer.getElementsByTagName('button');
+            for(let btn of buttons) {
+                btn.disabled = true;
+            }
+
+            if (selected === correct) {
+                score += 4;
+                tokens += 1;
+                streak += 1;
+                tokenCountDisplay.textContent = tokens;
+                button.className = "w-full bg-green-500 text-white font-bold py-3 rounded-lg";
+                correctSounds[Math.floor(Math.random() * correctSounds.length)]();
+                showModal(praiseMessages[Math.floor(Math.random() * praiseMessages.length)], 'success');
+                checkBadges();
+            } else {
+                streak = 0;
+                button.className = "w-full bg-red-500 text-white font-bold py-3 rounded-lg";
+                incorrectSound();
+                missedQuestions.push(questionsForCurrentUnit[currentQuestionIndex]);
+                for(let btn of buttons) {
+                    if (btn.textContent === correct) {
+                        btn.className = "w-full bg-green-500 text-white font-bold py-3 rounded-lg";
+                    }
+                }
+                 showModal(`Not quite! The correct answer was: ${correct}`, 'error');
+            }
+            setTimeout(() => {
+                currentQuestionIndex++;
+                loadQuestion();
+            }, 2000);
+        }
+
+        function checkBadges() {
+            if (streak === 5 && !badges.includes('streak5')) {
+                badges.push('streak5');
+                showModal("5 in a row! You're on fire!", 'badge');
+                speak("You are on fire!");
+                badgeSound();
+            }
+        }
+
+        function startQuestionTimer() {
+            let timeLeft = 20;
+            questionTimerBar.style.transition = 'none'; // Reset transition for instant change
+            questionTimerBar.style.width = '100%';
+            // Force reflow to apply the change immediately
+            void questionTimerBar.offsetWidth; 
+            questionTimerBar.style.transition = 'width 1s linear';
+
+            questionTimer = setInterval(() => {
+                timeLeft--;
+                questionTimerBar.style.width = `${(timeLeft / 20) * 100}%`;
+                if (timeLeft <= 0) {
+                    clearInterval(questionTimer);
+                    incorrectSound();
+                    showModal("Time's up!", 'error');
+                    missedQuestions.push(questionsForCurrentUnit[currentQuestionIndex]);
+                    setTimeout(() => {
+                        currentQuestionIndex++;
+                        loadQuestion();
+                    }, 2000);
+                }
+            }, 1000);
+        }
+
+        function startTotalTimer() {
+            if(totalTimer) clearInterval(totalTimer);
+            totalTimer = setInterval(() => {
+                totalTime--;
+                const minutes = Math.floor(totalTime / 60);
+                const seconds = totalTime % 60;
+                totalTimerDisplay.textContent = `Time Left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                if (totalTime <= 0) {
+                    endQuiz();
+                }
+            }, 1000);
+        }
+
+        function endQuiz() {
+            clearInterval(totalTimer);
+            clearInterval(questionTimer);
+            quizPage.classList.add('hidden');
+            reviewPage.classList.remove('hidden');
+            finalScore.textContent = `Your Score: ${Math.round(score)} / 100`;
+            finalTokens.innerHTML = `<i class="fas fa-star text-yellow-400 mr-2"></i> You earned ${tokens} tokens!`;
+            const timeTaken = 500 - totalTime;
+            const minutes = Math.floor(timeTaken / 60);
+            const seconds = timeTaken % 60;
+            completionTime.textContent = `Completed in ${minutes} minutes and ${seconds} seconds.`;
+            
+            // Add completion badge
+            if (!badges.includes('completed')) {
+                badges.push('completed');
+            }
+            displayBadges();
+            
+            if (score >= 80) {
+                launchFireworks();
+                speak("Excellent work! You are a superstar!");
+            }
+        }
+        
+        function displayBadges() {
+            badgeContainer.innerHTML = '';
+            badges.forEach(badgeId => {
+                const badge = document.createElement('div');
+                badge.className = 'p-2 bg-yellow-400 rounded-full text-white';
+                let icon = '';
+                if (badgeId === 'streak5') icon = 'fa-fire';
+                if (badgeId === 'completed') icon = 'fa-check-circle';
+                badge.innerHTML = `<i class="fas ${icon}"></i>`;
+                badgeContainer.appendChild(badge);
+            });
+        }
+
+        function launchFireworks() {
+            for (let i = 0; i < 30; i++) {
+                const fw = document.createElement('div');
+                fw.className = 'firework';
+                fw.style.left = `${Math.random() * 100}%`;
+                fw.style.top = `${Math.random() * 100}%`;
+                fw.style.backgroundColor = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                fireworksContainer.appendChild(fw);
+            }
+            setTimeout(() => fireworksContainer.innerHTML = '', 2000);
+        }
+
+        function speak(text) {
+            const synth = window.speechSynthesis;
+            if (!synth) {
+                console.error("Speech Synthesis not supported");
+                return;
+            }
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voices = synth.getVoices().filter(voice => voice.lang.startsWith('en'));
+            const microsoftVoice = voices.find(voice => voice.name.includes('Microsoft') && voice.name.includes('Female'));
+            utterance.voice = microsoftVoice || voices.find(voice => voice.lang === 'en-US');
+            utterance.rate = 0.85;
+            synth.speak(utterance);
+        }
+
+        function showModal(message, type = 'info') {
+            const modal = document.createElement('div');
+            modal.className = 'fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex justify-center items-center z-50';
+            
+            const modalContent = document.createElement('div');
+            let bgColor = 'bg-sky-500';
+            if (type === 'success') bgColor = 'bg-green-500';
+            if (type === 'error') bgColor = 'bg-red-500';
+            if (type === 'badge') bgColor = 'bg-purple-600';
+            
+            modalContent.className = `p-8 rounded-lg shadow-lg text-white text-2xl font-bold ${bgColor}`;
+            modalContent.textContent = message;
+            
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+            
+            setTimeout(() => {
+                modal.remove();
+            }, 1500);
+        }
+
+        init();
+    </script>
+</body>
+</html>

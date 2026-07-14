@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joel's TTS Downloader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spin 1s linear infinite;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-3xl">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 dark:text-white">Joel's TTS Downloader</h1>
+        </header>
+
+        <main class="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
+            <div class="mb-4">
+                <label for="text-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Enter Text:</label>
+                <textarea id="text-input" rows="10" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" placeholder="e.g., Say cheerfully: Have a wonderful day!"></textarea>
+            </div>
+
+            <div class="mb-6">
+                <label for="voice-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Choose a Voice:</label>
+                <select id="voice-select" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition">
+                    <!-- Voice options will be populated by JavaScript -->
+                </select>
+            </div>
+
+            <div class="mb-6">
+                <label for="speed-slider" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Playback Speed:</label>
+                <div class="flex items-center space-x-4">
+                    <input id="speed-slider" type="range" min="50" max="150" value="85" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700">
+                    <span id="speed-value" class="font-mono text-sm text-gray-600 dark:text-gray-400 w-12 text-center">85%</span>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-center">
+                <button id="generate-btn" class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-transform transform hover:scale-105 flex items-center justify-center">
+                    <span id="btn-text">Generate Speech</span>
+                    <div id="loader" class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-6 w-6 ml-3 hidden"></div>
+                </button>
+            </div>
+
+            <div id="error-message" class="mt-4 text-red-500 text-center hidden"></div>
+
+            <div id="audio-output" class="mt-6 hidden">
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-white mb-2">Generated Audio:</h3>
+                <audio id="audio-player" controls class="w-full"></audio>
+            </div>
+        </main>
+        
+        <footer class="text-center mt-6 text-sm text-gray-500 dark:text-gray-400">
+            <p>Powered by Google's Gemini API</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const textInput = document.getElementById('text-input');
+            const voiceSelect = document.getElementById('voice-select');
+            const generateBtn = document.getElementById('generate-btn');
+            const btnText = document.getElementById('btn-text');
+            const loader = document.getElementById('loader');
+            const errorMessage = document.getElementById('error-message');
+            const audioOutput = document.getElementById('audio-output');
+            const audioPlayer = document.getElementById('audio-player');
+            const speedSlider = document.getElementById('speed-slider');
+            const speedValue = document.getElementById('speed-value');
+
+            const voices = [
+                { name: "Zephyr", characteristic: "Bright" },
+                { name: "Puck", characteristic: "Upbeat" },
+                { name: "Charon", characteristic: "Informative" },
+                { name: "Kore", characteristic: "Firm" },
+                { name: "Fenrir", characteristic: "Excitable" },
+                { name: "Leda", characteristic: "Youthful" },
+                { name: "Orus", characteristic: "Firm" },
+                { name: "Aoede", characteristic: "Breezy" },
+                { name: "Callirrhoe", characteristic: "Easy-going" },
+                { name: "Autonoe", characteristic: "Bright" },
+                { name: "Enceladus", characteristic: "Breathy" },
+                { name: "Iapetus", characteristic: "Clear" },
+                { name: "Umbriel", characteristic: "Easy-going" },
+                { name: "Algieba", characteristic: "Smooth" },
+                { name: "Despina", characteristic: "Smooth" },
+                { name: "Erinome", characteristic: "Clear" },
+                { name: "Algenib", characteristic: "Gravelly" },
+                { name: "Rasalgethi", characteristic: "Informative" },
+                { name: "Laomedeia", characteristic: "Upbeat" },
+                { name: "Achernar", characteristic: "Soft" },
+                { name: "Alnilam", characteristic: "Firm" },
+                { name: "Schedar", characteristic: "Even" },
+                { name: "Gacrux", characteristic: "Mature" },
+                { name: "Pulcherrima", characteristic: "Forward" },
+                { name: "Achird", characteristic: "Friendly" },
+                { name: "Zubenelgenubi", characteristic: "Casual" },
+                { name: "Vindemiatrix", characteristic: "Gentle" },
+                { name: "Sadachbia", characteristic: "Lively" },
+                { name: "Sadaltager", characteristic: "Knowledgeable" },
+                { name: "Sulafat", characteristic: "Warm" }
+            ];
+
+            // Populate voice options
+            voices.forEach(voice => {
+                const option = document.createElement('option');
+                option.value = voice.name;
+                option.textContent = `${voice.name} (${voice.characteristic})`;
+                voiceSelect.appendChild(option);
+            });
+
+            // Initialize speed display
+            speedValue.textContent = `${speedSlider.value}%`;
+
+            // Update speed display and audio playback rate when slider is moved
+            speedSlider.addEventListener('input', () => {
+                const newSpeed = speedSlider.value;
+                speedValue.textContent = `${newSpeed}%`;
+                audioPlayer.playbackRate = newSpeed / 100;
+            });
+
+            // Function to convert Base64 to ArrayBuffer
+            function base64ToArrayBuffer(base64) {
+                const binaryString = window.atob(base64);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                return bytes.buffer;
+            }
+
+            // Function to convert PCM to WAV
+            function pcmToWav(pcmData, sampleRate) {
+                const header = new ArrayBuffer(44);
+                const view = new DataView(header);
+                const pcmLength = pcmData.length * 2; // 16-bit PCM
+
+                writeString(view, 0, 'RIFF');
+                view.setUint32(4, 36 + pcmLength, true);
+                writeString(view, 8, 'WAVE');
+                writeString(view, 12, 'fmt ');
+                view.setUint32(16, 16, true);
+                view.setUint16(20, 1, true);
+                view.setUint16(22, 1, true);
+                view.setUint32(24, sampleRate, true);
+                view.setUint32(28, sampleRate * 2, true);
+                view.setUint16(32, 2, true);
+                view.setUint16(34, 16, true);
+                writeString(view, 36, 'data');
+                view.setUint32(40, pcmLength, true);
+
+                const wavBlob = new Blob([header, pcmData], { type: 'audio/wav' });
+                return wavBlob;
+            }
+
+            function writeString(view, offset, string) {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            }
+            
+            async function generateSpeech() {
+                const text = textInput.value.trim();
+                const selectedVoice = voiceSelect.value;
+
+                if (!text) {
+                    showError('Please enter some text.');
+                    return;
+                }
+
+                setLoading(true);
+                hideError();
+                audioOutput.classList.add('hidden');
+
+                const payload = {
+                    contents: [{
+                        parts: [{ text: text }]
+                    }],
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: {
+                            voiceConfig: {
+                                prebuiltVoiceConfig: { voiceName: selectedVoice }
+                            }
+                        }
+                    },
+                    model: "gemini-2.5-flash-preview-tts"
+                };
+
+                const apiKey = ""; // Leave as-is, handled by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    const part = result?.candidates?.[0]?.content?.parts?.[0];
+                    const audioData = part?.inlineData?.data;
+                    const mimeType = part?.inlineData?.mimeType;
+
+                    if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                        const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                        const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
+                        
+                        const pcmData = base64ToArrayBuffer(audioData);
+                        const pcm16 = new Int16Array(pcmData);
+                        const wavBlob = pcmToWav(pcm16, sampleRate);
+                        const audioUrl = URL.createObjectURL(wavBlob);
+
+                        audioPlayer.src = audioUrl;
+                        
+                        // Apply the current speed from the slider when new audio is loaded
+                        audioPlayer.onloadedmetadata = () => {
+                            audioPlayer.playbackRate = speedSlider.value / 100;
+                        };
+                        
+                        audioOutput.classList.remove('hidden');
+                    } else {
+                        throw new Error("Invalid audio data received from API.");
+                    }
+
+                } catch (error) {
+                    console.error("Error generating speech:", error);
+                    showError(`Failed to generate speech. ${error.message}`);
+                } finally {
+                    setLoading(false);
+                }
+            }
+
+            function setLoading(isLoading) {
+                if (isLoading) {
+                    generateBtn.disabled = true;
+                    btnText.classList.add('hidden');
+                    loader.classList.remove('hidden');
+                } else {
+                    generateBtn.disabled = false;
+                    btnText.classList.remove('hidden');
+                    loader.classList.add('hidden');
+                }
+            }
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.classList.remove('hidden');
+            }
+
+            function hideError() {
+                errorMessage.classList.add('hidden');
+            }
+
+            generateBtn.addEventListener('click', generateSpeech);
+        });
+    </script>
+</body>
+</html>
