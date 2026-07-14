@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vocabulary Learn & Test App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #1a1a1a;
+            --bg-container: #2c2c2c;
+            --primary-color: #4a90e2;
+            --primary-dark: #357abd;
+            --border-color: #444;
+            --text-light: #f0f0f0;
+            --text-dark: #cccccc;
+            --correct-color: #28a745;
+            --incorrect-color: #dc3545;
+            --accent-cyan: #20c997;
+            --gold-color: #e3d095;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-light);
+        }
+
+        /* --- Main Layout & Mode Switching --- */
+        .mode-container {
+            display: none;
+        }
+        .mode-container.active {
+            display: block;
+        }
+        .nav-button {
+            transition: all 0.3s ease;
+        }
+        .nav-button.active {
+            background-color: var(--primary-color) !important;
+            color: white !important;
+            border-color: var(--primary-color) !important;
+        }
+
+        /* --- Learning Mode (Frayer) --- */
+        .frayer-box {
+            border: 2px solid var(--border-color);
+            background-color: var(--bg-container);
+            display: flex;
+            flex-direction: column;
+        }
+        .frayer-label {
+            color: var(--text-light);
+            border-bottom: 2px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        textarea {
+            background-color: transparent;
+            color: var(--text-dark);
+            overflow-y: hidden;
+            resize: none;
+            border: none;
+            outline: none;
+            flex-grow: 1; /* Allows textarea to fill space */
+        }
+        .central-concept {
+            border: 2px solid var(--primary-color);
+            background-color: #2a3a4a;
+        }
+        #sentenceContainer {
+             background-color: var(--bg-container);
+        }
+        .progress-bar-bg {
+            background-color: var(--border-color);
+        }
+        .progress-bar-fill {
+            background-color: var(--primary-color);
+        }
+
+        /* --- Testing Mode (Game) --- */
+        .screen { display: none; flex-direction: column; align-items: center; justify-content: center; width: 100%; text-align: center; padding: 1em; }
+        .screen.active { display: flex; }
+        #hud { display: flex; flex-wrap: wrap; justify-content: space-around; background-color: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; margin-bottom: 20px; }
+        .hud-item { margin: 5px 15px; font-size: 1.1em; }
+        #word-bank { background-color: rgba(0,0,0,0.2); padding: 1em; border-radius: 10px; width: 100%; max-width: 500px; min-height: 100px; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--border-color); transition: background-color 0.3s; }
+        .word { background-color: var(--primary-color); color: var(--bg-main); padding: 0.8em 1.5em; border-radius: 8px; cursor: grab; font-size: 1.8em; font-weight: bold; user-select: none; box-shadow: 0 4px 6px rgba(0,0,0,0.2); transition: opacity 0.2s, transform 0.2s; }
+        .word.dragging { opacity: 0.4; cursor: grabbing; transform: scale(1.05); }
+        .drop-zones { display: grid; grid-template-columns: 1fr; gap: 15px; width: 100%; max-width: 700px; }
+        @media (min-width: 640px) { .drop-zones { grid-template-columns: repeat(2, 1fr); } }
+        .zone { min-height: 80px; border: 2px solid var(--border-color); border-radius: 10px; display: flex; justify-content: center; align-items: center; font-size: 1.8em; font-weight: bold; transition: all 0.2s ease-in-out; padding: 1em; background-color: var(--bg-container); color: var(--text-light); }
+        .zone.drag-over { border-color: var(--primary-color); transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        #sentence-container-game { background-color: rgba(0,0,0,0.2); padding: 2em; border-radius: 10px; width: 100%; max-width: 800px; font-size: 1.5em; line-height: 1.6; color: var(--text-light); border: 1px solid var(--border-color); }
+        #sentence-container-game .blank { display: inline-block; background-color: var(--bg-container); padding: 0.1em 1em; border-radius: 5px; color: var(--text-light); font-weight: bold; }
+        #chi-hint-container { font-size: 1.5em; color: var(--accent-cyan); margin-top: 1em; min-height: 30px; }
+        #choice-buttons { display: grid; grid-template-columns: 1fr; gap: 15px; width: 100%; max-width: 700px; }
+        @media (min-width: 640px) { #choice-buttons { grid-template-columns: repeat(2, 1fr); } }
+        .choice-btn { background-color: var(--bg-container); border: 2px solid var(--border-color); color: var(--text-light); padding: 1em; font-size: 1.5em; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; }
+        .choice-btn:hover { border-color: var(--primary-color); }
+        .question-timer-container { width: 100%; max-width: 800px; height: 10px; background-color: var(--bg-container); border: 1px solid var(--border-color); border-radius: 5px; margin-top: 1.5em; margin-bottom: 1.5em; overflow: hidden; }
+        .question-timer-bar { width: 100%; height: 100%; background-color: var(--accent-cyan); border-radius: 5px; transition: width 0.1s linear; }
+        #feedback-display { font-size: 1.8em; font-weight: bold; transition: opacity 0.3s ease; min-height: 50px; display: flex; align-items: center; justify-content: center; }
+        .feedback-correct { color: var(--correct-color); }
+        .feedback-incorrect { color: var(--incorrect-color); }
+        .zone.flash-correct, .choice-btn.flash-correct { animation: flash-correct 0.5s ease; }
+        .zone.flash-incorrect, .choice-btn.flash-incorrect { animation: flash-incorrect 0.5s ease; }
+        @keyframes flash-correct { 50% { background-color: var(--correct-color); color: var(--bg-main); border-color: #fff; transform: scale(1.02); } }
+        @keyframes flash-incorrect { 50% { background-color: var(--incorrect-color); color: var(--bg-main); border-color: #fff; transform: scale(1.02); } }
+        button { background-color: var(--primary-color); color: white; border: none; padding: 0.75em 1.5em; font-size: 1.1em; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s ease; margin: 5px; }
+        button:hover { background-color: var(--primary-dark); transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        h1 { font-size: 2.5em; margin-bottom: 0.2em; color: var(--text-light); }
+        #error-list { list-style-type: none; padding: 0; max-height: 200px; overflow-y: auto; width: 90%; background-color: rgba(0,0,0,0.2); border-radius: 8px; }
+        #error-list li { padding: 12px; margin: 8px; border-radius: 5px; border-left: 4px solid var(--incorrect-color); background-color: var(--bg-container); }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+
+    <!-- Navigation -->
+    <nav class="p-4 bg-gray-800 shadow-lg">
+        <div class="w-full max-w-6xl mx-auto flex justify-center items-center gap-4">
+            <button id="learn-nav-btn" class="nav-button active bg-gray-700 text-gray-200 border-2 border-gray-600 font-bold py-2 px-6 rounded-lg">Learn Mode</button>
+            <button id="test-nav-btn" class="nav-button bg-gray-700 text-gray-200 border-2 border-gray-600 font-bold py-2 px-6 rounded-lg">Test Mode</button>
+        </div>
+    </nav>
+
+    <!-- Learning Mode Container -->
+    <div id="learning-mode" class="mode-container active">
+         <div class="w-full max-w-6xl mx-auto bg-gray-800 rounded-none sm:rounded-2xl shadow-lg my-0 sm:my-4 p-4">
+            <div class="mb-4">
+                <div class="progress-bar-bg w-full rounded-full h-2.5"><div id="frayer-progressBar" class="progress-bar-fill h-2.5 rounded-full" style="width: 0%"></div></div>
+                <p id="frayer-progressText" class="text-center text-sm text-gray-400 mt-2">Word 1 / 40</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="frayer-box rounded-xl p-4"><h2 class="frayer-label text-base pb-2 mb-2">Definition</h2><textarea id="definitionText" class="p-2"></textarea></div>
+                <div class="frayer-box rounded-xl p-4"><h2 class="frayer-label text-base pb-2 mb-2">Characteristics / Facts</h2><textarea id="characteristicsText" class="p-2"></textarea></div>
+                <div class="md:col-span-2 order-first md:order-none p-2 flex flex-col items-center justify-center gap-4">
+                     <div id="centralConcept" class="central-concept w-full max-w-2xl rounded-lg flex flex-col items-center justify-center text-center p-3">
+                        <h2 id="engWord" class="text-3xl sm:text-4xl font-bold text-white">CONCEPT</h2>
+                        <p id="chiPin" class="text-base sm:text-lg text-gray-300 mt-1">pīnyīn | 汉字</p>
+                    </div>
+                    <div id="sentenceContainer" class="w-full max-w-2xl text-center bg-gray-900 p-3 rounded-lg">
+                        <p class="text-gray-500 text-xs sm:text-sm">Example Sentence:</p>
+                        <p id="sentence" class="text-white font-medium text-base">"This is an example sentence for the word."</p>
+                    </div>
+                </div>
+                <div class="frayer-box rounded-xl p-4"><h2 class="frayer-label text-base pb-2 mb-2">Examples</h2><textarea id="examplesText" class="p-2"></textarea></div>
+                <div class="frayer-box rounded-xl p-4"><h2 class="frayer-label text-base pb-2 mb-2">Non-Examples</h2><textarea id="nonExamplesText" class="p-2"></textarea></div>
+            </div>
+            <div class="mt-6 flex justify-center items-center gap-4">
+                 <button id="prevWordBtn" class="bg-gray-600 hover:bg-gray-700">Previous Word</button>
+                 <button id="nextWordBtn" class="bg-indigo-600 hover:bg-indigo-700">Next Word</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Testing Mode Container -->
+    <div id="testing-mode" class="mode-container">
+        <div id="game-container" class="w-full max-w-4xl mx-auto p-4">
+             <div id="hud" style="display: none;">
+                <div class="hud-item">Progress: <span id="progress-display">1/40</span></div>
+                <div class="hud-item">Score: <span id="score">0</span></div>
+                <div class="hud-item">Time: <span id="timer">10:00</span></div>
+            </div>
+
+            <div id="start-screen" class="screen active">
+                <h1>Chinese Vocab Games</h1>
+                <p class="text-gray-400 max-w-lg my-4">Choose a game mode to test your Chinese vocabulary skills.</p>
+                <div id="game-mode-selection" class="flex gap-4 my-4">
+                    <button class="mode-btn nav-button active" data-mode="match">Vocab Match</button>
+                    <button class="mode-btn nav-button" data-mode="fill">Sentence Fill</button>
+                </div>
+                <button id="start-game-btn">Start Game</button>
+            </div>
+
+            <div id="game-screen" class="screen">
+                <div id="match-game-ui" class="w-full flex flex-col items-center gap-4">
+                    <div id="word-bank"></div>
+                    <div class="question-timer-container"><div class="question-timer-bar"></div></div>
+                    <div class="drop-zones"></div>
+                </div>
+                <div id="sentence-game-ui" class="w-full flex flex-col items-center gap-4">
+                    <div id="sentence-container-game"></div>
+                    <div id="chi-hint-container"></div>
+                    <div class="question-timer-container"><div class="question-timer-bar"></div></div>
+                    <div id="choice-buttons"></div>
+                </div>
+                <div id="feedback-display"></div>
+            </div>
+
+            <div id="end-screen" class="screen">
+                <h1 id="end-screen-title">Game Over!</h1>
+                <h2 id="final-score-heading" class="text-2xl mt-4">Final Score</h2>
+                <h2 id="final-score" class="text-5xl font-bold my-2">0</h2>
+                <h3 class="text-xl mt-6 mb-2">Words to Review:</h3>
+                <ul id="error-list"></ul>
+                <div class="mt-6">
+                    <button id="play-again-btn">Play Again</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const vocabularyList = [
+            { eng: "character", sentence: "He is a man of strong character.", chi: "性格", pin: "xìnggé" }, { eng: "insect", sentence: "A ladybug is a type of insect.", chi: "昆虫", pin: "kūnchóng" }, { eng: "part", sentence: "This is only part of the story.", chi: "部分", pin: "bùfen" }, { eng: "bear", sentence: "The old bridge could not bear the weight of the truck.", chi: "承受", pin: "chéngshòu" }, { eng: "angle", sentence: "A square has four right angles.", chi: "角度", pin: "jiǎodù" }, { eng: "outgoing", sentence: "She has an outgoing and friendly personality.", chi: "外向的", pin: "wàixiàng de" }, { eng: "give", sentence: "Can you give me some advice?", chi: "给", pin: "gěi" }, { eng: "wander", sentence: "They decided to wander through the old town.", chi: "漫步", pin: "mànbù" }, { eng: "idea", sentence: "That's a brilliant idea for a new project!", chi: "主意", pin: "zhǔyi" }, { eng: "sort", sentence: "Please sort these papers by date.", chi: "分类", pin: "fēnlèi" }, { eng: "call", sentence: "I will call you later tonight.", chi: "打电话", pin: "dǎ diànhuà" }, { eng: "how", sentence: "How are you feeling today?", chi: "怎样", pin: "zěnyàng" }, { eng: "early", sentence: "He wakes up early every morning.", chi: "早", pin: "zǎo" }, { eng: "independent", sentence: "She is a very independent young woman.", chi: "独立的", pin: "dúlì de" }, { eng: "dismiss", sentence: "The teacher will dismiss the class at 3 PM.", chi: "解散", pin: "jiěsàn" }, { eng: "content", sentence: "He was content with his simple life.", chi: "满足的", pin: "mǎnzú de" }, { eng: "permit", sentence: "Do you have a permit to park here?", chi: "许可证", pin: "xǔkězhèng" }, { eng: "court", sentence: "The case will be heard in court next week.", chi: "法庭", pin: "fǎtíng" }, { eng: "youth", sentence: "He spent his youth traveling the world.", chi: "青年时代", pin: "qīngnián shídài" }, { eng: "possession", sentence: "The old watch was his most prized possession.", chi: "拥有物", pin: "yōngyǒuwù" }, { eng: "arrive", sentence: "What time does the train arrive?", chi: "到达", pin: "dàodá" }, { eng: "unless", sentence: "We will go for a picnic unless it rains.", chi: "除非", pin: "chúfēi" }, { eng: "risk", sentence: "There is always a risk when investing in the stock market.", chi: "风险", pin: "fēngxiǎn" }, { eng: "harvest", sentence: "The farmers are busy with the autumn harvest.", chi: "收获", pin: "shōuhuò" }, { eng: "mental", sentence: "Good mental health is as important as physical health.", chi: "精神的", pin: "jīngshén de" }, { eng: "electric", sentence: "He bought a new electric guitar.", chi: "电的", pin: "diàn de" }, { eng: "fall", sentence: "Be careful not to fall on the slippery floor.", chi: "跌倒", pin: "diēdǎo" }, { eng: "hand", sentence: "She held the flower in her hand.", chi: "手", pin: "shǒu" }, { eng: "relief", sentence: "It was a great relief to finally finish the exam.", chi: "宽慰", pin: "kuānwèi" }, { eng: "figure", sentence: "The sales figures for this quarter are very good.", chi: "数字", pin: "shùzì" }, { eng: "extra", sentence: "Do you have any extra blankets?", chi: "额外的", pin: "éwài de" }, { eng: "clear", sentence: "The water in the lake was crystal clear.", chi: "清晰的", pin: "qīngxī de" }, { eng: "luggage", sentence: "Please put your luggage in the overhead compartment.", chi: "行李", pin: "xíngli" }, { eng: "govern", sentence: "The elected officials will govern the country.", chi: "统治", pin: "tǒngzhì" }, { eng: "lovely", sentence: "What a lovely day for a walk in the park!", chi: "可爱的", pin: "kě'ài de" }, { eng: "familiar", sentence: "His face looked familiar, but I couldn't remember his name.", chi: "熟悉的", pin: "shúxī de" }, { eng: "somewhere", sentence: "I left my keys somewhere in the house.", chi: "某个地方", pin: "mǒu gè dìfang" }, { eng: "forgive", sentence: "It's important to forgive others for their mistakes.", chi: "原谅", pin: "yuánliàng" }, { eng: "corporation", sentence: "He works for a large multinational corporation.", chi: "公司", pin: "gōngsī" }, { eng: "back", sentence: "Please come back soon.", chi: "回来", pin: "huílái" }
+        ];
+        const frayerData = [
+            { definition: "The combination of qualities or features that distinguishes one person from another; moral or ethical strength.", characteristics: ["- A noun", "- Relates to personality and morality", "- Can be developed over time"], examples: ["- Honesty", "- Integrity", "- Courage"], non_examples: ["- A temporary mood", "- Physical appearance", "- A single action"] }, { definition: "A small animal with six legs, a body divided into three parts (head, thorax, and abdomen), and often wings.", characteristics: ["- A noun", "- Has an exoskeleton", "- Belongs to the arthropod phylum"], examples: ["- Ant", "- Beetle", "- Butterfly"], non_examples: ["- Spider (has eight legs)", "- Worm (no legs)", "- Scorpion"] }, { definition: "A piece or a portion of something; not the whole.", characteristics: ["- A noun", "- Can be a physical section or an abstract concept", "- Implies a larger whole exists"], examples: ["- A slice of cake", "- A chapter of a book", "- Your role in a team project"], non_examples: ["- The entire cake", "- The complete story", "- The whole team"] }, { definition: "(Verb) To support, endure, or carry the weight of something.", characteristics: ["- A verb (in this context)", "- Implies supporting a physical or emotional load", "- Can refer to tolerance or endurance"], examples: ["- The pillars bear the roof's weight.", "- She has to bear the responsibility.", "- He couldn't bear the sad news."], non_examples: ["- To push something away", "- To drop something", "- The animal 'bear' (noun)"] }, { definition: "The space (usually measured in degrees) between two intersecting lines or surfaces at or close to the point where they meet.", characteristics: ["- A noun", "- A concept in geometry", "- Measured with a protractor"], examples: ["- A right angle (90°)", "- An acute angle (<90°)", "- A corner of a room"], non_examples: ["- A straight line", "- A circle", "- The length of a side"] }, { definition: "(Adjective) Friendly, sociable, and interested in other people and new experiences.", characteristics: ["- An adjective", "- Describes a personality trait", "- Associated with extroversion"], examples: ["- A person who loves parties", "- Someone who makes new friends easily", "- A talkative and energetic individual"], non_examples: ["- Shy", "- Introverted", "- Quiet and reserved"] }, { definition: "(Verb) To freely transfer the possession of something to someone.", characteristics: ["- A verb", "- Involves a transfer from one entity to another", "- Can be a physical object or an abstract idea"], examples: ["- Give a gift", "- Give your opinion", "- Give a helping hand"], non_examples: ["- To take something", "- To keep something", "- To sell something"] }, { definition: "(Verb) To walk or move in a leisurely or aimless way.", characteristics: ["- A verb", "- Describes a type of movement", "- Implies no specific destination or hurry"], examples: ["- Wandering through a forest", "- Strolling aimlessly in a park", "- Meandering through city streets"], non_examples: ["- Running a race", "- Marching in a parade", "- Commuting to work"] }, { definition: "A thought, plan, or suggestion about what to do.", characteristics: ["- A noun", "- An abstract concept", "- The product of thinking"], examples: ["- An idea for a new invention", "- A business idea", "- The idea of democracy"], non_examples: ["- A physical object", "- An action", "- A feeling"] }, { definition: "(Verb) To arrange a group of things in a particular order or into particular groups.", characteristics: ["- A verb", "- Involves organization", "- Based on shared characteristics"], examples: ["- Sorting laundry by color", "- Sorting files alphabetically", "- Sorting recyclables"], non_examples: ["- Mixing things together", "- Piling everything in one heap", "- Ignoring the items"] }, { definition: "(Verb) To contact someone using a telephone.", characteristics: ["- A verb phrase", "- Involves communication technology", "- Used to speak with someone at a distance"], examples: ["- Calling a friend", "- Calling for a pizza delivery", "- Making a business call"], non_examples: ["- Writing a letter", "- Sending an email", "- Talking to someone face-to-face"] }, { definition: "(Adverb/Interrogative) In what way or manner; by what means.", characteristics: ["- An adverb", "- Used to ask questions about method or condition", "- Can also be an exclamation"], examples: ["- How do you solve this puzzle?", "- How does this machine work?", "- How beautiful! "], non_examples: ["- Who (asks about a person)", "- What (asks about a thing)", "- Where (asks about a place)"] }, { definition: "(Adjective/Adverb) Happening or done before the usual or expected time.", characteristics: ["- Can be an adjective or adverb", "- Relates to time", "- The opposite of 'late'"], examples: ["- An early morning", "- Arriving early for an appointment", "- The early bird gets the worm."], non_examples: ["- Late", "- Tardy", "- On time"] }, { definition: "(Adjective) Free from the control, influence, support, or aid of others; self-reliant.", characteristics: ["- An adjective", "- Describes a state of being", "- Implies self-sufficiency"], examples: ["- An independent country", "- A financially independent person", "- An independent thinker"], non_examples: ["- Dependent", "- Reliant", "- Controlled"] }, { definition: "(Verb) To officially allow or cause someone to leave a place or job.", characteristics: ["- A verb", "- Involves an authority figure ending a gathering or employment", "- Can also mean to reject an idea"], examples: ["- The principal dismissed the students.", "- The company dismissed the employee.", "- She dismissed his idea as silly."], non_examples: ["- To hire someone", "- To assemble a group", "- To accept an idea"] }, { definition: "(Adjective) Satisfied and happy with one's situation in life.", characteristics: ["- An adjective", "- Describes a feeling of satisfaction", "- Not wanting more than what one has"], examples: ["- Being content with a small house", "- Feeling content after a good meal", "- A content smile"], non_examples: ["- Ambitious", "- Greedy", "- Dissatisfied"] }, { definition: "(Noun) An official document giving someone authorization to do something.", characteristics: ["- A noun", "- A form of official permission", "- Often a physical or digital document"], examples: ["- A driver's permit (license)", "- A building permit", "- A parking permit"], non_examples: ["- A request", "- A suggestion", "- A verbal agreement"] }, { definition: "(Noun) A place where legal cases are heard and decided; a body of people presided over by a judge.", characteristics: ["- A noun", "- Part of the judicial system", "- Involves judges, lawyers, and trials"], examples: ["- Supreme Court", "- Traffic court", "- A courtroom"], non_examples: ["- A police station", "- A parliament", "- A market"] }, { definition: "(Noun) The period between childhood and adult age.", characteristics: ["- A noun", "- A stage of life", "- Associated with energy, growth, and inexperience"], examples: ["- Teenagers and young adults", "- University years", "- A time of rebellion and discovery"], non_examples: ["- Infancy", "- Middle age", "- Old age"] }, { definition: "(Noun) A thing that belongs to someone; property.", characteristics: ["- A noun", "- Relates to ownership", "- Can be valuable or sentimental"], examples: ["- A car", "- A house", "- A favorite book"], non_examples: ["- A borrowed item", "- A public park", "- A thought"] }, { definition: "(Verb) To reach a place at the end of a journey.", characteristics: ["- A verb", "- Marks the end of travel", "- The opposite of 'depart' or 'leave'"], examples: ["- The plane arrives at the airport.", "- Guests arrive at a party.", "- A package arrives in the mail."], non_examples: ["- To depart", "- To leave", "- To be in transit"] }, { definition: "(Conjunction) Used to say that something will happen only if a particular thing does not happen.", characteristics: ["- A conjunction", "- Introduces a condition", "- Means 'except if'"], examples: ["- I won't go unless you come with me.", "- The plant will die unless you water it.", "- You can't enter unless you have a ticket."], non_examples: ["- Because (gives a reason)", "- And (joins two things)", "- Therefore (shows a result)"] }, { definition: "(Noun) A situation involving exposure to danger, harm, or loss.", characteristics: ["- A noun", "- Involves uncertainty and potential negative outcomes", "- Can be calculated or avoided"], examples: ["- Financial risk", "- Health risk", "- The risk of an accident"], non_examples: ["- Certainty", "- Safety", "- A guarantee"] }, { definition: "(Noun/Verb) The process or period of gathering in crops.", characteristics: ["- Can be a noun or a verb", "- Related to farming and agriculture", "- Typically happens in autumn"], examples: ["- The corn harvest", "- To harvest apples", "- A bountiful harvest"], non_examples: ["- Planting seeds", "- Plowing a field", "- A drought"] }, { definition: "(Adjective) Relating to the mind.", characteristics: ["- An adjective", "- The opposite of 'physical'", "- Relates to thoughts, feelings, and intellect"], examples: ["- Mental health", "- Mental arithmetic", "- A mental image"], non_examples: ["- Physical strength", "- A broken bone", "- A tangible object"] }, { definition: "(Adjective) Relating to, derived from, produced by, or involving electricity.", characteristics: ["- An adjective", "- Associated with power and energy", "- Describes devices that use electricity"], examples: ["- An electric car", "- An electric shock", "- An electric light"], non_examples: ["- A gas stove", "- A candle", "- A manual screwdriver"] }, { definition: "(Verb) To move downward, typically rapidly and freely without control, from a higher to a lower level.", characteristics: ["- A verb", "- Involves gravity", "- Can be accidental"], examples: ["- Leaves fall from the trees.", "- To fall down the stairs.", "- Prices can fall."], non_examples: ["- To rise", "- To climb", "- To float"] }, { definition: "(Noun) The part of a person's body at the end of the arm, including the fingers and thumb.", characteristics: ["- A noun", "- Used for touching, holding, and gripping", "- Humans have two of them"], examples: ["- Shaking hands", "- A helping hand", "- Writing with your hand"], non_examples: ["- A foot", "- An elbow", "- A wing"] }, { definition: "(Noun) A feeling of reassurance and relaxation following release from anxiety or distress.", characteristics: ["- A noun", "- An emotional state", "- Occurs after a problem is solved or a danger passes"], examples: ["- A sigh of relief", "- It was a relief to find my lost keys.", "- Pain relief medication"], non_examples: ["- Stress", "- Anxiety", "- Worry"] }, { definition: "(Noun) A number, especially one that forms part of official data or statistics.", characteristics: ["- A noun (in this context)", "- Represents a quantity", "- Used in math, science, and business"], examples: ["- Sales figures", "- Unemployment figures", "- The figure '5'"], non_examples: ["- A letter", "- A word", "- An opinion"] }, { definition: "(Adjective) Added to an existing or usual amount or number; more than is needed.", characteristics: ["- An adjective", "- Means 'additional' or 'spare'", "- Implies a surplus"], examples: ["- Extra credit on a test", "- An extra pair of socks", "- Paying extra for better seats"], non_examples: ["- Necessary", "- Essential", "- Insufficient"] }, { definition: "(Adjective) Easy to perceive, understand, or interpret; transparent or unclouded.", characteristics: ["- An adjective", "- Can describe something visual, auditory, or conceptual", "- The opposite of 'confusing' or 'muddy'"], examples: ["- Clear instructions", "- Clear water", "- A clear sky"], non_examples: ["- Vague", "- Ambiguous", "- Opaque"] }, { definition: "(Noun) Suitcases or other bags in which to pack personal belongings for traveling.", characteristics: ["- A noun", "- An uncountable noun", "- Used for carrying items during a trip"], examples: ["- A suitcase", "- A backpack", "- A trunk"], non_examples: ["- The clothes inside the bag", "- A wallet", "- Furniture"] }, { definition: "(Verb) To rule or control a country, state, or organization by authority.", characteristics: ["- A verb", "- Involves leadership and administration", "- Done by a government or ruling body"], examples: ["- A president governs a nation.", "- A committee governs a club.", "- To govern wisely"], non_examples: ["- To obey", "- To follow", "- To protest"] }, { definition: "(Adjective) Beautiful or attractive; highly pleasing.", characteristics: ["- An adjective", "- Expresses positive aesthetic judgment", "- A synonym for 'beautiful' or 'charming'"], examples: ["- A lovely flower", "- A lovely song", "- A lovely person"], non_examples: ["- Ugly", "- Unpleasant", "- Horrible"] }, { definition: "(Adjective) Well known from long or close association.", characteristics: ["- An adjective", "- Describes something or someone you recognize", "- Implies prior experience"], examples: ["- A familiar face in a crowd", "- A familiar song on the radio", "- Being familiar with a topic"], non_examples: ["- Strange", "- Unknown", "- Unfamiliar"] }, { definition: "(Adverb) In, at, or to some place not specified or known.", characteristics: ["- An adverb", "- Refers to an indefinite location", "- The opposite of 'nowhere'"], examples: ["- My keys must be somewhere in this room.", "- Let's go somewhere warm for vacation.", "- He lives somewhere in France."], non_examples: ["- Here", "- There", "- At a specific address"] }, { definition: "(Verb) To stop feeling angry or resentful towards someone for an offense, flaw, or mistake.", characteristics: ["- A verb", "- An emotional and mental action", "- Involves letting go of a grudge"], examples: ["- To forgive a debt", "- To forgive someone for being late", "- Asking for forgiveness"], non_examples: ["- To blame", "- To resent", "- To seek revenge"] }, { definition: "(Noun) A large company or group of companies authorized to act as a single entity and recognized as such in law.", characteristics: ["- A noun", "- A legal business structure", "- Often large and multinational"], examples: ["- Microsoft Corporation", "- The Coca-Cola Company", "- A multinational corporation"], non_examples: ["- A small family-owned shop", "- A government agency", "- A non-profit organization"] }, { definition: "(Adverb/Verb) To or toward the rear; in, into, or to a previous place, state, or time.", characteristics: ["- Can be an adverb, adjective, noun, or verb", "- Relates to direction or returning", "- The opposite of 'forward'"], examples: ["- Go back home.", "- Look back at your memories.", "- Give the book back."], non_examples: ["- Forward", "- Onward", "- To keep something"] }
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- SHARED VARIABLES ---
+            const TOTAL_QUESTIONS_PER_GAME = vocabularyList.length;
+            const praisePhrases = ["Excellent!", "Great job!", "Awesome!", "Well done!", "Perfect!", "You got it!"];
+
+            // --- MODE SWITCHING ---
+            const learnNavBtn = document.getElementById('learn-nav-btn');
+            const testNavBtn = document.getElementById('test-nav-btn');
+            const learningMode = document.getElementById('learning-mode');
+            const testingMode = document.getElementById('testing-mode');
+
+            learnNavBtn.addEventListener('click', () => {
+                testingMode.classList.remove('active');
+                learningMode.classList.add('active');
+                testNavBtn.classList.remove('active');
+                learnNavBtn.classList.add('active');
+            });
+
+            testNavBtn.addEventListener('click', () => {
+                learningMode.classList.remove('active');
+                testingMode.classList.add('active');
+                learnNavBtn.classList.remove('active');
+                testNavBtn.classList.add('active');
+            });
+
+            // --- LEARNING MODE (FRAYER) ---
+            let frayerCurrentWordIndex = 0;
+            const frayerEngWordEl = document.getElementById('engWord');
+            const frayerChiPinEl = document.getElementById('chiPin');
+            const frayerSentenceEl = document.getElementById('sentence');
+            const frayerNextWordBtn = document.getElementById('nextWordBtn');
+            const frayerPrevWordBtn = document.getElementById('prevWordBtn');
+            const frayerDefinitionText = document.getElementById('definitionText');
+            const frayerCharacteristicsText = document.getElementById('characteristicsText');
+            const frayerExamplesText = document.getElementById('examplesText');
+            const frayerNonExamplesText = document.getElementById('nonExamplesText');
+            const frayerTextareas = [frayerDefinitionText, frayerCharacteristicsText, frayerExamplesText, frayerNonExamplesText];
+            const frayerProgressBar = document.getElementById('frayer-progressBar');
+            const frayerProgressText = document.getElementById('frayer-progressText');
+
+            function adjustTextareaHeight(element) {
+                element.style.height = 'auto';
+                element.style.height = (element.scrollHeight) + 'px';
+            }
+
+            function displayFrayerWord(index) {
+                const word = vocabularyList[index];
+                frayerEngWordEl.textContent = word.eng;
+                frayerChiPinEl.textContent = `${word.pin} | ${word.chi}`;
+                frayerSentenceEl.textContent = `"${word.sentence}"`;
+                const data = frayerData[index];
+                if (data) {
+                    frayerDefinitionText.value = data.definition;
+                    frayerCharacteristicsText.value = data.characteristics.join('\n');
+                    frayerExamplesText.value = data.examples.join('\n');
+                    frayerNonExamplesText.value = data.non_examples.join('\n');
+                } else {
+                    frayerTextareas.forEach(textarea => textarea.value = '');
+                }
+                frayerTextareas.forEach(adjustTextareaHeight);
+                const progressPercentage = ((index + 1) / TOTAL_QUESTIONS_PER_GAME) * 100;
+                frayerProgressBar.style.width = `${progressPercentage}%`;
+                frayerProgressText.textContent = `Word ${index + 1} / ${TOTAL_QUESTIONS_PER_GAME}`;
+            }
+
+            frayerNextWordBtn.addEventListener('click', () => {
+                frayerCurrentWordIndex = (frayerCurrentWordIndex + 1) % TOTAL_QUESTIONS_PER_GAME;
+                displayFrayerWord(frayerCurrentWordIndex);
+            });
+
+            frayerPrevWordBtn.addEventListener('click', () => {
+                frayerCurrentWordIndex = (frayerCurrentWordIndex - 1 + TOTAL_QUESTIONS_PER_GAME) % TOTAL_QUESTIONS_PER_GAME;
+                displayFrayerWord(frayerCurrentWordIndex);
+            });
+            
+            window.addEventListener('resize', () => frayerTextareas.forEach(adjustTextareaHeight));
+            displayFrayerWord(frayerCurrentWordIndex);
+
+
+            // --- TESTING MODE (GAME) ---
+            let currentQuestionIndex = 0;
+            let score = 0;
+            let gameTimerInterval;
+            let questionTimerInterval;
+            let incorrectAnswers = [];
+            let currentGamemode = 'match';
+            let shuffledVocab = [];
+            let audio = {};
+
+            const hud = document.getElementById('hud');
+            const screens = {
+                start: document.getElementById('start-screen'),
+                game: document.getElementById('game-screen'),
+                end: document.getElementById('end-screen'),
+            };
+            const gameUIs = {
+                match: document.getElementById('match-game-ui'),
+                fill: document.getElementById('sentence-game-ui'),
+            };
+
+            const startGameBtn = document.getElementById('start-game-btn');
+            const playAgainBtn = document.getElementById('play-again-btn');
+            const modeButtons = document.querySelectorAll('.mode-btn');
+            const progressDisplay = document.getElementById('progress-display');
+            const scoreDisplay = document.getElementById('score');
+            const timerDisplay = document.getElementById('timer');
+            const feedbackDisplay = document.getElementById('feedback-display');
+            const finalScoreDisplay = document.getElementById('final-score');
+            const errorList = document.getElementById('error-list');
+
+            // Vocab Match elements
+            const wordBank = document.getElementById('word-bank');
+            const dropZonesContainer = document.querySelector('.drop-zones');
+            
+            // Sentence Fill elements
+            const sentenceContainerGame = document.getElementById('sentence-container-game');
+            const choiceButtonsContainer = document.getElementById('choice-buttons');
+            const chiHintContainer = document.getElementById('chi-hint-container');
+            
+            // --- Audio Init ---
+            function initAudio() {
+                if (typeof Tone !== 'undefined') {
+                    audio.synth = new Tone.Synth().toDestination();
+                    audio.correctSound = () => audio.synth.triggerAttackRelease("C5", "8n", Tone.now());
+                    audio.incorrectSound = () => audio.synth.triggerAttackRelease("C3", "8n", Tone.now());
+                }
+            }
+            initAudio();
+
+
+            // --- Game Flow ---
+            function switchScreen(screenName) {
+                Object.values(screens).forEach(s => s.classList.remove('active'));
+                screens[screenName].classList.add('active');
+            }
+            
+            async function startGame() {
+                if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+                    await Tone.start();
+                }
+                currentQuestionIndex = 0;
+                score = 0;
+                incorrectAnswers = [];
+                shuffledVocab = [...vocabularyList].sort(() => 0.5 - Math.random());
+                updateHUD();
+                hud.style.display = 'flex';
+                switchScreen('game');
+                setupQuestion();
+                startTimers();
+            }
+
+            function endGame() {
+                clearInterval(gameTimerInterval);
+                clearInterval(questionTimerInterval);
+                hud.style.display = 'none';
+                finalScoreDisplay.textContent = score;
+                errorList.innerHTML = incorrectAnswers.map(word => `<li><b>${word.eng}</b> <span class="translation">- ${word.chi} (${word.pin})</span></li>`).join('');
+                switchScreen('end');
+            }
+
+            // --- Question Setup ---
+            function setupQuestion() {
+                if (currentQuestionIndex >= TOTAL_QUESTIONS_PER_GAME) {
+                    endGame();
+                    return;
+                }
+                updateHUD();
+                feedbackDisplay.textContent = '';
+                Object.values(gameUIs).forEach(ui => ui.style.display = 'none');
+                gameUIs[currentGamemode].style.display = 'flex';
+
+                if (currentGamemode === 'match') setupMatchQuestion();
+                else setupFillQuestion();
+                
+                startQuestionTimer();
+            }
+
+            function nextQuestion() {
+                currentQuestionIndex++;
+                setTimeout(setupQuestion, 1500); // Increased delay to read feedback
+            }
+
+            // --- Timers ---
+            function startTimers() {
+                clearInterval(gameTimerInterval);
+                let timeLeft = 600; // 10 minutes
+                timerDisplay.textContent = `10:00`;
+                gameTimerInterval = setInterval(() => {
+                    timeLeft--;
+                    const minutes = Math.floor(timeLeft / 60);
+                    const seconds = timeLeft % 60;
+                    timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                    if (timeLeft <= 0) endGame();
+                }, 1000);
+            }
+            
+            function startQuestionTimer() {
+                clearInterval(questionTimerInterval);
+                let duration = 20; // 20 seconds per question
+                const activeUI = gameUIs[currentGamemode];
+                const bar = activeUI.querySelector('.question-timer-bar');
+                if (!bar) return;
+
+                bar.style.transition = 'none';
+                bar.style.width = '100%';
+                
+                setTimeout(() => {
+                    bar.style.transition = `width ${duration}s linear`;
+                    bar.style.width = '0%';
+                }, 100);
+
+                questionTimerInterval = setTimeout(() => handleAnswer(false, null, true), duration * 1000);
+            }
+
+            // --- HUD ---
+            function updateHUD() {
+                progressDisplay.textContent = `${currentQuestionIndex + 1}/${TOTAL_QUESTIONS_PER_GAME}`;
+                scoreDisplay.textContent = score;
+            }
+
+            // --- Answer Handling ---
+            function handleAnswer(isCorrect, element = null, timedOut = false) {
+                clearInterval(questionTimerInterval);
+                if (isCorrect) {
+                    score += 10;
+                    const randomPraise = praisePhrases[Math.floor(Math.random() * praisePhrases.length)];
+                    feedbackDisplay.textContent = randomPraise;
+                    feedbackDisplay.className = 'feedback-correct';
+                    audio.correctSound?.();
+                    if (element) {
+                        element.classList.add('flash-correct');
+                        setTimeout(() => element.classList.remove('flash-correct'), 500);
+                    }
+                } else {
+                    feedbackDisplay.textContent = timedOut ? 'Time is up!' : 'Incorrect!';
+                    feedbackDisplay.className = 'feedback-incorrect';
+                    audio.incorrectSound?.();
+                    const correctWord = shuffledVocab[currentQuestionIndex];
+                    if (!incorrectAnswers.some(w => w.eng === correctWord.eng)) {
+                        incorrectAnswers.push(correctWord);
+                    }
+                     if (element) {
+                        element.classList.add('flash-incorrect');
+                        setTimeout(() => element.classList.remove('flash-incorrect'), 500);
+                    }
+                }
+                updateHUD();
+                nextQuestion();
+            }
+
+            // --- Vocab Match Logic ---
+            function setupMatchQuestion() {
+                const currentWord = shuffledVocab[currentQuestionIndex];
+                wordBank.innerHTML = `<div class="word" draggable="true">${currentWord.eng}</div>`;
+                
+                let options = [currentWord.chi];
+                const incorrectOptions = shuffledVocab
+                    .filter(w => w.eng !== currentWord.eng)
+                    .sort(() => 0.5 - Math.random())
+                    .slice(0, 3)
+                    .map(w => w.chi);
+                options.push(...incorrectOptions);
+                
+                const shuffledOptions = options.sort(() => 0.5 - Math.random());
+
+                dropZonesContainer.innerHTML = shuffledOptions.map(opt => `<div class="zone" data-value="${opt}">${opt}</div>`).join('');
+                addDragDropListeners();
+            }
+
+            function addDragDropListeners() {
+                const wordEl = document.querySelector('.word');
+                const zones = document.querySelectorAll('.zone');
+                if (!wordEl) return;
+
+                wordEl.addEventListener('dragstart', () => wordEl.classList.add('dragging'));
+                wordEl.addEventListener('dragend', () => wordEl.classList.remove('dragging'));
+
+                zones.forEach(zone => {
+                    zone.addEventListener('dragover', e => {
+                        e.preventDefault();
+                        zone.classList.add('drag-over');
+                    });
+                    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+                    zone.addEventListener('drop', e => {
+                        e.preventDefault();
+                        zone.classList.remove('drag-over');
+                        const droppedValue = zone.dataset.value;
+                        const correctWord = shuffledVocab[currentQuestionIndex];
+                        const isCorrect = droppedValue === correctWord.chi;
+                        handleAnswer(isCorrect, zone);
+                    });
+                });
+            }
+
+            // --- Sentence Fill Logic ---
+            function setupFillQuestion() {
+                const currentWord = shuffledVocab[currentQuestionIndex];
+                sentenceContainerGame.innerHTML = currentWord.sentence.replace(new RegExp(`\\b${currentWord.eng}\\b`, 'gi'), '<span class="blank">_______</span>');
+                chiHintContainer.textContent = `Hint: ${currentWord.chi}`;
+
+                let choices = [currentWord.eng];
+                const incorrectChoices = shuffledVocab
+                    .filter(w => w.eng !== currentWord.eng)
+                    .sort(() => 0.5 - Math.random())
+                    .slice(0, 3)
+                    .map(w => w.eng);
+                choices.push(...incorrectChoices);
+                
+                const shuffledChoices = choices.sort(() => 0.5 - Math.random());
+                choiceButtonsContainer.innerHTML = shuffledChoices.map(choice => `<button class="choice-btn" data-value="${choice}">${choice}</button>`).join('');
+
+                document.querySelectorAll('.choice-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const isCorrect = e.target.dataset.value === currentWord.eng;
+                        handleAnswer(isCorrect, e.target);
+                    });
+                });
+            }
+
+            // --- Event Listeners ---
+            startGameBtn.addEventListener('click', startGame);
+            playAgainBtn.addEventListener('click', () => switchScreen('start'));
+            modeButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    modeButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentGamemode = btn.dataset.mode;
+                });
+            });
+        });
+    </script>
+</body>
+</html>

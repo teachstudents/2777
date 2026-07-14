@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geography Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);
+            overflow: hidden; /* Hide scrollbars */
+            animation: background-pan 20s linear infinite alternate;
+        }
+
+        @keyframes background-pan {
+            0% { background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%); }
+            25% { background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%); }
+            50% { background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%); }
+            75% { background: linear-gradient(135deg, #a8e063 0%, #56ab2f 100%); }
+            100% { background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%); }
+        }
+
+        /* --- 3D Button Styling --- */
+        .btn-3d {
+            position: relative;
+            border: none;
+            background-color: #ffffff;
+            color: #1f2937; /* Gray-800 */
+            padding: 1.2rem 1.8rem;
+            border-radius: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            will-change: transform;
+            box-shadow: 0 6px 0 #9ca3af; /* Gray-400 for depth */
+        }
+        
+        .btn-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 0 #9ca3af;
+        }
+
+        .btn-3d:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #9ca3af;
+        }
+
+        /* --- Animation for correct/incorrect answers --- */
+        .btn-3d.correct {
+            animation: correct-pulse 0.5s ease;
+            transform: translateY(2px);
+            background-color: #22c55e; /* Green-500 */
+            color: white;
+            box-shadow: 0 4px 0 #15803d; /* Dark green */
+        }
+        
+        .btn-3d.incorrect {
+            animation: incorrect-shake 0.5s ease;
+            transform: translateY(2px);
+            background-color: #ef4444; /* Red-500 */
+            color: white;
+            box-shadow: 0 4px 0 #991b1b; /* Dark red */
+        }
+
+        @keyframes correct-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes incorrect-shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-5px); }
+            40%, 80% { transform: translateX(5px); }
+        }
+
+        /* --- Points Animation --- */
+        .point-fly {
+            position: absolute;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fbbf24; /* Amber-400 */
+            animation: fly-to-score 1s ease-in forwards;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px black;
+        }
+        
+        .point-fly.negative {
+             color: #ef4444; /* Red-500 */
+        }
+
+        @keyframes fly-to-score {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--end-x, 0), var(--end-y, 0)) scale(0.5);
+                opacity: 0;
+            }
+        }
+
+        /* --- Sparkle Canvas --- */
+        #sparkle-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        /* --- Timer Bar --- */
+        #timer-container {
+            width: 100%;
+            background-color: rgba(0, 0, 0, 0.1);
+            border-radius: 0.5rem;
+            overflow: hidden;
+            margin-top: 1.5rem;
+        }
+        #timer-bar {
+            height: 10px;
+            width: 100%;
+            background-color: #4ade80; /* Green-400 */
+            border-radius: 0.5rem;
+            transition: width 1s linear, background-color 0.5s;
+        }
+        
+        /* --- General UI --- */
+        #question-text:hover {
+            cursor: pointer;
+            filter: brightness(1.2);
+        }
+    </style>
+</head>
+<body class="flex items-start justify-center min-h-screen text-gray-800 pt-12">
+
+    <canvas id="sparkle-canvas"></canvas>
+
+    <div id="game-container" class="w-full max-w-4xl mx-auto p-4 md:p-8 bg-white/70 backdrop-blur-sm rounded-2xl shadow-2xl text-center">
+        
+        <!-- Game Area -->
+        <main id="game-area">
+            <div id="question-container" class="mb-8 p-6 bg-blue-100 border-2 border-blue-300 rounded-lg shadow-inner">
+                <p class="text-2xl md:text-3xl font-semibold">
+                    <span id="question-text" title="Click question text to hear it">Welcome to the game! Click here to hear the question.</span>
+                </p>
+            </div>
+            <div id="answers-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Answer buttons will be dynamically inserted here -->
+            </div>
+            <div id="timer-container">
+                <div id="timer-bar"></div>
+            </div>
+        </main>
+        
+        <!-- Feedback Area -->
+        <footer id="feedback-container" class="mt-6 h-10">
+            <p id="feedback-text" class="text-2xl font-bold transition-all duration-300"></p>
+        </footer>
+
+        <!-- Header / Score -->
+        <header class="mt-8 flex justify-center items-center gap-4 flex-wrap">
+            <div id="score-container" class="text-2xl font-bold bg-blue-800 text-white px-6 py-2 rounded-xl shadow-lg">
+                Score: <span id="score">0</span>
+            </div>
+            <div id="progress-container" class="text-xl font-semibold bg-gray-700 text-white px-4 py-2 rounded-xl shadow-lg">
+                <span id="progress-text">Answered</span>: <span id="questions-answered">0</span> / <span id="total-questions">0</span>
+            </div>
+            <div id="incorrect-container" class="text-xl font-semibold bg-red-700 text-white px-4 py-2 rounded-xl shadow-lg">
+                Incorrect: <span id="incorrect-count">0</span>
+            </div>
+        </header>
+
+         <!-- Game Over Screen -->
+        <div id="game-over-screen" class="hidden flex-col items-center justify-center">
+            <h2 class="text-4xl font-bold text-blue-900 mb-4">Quest Complete!</h2>
+            <p class="text-2xl mb-2">Your Final Score:</p>
+            <p id="final-score" class="text-6xl font-bold text-amber-500 mb-6"></p>
+            <button id="restart-btn" class="btn-3d bg-green-600 text-white shadow-green-900">Play Again</button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const gameContainer = document.getElementById('game-container');
+        const gameArea = document.getElementById('game-area');
+        const scoreEl = document.getElementById('score');
+        const questionTextEl = document.getElementById('question-text');
+        const answersContainer = document.getElementById('answers-container');
+        const feedbackTextEl = document.getElementById('feedback-text');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreEl = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+        const canvas = document.getElementById('sparkle-canvas');
+        const timerBar = document.getElementById('timer-bar');
+        const ctx = canvas.getContext('2d');
+        const progressContainer = document.getElementById('progress-container');
+        const questionsAnsweredEl = document.getElementById('questions-answered');
+        const totalQuestionsEl = document.getElementById('total-questions');
+        const progressTextEl = document.getElementById('progress-text');
+        const incorrectCountEl = document.getElementById('incorrect-count');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // --- Game State ---
+        let score = 0;
+        let incorrectCount = 0;
+        let currentQuestionIndex = 0;
+        let questions = [];
+        let incorrectAnswers = [];
+        let isReviewing = false;
+        let synth = window.speechSynthesis;
+        let voices = [];
+        let voiceIndex = 0;
+        let timerInterval;
+        const TIME_LIMIT = 45;
+        let timeLeft = TIME_LIMIT;
+
+        // --- Praise Words ---
+        const praiseWords = ["Awesome!", "Brilliant!", "You're a star!", "Geography Genius!", "Superb!", "Excellent!", "Fantastic!", "Incredible!", "Well Done!", "Perfect!", "Amazing!", "Outstanding!", "That's it!", "You got it!", "Top Marks!", "Way to go!"];
+
+        // --- Question Data (100 Questions) ---
+        const allQuestions = [
+            // --- China ---
+            { q: "What is the capital city of China?", o: ["Shanghai", "Beijing", "Hong Kong", "Tianjin"], a: "Beijing" },
+            { q: "What is the official currency of China?", o: ["Yen", "Won", "Yuan", "Dollar"], a: "Yuan" },
+            { q: "The Great Wall is a famous landmark in China. Which direction would you travel from Beijing to see it?", o: ["South", "East", "Northwest", "Southeast"], a: "Northwest" },
+            { q: "What is the most spoken language in China?", o: ["Cantonese", "Mandarin", "Wu", "Hakka"], a: "Mandarin" },
+            { q: "Which large country is to the Northeast of China?", o: ["India", "Vietnam", "Russia", "Pakistan"], a: "Russia" },
+
+            // --- Asia ---
+            { q: "Mount Fuji is the highest mountain in which Asian country?", o: ["South Korea", "Thailand", "Japan", "Vietnam"], a: "Japan" },
+            { q: "The Taj Mahal is in India. Which continent is India on?", o: ["Africa", "Asia", "Europe", "Australia"], a: "Asia" },
+            { q: "What is the currency used in Japan?", o: ["Yuan", "Yen", "Baht", "Won"], a: "Yen" },
+            { q: "To fly from Tokyo, Japan to Moscow, Russia, what is your general direction of travel?", o: ["Southeast", "Southwest", "Northwest", "Northeast"], a: "Northwest" },
+            { q: "If you travel by train from East to West across Asia, you would likely cross which country?", o: ["India", "Japan", "Russia", "Indonesia"], a: "Russia" },
+            { q: "The city of Seoul is the bustling capital of which Asian country?", o: ["Japan", "China", "South Korea", "Thailand"], a: "South Korea" },
+            { q: "Dubai, known for its futuristic skyscrapers, is a major city in which Asian country?", o: ["Saudi Arabia", "Qatar", "United Arab Emirates", "Oman"], a: "United Arab Emirates" },
+            { q: "The nation of Indonesia, made up of thousands of islands, is part of which continent?", o: ["Australia", "Africa", "Asia", "South America"], a: "Asia" },
+
+            // --- Australia ---
+            { q: "What is the capital city of Australia?", o: ["Sydney", "Melbourne", "Perth", "Canberra"], a: "Canberra" },
+            { q: "What is the primary currency used in Australia?", o: ["Pound", "Euro", "Dollar", "Franc"], a: "Dollar" },
+            { q: "In which direction is New Zealand from Australia?", o: ["Northwest", "Southeast", "Southwest", "Northeast"], a: "Southeast" },
+            { q: "The Sydney Opera House is an iconic building on which continent?", o: ["Asia", "Europe", "North America", "Australia"], a: "Australia" },
+            { q: "A person from Australia is known by what nationality?", o: ["Austrian", "Australian", "Kiwi", "Aussie"], a: "Australian" },
+            { q: "On which continent is the country of New Zealand located?", o: ["Asia", "Australia", "North America", "South America"], a: "Australia" },
+
+            // --- Europe ---
+            { q: "The Colosseum is an ancient amphitheater located in which European city?", o: ["Athens", "Paris", "Rome", "London"], a: "Rome" },
+            { q: "Many countries in Europe, like Germany and France, use what common currency?", o: ["Pound", "Franc", "Mark", "Euro"], a: "Euro" },
+            { q: "If you take a boat from England to France, you travel in which direction?", o: ["North", "West", "South", "East"], a: "South" },
+            { q: "The Eiffel Tower is a well-known landmark on which continent?", o: ["Asia", "South America", "Europe", "Africa"], a: "Europe" },
+            { q: "What is the best mode of transport for travelling quickly between London and Paris?", o: ["Car", "Boat", "Bus", "Train"], a: "Train" },
+            { q: "In which country would you find the city of Barcelona, famous for its unique architecture?", o: ["Portugal", "Italy", "Spain", "France"], a: "Spain" },
+            { q: "The historic city of Athens is the capital of which European country?", o: ["Italy", "Turkey", "Egypt", "Greece"], a: "Greece" },
+            { q: "The country of Poland is located on which continent?", o: ["Asia", "Africa", "Europe", "South America"], a: "Europe" },
+            { q: "On which continent would you find the country of Sweden?", o: ["Asia", "North America", "Europe", "Australia"], a: "Europe" },
+            
+            // --- North America ---
+            { q: "What is the capital of Canada?", o: ["Toronto", "Vancouver", "Montreal", "Ottawa"], a: "Ottawa" },
+            { q: "Mexico is located in which direction from the United States?", o: ["North", "South", "East", "West"], a: "South" },
+            { q: "The Statue of Liberty is a famous monument located on which continent?", o: ["Europe", "North America", "South America", "Asia"], a: "North America" },
+            { q: "Besides English, what is the other official language of Canada?", o: ["Spanish", "German", "Mandarin", "French"], a: "French" },
+            { q: "If you are in New York, USA, and fly Northeast across the Atlantic, where might you land?", o: ["Brazil", "United Kingdom", "Australia", "Mexico"], a: "United Kingdom" },
+            { q: "Vancouver is a major city on the west coast of which North American country?", o: ["USA", "Mexico", "Canada", "Greenland"], a: "Canada" },
+            { q: "The country of Cuba is an island nation on which continent?", o: ["South America", "North America", "Africa", "Europe"], a: "North America" },
+
+            // --- South America ---
+            { q: "The Christ the Redeemer statue overlooks which Brazilian city?", o: ["São Paulo", "Brasília", "Salvador", "Rio de Janeiro"], a: "Rio de Janeiro" },
+            { q: "Machu Picchu is a famous Incan citadel located on which continent?", o: ["Africa", "Asia", "South America", "Europe"], a: "South America" },
+            { q: "Which continent is located directly Southeast of North America?", o: ["Asia", "Africa", "Australia", "South America"], a: "South America" },
+            { q: "What is the currency of Brazil?", o: ["Peso", "Real", "Sol", "Guaraní"], a: "Real" },
+            { q: "The Andes Mountains run along the western coast of which continent?", o: ["North America", "Asia", "Africa", "South America"], a: "South America" },
+            { q: "In which South American country is the city of Buenos Aires located?", o: ["Brazil", "Chile", "Argentina", "Colombia"], a: "Argentina" },
+            { q: "The country of Chile, known for its long coastline, is on which continent?", o: ["North America", "South America", "Africa", "Antarctica"], a: "South America" },
+            
+            // --- Africa ---
+            { q: "The Great Pyramids of Giza are located in which African country?", o: ["Nigeria", "Egypt", "South Africa", "Morocco"], a: "Egypt" },
+            { q: "The island of Madagascar is located in which direction off the coast of mainland Africa?", o: ["Northwest", "Southeast", "Southwest", "Northeast"], a: "Southeast" },
+            { q: "Africa is located in which primary direction from Europe?", o: ["North", "East", "West", "South"], a: "South" },
+            { q: "The Sahara Desert, the world's largest hot desert, has what typical weather?", o: ["Cold and wet", "Hot and dry", "Mild and humid", "Cold and dry"], a: "Hot and dry" },
+            { q: "On which continent would you find Victoria Falls?", o: ["South America", "Africa", "Asia", "Australia"], a: "Africa" },
+            { q: "Cairo is the capital city of which African nation?", o: ["Nigeria", "Kenya", "South Africa", "Egypt"], a: "Egypt" },
+            { q: "On which continent is the country of Kenya located?", o: ["South America", "Asia", "Australia", "Africa"], a: "Africa" },
+            { q: "The country of Morocco is on the northwestern tip of which continent?", o: ["Europe", "South America", "Africa", "Asia"], a: "Africa" },
+
+            // --- Mixed / Complex Questions ---
+            { q: "To travel from Europe to North America, which direction do you primarily go?", o: ["East", "West", "South", "North"], a: "West" },
+            { q: "What mode of transport is essential to get from South America to Antarctica?", o: ["Bus", "Train", "Car", "Boat"], a: "Boat" },
+            { q: "Which continent lies in all four hemispheres?", o: ["South America", "Asia", "Europe", "Africa"], a: "Africa" },
+            { q: "To fly from Australia to South America, you would fly across which ocean in an easterly direction?", o: ["Indian", "Atlantic", "Arctic", "Pacific"], a: "Pacific" },
+            { q: "What direction is the Nile River's general flow?", o: ["South to North", "North to South", "East to West", "West to East"], a: "South to North" },
+            { q: "The country of Turkey is uniquely located on which two continents?", o: ["Europe and Africa", "Asia and Africa", "Europe and Asia", "Asia and Australia"], a: "Europe and Asia" },
+            { q: "Antarctica is in which direction from all other continents?", o: ["North", "East", "West", "South"], a: "South" },
+            { q: "On which continent would you find the ancient city of Petra?", o: ["South America", "Asia", "Africa", "Europe"], a: "Asia" },
+            { q: "The Strait of Gibraltar separates Spain from which African country?", o: ["Egypt", "Algeria", "Morocco", "Libya"], a: "Morocco" },
+            { q: "Which continent is located to the East of Asia across the Pacific Ocean?", o: ["Africa", "North America", "South America", "Australia"], a: "North America" },
+            { q: "Which two continents does the Bering Strait separate?", o: ["Asia and North America", "Europe and Africa", "North and South America", "Asia and Australia"], a: "Asia and North America" },
+            { q: "If you sail west from Europe, which continent do you reach first?", o: ["Asia", "Africa", "North America", "South America"], a: "North America" },
+            { q: "Traveling South from North America across the narrowest point of land leads you to which continent?", o: ["Australia", "Antarctica", "Africa", "South America"], a: "South America" },
+            { q: "Australia is located to the Southeast of which continent?", o: ["Africa", "Europe", "South America", "Asia"], a: "Asia" },
+
+            // --- Nationalities and Populations ---
+            { q: "Which country has the largest population in the world?", o: ["USA", "India", "Indonesia", "Pakistan"], a: "India" },
+            { q: "A person from the Netherlands is known as what nationality?", o: ["Netherlander", "Hollander", "Dutch", "Danish"], a: "Dutch" },
+            { q: "A person from Switzerland is called a...", o: ["Swede", "Swiss", "Switzer", "Hollander"], a: "Swiss" },
+            { q: "What is the nationality of a person from the Philippines?", o: ["Philippine", "Filipino", "Philipino", "Filipina"], a: "Filipino" },
+            { q: "Which of these continents has the smallest population (excluding Antarctica)?", o: ["Europe", "Africa", "South America", "Australia"], a: "Australia" },
+            { q: "If you are from Argentina, your nationality is...", o: ["Argentine", "Argentinian", "Argenian", "Argent"], a: "Argentinian" },
+            { q: "What is the nationality of a person from Vietnam?", o: ["Viet", "Vina", "Vietnamese", "Namian"], a: "Vietnamese" },
+            { q: "What do you call someone from Thailand?", o: ["Thailander", "Thainese", "Siam", "Thai"], a: "Thai" },
+            { q: "What do you call a person from Greece?", o: ["Grecian", "Greek", "Greeker", "Helvetian"], a: "Greek" },
+            { q: "A person from Denmark is called a...", o: ["Denman", "Dane", "Danish", "Denmarite"], a: "Dane" },
+            { q: "A person from Portugal is known as...", o: ["Port", "Portugan", "Portuguese", "Portu"], a: "Portuguese" },
+            { q: "What is the nationality of a person from Egypt?", o: ["Egyptese", "Nilean", "Egyptian", "Coptic"], a: "Egyptian" },
+            { q: "If you are from Peru, you are...", o: ["Peruvian", "Peruan", "Perunese", "Incan"], a: "Peruvian" },
+            { q: "A person from Nigeria has what nationality?", o: ["Ghanian", "Nigerian", "Kenyan", "Naija"], a: "Nigerian" },
+            { q: "What do you call someone from Finland?", o: ["Fin", "Finnish", "Finlandian", "Finner"], a: "Finnish" },
+            
+            // --- Oceans, Islands, Environment, Weather ---
+            { q: "Which is the largest ocean in the world by area?", o: ["Atlantic", "Indian", "Arctic", "Pacific"], a: "Pacific" },
+            { q: "What is the world's largest island?", o: ["Greenland", "New Guinea", "Borneo", "Madagascar"], a: "Greenland" },
+            { q: "The Amazon Rainforest is primarily located on which continent?", o: ["Africa", "Asia", "South America", "Australia"], a: "South America" },
+            { q: "What type of climate is typically found along the Earth's equator?", o: ["Polar", "Temperate", "Tropical", "Desert"], a: "Tropical" },
+            { q: "The Great Barrier Reef is located off the coast of which continent?", o: ["Asia", "Australia", "Africa", "South America"], a: "Australia" },
+            { q: "Which is the smallest and shallowest of the world's five oceans?", o: ["Southern", "Indian", "Atlantic", "Arctic"], a: "Arctic" },
+            { q: "The island of Honshu, home to Tokyo, is the main island of which country?", o: ["Philippines", "Indonesia", "Japan", "Malaysia"], a: "Japan" },
+            { q: "Monsoons are seasonal winds that bring heavy rainfall, most famously to which continent?", o: ["Europe", "Asia", "North America", "Africa"], a: "Asia" },
+            { q: "The Atlantic Ocean separates the Americas from which two continents?", o: ["Asia and Australia", "Africa and Europe", "Asia and Africa", "Europe and Asia"], a: "Africa and Europe" },
+            { q: "The 'Ring of Fire' is an area of high volcanic activity surrounding which ocean?", o: ["Atlantic", "Indian", "Pacific", "Arctic"], a: "Pacific" },
+            { q: "What name is given to the ocean surrounding Antarctica?", o: ["Antarctic Ocean", "South Pacific", "Southern Ocean", "South Atlantic"], a: "Southern Ocean" },
+            { q: "The island of Great Britain is part of which continent?", o: ["North America", "Asia", "Africa", "Europe"], a: "Europe" },
+            { q: "Hawaii is a famous archipelago (island chain) in which ocean?", o: ["Atlantic", "Pacific", "Indian", "Arctic"], a: "Pacific" },
+            { q: "The Atacama, one of the driest deserts in the world, is found on which continent?", o: ["Australia", "Africa", "North America", "South America"], a: "South America" },
+            { q: "The climate of Siberia in Russia is best described as which of the following?", o: ["Tropical", "Mediterranean", "Subarctic", "Desert"], a: "Subarctic" },
+            { q: "Tsunamis, or giant harbor waves, are most often caused by underwater...?", o: ["Volcanoes", "Landslides", "Earthquakes", "Storms"], a: "Earthquakes" },
+            { q: "Madagascar is a large island nation located in which ocean?", o: ["Pacific", "Atlantic", "Indian", "Arctic"], a: "Indian" },
+            { q: "The Aurora Borealis (Northern Lights) is a natural light display seen near the...?", o: ["Equator", "Tropic of Cancer", "Arctic Circle", "Prime Meridian"], a: "Arctic Circle" },
+            { q: "The vast, treeless plains of the central United States are known as what?", o: ["Steppes", "Savannas", "Prairies", "Pampas"], a: "Prairies" },
+            { q: "Which of these is a large island in the Mediterranean Sea?", o: ["Iceland", "Sri Lanka", "Sicily", "Cuba"], a: "Sicily" }
+        ];
+
+        // --- Audio Context for Sound Effects ---
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+        document.body.addEventListener('click', initAudio, { once: true });
+
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            if (type === 'correct') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.5);
+            } else if (type === 'incorrect') {
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.3);
+            }
+            
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.5);
+        }
+
+        // --- Sparkle Effect ---
+        let particles = [];
+        function createSparkles(x, y) {
+            for (let i = 0; i < 50; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.5) * 6,
+                    size: Math.random() * 3 + 1,
+                    life: Math.random() * 30 + 30,
+                    color: `hsl(${Math.random() * 60 + 30}, 100%, 75%)`
+                });
+            }
+        }
+        
+        function animateSparkles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                } else {
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life / 60;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                }
+            });
+            requestAnimationFrame(animateSparkles);
+        }
+
+        // --- Points Animation ---
+        function animatePoints(element, pointsText) {
+            const scoreRect = scoreEl.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+            
+            const pointEl = document.createElement('div');
+            pointEl.textContent = pointsText;
+            pointEl.className = 'point-fly';
+            if (pointsText.startsWith('-')) {
+                pointEl.classList.add('negative');
+            }
+            document.body.appendChild(pointEl);
+            
+            const startX = elementRect.left + elementRect.width / 2;
+            const startY = elementRect.top + elementRect.height / 2;
+            const endX = scoreRect.left + scoreRect.width / 2;
+            const endY = scoreRect.top + scoreRect.height / 2;
+            
+            pointEl.style.left = `${startX}px`;
+            pointEl.style.top = `${startY}px`;
+            pointEl.style.setProperty('--end-x', `${endX - startX}px`);
+            pointEl.style.setProperty('--end-y', `${endY - startY}px`);
+            
+            setTimeout(() => {
+                pointEl.remove();
+            }, 1000);
+        }
+
+        // --- Text-to-Speech ---
+        function getVoices() {
+            const availableVoices = synth.getVoices();
+            const targetVoiceNames = ["Ava", "Brian", "Andrew", "Emma"];
+            voices = availableVoices.filter(voice => targetVoiceNames.includes(voice.name));
+        }
+
+        function speakQuestion() {
+            if (synth.speaking) {
+                synth.cancel();
+            }
+            if (voices.length > 0) {
+                const utterThis = new SpeechSynthesisUtterance(questionTextEl.textContent);
+                utterThis.voice = voices[voiceIndex % voices.length];
+                voiceIndex++;
+                synth.speak(utterThis);
+            } else {
+                 synth.speak(new SpeechSynthesisUtterance(questionTextEl.textContent));
+            }
+        }
+
+        getVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = getVoices;
+        }
+        questionTextEl.parentElement.addEventListener('click', speakQuestion);
+
+        // --- Timer Logic ---
+        function stopTimer() {
+            clearInterval(timerInterval);
+        }
+
+        function handleTimeout() {
+            stopTimer();
+            score -= 1;
+            incorrectCount++;
+            scoreEl.textContent = score;
+            incorrectCountEl.textContent = incorrectCount;
+            const currentQuestion = questions[currentQuestionIndex];
+            incorrectAnswers.push(currentQuestion);
+            feedbackTextEl.textContent = "Time's up! -1 point";
+            feedbackTextEl.style.color = '#b91c1c';
+            playSound('incorrect');
+            animatePoints(gameContainer, '-1');
+            Array.from(answersContainer.children).forEach(btn => {
+                btn.disabled = true;
+                if (btn.textContent === currentQuestion.a) {
+                    btn.classList.add('correct');
+                }
+            });
+            currentQuestionIndex++;
+            setTimeout(loadQuestion, 2500);
+        }
+
+        function startTimer() {
+            stopTimer(); // Ensure no multiple timers
+            timeLeft = TIME_LIMIT;
+            timerBar.style.transition = 'none'; // Reset transition for instant change
+            timerBar.style.width = '100%';
+            timerBar.style.backgroundColor = '#4ade80';
+            
+            // Force reflow to apply the transition reset immediately
+            void timerBar.offsetWidth; 
+
+            timerBar.style.transition = `width ${TIME_LIMIT}s linear, background-color 0.5s`;
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                const percentage = (timeLeft / TIME_LIMIT) * 100;
+                timerBar.style.width = `${percentage}%`;
+                if (percentage < 50) timerBar.style.backgroundColor = '#facc15'; // Yellow
+                if (percentage < 25) timerBar.style.backgroundColor = '#f87171'; // Red
+                if (timeLeft <= 0) {
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        // --- Game Logic ---
+        function startGame() {
+            stopTimer();
+            questions = [...allQuestions].sort(() => Math.random() - 0.5);
+            score = 0;
+            incorrectCount = 0;
+            currentQuestionIndex = 0;
+            incorrectAnswers = [];
+            isReviewing = false;
+
+            scoreEl.textContent = score;
+            incorrectCountEl.textContent = incorrectCount;
+            totalQuestionsEl.textContent = questions.length;
+            questionsAnsweredEl.textContent = 0;
+            progressTextEl.textContent = "Answered";
+
+            gameArea.classList.remove('hidden');
+            gameOverScreen.classList.add('hidden');
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            answersContainer.innerHTML = '';
+            feedbackTextEl.textContent = '';
+            
+            if (currentQuestionIndex >= questions.length) {
+                if (incorrectAnswers.length > 0) {
+                    isReviewing = true;
+                    questions = [...incorrectAnswers];
+                    incorrectAnswers = [];
+                    currentQuestionIndex = 0;
+                    progressTextEl.textContent = "Reviewing";
+                    totalQuestionsEl.textContent = questions.length;
+                } else {
+                    endGame();
+                    return;
+                }
+            }
+
+            questionsAnsweredEl.textContent = currentQuestionIndex;
+
+            const currentQuestion = questions[currentQuestionIndex];
+            questionTextEl.textContent = currentQuestion.q;
+            
+            const shuffledOptions = currentQuestion.o.sort(() => Math.random() - 0.5);
+
+            shuffledOptions.forEach((option) => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.className = `btn-3d`;
+                button.onclick = () => selectAnswer(button, option);
+                answersContainer.appendChild(button);
+            });
+            
+            startTimer();
+        }
+        
+        function selectAnswer(buttonEl, selectedOption) {
+            stopTimer();
+            const currentQuestion = questions[currentQuestionIndex];
+            const isCorrect = selectedOption === currentQuestion.a;
+
+            Array.from(answersContainer.children).forEach(btn => btn.disabled = true);
+            
+            if (isCorrect) {
+                score += 1;
+                scoreEl.textContent = score;
+                buttonEl.classList.add('correct');
+                const randomPraise = praiseWords[Math.floor(Math.random() * praiseWords.length)];
+                feedbackTextEl.textContent = randomPraise;
+                feedbackTextEl.style.color = '#16a34a';
+                playSound('correct');
+                
+                const rect = buttonEl.getBoundingClientRect();
+                createSparkles(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                animatePoints(buttonEl, '+1');
+
+            } else {
+                score -= 1;
+                incorrectCount++;
+                scoreEl.textContent = score;
+                incorrectCountEl.textContent = incorrectCount;
+                buttonEl.classList.add('incorrect');
+                incorrectAnswers.push(currentQuestion);
+                feedbackTextEl.textContent = `Not quite! The answer was ${currentQuestion.a}. -1 point`;
+                feedbackTextEl.style.color = '#b91c1c';
+                playSound('incorrect');
+                animatePoints(buttonEl, '-1');
+
+                Array.from(answersContainer.children).forEach(btn => {
+                    if (btn.textContent === currentQuestion.a) {
+                        btn.classList.add('correct');
+                    }
+                });
+            }
+
+            currentQuestionIndex++;
+            setTimeout(loadQuestion, 2500);
+        }
+
+        function endGame() {
+            stopTimer();
+            gameArea.classList.add('hidden');
+            feedbackTextEl.textContent = '';
+            finalScoreEl.textContent = score;
+            gameOverScreen.classList.remove('hidden');
+        }
+
+        // --- Event Listeners ---
+        restartBtn.addEventListener('click', startGame);
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        // --- Initial Load ---
+        startGame();
+        animateSparkles();
+    </script>
+</body>
+</html>

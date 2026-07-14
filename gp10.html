@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Joel Mitchell's Verb Practice 10</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    /* Basic Styling */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }
+    /* Start Screen Styling */
+    #startScreen {
+      max-width: 700px;
+      margin: auto;
+      text-align: center;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    /* Main Quiz Container */
+    #container {
+      max-width: 700px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: none;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    /* Display Elements */
+    #overallTimer, #levelDisplay, #timer, #scoreDisplay {
+      text-align: center;
+      font-size: 1.2em;
+      margin-bottom: 10px;
+    }
+    .question {
+      font-size: 1.2em;
+      margin-bottom: 10px;
+    }
+    .feedback {
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+    .correct {
+      color: #5cb85c;
+    }
+    .incorrect {
+      color: #d9534f;
+    }
+    input[type="text"] {
+      width: 80%;
+      padding: 10px;
+      font-size: 1em;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #0275d8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #aaa;
+    }
+    @media(max-width: 768px) {
+      input[type="text"] {
+        width: 100%;
+      }
+      button {
+        width: 100%;
+      }
+    }
+    #reward {
+      text-align: center;
+      padding: 10px;
+      margin-top: 10px;
+      display: none;
+    }
+    #reward img {
+      max-width: 150px;
+      width: 100%;
+      height: auto;
+    }
+    #summary {
+      display: none;
+      padding: 20px;
+      background: #e9ecef;
+      margin-top: 20px;
+      border-radius: 4px;
+    }
+    #summary p {
+      font-size: 1.2em;
+      text-align: center;
+    }
+    #printButton {
+      display: block;
+      margin: 10px auto;
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Start Screen -->
+  <div id="startScreen">
+    <h1>Joel Mitchell's Verb Practice 10</h1>
+    <p>Please enter your name and press "Start Quiz" to begin the challenge.</p>
+    <input type="text" id="playerName" placeholder="Enter your name" />
+    <br/>  
+    <button id="startBtn">Start Quiz</button>
+  </div>
+  
+  <!-- Main Quiz Container -->
+  <div id="container">
+    <div id="overallTimer">Overall Time Left: 10:00</div>
+    <p id="levelDisplay">Level: </p>
+    <div id="timer">Time left: </div>
+    <div class="question" id="questionDisplay"></div>
+    <input type="text" id="answerInput" placeholder="Type your answer here..." />
+    <button id="submitBtn">Submit Answer</button>
+    <div class="feedback" id="feedbackDisplay"></div>
+    <div id="scoreDisplay">Score: 0% (0/0)</div>
+    <div id="reward"></div>
+    
+    <!-- Summary Section -->
+    <div id="summary">
+      <h2>Quiz Summary</h2>
+      <p id="summaryText"></p>
+      <button id="printButton">Print Summary</button>
+    </div>
+  </div>
+  
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // GLOBAL VARIABLES
+      var totalCorrect = 0;
+      var totalAttempted = 0;
+      var currentLevel = 1;
+      var currentQuestionIndex = 0;
+      var startTime = 0;
+      var timerInterval = null;
+      var overallInterval = null;
+      var answered = false;
+      var overallTime = 600; // 10 minutes in seconds
+      var playerName = "";
+      var currentQuestions = [];
+      
+      // QUESTION BANKS (10 Questions per Level)
+      // Level 1 – Simple Past
+      var level1Questions = [
+        { template: "Last night, I ___ a letter to my friend. (write)", answer: "wrote", explanation: "The simple past of 'write' is 'wrote'." },
+        { template: "Yesterday, he ___ his bicycle to work. (ride)", answer: "rode", explanation: "The simple past of 'ride' is 'rode'." },
+        { template: "They ___ an interesting article last week. (read)", answer: "read", explanation: "The simple past of 'read' is spelled the same but pronounced 'red'." },
+        { template: "She ___ a beautiful song at the concert. (sing)", answer: "sang", explanation: "The simple past of 'sing' is 'sang'." },
+        { template: "I ___ coffee this morning. (drink)", answer: "drank", explanation: "The simple past of 'drink' is 'drank'." },
+        { template: "He ___ a new car last year. (buy)", answer: "bought", explanation: "The irregular past of 'buy' is 'bought'." },
+        { template: "They ___ a marathon last weekend. (run)", answer: "ran", explanation: "The simple past of 'run' is 'ran'." },
+        { template: "She ___ her favorite dress to the party. (wear)", answer: "wore", explanation: "The irregular past of 'wear' is 'wore'." },
+        { template: "I ___ an inspiring movie yesterday. (see)", answer: "saw", explanation: "The simple past of 'see' is 'saw'." },
+        { template: "He ___ his homework quickly. (do)", answer: "did", explanation: "The simple past of 'do' is 'did'." }
+      ];
+      
+      // Level 2 – Past Continuous
+      var level2Questions = [
+        { template: "At 8 PM yesterday, I ___ an audiobook. (listen)", answer: "was listening", explanation: "For 'I', use 'was listening' in the past continuous." },
+        { template: "While she ___ in the garden, clouds gathered. (work)", answer: "was working", explanation: "For 'she', the correct form is 'was working'." },
+        { template: "They ___ in the park when it started to snow. (jog)", answer: "were jogging", explanation: "For plural subjects, use 'were jogging'." },
+        { template: "He ___ a letter when I walked by. (write)", answer: "was writing", explanation: "For 'he', use 'was writing' to indicate an ongoing action." },
+        { template: "We ___ dinner when the power went out. (have)", answer: "were having", explanation: "For 'we', use 'were having' in the past continuous." },
+        { template: "The children ___ in the schoolyard all afternoon. (play)", answer: "were playing", explanation: "Plural subjects require 'were playing'." },
+        { template: "I ___ a novel while waiting for the bus. (read)", answer: "was reading", explanation: "For 'I', the correct form is 'was reading'." },
+        { template: "She ___ on the phone during the break. (talk)", answer: "was talking", explanation: "For 'she', use 'was talking'." },
+        { template: "They ___ to their teacher during class. (listen)", answer: "were listening", explanation: "Use 'were listening' for plural subjects in the past continuous." },
+        { template: "He ___ at his computer all evening. (work)", answer: "was working", explanation: "For 'he', the proper form is 'was working'." }
+      ];
+      
+      // Level 3 – Present Perfect
+      var level3Questions = [
+        { template: "I ___ that documentary before. (see)", answer: "have seen", explanation: "The present perfect for 'I' is 'have seen'." },
+        { template: "She ___ her assignment already. (finish)", answer: "has finished", explanation: "For 'she', use 'has finished'." },
+        { template: "They ___ in this city for three years. (live)", answer: "have lived", explanation: "Plural subjects use 'have lived'." },
+        { template: "He ___ his car keys and can't find them. (lose)", answer: "has lost", explanation: "For 'he', use 'has lost'." },
+        { template: "We ___ significant progress this semester. (make)", answer: "have made", explanation: "For 'we', the correct form is 'have made'." },
+        { template: "I ___ an important email today. (send)", answer: "have sent", explanation: "The present perfect of 'send' for 'I' is 'have sent'." },
+        { template: "She ___ many books in her lifetime. (read)", answer: "has read", explanation: "For 'she', use 'has read'." },
+        { template: "They ___ the project successfully. (complete)", answer: "have completed", explanation: "Present perfect for plural subjects: 'have completed'." },
+        { template: "He ___ his decision regarding the job. (change)", answer: "has changed", explanation: "For 'he', use 'has changed' in the present perfect." },
+        { template: "We ___ every step of the process. (follow)", answer: "have followed", explanation: "For 'we', the correct form is 'have followed'." }
+      ];
+      
+      // Level 4 – Mixed Tenses
+      var level4Questions = [
+        { template: "By the time the meeting began, I ___ my notes down. (take)", answer: "had taken", explanation: "Past perfect: ‘had taken’ indicates completion before the meeting." },
+        { template: "Tomorrow, she ___ a new course online. (start)", answer: "will start", explanation: "Simple future: 'will start' = will + base verb." },
+        { template: "At this moment, I ___ an email. (write)", answer: "am writing", explanation: "Present continuous indicates an ongoing action: 'am writing'." },
+        { template: "By next year, they ___ a new office. (build)", answer: "will have built", explanation: "Future perfect for anticipated completion: 'will have built'." },
+        { template: "Yesterday, while I ___ for work, I received a call. (run)", answer: "was running", explanation: "Past continuous: 'was running' fits an interrupted ongoing action." },
+        { template: "Right now, I ___ my coffee. (drink)", answer: "am drinking", explanation: "Present continuous: 'am drinking' shows an action happening now." },
+        { template: "By 5 PM, he ___ all his assignments. (finish)", answer: "will have finished", explanation: "Future perfect ('will have finished') shows completed work by a future time." },
+        { template: "Last night, I ___ a fantastic movie. (watch)", answer: "watched", explanation: "Simple past: 'watched' is used for a completed action last night." },
+        { template: "At 10 AM, we ___ a meeting. (attend)", answer: "were attending", explanation: "Past continuous: 'were attending' fits a plural subject in action." },
+        { template: "Next month, I ___ my new project. (launch)", answer: "will launch", explanation: "Simple future: 'will launch' = will + base verb." }
+      ];
+      
+      // ---------------------------
+      // Build Question Bank Object
+      // ---------------------------
+      var questionBank = {
+        1: level1Questions,
+        2: level2Questions,
+        3: level3Questions,
+        4: level4Questions
+      };
+      // Time limits for each level (seconds)
+      var timeLimits = { 1: 20, 2: 30, 3: 40, 4: 50 };
+      
+      // ---------------------------
+      // Helper: Fisher–Yates Shuffle
+      // ---------------------------
+      function shuffle(array) {
+        for (var i = array.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var temp = array[i];
+          array[i] = array[j];
+          array[j] = temp;
+        }
+        return array;
+      }
+      
+      // ---------------------------
+      // Reward Functions
+      // ---------------------------
+      function getRewardImageSource() {
+        if (currentLevel === 1) return "reward1.gif";
+        if (currentLevel === 2) return "reward2.gif";
+        if (currentLevel === 3) return "reward3.gif";
+        if (currentLevel === 4) return "reward4.gif";
+        return "reward1.gif";
+      }
+      
+      function getRewardAudioSource() {
+        if (currentLevel === 1) return "game1.mp3";
+        if (currentLevel === 2) return "game2.mp3";
+        if (currentLevel === 3) return "game3.mp3";
+        if (currentLevel === 4) return "game4.mp3";
+        return "game1.mp3";
+      }
+      
+      // ---------------------------
+      // Per-Question Timer Functions
+      // ---------------------------
+      function startTimer(limit) {
+        var timeLeft = limit;
+        document.getElementById("timer").innerText = "Time left: " + timeLeft + " s";
+        timerInterval = setInterval(function () {
+          timeLeft--;
+          document.getElementById("timer").innerText = "Time left: " + timeLeft + " s";
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            processTimeout();
+          }
+        }, 1000);
+      }
+      
+      function processTimeout() {
+        if (!answered) {
+          answered = true;
+          document.getElementById("feedbackDisplay").className = "feedback incorrect";
+          var currentQ = currentQuestions[currentQuestionIndex];
+          document.getElementById("feedbackDisplay").innerText =
+            "Too slow! (limit: " + timeLimits[currentLevel] + " s)\nThe correct answer was: " + currentQ.answer +
+            "\nExplanation: " + currentQ.explanation;
+          totalAttempted++;
+          updateScore();
+          setTimeout(nextQuestion, 2000);
+        }
+      }
+      
+      // ---------------------------
+      // Score Update Function
+      // ---------------------------
+      function updateScore() {
+        var scoreDisplay = document.getElementById("scoreDisplay");
+        var percentage = totalAttempted === 0 ? 0 : Math.round((totalCorrect / totalAttempted) * 100);
+        scoreDisplay.innerText = "Score: " + percentage + "% (" + totalCorrect + "/" + totalAttempted + ")";
+      }
+      
+      // ---------------------------
+      // Load Current Level Questions
+      // ---------------------------
+      function loadCurrentLevel() {
+        if (questionBank[currentLevel]) {
+          currentQuestions = shuffle([...questionBank[currentLevel]]);
+          currentQuestionIndex = 0;
+          updateLevelDisplay();
+        }
+      }
+      
+      // ---------------------------
+      // Next Question Function
+      // ---------------------------
+      function nextQuestion() {
+        clearInterval(timerInterval);
+        if (currentQuestionIndex < currentQuestions.length) {
+          answered = false;
+          var currentQ = currentQuestions[currentQuestionIndex];
+          document.getElementById("questionDisplay").innerText = currentQ.template;
+          document.getElementById("feedbackDisplay").innerText = "";
+          document.getElementById("answerInput").value = "";
+          startTime = Date.now();
+          startTimer(timeLimits[currentLevel]);
+        } else {
+          if (questionBank[currentLevel + 1]) {
+            currentLevel++;
+            loadCurrentLevel();
+            nextQuestion();
+          } else {
+            finishQuiz();
+          }
+        }
+      }
+      
+      // ---------------------------
+      // Show Reward Function
+      // ---------------------------
+      function showReward() {
+        var rewardDiv = document.getElementById("reward");
+        rewardDiv.innerHTML = '<img src="' + getRewardImageSource() + '" alt="Great Job!"/>';
+        rewardDiv.style.display = 'block';
+        var rewardAudio = document.getElementById("rewardAudio");
+        rewardAudio.src = getRewardAudioSource();
+        rewardAudio.load();
+        rewardAudio.currentTime = 0;
+        rewardAudio.play();
+        setTimeout(function () {
+          rewardDiv.style.display = 'none';
+        }, 1500);
+      }
+      
+      // ---------------------------
+      // Answer Submission Handler
+      // ---------------------------
+      document.getElementById("submitBtn").addEventListener("click", function () {
+        if (answered || currentQuestionIndex >= currentQuestions.length) return;
+        answered = true;
+        clearInterval(timerInterval);
+        var currentQ = currentQuestions[currentQuestionIndex];
+        var userAnswer = document.getElementById("answerInput").value.trim();
+        var elapsedTime = (Date.now() - startTime) / 1000;
+        totalAttempted++;
+        var feedbackMessage = "";
+        if (elapsedTime > timeLimits[currentLevel]) {
+          feedbackMessage = "Too slow! (limit: " + timeLimits[currentLevel] + " s)\nThe correct answer was: " + currentQ.answer +
+            "\nExplanation: " + currentQ.explanation;
+          document.getElementById("feedbackDisplay").className = "feedback incorrect";
+        } else if (userAnswer.toLowerCase() === currentQ.answer.toLowerCase()) {
+          feedbackMessage = "Correct!";
+          totalCorrect++;
+          document.getElementById("feedbackDisplay").className = "feedback correct";
+          showReward();
+        } else {
+          feedbackMessage = "Not quite right. The correct answer was: " + currentQ.answer +
+            "\nExplanation: " + currentQ.explanation;
+          document.getElementById("feedbackDisplay").className = "feedback incorrect";
+        }
+        document.getElementById("feedbackDisplay").innerText = feedbackMessage;
+        updateScore();
+        currentQuestionIndex++;
+        setTimeout(nextQuestion, 2000);
+      });
+      
+      // ---------------------------
+      // Finish Quiz Function
+      // ---------------------------
+      function finishQuiz() {
+        clearInterval(timerInterval);
+        clearInterval(overallInterval);
+        document.getElementById("levelDisplay").style.display = "none";
+        document.getElementById("timer").style.display = "none";
+        document.getElementById("overallTimer").style.display = "none";
+        document.getElementById("questionDisplay").style.display = "none";
+        document.getElementById("answerInput").style.display = "none";
+        document.getElementById("submitBtn").style.display = "none";
+        document.getElementById("feedbackDisplay").style.display = "none";
+        var endRewardAudio = document.getElementById("endRewardAudio");
+        endRewardAudio.currentTime = 0;
+        endRewardAudio.play();
+        var summaryDiv = document.getElementById("summary");
+        var percentage = totalAttempted === 0 ? 0 : Math.round((totalCorrect / totalAttempted) * 100);
+        summaryDiv.querySelector("#summaryText").innerText =
+          "You have completed the quiz, " + playerName + "!\nYour score is: " + percentage + "% (" +
+          totalCorrect + " out of " + totalAttempted + ")\nThank you for practicing.";
+        summaryDiv.style.display = "block";
+      }
+      
+      // ---------------------------
+      // Print Summary Handler
+      // ---------------------------
+      document.getElementById("printButton").addEventListener("click", function () {
+        window.print();
+      });
+      
+      // ---------------------------
+      // Start Screen Logic
+      // ---------------------------
+      document.getElementById("startBtn").addEventListener("click", function () {
+        var nameInput = document.getElementById("playerName").value.trim();
+        if (nameInput === "") {
+          alert("Please enter your name to start the quiz.");
+          return;
+        }
+        playerName = nameInput;
+        document.getElementById("startScreen").style.display = "none";
+        document.getElementById("container").style.display = "block";
+        overallTime = 600; // Reset overall time to 10 minutes.
+        startOverallTimer();
+        loadCurrentLevel();
+        nextQuestion();
+      });
+    });
+  </script>
+</body>
+</html>

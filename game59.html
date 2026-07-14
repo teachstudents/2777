@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buyer vs. Seller Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            animation: background-pan 60s linear infinite;
+        }
+        @keyframes background-pan {
+            0% { background-color: #f0f9ff; }
+            25% { background-color: #f0fdf4; }
+            50% { background-color: #fefce8; }
+            75% { background-color: #fdf2f8; }
+            100% { background-color: #f0f9ff; }
+        }
+        .bangers-font {
+            font-family: 'Bangers', cursive;
+        }
+        .speech-bubble {
+            position: relative;
+            background: #ffffff;
+            border-radius: .4em;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .speech-bubble:after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border: 20px solid transparent;
+            border-top-color: #ffffff;
+            border-bottom: 0;
+            margin-left: -20px;
+            margin-bottom: -20px;
+        }
+        .btn-action {
+            transition: all 0.2s ease-in-out;
+        }
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(0,0,0,0.15);
+        }
+        .item-card {
+            transition: transform 0.3s ease-in-out;
+        }
+        .item-card.active {
+            transform: scale(1.05) rotate(-1deg);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        #game-screen, #setup-screen, #game-over-screen, #name-input-1p-screen, #name-input-2p-screen {
+            display: none;
+        }
+        .category-card {
+            transition: all 0.2s ease-in-out;
+        }
+        .category-card:hover {
+            transform: scale(1.05);
+            background-color: #e0f2fe;
+        }
+        .coin {
+            position: absolute;
+            width: 25px;
+            height: 25px;
+            background-color: #ffd700;
+            border-radius: 50%;
+            border: 2px solid #fca5a5;
+            box-shadow: 0 0 10px #fef08a;
+            animation: coin-fly 1.5s ease-out forwards;
+            z-index: 100;
+        }
+        @keyframes coin-fly {
+            0% {
+                transform: scale(1) translateY(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0.5) translateY(-200px) translateX(var(--tx, 0px)) rotate(360deg);
+                opacity: 0;
+            }
+        }
+        .timer-warning {
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0%, 100% { color: #dc2626; }
+            50% { color: #f87171; }
+        }
+    </style>
+</head>
+<body class="bg-blue-50 text-gray-800">
+
+    <div id="game-container" class="container mx-auto p-4 max-w-7xl relative">
+        <div id="sale-animation-overlay" class="absolute inset-0 pointer-events-none overflow-hidden z-50"></div>
+
+        <!-- Setup Screen -->
+        <div id="setup-screen" class="text-center">
+            <h1 class="text-6xl bangers-font text-blue-600 tracking-wider mb-4">Buyer vs. Seller</h1>
+            <p class="text-xl text-gray-600 mb-2">A Game of Wits and Haggling!</p>
+            <p id="setup-instruction" class="text-lg text-gray-500 mb-8">Select a game mode to begin!</p>
+
+            <div id="mode-selection" class="bg-white p-6 rounded-2xl shadow-lg mb-8">
+                <div class="flex justify-center gap-4">
+                    <button id="one-player-btn" class="btn-action bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-xl">1 Player (vs AI)</button>
+                    <button id="two-player-btn" class="btn-action bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg text-xl">2 Players</button>
+                </div>
+            </div>
+
+            <div id="category-container" class="bg-white p-6 rounded-2xl shadow-lg hidden">
+                <div id="category-selection" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    <!-- Categories will be injected here -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Name Input Screen 1P -->
+        <div id="name-input-1p-screen" class="text-center max-w-lg mx-auto">
+             <h1 class="text-6xl bangers-font text-blue-600 tracking-wider mb-4">Who is Buying?</h1>
+             <p class="text-xl text-gray-600 mb-8">Enter your name to play as the Buyer.</p>
+             <div class="bg-white p-8 rounded-2xl shadow-lg">
+                 <input type="text" id="player-name-input-1p" placeholder="Your Name" class="text-2xl font-bold border-2 border-gray-300 rounded-lg p-3 w-full mb-4 text-center">
+                 <button id="continue-1p-btn" class="btn-action bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg text-2xl w-full">Continue</button>
+             </div>
+        </div>
+
+        <!-- Name Input Screen 2P -->
+        <div id="name-input-2p-screen" class="text-center max-w-lg mx-auto">
+             <h1 class="text-6xl bangers-font text-blue-600 tracking-wider mb-4">Who's Playing?</h1>
+             <p class="text-xl text-gray-600 mb-8">Enter player names to begin.</p>
+             <div class="bg-white p-8 rounded-2xl shadow-lg">
+                 <input type="text" id="buyer-name-input-2p" placeholder="Buyer's Name" class="text-2xl font-bold border-2 border-gray-300 rounded-lg p-3 w-full mb-4 text-center">
+                 <input type="text" id="seller-name-input-2p" placeholder="Seller's Name" class="text-2xl font-bold border-2 border-gray-300 rounded-lg p-3 w-full mb-4 text-center">
+                 <button id="continue-2p-btn" class="btn-action bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg text-2xl w-full">Continue</button>
+             </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen">
+             <div id="timer" class="text-center text-5xl font-bold bangers-font text-gray-700 mb-4 tracking-wider">10:00</div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 items-start">
+                <!-- Buyer -->
+                <div class="text-center p-4 bg-white rounded-2xl shadow-md">
+                    <h2 id="buyer-name-display" class="text-4xl bangers-font text-green-600 mb-4">Buyer</h2>
+                    <div id="buyer-speech" class="speech-bubble min-h-[100px] flex items-center justify-center mb-4">
+                        <p>Let's see what you've got...</p>
+                    </div>
+                    <div class="text-left text-lg space-y-1">
+                        <p><strong>Items Bought:</strong> <span id="buyer-items" class="font-bold text-green-700">0</span></p>
+                        <p><strong>Money Spent:</strong> $<span id="buyer-spent" class="font-bold text-green-700">0</span></p>
+                        <p><strong>Money Saved:</strong> $<span id="buyer-saved" class="font-bold text-blue-700">0</span></p>
+                    </div>
+                </div>
+
+                <!-- Center Area -->
+                <div class="text-center flex flex-col items-center gap-4">
+                    <div id="item-card" class="item-card bg-white p-6 rounded-2xl shadow-lg w-full">
+                        <div id="item-image" class="text-8xl mb-4">❓</div>
+                        <h3 id="item-name" class="text-3xl font-bold">Item Name</h3>
+                        <p id="item-quantity" class="text-xl text-gray-600">Quantity: 0</p>
+                        <p class="text-4xl font-bold text-blue-600 mt-4">$<span id="item-price">--</span></p>
+                    </div>
+                    <div id="controls" class="bg-white p-6 rounded-2xl shadow-lg w-full">
+                         <h3 id="turn-indicator" class="text-2xl font-bold mb-4">Seller's Turn</h3>
+                         <div class="flex items-center justify-center gap-2 mb-4">
+                             <span class="text-2xl font-bold">$</span>
+                             <input type="number" id="price-input" class="text-2xl font-bold border-2 border-gray-300 rounded-lg p-2 w-32 text-center" placeholder="0">
+                         </div>
+                         <div id="action-buttons" class="flex flex-wrap justify-center gap-3">
+                            <button id="set-price-btn" class="btn-action bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-lg">Set Price</button>
+                            <button id="accept-btn" class="btn-action bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-5 rounded-lg hidden">Accept</button>
+                            <button id="negotiate-btn" class="btn-action bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-5 rounded-lg hidden">Negotiate</button>
+                            <button id="pass-btn" class="btn-action bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg">Pass</button>
+                         </div>
+                    </div>
+                </div>
+
+                <!-- Seller -->
+                <div class="text-center p-4 bg-white rounded-2xl shadow-md">
+                    <h2 id="seller-name-display" class="text-4xl bangers-font text-red-600 mb-4">Seller</h2>
+                    <div id="seller-speech" class="speech-bubble min-h-[100px] flex items-center justify-center mb-4">
+                        <p>The finest goods right here!</p>
+                    </div>
+                    <div class="text-left text-lg space-y-1">
+                        <p><strong>Items Sold:</strong> <span id="seller-items" class="font-bold text-red-700">0</span></p>
+                        <p><strong>Money Earned:</strong> $<span id="seller-earned" class="font-bold text-red-700">0</span></p>
+                        <p><strong>Potential Loss:</strong> $<span id="seller-lost" class="font-bold text-gray-600">0</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="text-center">
+             <h1 class="text-8xl bangers-font text-purple-600 tracking-wider mb-4">Game Over!</h1>
+             <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-2xl mx-auto">
+                 <h2 id="winner-announcement" class="text-4xl font-bold mb-6"></h2>
+                 <div class="text-2xl space-y-4">
+                     <div>
+                         <h3 id="final-buyer-name" class="font-bold text-green-600">Buyer's Final Score:</h3>
+                         <p><span id="final-buyer-items"></span> items bought for $<span id="final-buyer-spent"></span></p>
+                         <p class="text-lg">Total Saved: $<span id="final-buyer-saved">0</span></p>
+                     </div>
+                     <div>
+                         <h3 id="final-seller-name" class="font-bold text-red-600">Seller's Final Score:</h3>
+                         <p><span id="final-seller-items"></span> items sold for $<span id="final-seller-earned"></span></p>
+                         <p class="text-lg">Total Potential Loss: $<span id="final-seller-lost">0</span></p>
+                     </div>
+                 </div>
+                 <button id="play-again-btn" class="btn-action mt-8 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg text-2xl">Play Again</button>
+             </div>
+        </div>
+
+    </div>
+
+    <script>
+        const gameData = {
+            categories: { 
+                "Animals": { badge: "🦓", vocab: [ { word: "wolf", img: "🐺" }, { word: "zebra", img: "🦓" }, { word: "cheetah", img: "🐆" }, { word: "gazelle", img: "🦌" }, { word: "rhinoceros", img: "🦏" }, { word: "polar bear", img: "🐻‍❄️" }, { word: "squirrel", img: "🐿️" }, { word: "skunk", img: "🦨" }, { word: "crocodile", img: "🐊" }, { word: "ostrich", img: "🐦" }, { word: "panda", img: "🐼" }, { word: "penguin", img: "🐧" }, { word: "llama", img: "🦙" }, { word: "kangaroo", img: "🦘" }, { word: "koala", img: "🐨" }, { word: "hippopotamus", img: "🦛" }, { word: "lion", img: "🦁" }, { word: "tiger", img: "🐯" }, { word: "monkey", img: "🐒" }, { word: "elephant", img: "🐘" }, { word: "giraffe", img: "🦒" }, { word: "snake", img: "🐍" }, { word: "bear", img: "🐻" }, { word: "fox", img: "🦊" }, { word: "rabbit", img: "🐰" } ] }, 
+                "Pets": { badge: "🐶", vocab: [ { word: "dog", img: "🐶" }, { word: "cat", img: "🐱" }, { word: "hamster", img: "🐹" }, { word: "fish", img: "🐠" }, { word: "turtle", img: "🐢" }, { word: "bird", img: "🐦" }, { word: "lizard", img: "🦎" }, { word: "mouse", img: "🐭" }, { word: "parrot", img: "🦜" }, { word: "guinea pig", img: "🐹" } ] }, 
+                "Transportation": { badge: "🚗", vocab: [ { word: "car", img: "🚗" }, { word: "bus", img: "🚌" }, { word: "train", img: "🚆" }, { word: "bicycle", img: "🚲" }, { word: "motorcycle", img: "🏍️" }, { word: "airplane", img: "✈️" }, { word: "boat", img: "🚤" }, { word: "helicopter", img: "🚁" }, { word: "truck", img: "🚚" }, { word: "taxi", img: "🚕" }, { word: "scooter", img: "🛴" }, { word: "skateboard", img: "🛹" }, { word: "rocket", img: "🚀" }, { word: "ambulance", img: "🚑" } ] }, 
+                "Food": { badge: "🍕", vocab: [ { word: "pizza", img: "🍕" }, { word: "hamburger", img: "🍔" }, { word: "fries", img: "🍟" }, { word: "taco", img: "🌮" }, { word: "sushi", img: "🍣" }, { word: "ice cream", img: "🍦" }, { word: "donut", img: "🍩" }, { word: "cake", img: "🍰" }, { word: "cookie", img: "🍪" }, { word: "popcorn", img: "🍿" }, { word: "candy", img: "🍬" }, { word: "peanuts", img: "🥜" }, { word: "cupcake", img: "🧁" }, { word: "blueberries", img: "🫐" }, { word: "cherries", img: "🍒" }, { word: "pudding", img: "🍮" }, { word: "pie", img: "🥧" }, { word: "tomatoes", img: "🍅" }, { word: "beans", img: "🫘" }, { word: "pretzels", img: "🥨" }, { word: "soda", img: "🥤" }, { word: "sandwiches", img: "🥪" }, { word: "cheese", img: "🧀" }, { word: "hot dog", img: "🌭" } ] }, 
+                "Clothing": { badge: "👕", vocab: [ { word: "shirt", img: "👕" }, { word: "dress", img: "👗" }, { word: "hat", img: "👒" }, { word: "shoes", img: "👞" }, { word: "socks", img: "🧦" }, { word: "jacket", img: "🧥" }, { word: "sweater", img: "👚" }, { word: "jeans", img: "👖" }, { word: "boots", img: "👢" }, { word: "sneakers", img: "👟" }, { word: "slippers", img: "🥿" }, { word: "scarf", img: "🧣" }, { word: "gloves", img: "🧤" } ] }, 
+                "Beach": { badge: "🏖️", vocab: [ { word: "beach", img: "🏖️" }, { word: "sun", img: "☀️" }, { word: "sandcastle", img: "🏰" }, { word: "seashell", img: "🐚" }, { word: "towel", img: "🧖" }, { word: "swimsuit", img: "🩱" }, { word: "sunglasses", img: "🕶️" }, { word: "crabs", img: "🦀" }, { word: "bucket", img: "🪣" }, { word: "shovel", img: "⛏️" }, { word: "frisbee", img: "🥏" }, { word: "umbrella", img: "⛱️" } ] }, 
+                "Body Parts": { badge: "👃", vocab: [ { word: "eyes", img: "👀" }, { word: "nose", img: "👃" }, { word: "mouth", img: "👄" }, { word: "ear", img: "👂" }, { word: "hand", img: "🖐️" }, { word: "foot", img: "🦶" }, { word: "arm", img: "💪" }, { word: "leg", img: "🦵" }, { word: "brain", img: "🧠" }, { word: "tooth", img: "🦷" } ] }, 
+                "Weather": { badge: "☀️", vocab: [ { word: "sun", img: "☀️" }, { word: "cloud", img: "☁️" }, { word: "rain", img: "🌧️" }, { word: "snow", img: "❄️" }, { word: "lightning", img: "⚡" }, { word: "wind", img: "🌬️" }, { word: "rainbow", img: "🌈" }, { word: "tornado", img: "🌪️" }, { word: "comet", img: "☄️" } ] }, 
+                "School": { badge: "✏️", vocab: [ { word: "pencil", img: "✏️" }, { word: "book", img: "📖" }, { word: "backpack", img: "🎒" }, { word: "scissors", img: "✂️" }, { word: "glue", img: "🧴" }, { word: "crayon", img: "🖍️" }, { word: "ruler", img: "📏" }, { word: "notebook", img: "📓" }, { word: "teacher", img: "🧑‍🏫" }, { word: "paint", img: "🎨" }, { word: "globe", img: "🌍" } ] }, 
+                "Farm Animals": { badge: "🚜", vocab: [ { word: "cow", img: "🐄" }, { word: "pig", img: "🐖" }, { word: "chicken", img: "🐔" }, { word: "sheep", img: "🐑" }, { word: "horse", img: "🐎" }, { word: "goat", img: "🐐" }, { word: "duck", img: "🦆" }, { word: "rooster", img: "🐓" }, { word: "turkey", img: "🦃" } ] }, 
+                "Fruits": { badge: "🍎", vocab: [ { word: "apple", img: "🍎" }, { word: "banana", img: "🍌" }, { word: "orange", img: "🍊" }, { word: "grapes", img: "🍇" }, { word: "strawberry", img: "🍓" }, { word: "watermelon", img: "🍉" }, { word: "pineapple", img: "🍍" }, { word: "kiwi", img: "🥝" }, { word: "mango", img: "🥭" }, { word: "peach", img: "🍑" } ] }, 
+                "Vegetables": { badge: "🥕", vocab: [ { word: "carrot", img: "🥕" }, { word: "broccoli", img: "🥦" }, { word: "corn", img: "🌽" }, { word: "potato", img: "🥔" }, { word: "tomato", img: "🍅" }, { word: "onion", img: "🧅" }, { word: "lettuce", img: "🥬" }, { word: "eggplant", img: "🍆" }, { word: "cucumber", img: "🥒" }, { word: "pepper", img: "🌶️" } ] }, 
+                "Sports": { badge: "⚽", vocab: [ { word: "soccer", img: "⚽" }, { word: "basketball", img: "🏀" }, { word: "football", img: "🏈" }, { word: "baseball", img: "⚾" }, { word: "tennis", img: "🎾" }, { word: "volleyball", img: "🏐" }, { word: "golf", img: "⛳" }, { word: "swimming", img: "🏊" }, { word: "boxing", img: "🥊" }, { word: "hockey", img: "🏒" } ] }, 
+                "Insects": { badge: "🦋", vocab: [ { word: "butterfly", img: "🦋" }, { word: "bee", img: "🐝" }, { word: "ant", img: "🐜" }, { word: "ladybug", img: "🐞" }, { word: "spider", img: "🕷️" }, { word: "caterpillar", img: "🐛" }, { word: "snail", img: "🐌" }, { word: "mosquito", img: "🦟" }, { word: "cricket", img: "🦗" } ] }, 
+                "Sea Creatures": { badge: "🐙", vocab: [ { word: "octopus", img: "🐙" }, { word: "dolphin", img: "🐬" }, { word: "whale", img: "🐋" }, { word: "shark", img: "🦈" }, { word: "jellyfish", img: "🪼" }, { word: "seal", img: "🦭" }, { word: "lobster", img: "🦞" }, { word: "shrimp", img: "🦐" }, { word: "oyster", img: "🦪" }, { word: "pufferfish", img: "🐡" } ] },
+                "Office Supplies": { badge: "�", vocab: [ { word: "paperclip", img: "📎" }, { word: "stapler", img: "🖇️" }, { word: "calendar", img: "📅" }, { word: "folder", img: "📁" }, { word: "chart", img: "📈" }, { word: "pushpin", img: "📌" }, { word: "keyboard", img: "⌨️" } ] },
+                "Musical Instruments": { badge: "🎸", vocab: [ { word: "guitar", img: "🎸" }, { word: "piano", img: "🎹" }, { word: "trumpet", img: "🎺" }, { word: "violin", img: "🎻" }, { word: "drum", img: "🥁" }, { word: "saxophone", img: "🎷" }, { word: "banjo", img: "🪕" } ] }
+            }
+        };
+
+        const dialogue = {
+            seller: {
+                setPrice: [ "The best price for the best stuff!", "You won't find a better deal.", "How much for this fine item?", "A true bargain, I assure you.", "This is top quality, worth every penny." ],
+                negotiate: [ "Oh? Let's hear it then.", "I'm listening, but be reasonable.", "You want to negotiate? Alright.", "My prices are fair, but I'll hear you out." ],
+                accept: [ "Sold! Pleasure doing business.", "You've got a deal!", "Alright, it's yours.", "A wise choice!" ],
+                pass: [ "Fine, be that way!", "No deal. My price is firm.", "Your loss, my friend.", "Perhaps the next item will interest you." ]
+            },
+            buyer: {
+                thinking: [ "Hmm, what's a fair price?", "Let's see what you've got...", "I'm looking for a good deal today.", "Show me what you're selling." ],
+                react: [ "That's a bit steep...", "Let me think about that price.", "Is that your final offer?", "Hmm, I don't know about that.", "You're asking for how much?" ],
+                negotiate: [ "I can do better. My offer is...", "That's too high. How about this instead?", "Let's make a deal. I'll offer...", "I'll give you this much for it." ],
+                accept: [ "A deal is a deal. I'll take them.", "That sounds fair. I'll take it!", "You've convinced me. It's a deal.", "I accept your price." ],
+                pass: [ "I'll pass on this one.", "That's way too expensive for me.", "Not interested, thank you.", "I think I'll wait." ]
+            }
+        };
+
+        // DOM Elements
+        const setupScreen = document.getElementById('setup-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const nameInput1PScreen = document.getElementById('name-input-1p-screen');
+        const nameInput2PScreen = document.getElementById('name-input-2p-screen');
+        const playerNameInput1P = document.getElementById('player-name-input-1p');
+        const buyerNameInput2P = document.getElementById('buyer-name-input-2p');
+        const sellerNameInput2P = document.getElementById('seller-name-input-2p');
+        const continue1PBtn = document.getElementById('continue-1p-btn');
+        const continue2PBtn = document.getElementById('continue-2p-btn');
+        const categoryContainer = document.getElementById('category-container');
+        const modeSelection = document.getElementById('mode-selection');
+        const timerDisplay = document.getElementById('timer');
+        const saleAnimationOverlay = document.getElementById('sale-animation-overlay');
+
+        const categorySelection = document.getElementById('category-selection');
+        const onePlayerBtn = document.getElementById('one-player-btn');
+        const twoPlayerBtn = document.getElementById('two-player-btn');
+        const setupInstruction = document.getElementById('setup-instruction');
+        
+        const buyerSpeech = document.getElementById('buyer-speech');
+        const sellerSpeech = document.getElementById('seller-speech');
+        const buyerItems = document.getElementById('buyer-items');
+        const buyerSpent = document.getElementById('buyer-spent');
+        const buyerSaved = document.getElementById('buyer-saved');
+        const sellerItems = document.getElementById('seller-items');
+        const sellerEarned = document.getElementById('seller-earned');
+        const sellerLost = document.getElementById('seller-lost');
+        const buyerNameDisplay = document.getElementById('buyer-name-display');
+        const sellerNameDisplay = document.getElementById('seller-name-display');
+        const finalBuyerName = document.getElementById('final-buyer-name');
+        const finalSellerName = document.getElementById('final-seller-name');
+        const finalBuyerSaved = document.getElementById('final-buyer-saved');
+        const finalSellerLost = document.getElementById('final-seller-lost');
+
+        const itemCard = document.getElementById('item-card');
+        const itemImage = document.getElementById('item-image');
+        const itemName = document.getElementById('item-name');
+        const itemQuantity = document.getElementById('item-quantity');
+        const itemPrice = document.getElementById('item-price');
+        const priceInput = document.getElementById('price-input');
+        
+        const turnIndicator = document.getElementById('turn-indicator');
+        const setPriceBtn = document.getElementById('set-price-btn');
+        const acceptBtn = document.getElementById('accept-btn');
+        const negotiateBtn = document.getElementById('negotiate-btn');
+        const passBtn = document.getElementById('pass-btn');
+        const playAgainBtn = document.getElementById('play-again-btn');
+
+        // Game State
+        let state = {};
+        let gameTimerInterval = null;
+
+        // --- Speech Synthesis ---
+        let allVoices = [];
+        let maleVoicePool = [];
+        let femaleVoicePool = [];
+        let maleVoiceIndex = 0;
+        let femaleVoiceIndex = 0;
+        let speechQueue = [];
+        let isSpeaking = false;
+
+        function loadVoices() {
+            allVoices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en'));
+            if (allVoices.length === 0) return;
+
+            // Prefer more natural sounding voices if available
+            const preferredVoices = allVoices.filter(v => v.name.toLowerCase().includes('microsoft') && v.name.toLowerCase().includes('natural'));
+            
+            let voiceSource;
+            if (preferredVoices.length > 0) {
+                voiceSource = preferredVoices;
+            } else {
+                const fallbackVoices = allVoices.filter(v => v.name.includes('Natural') || v.name.includes('Google'));
+                voiceSource = fallbackVoices.length > 0 ? fallbackVoices : allVoices;
+            }
+            
+            // Attempt to create pools based on common keywords in voice names
+            femaleVoicePool = voiceSource.filter(v => v.name.includes('Female') || v.name.includes('Aria') || v.name.includes('Jenny') || v.name.includes('Zira'));
+            maleVoicePool = voiceSource.filter(v => v.name.includes('Male') || v.name.includes('Guy') || v.name.includes('David'));
+
+            // Fallback logic if specific gendered voices aren't found
+            if (femaleVoicePool.length === 0) femaleVoicePool = allVoices.filter(v => !v.name.includes('Male'));
+            if (maleVoicePool.length === 0) maleVoicePool = allVoices.filter(v => v.name.includes('Male'));
+            if (femaleVoicePool.length === 0) femaleVoicePool = allVoices;
+            if (maleVoicePool.length === 0) maleVoicePool = allVoices;
+        }
+
+        function processSpeechQueue() {
+            if (isSpeaking || speechQueue.length === 0) {
+                return;
+            }
+            isSpeaking = true;
+            const { text, role, callback } = speechQueue.shift();
+
+            if (!('speechSynthesis' in window) || !text) {
+                isSpeaking = false;
+                if (callback) setTimeout(callback, 0);
+                processSpeechQueue();
+                return;
+            }
+
+            if (allVoices.length === 0) loadVoices();
+
+            const utter = new SpeechSynthesisUtterance(text);
+            let voice;
+
+            if (role === 'seller') { // Female role
+                if (femaleVoicePool.length > 0) {
+                    voice = femaleVoicePool[femaleVoiceIndex % femaleVoicePool.length];
+                    femaleVoiceIndex++;
+                }
+            } else { // Male role
+                if (maleVoicePool.length > 0) {
+                    voice = maleVoicePool[maleVoiceIndex % maleVoicePool.length];
+                    maleVoiceIndex++;
+                }
+            }
+            
+            if (voice) utter.voice = voice;
+            
+            // Set rate and pitch. The pitch difference is key for systems with only one voice.
+            utter.rate = 0.85;
+            // A more distinct pitch difference helps differentiate speakers on all devices.
+            utter.pitch = role === 'seller' ? 1.2 : 0.8;
+
+            utter.onend = () => {
+                if (callback) callback();
+                isSpeaking = false;
+                processSpeechQueue();
+            };
+
+            utter.onerror = (event) => {
+                console.error('Speech synthesis error:', event.error);
+                isSpeaking = false;
+                if (callback) setTimeout(callback, 0);
+                processSpeechQueue();
+            };
+            
+            speechSynthesis.speak(utter);
+        }
+
+        function speak(text, role, callback) {
+            speechQueue.push({ text, role, callback });
+            if (!isSpeaking) {
+                processSpeechQueue();
+            }
+        }
+
+        if ('speechSynthesis' in window) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+            loadVoices();
+        }
+        
+        // --- Sound Effects ---
+        const sounds = {
+            click: new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination(),
+            chaChing: new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'fatsquare' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.4 } }).toDestination(),
+            pass: new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.2 } }).toDestination(),
+            win: new Tone.PolySynth(Tone.Synth).toDestination()
+        };
+
+        function playSound(sound) {
+            try {
+                const now = Tone.now();
+                switch(sound) {
+                    case 'click': sounds.click.triggerAttackRelease("C5", "8n", now); break;
+                    case 'sale':
+                        sounds.chaChing.triggerAttackRelease(["E5", "G#5", "B5"], "8n", now);
+                        sounds.chaChing.triggerAttackRelease(["E6"], "8n", now + 0.1);
+                        break;
+                    case 'pass': sounds.pass.triggerAttackRelease("A3", "8n", now); break;
+                    case 'win':
+                        sounds.win.triggerAttackRelease(["C4", "E4", "G4"], "4n", now);
+                        sounds.win.triggerAttackRelease(["D4", "F#4", "A4"], "4n", now + 0.4);
+                        sounds.win.triggerAttackRelease(["E4", "G#4", "B4"], "4n", now + 0.8);
+                        break;
+                }
+            } catch (e) {
+                console.error("Tone.js error:", e);
+            }
+        }
+
+        // --- Utility ---
+        function getRandomPhrase(role, type) {
+            const phrases = dialogue[role][type];
+            return phrases[Math.floor(Math.random() * phrases.length)];
+        }
+
+        // --- Game Logic ---
+        function resetState() {
+            state = { mode: null, buyerName: 'Buyer', sellerName: 'Seller', category: null, itemsPool: [], fullVocab: [], turn: 'seller', sellerScore: 0, buyerScore: 0, sellerItemsSold: 0, buyerItemsBought: 0, currentPrice: 0, negotiationCount: 0, initialPrice: 0, buyerMoneySaved: 0, sellerMoneyLost: 0, timeLeft: 600, isOver: false };
+        }
+
+        function init() {
+            clearInterval(gameTimerInterval);
+            resetState();
+            showScreen('setup-screen');
+            modeSelection.style.display = 'block';
+            categoryContainer.style.display = 'none';
+            populateCategories();
+            priceInput.value = '';
+            updateSetupInstructions();
+        }
+
+        function showScreen(screenId) {
+            setupScreen.style.display = 'none';
+            gameScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            nameInput1PScreen.style.display = 'none';
+            nameInput2PScreen.style.display = 'none';
+            document.getElementById(screenId).style.display = 'block';
+        }
+
+        function populateCategories() {
+            categorySelection.innerHTML = '';
+            for (const cat in gameData.categories) {
+                const data = gameData.categories[cat];
+                const card = document.createElement('button');
+                card.className = 'category-card border-2 border-blue-200 p-4 rounded-lg flex flex-col items-center gap-2';
+                card.dataset.category = cat;
+                card.innerHTML = `<div class="text-4xl">${data.badge}</div><div class="font-semibold text-center">${cat}</div>`;
+                card.onclick = () => selectCategory(cat, card);
+                categorySelection.appendChild(card);
+            }
+        }
+        
+        function updateSetupInstructions() {
+            if (state.mode && !state.category) {
+                setupInstruction.textContent = `Great! Now pick a category.`;
+            } else {
+                setupInstruction.textContent = "Select a game mode to begin!";
+            }
+        }
+        
+        function selectCategory(cat, card) {
+            state.category = cat;
+            document.querySelectorAll('.category-card').forEach(c => c.classList.remove('bg-blue-200', 'ring-4', 'ring-blue-400'));
+            card.classList.add('bg-blue-200', 'ring-4', 'ring-blue-400');
+            playSound('click');
+            updateSetupInstructions();
+            checkStartGame();
+        }
+
+        function selectMode(mode) {
+            state.mode = mode;
+            playSound('click');
+            if (mode === '1p') {
+                showScreen('name-input-1p-screen');
+            } else {
+                showScreen('name-input-2p-screen');
+            }
+        }
+        
+        function handleContinueFrom1PName() {
+            const name = playerNameInput1P.value.trim();
+            if (name) {
+                state.buyerName = name;
+                showScreen('setup-screen');
+                modeSelection.style.display = 'none';
+                categoryContainer.style.display = 'block';
+                updateSetupInstructions();
+            } else {
+                playerNameInput1P.classList.add('border-red-500');
+                playerNameInput1P.placeholder = "Please enter a name!";
+            }
+        }
+
+        function handleContinueFrom2PNames() {
+            const buyerName = buyerNameInput2P.value.trim();
+            const sellerName = sellerNameInput2P.value.trim();
+            if (buyerName && sellerName) {
+                state.buyerName = buyerName;
+                state.sellerName = sellerName;
+                showScreen('setup-screen');
+                modeSelection.style.display = 'none';
+                categoryContainer.style.display = 'block';
+                updateSetupInstructions();
+            } else {
+                if (!buyerName) buyerNameInput2P.classList.add('border-red-500');
+                if (!sellerName) sellerNameInput2P.classList.add('border-red-500');
+            }
+        }
+
+        function checkStartGame() {
+            if (state.mode && state.category) {
+                setupInstruction.textContent = "Let's haggle! Starting game...";
+                setTimeout(startGame, 1000);
+            }
+        }
+        
+        function startGame() {
+            buyerNameDisplay.textContent = state.buyerName;
+            sellerNameDisplay.textContent = state.sellerName;
+            finalBuyerName.textContent = `${state.buyerName}'s Final Score:`;
+            finalSellerName.textContent = `${state.sellerName}'s Final Score:`;
+            
+            state.fullVocab = [...gameData.categories[state.category].vocab];
+            state.itemsPool = [...state.fullVocab].sort(() => 0.5 - Math.random());
+            
+            state.sellerScore = 0;
+            state.buyerScore = 0;
+            state.sellerItemsSold = 0;
+            state.buyerItemsBought = 0;
+            state.buyerMoneySaved = 0;
+            state.sellerMoneyLost = 0;
+            updateScoreboard();
+            showScreen('game-screen');
+            startTimer();
+            nextItem();
+        }
+
+        function startTimer() {
+            clearInterval(gameTimerInterval);
+            state.timeLeft = 600;
+            updateTimerDisplay();
+            gameTimerInterval = setInterval(() => {
+                state.timeLeft--;
+                updateTimerDisplay();
+                if (state.timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(state.timeLeft / 60);
+            const seconds = state.timeLeft % 60;
+            timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            if (state.timeLeft <= 30) {
+                timerDisplay.classList.add('timer-warning');
+            } else {
+                timerDisplay.classList.remove('timer-warning');
+            }
+        }
+
+        function nextItem() {
+            if (state.isOver) return;
+            if (state.itemsPool.length === 0) {
+                state.itemsPool = [...state.fullVocab].sort(() => 0.5 - Math.random());
+            }
+
+            const item = state.itemsPool.pop();
+            state.currentQuantity = Math.floor(Math.random() * 5) + 1;
+            state.negotiationCount = 0;
+            state.initialPrice = 0;
+            
+            itemCard.classList.remove('active');
+            setTimeout(() => itemCard.classList.add('active'), 50);
+
+            itemImage.textContent = item.img;
+            itemName.textContent = item.word;
+            itemQuantity.textContent = `Quantity: ${state.currentQuantity}`;
+            itemPrice.textContent = '--';
+            priceInput.value = '';
+
+            setTurn('seller');
+        }
+        
+        function setTurn(turn) {
+            state.turn = turn;
+            priceInput.disabled = false;
+            
+            if (turn === 'seller') {
+                turnIndicator.textContent = `${state.sellerName}'s Turn to Price`;
+                turnIndicator.className = "text-2xl font-bold mb-4 text-red-600";
+                setControlsFor('seller_price');
+                updateSpeech(getRandomPhrase('buyer', 'thinking'), 'buyer', () => {
+                    updateSpeech(getRandomPhrase('seller', 'setPrice'), 'seller', () => {
+                         if (state.mode === '1p') aiSetPrice();
+                    });
+                });
+
+            } else { // buyer's turn
+                turnIndicator.textContent = `${state.buyerName}'s Turn to Decide`;
+                turnIndicator.className = "text-2xl font-bold mb-4 text-green-600";
+                priceInput.disabled = true;
+                setControlsFor('buyer_decision');
+                updateSpeech(getRandomPhrase('buyer', 'react'), 'buyer');
+            }
+        }
+
+        function setControlsFor(phase) {
+            setPriceBtn.style.display = 'none';
+            acceptBtn.style.display = 'none';
+            negotiateBtn.style.display = 'none';
+            passBtn.style.display = 'none';
+            priceInput.style.visibility = 'hidden';
+
+            switch(phase) {
+                case 'seller_price': setPriceBtn.style.display = 'inline-block'; passBtn.style.display = 'inline-block'; priceInput.style.visibility = 'visible'; priceInput.disabled = false; break;
+                case 'buyer_decision': acceptBtn.style.display = 'inline-block'; negotiateBtn.style.display = 'inline-block'; passBtn.style.display = 'inline-block'; priceInput.style.visibility = 'visible'; priceInput.disabled = true; break;
+                case 'seller_decision': acceptBtn.style.display = 'inline-block'; passBtn.style.display = 'inline-block'; priceInput.style.visibility = 'visible'; priceInput.disabled = true; break;
+                case 'wait': turnIndicator.textContent = 'Next item...'; break;
+            }
+        }
+
+        function handleSetPrice() {
+            const price = parseInt(priceInput.value);
+            if (isNaN(price) || price <= 0) {
+                updateSpeech("That's not a real price!", state.turn);
+                return;
+            }
+            playSound('click');
+            state.currentPrice = price;
+            itemPrice.textContent = state.currentPrice;
+
+            if (state.turn === 'seller') {
+                if (state.negotiationCount === 0) {
+                    state.initialPrice = price;
+                }
+                updateSpeech(`I'll sell these for $${price} each.`, 'seller', () => setTurn('buyer'));
+            } else {
+                state.negotiationCount++;
+                updateSpeech(getRandomPhrase('buyer', 'negotiate'), 'buyer', () => {
+                    updateSpeech(`$${price} you say?`, 'seller', () => {
+                        turnIndicator.textContent = `${state.sellerName}'s Final Decision`;
+                        turnIndicator.className = "text-2xl font-bold mb-4 text-red-600";
+                        setControlsFor('seller_decision');
+                        state.turn = 'seller';
+                        if (state.mode === '1p') aiAcceptOrDecline();
+                    });
+                });
+            }
+        }
+        
+        function endRound() {
+            setControlsFor('wait');
+            setTimeout(nextItem, 3000);
+        }
+
+        function triggerSaleAnimation() {
+            for (let i = 0; i < 20; i++) {
+                const coin = document.createElement('div');
+                coin.classList.add('coin');
+                const randomX = (Math.random() - 0.5) * 300;
+                coin.style.setProperty('--tx', `${randomX}px`);
+                coin.style.left = `calc(50% - 12.5px)`;
+                coin.style.top = `calc(50% - 12.5px)`;
+                coin.style.animationDelay = `${Math.random() * 0.5}s`;
+                saleAnimationOverlay.appendChild(coin);
+                setTimeout(() => coin.remove(), 2000);
+            }
+        }
+
+        function handleAccept() {
+            playSound('sale');
+            triggerSaleAnimation();
+            const totalCost = state.currentPrice * state.currentQuantity;
+            state.sellerScore += totalCost;
+            state.buyerScore -= totalCost;
+            state.sellerItemsSold += state.currentQuantity;
+            state.buyerItemsBought += state.currentQuantity;
+
+            if (state.initialPrice > 0 && state.currentPrice < state.initialPrice) {
+                const saved = (state.initialPrice - state.currentPrice) * state.currentQuantity;
+                state.buyerMoneySaved += saved;
+                state.sellerMoneyLost += saved;
+            }
+            
+            updateScoreboard();
+            
+            const endRoundActions = () => {
+                turnIndicator.textContent = "Deal Made!";
+                turnIndicator.className = "text-2xl font-bold mb-4 text-blue-600";
+                endRound();
+            };
+            
+            updateSpeech(getRandomPhrase('buyer', 'accept'), 'buyer', () => {
+                updateSpeech(getRandomPhrase('seller', 'accept'), 'seller', endRoundActions);
+            });
+        }
+
+        function handleNegotiate() {
+            playSound('click');
+            state.negotiationCount++;
+            turnIndicator.textContent = `${state.buyerName}'s Counter-Offer`;
+            turnIndicator.className = "text-2xl font-bold mb-4 text-green-600";
+            
+            const setupInput = () => {
+                setControlsFor('seller_price'); // Re-use seller price controls for buyer
+                state.turn = 'buyer';
+                priceInput.value = '';
+                priceInput.focus();
+            };
+
+            updateSpeech(getRandomPhrase('buyer', 'negotiate'), 'buyer', () => {
+                updateSpeech(getRandomPhrase('seller', 'negotiate'), 'seller', setupInput);
+            });
+        }
+
+        function handlePass() {
+            playSound('pass');
+            const endRoundActions = () => {
+                turnIndicator.textContent = "No Deal!";
+                turnIndicator.className = "text-2xl font-bold mb-4 text-gray-500";
+                endRound();
+            };
+
+            if (state.turn === 'seller' && state.negotiationCount > 0) {
+                updateSpeech(getRandomPhrase('buyer', 'pass'), 'buyer', () => {
+                    updateSpeech(getRandomPhrase('seller', 'pass'), 'seller', endRoundActions);
+                });
+            } else {
+                updateSpeech(getRandomPhrase('buyer', 'pass'), 'buyer', () => {
+                    updateSpeech(getRandomPhrase('seller', 'pass'), 'seller', endRoundActions);
+                });
+            }
+        }
+
+        function updateSpeech(text, role, callback) {
+            const el = role === 'seller' ? sellerSpeech : buyerSpeech;
+            el.children[0].textContent = text;
+            speak(text, role, callback);
+        }
+
+        function updateScoreboard() {
+            buyerItems.textContent = state.buyerItemsBought;
+            buyerSpent.textContent = Math.abs(state.buyerScore);
+            buyerSaved.textContent = state.buyerMoneySaved;
+            sellerItems.textContent = state.sellerItemsSold;
+            sellerEarned.textContent = state.sellerScore;
+            sellerLost.textContent = state.sellerMoneyLost;
+        }
+
+        function endGame() {
+            if (state.isOver) return;
+            state.isOver = true;
+            clearInterval(gameTimerInterval);
+            playSound('win');
+            showScreen('game-over-screen');
+            const buyerFinalScore = state.buyerItemsBought * 10 - Math.abs(state.buyerScore) + state.buyerMoneySaved;
+            const sellerFinalScore = state.sellerScore;
+            let winnerText = "It's a draw! No one wins.";
+            if (sellerFinalScore > buyerFinalScore) {
+                winnerText = `${state.sellerName} is the winner!`;
+            } else if (buyerFinalScore > sellerFinalScore) {
+                winnerText = `${state.buyerName} is the winner!`;
+            }
+            
+            document.getElementById('winner-announcement').textContent = winnerText;
+            document.getElementById('final-buyer-items').textContent = state.buyerItemsBought;
+            document.getElementById('final-buyer-spent').textContent = Math.abs(state.buyerScore);
+            document.getElementById('final-seller-items').textContent = state.sellerItemsSold;
+            document.getElementById('final-seller-earned').textContent = state.sellerScore;
+            finalBuyerSaved.textContent = state.buyerMoneySaved;
+            finalSellerLost.textContent = state.sellerMoneyLost;
+        }
+
+        // --- AI Logic for 1P Mode ---
+        function aiSetPrice() {
+            const basePrice = state.itemsPool[state.itemsPool.length-1].word.length * 2;
+            const price = basePrice + Math.floor(Math.random() * 5) + 2;
+            setTimeout(() => {
+                priceInput.value = price;
+                handleSetPrice();
+            }, 1500);
+        }
+        
+        function aiAcceptOrDecline() {
+            const fairPrice = state.itemsPool[state.itemsPool.length-1].word.length * 2;
+            const buyerOffer = state.currentPrice;
+            const acceptChance = (buyerOffer / fairPrice) - 0.4;
+            
+            setTimeout(() => {
+                if (buyerOffer > fairPrice || Math.random() < acceptChance) {
+                    handleAccept();
+                } else {
+                    handlePass();
+                }
+            }, 1500);
+        }
+
+        // Event Listeners
+        onePlayerBtn.addEventListener('click', () => selectMode('1p'));
+        twoPlayerBtn.addEventListener('click', () => selectMode('2p'));
+        continue1PBtn.addEventListener('click', handleContinueFrom1PName);
+        continue2PBtn.addEventListener('click', handleContinueFrom2PNames);
+        setPriceBtn.addEventListener('click', handleSetPrice);
+        acceptBtn.addEventListener('click', handleAccept);
+        negotiateBtn.addEventListener('click', handleNegotiate);
+        passBtn.addEventListener('click', handlePass);
+        playAgainBtn.addEventListener('click', init);
+        
+        playerNameInput1P.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleContinueFrom1PName();
+        });
+        buyerNameInput2P.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sellerNameInput2P.focus();
+        });
+        sellerNameInput2P.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleContinueFrom2PNames();
+        });
+        priceInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !priceInput.disabled) {
+                handleSetPrice();
+            }
+        });
+
+        // Initial load
+        window.onload = init;
+    </script>
+</body>
+</html>

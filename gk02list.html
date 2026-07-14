@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Chinese Vocabulary Games</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    
+    <style>
+        /* --- CSS STYLES ("Royal" Theme) --- */
+        :root {
+            --bg-main: #0d2148;         /* Deep Navy */
+            --bg-container: #1b3a6b;   /* Royal Blue */
+            --primary-color: #e3d095;  /* Gold */
+            --primary-dark: #c1b07e;
+            --text-light: #f0f2f5;      /* Ivory White */
+            --text-dark: #a0aec0;
+            --border-color: #334e7c;
+            --correct-color: #50fa7b;
+            --incorrect-color: #ff5555;
+            --gold-color: #e3d095;
+            --accent-cyan: #8be9fd;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; background-color: var(--bg-main); color: var(--text-light);
+            margin: 0; font-size: 16px;
+            overflow: hidden; touch-action: none;
+        }
+
+        #game-container {
+            width: 100%; height: 100%; max-width: 1200px; max-height: 850px;
+            border: 1px solid var(--border-color); border-radius: 15px; background-color: var(--bg-container);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3); position: relative; overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+
+        #hud {
+            display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+            padding: 0.75em 1.5em; font-size: 1em; font-weight: bold;
+            background-color: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-color); gap: 15px;
+        }
+        .hud-item { color: var(--accent-cyan); }
+        .hud-item span { color: var(--text-light); font-size: 1.1em; }
+
+        .screen {
+            flex-grow: 1; display: none; flex-direction: column; justify-content: center;
+            align-items: center; text-align: center; padding: 2em; box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .screen.active { display: flex; }
+        
+        /* --- Start Screen Mode Selection --- */
+        #game-mode-selection { display: flex; gap: 15px; margin: 20px 0; }
+        .mode-btn {
+            background-color: var(--bg-main); border: 2px solid var(--border-color);
+            color: var(--text-dark); padding: 1em 1.5em; font-size: 1em;
+            border-radius: 8px; cursor: pointer; transition: all 0.2s ease;
+        }
+        .mode-btn:hover { border-color: var(--primary-color); color: var(--text-light); }
+        .mode-btn.selected {
+            background-color: var(--primary-color); color: var(--bg-main);
+            border-color: var(--primary-dark); font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        /* --- Vocab Match UI --- */
+        #word-bank { 
+            background-color: rgba(0,0,0,0.2); 
+            padding: 1em; border-radius: 10px;
+            width: 100%; max-width: 500px;
+            min-height: 100px; display: flex; align-items: center; justify-content: center;
+            border: 2px dashed var(--border-color);
+            transition: background-color 0.3s;
+        }
+        .word {
+            background-color: var(--primary-color); color: var(--bg-main); padding: 0.8em 1.5em;
+            border-radius: 8px; cursor: grab; font-size: 1.8em; font-weight: bold;
+            user-select: none; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .word.dragging { opacity: 0.4; cursor: grabbing; transform: scale(1.05); }
+        .drop-zones {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 15px; width: 100%; max-width: 700px;
+        }
+        .zone {
+            min-height: 80px; border: 2px solid var(--border-color); border-radius: 10px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.8em; /* Increased font size */
+            font-weight: bold; transition: all 0.2s ease-in-out;
+            padding: 1em; background-color: var(--bg-main);
+            color: var(--text-dark);
+        }
+        .zone.drag-over { border-color: var(--primary-color); color: var(--text-light); transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        
+        /* --- Sentence Fill UI --- */
+        #sentence-container {
+            background-color: rgba(0,0,0,0.2); padding: 2em;
+            border-radius: 10px;
+            width: 100%;
+            max-width: 800px; font-size: 1.5em; line-height: 1.6;
+            color: var(--text-light); border: 1px solid var(--border-color);
+        }
+        #sentence-container .blank {
+            display: inline-block;
+            background-color: var(--bg-main);
+            padding: 0.1em 1em;
+            border-radius: 5px;
+            color: var(--text-dark);
+            font-weight: bold;
+        }
+        #pinyin-hint-container {
+            font-size: 1.2em;
+            color: var(--accent-cyan);
+            margin-top: 1em;
+            min-height: 25px; /* Prevents layout jump */
+        }
+        #choice-buttons {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 15px; width: 100%; max-width: 700px;
+        }
+        .choice-btn {
+            background-color: var(--bg-main); border: 2px solid var(--border-color);
+            color: var(--text-light); padding: 1em; font-size: 1.5em; /* Increased font size */
+            border-radius: 8px; cursor: pointer; transition: all 0.2s ease;
+        }
+        .choice-btn:hover { border-color: var(--primary-color); }
+        
+        /* --- Question Timer Bar --- */
+        .question-timer-container {
+            width: 100%;
+            max-width: 800px;
+            height: 10px;
+            background-color: var(--bg-main);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            margin-top: 1.5em;
+            margin-bottom: 1.5em;
+            overflow: hidden;
+        }
+        .question-timer-bar {
+            width: 100%;
+            height: 100%;
+            background-color: var(--accent-cyan);
+            border-radius: 5px;
+            transition: width 0.1s linear;
+        }
+
+        /* --- General Feedback & Animations --- */
+        #feedback-display { font-size: 1.8em; font-weight: bold; transition: opacity 0.3s ease; min-height: 50px; display: flex; align-items: center; justify-content: center; }
+        .feedback-correct { color: var(--correct-color); }
+        .feedback-incorrect { color: var(--incorrect-color); }
+        .zone.flash-correct, .choice-btn.flash-correct { animation: flash-correct 0.5s ease; }
+        .zone.flash-incorrect, .choice-btn.flash-incorrect { animation: flash-incorrect 0.5s ease; }
+
+        @keyframes flash-correct { 50% { background-color: var(--correct-color); color: var(--bg-main); border-color: #fff; transform: scale(1.02); } }
+        @keyframes flash-incorrect { 50% { background-color: var(--incorrect-color); color: var(--bg-main); border-color: #fff; transform: scale(1.02); } }
+        
+        .timer-warning span {
+            color: var(--incorrect-color) !important;
+            animation: pulse-red 1s infinite;
+        }
+        @keyframes pulse-red {
+            50% { transform: scale(1.1); }
+        }
+
+        button {
+            background-color: var(--primary-color); color: var(--bg-main); border: none;
+            padding: 1em 2em; font-size: 1.1em; border-radius: 8px; font-weight: bold;
+            cursor: pointer; transition: all 0.2s ease; margin: 5px;
+        }
+        button:hover { background-color: var(--primary-dark); transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        button:active { transform: translateY(-1px); }
+        
+        #home-btn {
+            background-color: transparent;
+            border: 2px solid var(--border-color);
+            color: var(--text-dark);
+            padding: 0.5em 1em;
+            font-size: 0.9em;
+            margin-left: auto; /* Pushes button to the right */
+        }
+        #home-btn:hover {
+            background-color: transparent;
+            border-color: var(--primary-color);
+            color: var(--text-light);
+        }
+        
+        h1 { font-size: 3em; margin-bottom: 0.2em; color: var(--text-light); }
+        h2 { font-size: 2em; }
+        #error-list { list-style-type: none; padding: 0; max-height: 200px; overflow-y: auto; width: 90%; background-color: rgba(0,0,0,0.2); border-radius: 8px; }
+        #error-list li { padding: 12px; margin: 8px; border-radius: 5px; border-left: 4px solid var(--incorrect-color); background-color: var(--bg-container); }
+        #error-list li b { color: var(--accent-cyan); }
+        #error-list li .translation { color: var(--text-light); }
+
+        #level-interstitial-title { animation: pulse 2s infinite; }
+        @keyframes pulse { 50% { opacity: 0.7; } }
+        #countdown-display { font-size: 6em; font-weight: bold; color: var(--primary-color); }
+
+        #particle-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+        .token-particle { position: absolute; width: 15px; height: 15px; background: var(--gold-color); border-radius: 50%; opacity: 1; box-shadow: 0 0 5px var(--gold-color); }
+        
+        #achievement-toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background-color: var(--primary-color); color: var(--bg-main); padding: 15px 25px; border-radius: 50px; font-size: 1.2em; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.4); z-index: 10000; opacity: 0; visibility: hidden; transition: opacity 0.5s, visibility 0.5s, bottom 0.5s; }
+        #achievement-toast.show { opacity: 1; visibility: visible; bottom: 40px; }
+
+        #rewards-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; width: 90%; max-width: 900px; margin-top: 20px; padding: 10px; }
+        .reward-card { background-color: var(--bg-main); border: 1px solid var(--border-color); border-radius: 10px; padding: 20px; opacity: 0.5; filter: grayscale(80%); transition: all 0.3s ease; }
+        .reward-card.unlocked { opacity: 1; filter: grayscale(0%); border-left: 5px solid var(--gold-color); box-shadow: 0 0 15px rgba(227, 208, 149, 0.2); }
+        .reward-card h3 { margin-top: 0; color: var(--primary-color); }
+        .reward-card p { color: var(--text-dark); font-size: 0.9em; }
+
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="hud">
+            <div class="hud-item">Player: <span id="player-name-display"></span></div>
+            <div class="hud-item">Progress: <span id="progress-display">1/56</span></div>
+            <div class="hud-item">Score: <span id="score">0</span></div>
+            <div class="hud-item">Tokens: <span id="tokens">0</span></div>
+            <div class="hud-item">Time: <span id="timer">10:00</span></div>
+            <button id="home-btn" style="display: none;">Home</button>
+        </div>
+
+        <div id="start-screen" class="screen active">
+            <h1>Chinese Vocab Games</h1>
+            <p style="color: var(--text-dark); max-width: 500px;">Choose a game mode to test your Chinese vocabulary skills.</p>
+            <div id="game-mode-selection">
+                <button class="mode-btn selected" data-mode="match">Vocab Match</button>
+                <button class="mode-btn" data-mode="fill">Sentence Fill</button>
+            </div>
+            <input type="text" id="player-name-input" placeholder="Enter your name" style="background-color: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-light); border-radius: 8px; padding: 0.8em; font-size: 1em; text-align: center;">
+            <button id="start-game-btn">Start Game</button>
+        </div>
+
+        <div id="level-interstitial-screen" class="screen">
+            <h2 id="level-interstitial-title">Starting Game</h2>
+            <div id="countdown-display"></div>
+            <p id="level-interstitial-message" style="color: var(--text-dark); font-size: 1.2em;">Get ready...</p>
+        </div>
+
+        <div id="sorting-screen" class="screen">
+            <!-- Container for both game UIs -->
+            <div id="match-game-ui" style="display: none; width: 100%; display: flex; flex-direction: column; align-items: center;">
+                <div id="word-bank"></div>
+                <div class="question-timer-container">
+                    <div class="question-timer-bar"></div>
+                </div>
+                <div class="drop-zones"></div>
+            </div>
+            <div id="sentence-game-ui" style="display: none; width: 100%; display: flex; flex-direction: column; align-items: center;">
+                <div id="sentence-container"></div>
+                <div id="pinyin-hint-container"></div>
+                 <div class="question-timer-container">
+                    <div class="question-timer-bar"></div>
+                </div>
+                <div id="choice-buttons"></div>
+            </div>
+            <div id="feedback-display"></div>
+        </div>
+
+        <div id="end-screen" class="screen">
+            <h1 id="end-screen-title">Game Over!</h1>
+            <h2 id="final-score-heading"></h2>
+            <h2 id="final-score"></h2>
+            <h3>Words to Review:</h3>
+            <ul id="error-list"></ul>
+            <div>
+                <button id="play-again-btn">Play Again</button>
+                <button id="view-trophies-btn">View Trophy Case</button>
+            </div>
+        </div>
+
+        <div id="trophy-case-screen" class="screen">
+            <h1>Your Trophy Case</h1>
+            <div id="rewards-container"></div>
+            <button id="back-to-score-btn">Back to Score</button>
+        </div>
+    </div>
+
+    <div id="particle-container"></div>
+    <div id="achievement-toast"></div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const vocabularyList = [
+             { eng: "band", sentence: "The band played their most popular songs at the concert.", chi: "乐队", pin: "yuèduì" },
+             { eng: "marathon", sentence: "She trained for months to run the marathon.", chi: "马拉松", pin: "mǎlāsōng" },
+             { eng: "budget", sentence: "We need to stick to our travel budget.", chi: "预算", pin: "yùsuàn" },
+             { eng: "garment", sentence: "This garment is made of pure silk.", chi: "服装", pin: "fúzhuāng" },
+             { eng: "unit", sentence: "A meter is a unit of length.", chi: "单位", pin: "dānwèi" },
+             { eng: "abnormal", sentence: "The doctor found an abnormal growth during the check-up.", chi: "反常的", pin: "fǎncháng de" },
+             { eng: "harm", sentence: "Smoking can cause serious harm to your health.", chi: "伤害", pin: "shānghài" },
+             { eng: "Pacific", sentence: "The Pacific Ocean is the largest ocean on Earth.", chi: "太平洋", pin: "Tàipíngyáng" },
+             { eng: "wealth", sentence: "Health is more important than wealth.", chi: "财富", pin: "cáifù" },
+             { eng: "qualification", sentence: "What qualifications do you have for this job?", chi: "资格", pin: "zīgé" },
+             { eng: "else", sentence: "Is there anything else I can help you with?", chi: "别的", pin: "biéde" },
+             { eng: "depth", sentence: "The depth of the swimming pool is two meters.", chi: "深度", pin: "shēndù" },
+             { eng: "blow", sentence: "The wind began to blow harder.", chi: "吹", pin: "chuī" },
+             { eng: "messy", sentence: "His room is always messy.", chi: "凌乱的", pin: "língluàn de" },
+             { eng: "wide", sentence: "The river is very wide at this point.", chi: "宽的", pin: "kuān de" },
+             { eng: "obtain", sentence: "She managed to obtain a rare copy of the book.", chi: "获得", pin: "huòdé" },
+             { eng: "edge", sentence: "Be careful not to fall off the edge of the cliff.", chi: "边缘", pin: "biānyuán" },
+             { eng: "navy", sentence: "He served in the navy for ten years.", chi: "海军", pin: "hǎijūn" },
+             { eng: "pleasure", sentence: "It was a pleasure to meet you.", chi: "愉快", pin: "yúkuài" },
+             { eng: "collar", sentence: "The dog's collar has its name tag on it.", chi: "衣领", pin: "yīlǐng" },
+             { eng: "exchange", sentence: "They agreed to an exchange of prisoners.", chi: "交换", pin: "jiāohuàn" },
+             { eng: "dawn", sentence: "We woke up at dawn to see the sunrise.", chi: "黎明", pin: "límíng" },
+             { eng: "interview", sentence: "She has a job interview next week.", chi: "面试", pin: "miànshì" },
+             { eng: "bunch", sentence: "He bought her a bunch of flowers.", chi: "一束", pin: "yī shù" },
+             { eng: "bacterium", sentence: "Some bacteria can cause diseases.", chi: "细菌", pin: "xìjūn" },
+             { eng: "outside", sentence: "The children are playing outside.", chi: "外面", pin: "wàimiàn" },
+             { eng: "chorus", sentence: "The chorus sang beautifully during the concert.", chi: "合唱队", pin: "héchàngduì" },
+             { eng: "try", sentence: "You should try your best in everything you do.", chi: "尝试", pin: "chángshì" },
+             { eng: "abortion", sentence: "The debate about abortion is often controversial.", chi: "堕胎", pin: "duòtāi" },
+             { eng: "find", sentence: "I can't find my keys anywhere.", chi: "找到", pin: "zhǎodào" },
+             { eng: "awkward", sentence: "There was an awkward silence in the room.", chi: "尴尬的", pin: "gāngà de" },
+             { eng: "space", sentence: "Astronauts travel into outer space.", chi: "空间", pin: "kōngjiān" },
+             { eng: "invite", sentence: "They decided to invite their friends over for dinner.", chi: "邀请", pin: "yāoqǐng" },
+             { eng: "fan", sentence: "He is a big fan of that football team.", chi: "粉丝", pin: "fěnsī" },
+             { eng: "score", sentence: "What was the final score of the game?", chi: "比分", pin: "bǐfēn" },
+             { eng: "fail", sentence: "He was afraid he would fail the exam.", chi: "失败", pin: "shībài" },
+             { eng: "acute", sentence: "She felt an acute pain in her stomach.", chi: "剧烈的", pin: "jùliè de" },
+             { eng: "sleepy", sentence: "The long lecture made him feel sleepy.", chi: "困倦的", pin: "kùnjuàn de" },
+             { eng: "respond", sentence: "Please respond to this email as soon as possible.", chi: "回应", pin: "huíyìng" },
+             { eng: "anyhow", sentence: "It was raining, but they went for a walk anyhow.", chi: "无论如何", pin: "wúlùn rúhé" },
+             { eng: "downtown", sentence: "Let's go downtown to watch a movie.", chi: "市中心", pin: "shìzhōngxīn" },
+             { eng: "humour", sentence: "He has a great sense of humour.", chi: "幽默", pin: "yōumò" },
+             { eng: "which", sentence: "Which book would you like to read?", chi: "哪个", pin: "nǎge" },
+             { eng: "difference", sentence: "There is a big difference between the two options.", chi: "区别", pin: "qūbié" },
+             { eng: "sense", sentence: "She has a good sense of direction.", chi: "感觉", pin: "gǎnjué" },
+             { eng: "disagree", sentence: "I have to disagree with you on that point.", chi: "不同意", pin: "bù tóngyì" },
+             { eng: "dozen", sentence: "She bought a dozen eggs from the market.", chi: "一打", pin: "yī dá" },
+             { eng: "yawn", sentence: "He couldn't help but yawn during the boring meeting.", chi: "打哈欠", pin: "dǎ hāqian" },
+             { eng: "compete", sentence: "Athletes from all over the world will compete in the Olympics.", chi: "竞争", pin: "jìngzhēng" },
+             { eng: "wag", sentence: "The happy dog began to wag its tail.", chi: "摇摆", pin: "yáobǎi" },
+             { eng: "guess", sentence: "Can you guess what's in the box?", chi: "猜", pin: "cāi" },
+             { eng: "caption", sentence: "The photo had a funny caption underneath it.", chi: "说明文字", pin: "shuōmíng wénzì" },
+             { eng: "sour", sentence: "Lemons have a very sour taste.", chi: "酸的", pin: "suān de" },
+             { eng: "voyage", sentence: "They embarked on a long voyage across the ocean.", chi: "航行", pin: "hángxíng" },
+             { eng: "environment", sentence: "We need to protect the environment for future generations.", chi: "环境", pin: "huánjìng" }
+        ];
+
+        const praisePhrases = ["Excellent!", "Great job!", "Awesome!", "Well done!", "Perfect!", "You got it!"];
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        const Game = {
+            gameConfig: { timePerGame: 600 }, // 10 minutes
+            achievements: {
+                streak10: { title: 'Great Streak!', description: 'Get 10 correct answers in a row.', unlocked: false },
+                streak25: { title: 'Linguist!', description: 'Get 25 correct answers in a row.', unlocked: false },
+                perfectGame: { title: 'Perfectionist', description: 'Complete a game with no mistakes.', unlocked: false },
+                firstVictory: { title: 'Word Master', description: 'Complete a game for the first time.', unlocked: false },
+                tokenTycoon: { title: 'Token Tycoon', description: 'Earn over 1000 tokens in a game.', unlocked: false }
+            },
+            state: {},
+            dom: {},
+            dragState: {},
+            audio: {},
+
+            init() {
+                this.cacheDom();
+                this.bindEvents();
+                this.initAudio();
+            },
+            
+            initAudio() {
+                if (typeof Tone !== 'undefined') {
+                    this.audio.synth = new Tone.Synth().toDestination();
+                    this.audio.correctSound = () => this.audio.synth.triggerAttackRelease("C5", "8n", Tone.now());
+                    this.audio.incorrectSound = () => this.audio.synth.triggerAttackRelease("C3", "8n", Tone.now());
+                }
+            },
+
+            cacheDom() {
+                this.dom.screens = document.querySelectorAll('.screen');
+                this.dom.hud = {
+                    name: document.getElementById('player-name-display'),
+                    progress: document.getElementById('progress-display'),
+                    score: document.getElementById('score'),
+                    tokens: document.getElementById('tokens'),
+                    timer: document.getElementById('timer'),
+                    timerContainer: document.querySelector('.hud-item:has(#timer)'),
+                };
+                this.dom.gameUIs = {
+                    match: document.getElementById('match-game-ui'),
+                    sentence: document.getElementById('sentence-game-ui'),
+                };
+                this.dom.match = {
+                    wordBank: document.getElementById('word-bank'),
+                    dropZones: document.querySelector('.drop-zones'),
+                    timerBar: document.querySelector('#match-game-ui .question-timer-bar'),
+                };
+                this.dom.sentence = {
+                    container: document.getElementById('sentence-container'),
+                    choices: document.getElementById('choice-buttons'),
+                    hint: document.getElementById('pinyin-hint-container'),
+                    timerBar: document.querySelector('#sentence-game-ui .question-timer-bar'),
+                };
+                this.dom.buttons = {
+                    start: document.getElementById('start-game-btn'),
+                    playAgain: document.getElementById('play-again-btn'),
+                    viewTrophies: document.getElementById('view-trophies-btn'),
+                    backToScore: document.getElementById('back-to-score-btn'),
+                    modeSelection: document.getElementById('game-mode-selection'),
+                    home: document.getElementById('home-btn'),
+                };
+                 this.dom.interstitial = {
+                    title: document.getElementById('level-interstitial-title'),
+                    message: document.getElementById('level-interstitial-message'),
+                    countdown: document.getElementById('countdown-display')
+                };
+                this.dom.feedback = document.getElementById('feedback-display');
+                this.dom.toast = document.getElementById('achievement-toast');
+                this.dom.trophyCaseContainer = document.getElementById('rewards-container');
+                this.dom.particleContainer = document.getElementById('particle-container');
+            },
+
+            bindEvents() {
+                this.dom.buttons.start.addEventListener('click', async () => {
+                    if (Tone.context.state !== 'running') await Tone.start();
+                    this.startGame();
+                });
+                this.dom.buttons.playAgain.addEventListener('click', () => this.startGame());
+                this.dom.buttons.viewTrophies.addEventListener('click', () => this.showScreen('trophy-case-screen'));
+                this.dom.buttons.backToScore.addEventListener('click', () => this.showScreen('end-screen'));
+                this.dom.buttons.home.addEventListener('click', () => this.goHome());
+                
+                this.dom.buttons.modeSelection.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('mode-btn')) {
+                        this.dom.buttons.modeSelection.querySelector('.selected').classList.remove('selected');
+                        e.target.classList.add('selected');
+                    }
+                });
+            },
+
+            goHome() {
+                clearInterval(this.state.gameTimer);
+                clearInterval(this.state.questionTimer);
+                this.dom.hud.timerContainer.classList.remove('timer-warning');
+                this.dom.buttons.home.style.display = 'none';
+                this.showScreen('start-screen');
+            },
+
+            startGame() {
+                const selectedMode = this.dom.buttons.modeSelection.querySelector('.selected').dataset.mode;
+                const shuffledVocab = shuffleArray([...vocabularyList]);
+
+                this.state = {
+                    score: 0,
+                    tokens: 0,
+                    errors: [],
+                    currentWordIndex: 0,
+                    consecutiveCorrect: 0,
+                    gameTimer: null,
+                    questionTimer: null,
+                    timeLeft: this.gameConfig.timePerGame,
+                    playerName: document.getElementById('player-name-input').value.trim() || 'Explorer',
+                    achievements: JSON.parse(JSON.stringify(this.achievements)),
+                    masterWordList: shuffledVocab,
+                    gameMode: selectedMode,
+                    isGuessing: false,
+                };
+                
+                this.dom.buttons.home.style.display = 'block';
+                this.showScreen('level-interstitial-screen');
+                let countdown = 3;
+                this.dom.interstitial.countdown.textContent = countdown;
+                const countdownInterval = setInterval(() => {
+                    countdown--;
+                    this.dom.interstitial.countdown.textContent = countdown;
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        this.updateHUD(); 
+                        this.startTimer();
+                        this.presentNextQuestion();
+                        this.showScreen('sorting-screen');
+                    }
+                }, 1000);
+            },
+
+            startTimer() {
+                clearInterval(this.state.gameTimer);
+                this.state.gameTimer = setInterval(() => {
+                    this.state.timeLeft--;
+                    this.updateHUD();
+                    if (this.state.timeLeft <= 0) {
+                        this.endGame(false); // Pass false for 'not completed'
+                    }
+                }, 1000);
+            },
+
+            startQuestionTimer() {
+                clearInterval(this.state.questionTimer);
+                const timerDuration = 15000; // 15 seconds
+                const timerBar = this.state.gameMode === 'match' ? this.dom.match.timerBar : this.dom.sentence.timerBar;
+                
+                timerBar.style.transition = 'none';
+                timerBar.style.width = '100%';
+                void timerBar.offsetWidth; // Force reflow
+                timerBar.style.transition = `width ${timerDuration / 1000}s linear`;
+                timerBar.style.width = '0%';
+
+                this.state.questionTimer = setTimeout(() => {
+                    if (!this.state.isGuessing) {
+                       this.handleGuess(false, null); // Time's up
+                    }
+                }, timerDuration);
+            },
+            
+            presentNextQuestion() {
+                if (this.state.currentWordIndex >= this.state.masterWordList.length) {
+                    this.endGame(true);
+                    return;
+                }
+                
+                this.state.isGuessing = false;
+                this.dom.feedback.innerHTML = '';
+                this.dom.sentence.hint.textContent = '';
+                
+                if (this.state.gameMode === 'match') {
+                    this.dom.gameUIs.match.style.display = 'flex';
+                    this.dom.gameUIs.sentence.style.display = 'none';
+                    this.presentMatchQuestion();
+                } else {
+                    this.dom.gameUIs.match.style.display = 'none';
+                    this.dom.gameUIs.sentence.style.display = 'flex';
+                    this.presentSentenceQuestion();
+                }
+                this.updateHUD();
+                this.startQuestionTimer();
+            },
+
+            presentMatchQuestion() {
+                const currentWord = this.state.masterWordList[this.state.currentWordIndex];
+                const isEngToChi = Math.random() < 0.5;
+                const questionWord = isEngToChi ? currentWord.eng : currentWord.chi;
+                const correctAnswer = isEngToChi ? currentWord.chi : currentWord.eng;
+
+                const wordDiv = document.createElement('div');
+                wordDiv.textContent = questionWord;
+                wordDiv.className = 'word';
+                wordDiv.draggable = true;
+                wordDiv.addEventListener('dragstart', this.handleDragStart.bind(this));
+                wordDiv.addEventListener('dragend', this.handleDragEnd.bind(this)); 
+                wordDiv.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+                this.dom.match.wordBank.innerHTML = '';
+                this.dom.match.wordBank.appendChild(wordDiv);
+
+                let choices = [correctAnswer];
+                const distractors = this.state.masterWordList
+                    .filter(w => (isEngToChi ? w.chi : w.eng) !== correctAnswer)
+                    .map(w => isEngToChi ? w.chi : w.eng);
+                
+                while (choices.length < 4 && distractors.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * distractors.length);
+                    const distractor = distractors.splice(randomIndex, 1)[0];
+                    if (!choices.includes(distractor)) choices.push(distractor);
+                }
+                
+                shuffleArray(choices);
+                this.createDropZones(choices, correctAnswer);
+            },
+
+            presentSentenceQuestion() {
+                const currentWord = this.state.masterWordList[this.state.currentWordIndex];
+                const sentence = currentWord.sentence.replace(new RegExp(`\\b${currentWord.eng}\\b`, 'gi'), '<span class="blank">_______</span>');
+                this.dom.sentence.container.innerHTML = sentence;
+                this.dom.sentence.hint.innerHTML = `Hint: ${currentWord.chi} (${currentWord.pin})`;
+
+                let choices = [currentWord.eng];
+                const distractors = this.state.masterWordList
+                    .filter(w => w.eng !== currentWord.eng)
+                    .map(w => w.eng);
+                
+                while (choices.length < 4 && distractors.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * distractors.length);
+                    const distractor = distractors.splice(randomIndex, 1)[0];
+                    if (!choices.includes(distractor)) choices.push(distractor);
+                }
+                
+                shuffleArray(choices);
+                
+                this.dom.sentence.choices.innerHTML = '';
+                choices.forEach(choice => {
+                    const button = document.createElement('button');
+                    button.textContent = choice;
+                    button.className = 'choice-btn';
+                    button.dataset.word = choice;
+                    button.addEventListener('click', this.handleSentenceGuess.bind(this));
+                    this.dom.sentence.choices.appendChild(button);
+                });
+            },
+
+            handleSentenceGuess(e) {
+                if (this.state.isGuessing) return;
+                const chosenWord = e.target.dataset.word;
+                const correctWord = this.state.masterWordList[this.state.currentWordIndex].eng;
+                const isCorrect = chosenWord === correctWord;
+                this.handleGuess(isCorrect, e.target);
+            },
+
+            createDropZones(choices, correctAnswer) {
+                this.dom.match.dropZones.innerHTML = '';
+                choices.forEach(choice => {
+                    const zone = document.createElement('div');
+                    zone.className = 'zone';
+                    zone.textContent = choice;
+                    if (choice === correctAnswer) zone.dataset.correct = "true";
+                    zone.addEventListener('dragover', this.handleDragOver.bind(this));
+                    zone.addEventListener('dragenter', this.handleDragEnter.bind(this));
+                    zone.addEventListener('dragleave', this.handleDragLeave.bind(this));
+                    zone.addEventListener('drop', this.handleDrop.bind(this));
+                    this.dom.match.dropZones.appendChild(zone);
+                });
+            },
+
+            endGame(completed) {
+                clearInterval(this.state.gameTimer);
+                clearInterval(this.state.questionTimer);
+                this.dom.hud.timerContainer.classList.remove('timer-warning');
+                this.dom.buttons.home.style.display = 'none';
+                const title = document.getElementById('end-screen-title');
+                const heading = document.getElementById('final-score-heading');
+
+                if (completed && this.state.timeLeft > 0) {
+                    this.unlockAchievement('firstVictory');
+                    if (this.state.errors.length === 0) this.unlockAchievement('perfectGame');
+                    title.textContent = "All Words Matched!";
+                    heading.textContent = `Congratulations, ${this.state.playerName}!`;
+                } else {
+                    title.textContent = "Time's Up!";
+                    heading.textContent = `Good effort, ${this.state.playerName}!`;
+                }
+
+                document.getElementById('final-score').textContent = `Final Score: ${this.state.score}`;
+                
+                const errorList = document.getElementById('error-list');
+                errorList.innerHTML = this.state.errors.length === 0
+                    ? "<li>No mistakes made. Incredible!</li>"
+                    : this.state.errors.map(err => `<li><b>${err.eng}</b> = <span class="translation">${err.chi} (${err.pin})</span></li>`).join('');
+
+                this.updateTrophyCase();
+                this.showScreen('end-screen');
+            },
+            
+            updateHUD() {
+                this.dom.hud.name.textContent = this.state.playerName;
+                this.dom.hud.score.textContent = this.state.score;
+                this.dom.hud.tokens.textContent = this.state.tokens;
+                this.dom.hud.progress.textContent = `${this.state.currentWordIndex + 1}/${this.state.masterWordList.length}`;
+                
+                const minutes = Math.floor(this.state.timeLeft / 60) || 0;
+                const seconds = this.state.timeLeft % 60 || 0;
+                this.dom.hud.timer.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                this.dom.hud.timerContainer.classList.toggle('timer-warning', this.state.timeLeft <= 15);
+            },
+
+            handleGuess(isCorrect, targetElement) {
+                if (this.state.isGuessing) return;
+                this.state.isGuessing = true;
+                clearInterval(this.state.questionTimer);
+                
+                const timerBar = this.state.gameMode === 'match' ? this.dom.match.timerBar : this.dom.sentence.timerBar;
+                timerBar.style.width = timerBar.offsetWidth + 'px'; // Freeze timer bar
+
+                if (this.state.gameMode === 'match') this.dom.match.wordBank.innerHTML = '';
+                
+                const wordInfo = this.state.masterWordList[this.state.currentWordIndex];
+
+                if (isCorrect) {
+                    this.state.score++; 
+                    this.state.consecutiveCorrect++;
+                    this.state.tokens += 10;
+                    if (this.state.consecutiveCorrect > 0 && this.state.consecutiveCorrect % 5 === 0) this.state.tokens += 50;
+                    
+                    const randomPraise = praisePhrases[Math.floor(Math.random() * praisePhrases.length)];
+                    this.dom.feedback.textContent = `${randomPraise} +10 Tokens`;
+                    this.dom.feedback.className = "feedback-correct";
+
+                    if (this.audio.correctSound) this.audio.correctSound();
+                    if (targetElement) this.flashElement(targetElement, true);
+                    this.createTokenParticles(targetElement);
+                    if (this.state.consecutiveCorrect === 10) this.unlockAchievement('streak10');
+                    if (this.state.consecutiveCorrect === 25) this.unlockAchievement('streak25');
+                    if(this.state.tokens >= 1000) this.unlockAchievement('tokenTycoon');
+                } else {
+                    this.state.score--;
+                    this.state.consecutiveCorrect = 0; 
+                    if (!this.state.errors.some(e => e.eng === wordInfo.eng)) this.state.errors.push(wordInfo);
+                    this.dom.feedback.textContent = `Correct answer: ${wordInfo.chi} (${wordInfo.eng})`;
+                    this.dom.feedback.className = "feedback-incorrect";
+                    if(this.audio.incorrectSound) this.audio.incorrectSound();
+                    if(targetElement) this.flashElement(targetElement, false);
+                }
+
+                this.state.currentWordIndex++; 
+                this.updateHUD();
+                setTimeout(() => this.presentNextQuestion(), 2000); 
+            },
+
+            flashElement(element, isCorrect) {
+                const className = isCorrect ? 'flash-correct' : 'flash-incorrect';
+                element.classList.add(className);
+                setTimeout(() => element.classList.remove(className), 500);
+            },
+            
+            handleDrop(e) {
+                e.preventDefault();
+                if (this.state.isGuessing) return;
+                const targetZone = e.target.closest('.zone');
+                if (!targetZone) return;
+                targetZone.classList.remove('drag-over');
+                const isCorrect = targetZone.dataset.correct === "true";
+                this.handleGuess(isCorrect, targetZone);
+            },
+
+            handleTouchEnd(e) {
+                if (this.state.isGuessing) return;
+                document.removeEventListener('touchmove', this.dragState.touchMoveHandler);
+                document.removeEventListener('touchend', this.dragState.touchEndHandler);
+                const endTouch = e.changedTouches[0];
+                const targetZone = document.elementFromPoint(endTouch.clientX, endTouch.clientY)?.closest('.zone');
+                document.querySelectorAll('.zone').forEach(z => z.classList.remove('drag-over'));
+                document.body.removeChild(this.dragState.clone);
+                if (targetZone) {
+                    const isCorrect = targetZone.dataset.correct === "true";
+                    this.handleGuess(isCorrect, targetZone);
+                }
+                this.dragState = {};
+            },
+
+            // --- Unchanged Helper Functions ---
+            handleDragStart(e) { e.target.classList.add('dragging'); e.dataTransfer.setData('text/plain', e.target.id); },
+            handleDragEnd(e) { e.target.classList.remove('dragging'); },
+            handleDragOver(e) { e.preventDefault(); },
+            handleDragEnter(e) { const zone = e.target.closest('.zone'); if (zone) zone.classList.add('drag-over'); },
+            handleDragLeave(e) { const zone = e.target.closest('.zone'); if (zone) zone.classList.remove('drag-over'); },
+            handleTouchStart(e) {
+                if (this.dragState.isDragging || this.state.isGuessing) return;
+                this.dragState = { isDragging: true, originalElement: e.target };
+                e.preventDefault();
+                const touch = e.touches[0];
+                const clone = this.dragState.originalElement.cloneNode(true);
+                clone.style.position = 'fixed'; clone.style.pointerEvents = 'none'; clone.style.zIndex = '1000';
+                clone.style.left = `${touch.clientX - clone.offsetWidth / 2}px`;
+                clone.style.top = `${touch.clientY - clone.offsetHeight / 2}px`;
+                document.body.appendChild(clone);
+                this.dragState.clone = clone;
+                this.dragState.originalElement.classList.add('dragging');
+                this.dragState.touchMoveHandler = this.handleTouchMove.bind(this);
+                this.dragState.touchEndHandler = this.handleTouchEnd.bind(this);
+                document.addEventListener('touchmove', this.dragState.touchMoveHandler, { passive: false });
+                document.addEventListener('touchend', this.dragState.touchEndHandler);
+            },
+            handleTouchMove(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.dragState.clone.style.left = `${touch.clientX - this.dragState.clone.offsetWidth / 2}px`;
+                this.dragState.clone.style.top = `${touch.clientY - this.dragState.clone.offsetHeight / 2}px`;
+                document.querySelectorAll('.zone').forEach(z => z.classList.remove('drag-over'));
+                const targetZone = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.zone');
+                if (targetZone) targetZone.classList.add('drag-over');
+            },
+            unlockAchievement(id) {
+                if (!this.state.achievements[id] || this.state.achievements[id].unlocked) return;
+                this.state.achievements[id].unlocked = true;
+                const toast = this.dom.toast;
+                toast.innerHTML = `🏆 ${this.state.achievements[id].title}`;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 4000);
+            },
+            updateTrophyCase() {
+                this.dom.trophyCaseContainer.innerHTML = '';
+                for (const id in this.state.achievements) {
+                    const ach = this.state.achievements[id];
+                    const card = document.createElement('div');
+                    card.className = `reward-card ${ach.unlocked ? 'unlocked' : ''}`;
+                    card.innerHTML = `<h3>${ach.title}</h3><p>${ach.description}</p>`;
+                    this.dom.trophyCaseContainer.appendChild(card);
+                }
+            },
+            showScreen(screenId) {
+                this.dom.screens.forEach(s => s.classList.toggle('active', s.id === screenId));
+            },
+            createTokenParticles(originElement) {
+                if (!originElement) return;
+                const rect = originElement.getBoundingClientRect();
+                const startX = rect.left + rect.width / 2;
+                const startY = rect.top + rect.height / 2;
+                const tokenHud = this.dom.hud.tokens.getBoundingClientRect();
+                const endX = tokenHud.left + tokenHud.width / 2;
+                const endY = tokenHud.top + tokenHud.height / 2;
+                for (let i = 0; i < 5; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'token-particle';
+                    this.dom.particleContainer.appendChild(particle);
+                    const offsetX = (Math.random() - 0.5) * 50;
+                    const offsetY = (Math.random() - 0.5) * 50;
+                    particle.animate([
+                        { transform: `translate(${startX + offsetX}px, ${startY + offsetY}px) scale(1)`, opacity: 1 },
+                        { opacity: 1, offset: 0.8 },
+                        { transform: `translate(${endX}px, ${endY}px) scale(0)`, opacity: 0 }
+                    ], { duration: 800 + Math.random() * 200, easing: 'ease-in-out', delay: i * 50 });
+                    setTimeout(() => particle.remove(), 1000);
+                }
+            }
+        };
+
+        Game.init();
+    });
+    </script>
+</body>
+</html>

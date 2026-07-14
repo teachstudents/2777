@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find the Item! - House Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet"></noscript>
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Poppins', sans-serif;
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            width: 100vw;
+            padding: 0.5rem;
+        }
+        #game-container {
+            display: grid;
+            grid-template-rows: auto 1fr; 
+            height: 100%;
+            width: 100%;
+            max-width: 1200px; /* Max width for larger screens */
+            gap: 0.5rem;
+            background-color: white;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            padding: 1rem;
+        }
+        #canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            cursor: grab;
+            touch-action: none;
+        }
+        #gameCanvas {
+            background-color: #f8fafc; /* slate-50 */
+            border-radius: 0.75rem;
+            display: block;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            backdrop-filter: blur(4px);
+        }
+        .modal-content {
+            background-color: white;
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 90%;
+            width: 450px;
+        }
+        .stat-box {
+            background-color: #f1f5f9; /* slate-100 */
+            border: 1px solid #e2e8f0; /* slate-200 */
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+
+        /* Mobile-specific optimizations */
+        @media (max-width: 768px) {
+            #game-wrapper {
+                padding: 0;
+                height: 100%; /* Use full available height */
+                justify-content: flex-start; /* Align game to the top */
+            }
+            #game-container {
+                height: 100%; /* Ensure container fills the wrapper */
+                width: 100%;
+                padding: 0.25rem;
+                gap: 0.25rem;
+                border-radius: 0;
+                box-shadow: none;
+            }
+            .stat-box {
+                padding: 0.25rem;
+            }
+            .stat-box h2 {
+                font-size: 0.55rem; /* Even smaller titles on mobile */
+                white-space: nowrap; /* Prevent titles from wrapping */
+            }
+            .stat-box div {
+                font-size: 0.75rem; /* Smaller values on mobile */
+            }
+            #objective-display {
+                font-size: 0.65rem; /* Smaller objective text */
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-wrapper">
+        <div id="game-container">
+            <!-- Game Stats Display & Controls -->
+            <div class="grid grid-cols-7 gap-2 items-center">
+                <div class="stat-box">
+                    <h2 class="font-semibold text-xs sm:text-sm text-slate-500">SCORE</h2>
+                    <div id="score-display" class="font-bold text-lg sm:text-xl text-indigo-500">0</div>
+                </div>
+                <div class="stat-box">
+                    <h2 class="font-semibold text-xs sm:text-sm text-slate-500">FOUND</h2>
+                    <div id="found-display" class="font-bold text-lg sm:text-xl text-emerald-500">0</div>
+                </div>
+                 <div class="stat-box">
+                    <h2 class="font-semibold text-xs sm:text-sm text-slate-500">LEVEL</h2>
+                    <div id="level-display" class="font-bold text-lg sm:text-xl text-amber-500">1</div>
+                </div>
+                <div class="stat-box">
+                    <h2 class="font-semibold text-xs sm:text-sm text-slate-500">TIME</h2>
+                    <div id="timer-display" class="font-bold text-lg sm:text-xl text-slate-700">10:00</div>
+                </div>
+                 <div class="stat-box">
+                    <h2 class="font-semibold text-xs sm:text-sm text-slate-500">QUEST</h2>
+                    <div id="quest-timer-display" class="font-bold text-lg sm:text-xl text-rose-500">30</div>
+                </div>
+                <div class="stat-box col-span-2">
+                    <h2 class="font-semibold text-xs sm:text-sm text-slate-500">OBJECTIVE</h2>
+                    <div id="objective-display" class="font-bold text-sm sm:text-base text-rose-500 truncate">&nbsp;</div>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div id="canvas-container">
+                <canvas id="gameCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Start Game Modal -->
+    <div id="start-modal" class="modal-backdrop flex">
+        <div class="modal-content">
+            <h2 class="text-3xl font-bold mb-2 text-indigo-500">Find the Item!</h2>
+            <p class="text-slate-600 mb-4">Walk around the house and find the requested items. Find 10 items to reach Level 2!</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" class="w-full p-2 border border-slate-300 rounded-md mb-4 text-center bg-white">
+            <button id="start-game-btn" class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:bg-indigo-700 transition-transform transform hover:scale-105">
+                PLAY
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elements ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvas-container');
+        const scoreDisplay = document.getElementById('score-display');
+        const foundDisplay = document.getElementById('found-display');
+        const levelDisplay = document.getElementById('level-display');
+        const objectiveDisplay = document.getElementById('objective-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const questTimerDisplay = document.getElementById('quest-timer-display');
+        const startModal = document.getElementById('start-modal');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const playerNameInput = document.getElementById('player-name-input');
+
+        // --- Game Config ---
+        const GRID_WIDTH = 16;
+        const GRID_HEIGHT = 12;
+        const GAME_DURATION = 600; // 10 minutes
+        const QUEST_DURATION = 30; // 30 seconds per item
+        const LEVEL_UP_THRESHOLD = 10;
+        let cellSize;
+
+        // --- Level 1 Layout (Rescaled for new grid) ---
+        const houseLayout1 = {
+            'living_room': { x: 1, y: 1, w: 7, h: 5, color: '#fefce8', name: 'Living Room', doors: [{x: 7, y: 3, side: 'right'}, {x: 4, y: 5, side: 'bottom'}] },
+            'kitchen': { x: 8, y: 1, w: 5, h: 5, color: '#eff6ff', name: 'Kitchen', doors: [{x: 8, y: 3, side: 'left'}, {x: 13, y: 3, side: 'right'}, {x: 11, y: 5, side: 'bottom'}] },
+            'garden': { x: 13, y: 1, w: 2, h: 10, color: '#f0fdf4', name: 'Garden', doors: [{x: 13, y: 3, side: 'left'}] },
+            'bedroom': { x: 1, y: 6, w: 7, h: 5, color: '#f0fdf4', name: 'Bedroom', doors: [{x: 4, y: 6, side: 'top'}, {x: 7, y: 8, side: 'right'}] },
+            'bathroom': { x: 8, y: 6, w: 3, h: 3, color: '#eef2ff', name: 'Bathroom', doors: [{x: 8, y: 8, side: 'left'}, {x: 9, y: 8, side: 'bottom'}] },
+            'closet': { x: 8, y: 9, w: 3, h: 2, color: '#faf5ff', name: 'Closet', doors: [{x: 9, y: 9, side: 'top'}] },
+            'garage': { x: 11, y: 6, w: 2, h: 5, color: '#f3f4f6', name: 'Garage', doors: [{x: 12, y: 6, side: 'top'}] },
+        };
+        const gameItems1 = {
+            'shirt': { icon: '👕', locations: ['bedroom', 'closet'] }, 'strawberry': { icon: '🍓', locations: ['kitchen', 'garden'] }, 'car': { icon: '🚗', locations: ['garage'] }, 'book': { icon: '📖', locations: ['living_room', 'bedroom'] }, 'soap': { icon: '🧼', locations: ['bathroom'] }, 'towel': { icon: '🧖', locations: ['bathroom'] }, 'pizza': { icon: '�', locations: ['kitchen'] }, 'television': { icon: '📺', locations: ['living_room'] }, 'bed': { icon: '🛏️', locations: ['bedroom'] }, 'flower': { icon: '🌸', locations: ['garden'] }, 'bicycle': { icon: '🚲', locations: ['garage'] }, 'jeans': { icon: '👖', locations: ['closet', 'bedroom'] }, 'apple': { icon: '🍎', locations: ['kitchen', 'garden'] }, 'sofa': { icon: '🛋️', locations: ['living_room'] }, 'laptop': { icon: '💻', locations: ['living_room', 'bedroom'] }, 'plant': { icon: '🪴', locations: ['living_room', 'garden'] }, 'fridge': { icon: '🧊', locations: ['kitchen'] }, 'toilet': { icon: '🚽', locations: ['bathroom'] },
+            'bonus': { icon: '✨', locations: ['living_room', 'kitchen', 'garden', 'bedroom', 'bathroom', 'closet', 'garage']}
+        };
+
+        // --- Level 2 Layout (Rescaled for new grid) ---
+        const houseLayout2 = {
+            'corridor': { x: 6, y: 1, w: 4, h: 10, color: '#f3f4f6', name: 'Corridor', doors: [{x: 6, y: 3, side: 'left'}, {x: 6, y: 8, side: 'left'}, {x: 9, y: 3, side: 'right'}, {x: 9, y: 8, side: 'right'}]},
+            'library': { x: 1, y: 1, w: 5, h: 5, color: '#eef2ff', name: 'Library', doors: [{x: 5, y: 3, side: 'right'}]},
+            'music_room': { x: 1, y: 6, w: 5, h: 5, color: '#faf5ff', name: 'Music Room', doors: [{x: 5, y: 8, side: 'right'}]},
+            'kitchen': { x: 10, y: 1, w: 5, h: 5, color: '#f0fdf4', name: 'Kitchen', doors: [{x: 10, y: 3, side: 'left'}]},
+            'gym': { x: 10, y: 6, w: 5, h: 5, color: '#fefce8', name: 'Gym', doors: [{x: 10, y: 8, side: 'left'}]},
+        };
+        const gameItems2 = {
+            'globe': { icon: '🌎', locations: ['library'] }, 'briefcase': { icon: '💼', locations: ['library'] }, 'scroll': { icon: '📜', locations: ['library'] }, 'abacus': { icon: '🧮', locations: ['library'] }, 'books': { icon: '📚', locations: ['library'] },
+            'piano': { icon: '🎹', locations: ['music_room'] }, 'guitar': { icon: '🎸', locations: ['music_room'] }, 'saxophone': { icon: '🎷', locations: ['music_room'] }, 'trumpet': { icon: '🎺', locations: ['music_room'] },
+            'fork_and_knife': { icon: '🍴', locations: ['kitchen'] }, 'plate': { icon: '🍽️', locations: ['kitchen'] }, 'canned_food': { icon: '🥫', locations: ['kitchen'] }, 'bread': { icon: '🍞', locations: ['kitchen'] }, 'salt': { icon: '🧂', locations: ['kitchen'] }, 'pot_of_food': { icon: '🍲', locations: ['kitchen'] },
+            'dumbell': { icon: '🏋️', locations: ['gym'] }, 'yoga_mat': { icon: '🧘', locations: ['gym'] }, 'basketball': { icon: '🏀', locations: ['gym'] }, 'trophy': { icon: '🏆', locations: ['gym', 'library'] },
+            'bonus': { icon: '✨', locations: ['corridor', 'library', 'music_room', 'kitchen', 'gym']}
+        };
+        
+        let wallMap = {};
+        
+        // --- Audio Setup ---
+        let soundsReady = false;
+        const synth = new Tone.Synth().toDestination();
+        const sounds = {
+            collect: () => { if(soundsReady) synth.triggerAttackRelease("C5", "8n") },
+            win: () => { if(soundsReady) synth.triggerAttackRelease("G5", "8n") },
+            wrong: () => { if(soundsReady) synth.triggerAttackRelease("C3", "8n") },
+            start: () => { if(soundsReady) synth.triggerAttackRelease("C4", "8n") },
+            levelUp: () => { if(soundsReady) { const now = Tone.now(); synth.triggerAttackRelease("C5", "8n", now); synth.triggerAttackRelease("E5", "8n", now + 0.1); synth.triggerAttackRelease("G5", "8n", now + 0.2); } },
+            gameOver: () => { if(soundsReady) synth.triggerAttackRelease("A2", "2n"); },
+            bonus: () => { if(soundsReady) synth.triggerAttackRelease("A5", "8n"); },
+            questFail: () => { if(soundsReady) synth.triggerAttackRelease("F3", "4n"); },
+        };
+        
+        let voices = [];
+        let voiceIndex = 0;
+        function loadVoices() {
+            voices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en'));
+        }
+
+        function getNextVoice() {
+            if (voices.length === 0) {
+                loadVoices();
+                if (voices.length === 0) return null;
+            }
+            const preferredVoices = voices.filter(v => v.name.includes('Natural') || v.name.includes('Google'));
+            const voicePool = preferredVoices.length > 0 ? preferredVoices : voices;
+            if (voicePool.length === 0) return null;
+            voiceIndex = (voiceIndex + 1) % voicePool.length;
+            return voicePool[voiceIndex];
+        }
+
+        function speak(text) {
+            if (!('speechSynthesis' in window) || !soundsReady || speechSynthesis.speaking) return;
+            const utter = new SpeechSynthesisUtterance(text);
+            const voice = getNextVoice();
+            if (voice) utter.voice = voice;
+            utter.rate = 0.85; 
+            utter.pitch = 1.2;
+            speechSynthesis.speak(utter);
+        }
+
+        if ('speechSynthesis' in window) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
+
+        // --- Game State ---
+        const player = { name: "Player", x: 1, y: 1, icon: '🧍' };
+        const pets1 = [{icon: '🐶', x: 0, y: 0}, {icon: '🐱', x: 0, y: 0}, {icon: '🐦', x: 0, y: 0}];
+        const pets2 = [...pets1, {icon: '🐰', x: 0, y: 0}, {icon: '🐸', x: 0, y: 0}, {icon: '🐢', x: 0, y: 0}];
+        let pets = [];
+        let score = 0;
+        let itemsFound = 0;
+        let level = 1;
+        let currentObjective = null;
+        let boardItems = [];
+        let floatingTexts = [];
+        let gameReady = false;
+        let gameTimerId = null;
+        let timeRemaining = GAME_DURATION;
+        let questTimerId = null;
+        let questTimeRemaining = QUEST_DURATION;
+        let isGameOver = false;
+        let gameOverButton = null;
+
+        // Swipe controls state
+        let pointerStartX = 0;
+        let pointerStartY = 0;
+        let isSwiping = false;
+
+        // --- Game Initialization ---
+        function init() {
+            handleResize();
+            showLoading();
+            addEventListeners();
+        }
+        
+        async function startGame() {
+            if (gameReady) return;
+
+            player.name = playerNameInput.value.trim() || "Player";
+            
+            await Tone.start();
+            soundsReady = true;
+            loadVoices(); 
+            startModal.classList.add('hidden');
+            
+            gameReady = true;
+            isGameOver = false;
+            pets = [...pets1];
+            startMasterTimer();
+            resetPlayerToStart();
+            setupNewQuest();
+            gameLoop();
+        }
+
+        function showLoading() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#64748b';
+            ctx.font = `bold ${Math.min(canvas.clientWidth, canvas.clientHeight) / 10}px Poppins, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Loading...', canvas.clientWidth / 2, canvas.clientHeight / 2);
+        }
+
+        function buildWalls() {
+            wallMap = {};
+            const currentLayout = level === 1 ? houseLayout1 : houseLayout2;
+            const roomGrid = Array(GRID_WIDTH).fill(null).map(() => Array(GRID_HEIGHT).fill(null));
+
+            for (const roomKey in currentLayout) {
+                const r = currentLayout[roomKey];
+                for (let x = r.x; x < r.x + r.w; x++) {
+                    for (let y = r.y; y < r.y + r.h; y++) {
+                        if (x < GRID_WIDTH && y < GRID_HEIGHT) roomGrid[x][y] = roomKey;
+                    }
+                }
+            }
+            
+            for (let x = 0; x < GRID_WIDTH; x++) {
+                for (let y = 0; y < GRID_HEIGHT; y++) {
+                    if (!roomGrid[x][y]) continue;
+                    const walls = { top: false, bottom: false, left: false, right: false };
+                    if (x + 1 >= GRID_WIDTH || roomGrid[x+1][y] !== roomGrid[x][y]) walls.right = true;
+                    if (y + 1 >= GRID_HEIGHT || roomGrid[x][y+1] !== roomGrid[x][y]) walls.bottom = true;
+                    wallMap[`${x},${y}`] = walls;
+                }
+            }
+
+            for (const roomKey in currentLayout) {
+                const r = currentLayout[roomKey];
+                r.doors.forEach(door => {
+                    const doorX = door.x;
+                    const doorY = door.y;
+                    if (door.side === 'right' && wallMap[`${doorX-1},${doorY}`]) wallMap[`${doorX-1},${doorY}`].right = false;
+                    if (door.side === 'left' && wallMap[`${doorX},${doorY}`]) wallMap[`${doorX-1},${doorY}`].right = false;
+                    if (door.side === 'bottom' && wallMap[`${doorX},${doorY-1}`]) wallMap[`${doorX},${doorY-1}`].bottom = false;
+                    if (door.side === 'top' && wallMap[`${doorX},${doorY-1}`]) wallMap[`${doorX},${doorY-1}`].bottom = false;
+                });
+            }
+        }
+
+
+        function setupNewQuest() {
+            boardItems = [];
+            floatingTexts = [];
+            buildWalls();
+            startQuestTimer();
+
+            const currentItems = level === 1 ? gameItems1 : gameItems2;
+            const currentItemKeys = Object.keys(currentItems).filter(k => k !== 'bonus');
+            
+            const objectiveKey = currentItemKeys[Math.floor(Math.random() * currentItemKeys.length)];
+            currentObjective = { key: objectiveKey, ...currentItems[objectiveKey] };
+
+            placeItem(currentObjective.key, true);
+            placeItem('bonus', false); // Place a bonus item
+
+            const numDistractors = level === 1 ? 40 : 50;
+            let distractorKeys = currentItemKeys.filter(k => k !== objectiveKey);
+            for (let i = 0; i < numDistractors; i++) {
+                if (distractorKeys.length === 0) break;
+                const keyToPlace = distractorKeys.splice(Math.floor(Math.random() * distractorKeys.length), 1)[0];
+                placeItem(keyToPlace, false);
+            }
+            
+            updateUI();
+            speak(`Find the ${currentObjective.key}`);
+        }
+
+        function placeItem(itemKey, isObjective) {
+            const currentLayout = level === 1 ? houseLayout1 : houseLayout2;
+            const currentItems = level === 1 ? gameItems1 : gameItems2;
+            const item = currentItems[itemKey];
+            if (!item) return;
+
+            const roomKey = item.locations[Math.floor(Math.random() * item.locations.length)];
+            const room = currentLayout[roomKey];
+            if (!room) return;
+            
+            let x, y, cellKey;
+            const occupiedCells = new Set(boardItems.map(i => `${i.x},${i.y}`));
+            let attempts = 0;
+            do {
+                x = room.x + Math.floor(Math.random() * room.w);
+                y = room.y + Math.floor(Math.random() * room.h);
+                cellKey = `${x},${y}`;
+                attempts++;
+            } while (occupiedCells.has(cellKey) && attempts < 100);
+
+            if (!occupiedCells.has(cellKey)) {
+                boardItems.push({ ...item, key: itemKey, x, y, isObjective });
+            }
+        }
+
+        // --- Game Loop & Drawing ---
+        function gameLoop() {
+            if (!gameReady) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            updateFloatingTexts();
+            draw();
+            if (!isGameOver) requestAnimationFrame(gameLoop);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const currentLayout = level === 1 ? houseLayout1 : houseLayout2;
+            
+            for (const roomKey in currentLayout) {
+                const room = currentLayout[roomKey];
+                ctx.fillStyle = room.color;
+                ctx.fillRect(room.x * cellSize, room.y * cellSize, room.w * cellSize, room.h * cellSize);
+            }
+
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = Math.max(1, cellSize * 0.1);
+            ctx.beginPath();
+            for(const key in wallMap) {
+                const [x, y] = key.split(',').map(Number);
+                const walls = wallMap[key];
+                const xPos = x * cellSize;
+                const yPos = y * cellSize;
+                if (walls.right) { ctx.moveTo(xPos + cellSize, yPos); ctx.lineTo(xPos + cellSize, yPos + cellSize); }
+                if (walls.bottom) { ctx.moveTo(xPos, yPos + cellSize); ctx.lineTo(xPos + cellSize, yPos + cellSize); }
+            }
+            ctx.stroke();
+
+            boardItems.forEach(item => {
+                ctx.font = `${cellSize}px sans-serif`;
+                ctx.fillText(item.icon, item.x * cellSize + cellSize / 2, item.y * cellSize + cellSize / 2);
+            });
+
+            for (let i = pets.length - 1; i >= 0; i--) {
+                const pet = pets[i];
+                ctx.font = `${cellSize * 0.9}px sans-serif`;
+                ctx.fillText(pet.icon, pet.x * cellSize + cellSize / 2, pet.y * cellSize + cellSize / 2);
+            }
+
+            ctx.font = `${cellSize * 1.1}px sans-serif`;
+            ctx.fillText(player.icon, player.x * cellSize + cellSize / 2, player.y * cellSize + cellSize / 2);
+
+            floatingTexts.forEach(t => drawFloatingText(t));
+
+            if (isGameOver) {
+                 ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                 ctx.fillRect(0, 0, canvas.width, canvas.height);
+                 ctx.fillStyle = 'white';
+                 ctx.font = `bold ${cellSize * 2}px Poppins`;
+                 ctx.textAlign = 'center';
+                 ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2 - cellSize * 2);
+                 ctx.font = `bold ${cellSize}px Poppins`;
+                 ctx.fillText(`Final Score: ${score}`, canvas.width / 2, canvas.height / 2);
+
+                 const btnW = cellSize * 6;
+                 const btnH = cellSize * 2;
+                 const btnX = canvas.width / 2 - btnW / 2;
+                 const btnY = canvas.height / 2 + cellSize * 2;
+                 gameOverButton = { x: btnX, y: btnY, w: btnW, h: btnH };
+                 
+                 ctx.fillStyle = '#4f46e5'; // indigo-600
+                 ctx.fillRect(btnX, btnY, btnW, btnH);
+                 ctx.fillStyle = 'white';
+                 ctx.font = `bold ${cellSize * 0.8}px Poppins`;
+                 ctx.fillText('Play Again', canvas.width / 2, btnY + btnH / 2);
+            }
+        }
+
+        // --- Effects ---
+        function createFloatingText(text, x, y, color, life = 60, size = 'normal') {
+            floatingTexts.push({ text, x, y, color, life, maxLife: life, size });
+        }
+
+        function updateFloatingTexts() {
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const t = floatingTexts[i];
+                t.y -= 0.02;
+                t.life--;
+                if (t.life <= 0) floatingTexts.splice(i, 1);
+            }
+        }
+
+        function drawFloatingText(t) {
+            ctx.globalAlpha = t.life / t.maxLife;
+            const fontSize = t.size === 'large' ? cellSize * 2 : cellSize / 1.5;
+            ctx.font = `bold ${fontSize}px Poppins, sans-serif`;
+            ctx.fillStyle = `rgb(${t.color})`;
+            ctx.textAlign = 'center';
+            ctx.fillText(t.text, t.x * cellSize + cellSize / 2, t.y * cellSize + cellSize / 2);
+            ctx.globalAlpha = 1.0;
+        }
+
+        // --- Player Logic ---
+        function movePlayer(dx, dy) {
+            if (!gameReady || isGameOver) return;
+
+            const currentWalls = wallMap[`${player.x},${player.y}`];
+            const newX = player.x + dx;
+            const newY = player.y + dy;
+            const targetWalls = wallMap[`${newX},${newY}`];
+
+            if (dx === 1 && currentWalls?.right) return;
+            if (dx === -1 && targetWalls?.right) return;
+            if (dy === 1 && currentWalls?.bottom) return;
+            if (dy === -1 && targetWalls?.bottom) return;
+
+            if (newX < 0 || newX >= GRID_WIDTH || newY < 0 || newY >= GRID_HEIGHT) return;
+            if (!wallMap[`${newX},${newY}`]) return;
+
+            const oldPlayerX = player.x;
+            const oldPlayerY = player.y;
+
+            player.x = newX;
+            player.y = newY;
+
+            let lastX = oldPlayerX;
+            let lastY = oldPlayerY;
+            for (const pet of pets) {
+                const oldPetX = pet.x;
+                const oldPetY = pet.y;
+                pet.x = lastX;
+                pet.y = lastY;
+                lastX = oldPetX;
+                lastY = oldPetY;
+            }
+
+            const itemIndex = boardItems.findIndex(item => item.x === player.x && item.y === player.y);
+            if (itemIndex > -1) {
+                const collected = boardItems.splice(itemIndex, 1)[0];
+                handleCollection(collected);
+            }
+        }
+        
+        function handleCollection(item) {
+            if (item.key === 'bonus') {
+                score += 100;
+                timeRemaining += 30;
+                sounds.bonus();
+                createFloatingText('+30s & 100pts!', item.x, item.y, '255, 193, 7');
+                speak('Bonus!');
+                updateUI();
+                return;
+            }
+
+            if (item.isObjective) {
+                score += 50;
+                itemsFound++;
+                sounds.win();
+                createFloatingText('Awesome!', item.x, item.y, '52, 211, 153');
+                speak('Great job!');
+
+                if (level === 1 && (itemsFound >= LEVEL_UP_THRESHOLD)) {
+                    level++;
+                    pets = [...pets2];
+                    sounds.levelUp();
+                    createFloatingText('Level Up!', GRID_WIDTH / 2, GRID_HEIGHT / 2, '255, 193, 7', 120, 'large');
+                    speak('Level 2!');
+                    setTimeout(() => {
+                        resetPlayerToStart();
+                        setupNewQuest();
+                    }, 2000);
+                } else {
+                    setTimeout(setupNewQuest, 1000);
+                }
+
+            } else {
+                score -= 10;
+                sounds.wrong();
+                createFloatingText('Oops!', item.x, item.y, '248, 113, 113');
+                speak(`That's a ${item.key}.`);
+            }
+            updateUI();
+        }
+
+        // --- Timers ---
+        function startMasterTimer() {
+            if (gameTimerId) clearInterval(gameTimerId);
+            timeRemaining = GAME_DURATION;
+            updateTimerDisplay();
+            gameTimerId = setInterval(() => {
+                timeRemaining--;
+                updateTimerDisplay();
+                if (timeRemaining <= 0) {
+                    clearInterval(gameTimerId);
+                    clearInterval(questTimerId);
+                    isGameOver = true;
+                    sounds.gameOver();
+                    speak("Time's up! Game over.");
+                    draw(); 
+                }
+            }, 1000);
+        }
+
+        function startQuestTimer() {
+            if (questTimerId) clearInterval(questTimerId);
+            questTimeRemaining = QUEST_DURATION;
+            questTimerDisplay.textContent = questTimeRemaining;
+            questTimerId = setInterval(() => {
+                questTimeRemaining--;
+                questTimerDisplay.textContent = questTimeRemaining;
+                if (questTimeRemaining <= 0) {
+                    clearInterval(questTimerId);
+                    score -= 25;
+                    sounds.questFail();
+                    createFloatingText("Time's Up!", player.x, player.y, '239, 68, 68');
+                    speak("Out of time!");
+                    setTimeout(setupNewQuest, 1000);
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeRemaining / 60).toString().padStart(2, '0');
+            const seconds = (timeRemaining % 60).toString().padStart(2, '0');
+            timerDisplay.textContent = `${minutes}:${seconds}`;
+        }
+
+        // --- UI Updates ---
+        function updateUI() {
+            scoreDisplay.textContent = score;
+            foundDisplay.textContent = itemsFound;
+            levelDisplay.textContent = level;
+            if (currentObjective) {
+                objectiveDisplay.innerHTML = `Find the <span class="font-bold text-rose-600">${currentObjective.key} ${currentObjective.icon}</span>`;
+            }
+        }
+
+        function handleResize() {
+            const dpr = window.devicePixelRatio || 1;
+            const containerRect = canvasContainer.getBoundingClientRect();
+            
+            const cellSizeW = containerRect.width / GRID_WIDTH;
+            const cellSizeH = containerRect.height / GRID_HEIGHT;
+            cellSize = Math.floor(Math.min(cellSizeW, cellSizeH));
+
+            const canvasWidth = cellSize * GRID_WIDTH;
+            const canvasHeight = cellSize * GRID_HEIGHT;
+
+            canvas.style.width = `${canvasWidth}px`;
+            canvas.style.height = `${canvasHeight}px`;
+
+            canvas.width = canvasWidth * dpr;
+            canvas.height = canvasHeight * dpr;
+            
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            if(gameReady) {
+                buildWalls();
+                draw();
+            } else {
+                showLoading();
+            }
+        }
+
+        function resetPlayerToStart() {
+            const currentLayout = level === 1 ? houseLayout1 : houseLayout2;
+            const firstRoomKey = Object.keys(currentLayout)[0];
+            const startRoom = currentLayout[firstRoomKey];
+            player.x = startRoom.x + Math.floor(startRoom.w / 2);
+            player.y = startRoom.y + Math.floor(startRoom.h / 2);
+            pets.forEach(pet => {
+                pet.x = player.x;
+                pet.y = player.y;
+            });
+        }
+
+        function restartGame() {
+            sounds.start();
+            score = 0;
+            itemsFound = 0;
+            level = 1;
+            isGameOver = false;
+            gameOverButton = null;
+            pets = [...pets1];
+            if (gameTimerId) clearInterval(gameTimerId);
+            if (questTimerId) clearInterval(questTimerId);
+            startMasterTimer();
+            resetPlayerToStart();
+            setupNewQuest();
+            if (!gameReady) {
+                gameReady = true;
+            }
+            gameLoop();
+        }
+
+        // --- Event Listeners ---
+        function addEventListeners() {
+            window.addEventListener('resize', handleResize);
+            startGameBtn.addEventListener('click', startGame);
+
+            canvas.addEventListener('click', (e) => {
+                if (!isGameOver || !gameOverButton) return;
+                
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width / (window.devicePixelRatio || 1);
+                const scaleY = canvas.height / rect.height / (window.devicePixelRatio || 1);
+                const x = (e.clientX - rect.left) * scaleX;
+                const y = (e.clientY - rect.top) * scaleY;
+
+                if (x >= gameOverButton.x && x <= gameOverButton.x + gameOverButton.w &&
+                    y >= gameOverButton.y && y <= gameOverButton.y + gameOverButton.h) {
+                    restartGame();
+                }
+            });
+
+            window.addEventListener('keydown', e => {
+                if (!gameReady) return;
+                switch (e.key) {
+                    case 'ArrowUp': case 'w': movePlayer(0, -1); break;
+                    case 'ArrowDown': case 's': movePlayer(0, 1); break;
+                    case 'ArrowLeft': case 'a': movePlayer(-1, 0); break;
+                    case 'ArrowRight': case 'd': movePlayer(1, 0); break;
+                }
+            });
+            
+            canvasContainer.addEventListener('pointerdown', e => {
+                e.preventDefault();
+                isSwiping = true;
+                pointerStartX = e.clientX;
+                pointerStartY = e.clientY;
+                canvasContainer.setPointerCapture(e.pointerId);
+            });
+
+            canvasContainer.addEventListener('pointerup', e => {
+                e.preventDefault();
+                if (!isSwiping) return;
+                isSwiping = false;
+                const pointerEndX = e.clientX;
+                const pointerEndY = e.clientY;
+                handleSwipe(pointerEndX, pointerEndY);
+                canvasContainer.releasePointerCapture(e.pointerId);
+            });
+
+            function handleSwipe(endX, endY) {
+                const diffX = endX - pointerStartX;
+                const diffY = endY - pointerStartY;
+                const swipeThreshold = 30;
+
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    if (Math.abs(diffX) > swipeThreshold) movePlayer(diffX > 0 ? 1 : -1, 0);
+                } else {
+                    if (Math.abs(diffY) > swipeThreshold) movePlayer(0, diffY > 0 ? 1 : -1);
+                }
+            }
+        }
+
+        // --- Start the game ---
+        init();
+    </script>
+
+</body>
+</html>

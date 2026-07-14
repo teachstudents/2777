@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Ocean Cleanup Challenge — Emoji Edition</title>
+<style>
+  :root{
+    --bg1:#87CEEB; --bg2:#4682B4; --accent:#FFD700;
+    --panel-gap:6px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    background: linear-gradient(135deg,var(--bg1) 0%, var(--bg2) 100%);
+    color:#05223a;
+    overflow:hidden;
+  }
+
+  /* Header */
+  .header{
+    position:fixed;left:0;right:0;top:0;height:72px;
+    display:flex;align-items:center;justify-content:space-between;padding:0 18px;
+    gap:12px;z-index:1200;
+    background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(0,0,0,0.04));
+    backdrop-filter: blur(4px);
+  }
+  .team {
+    padding:10px 14px;border-radius:12px;background:rgba(255,255,255,0.85);
+    min-width:160px;text-align:center;
+  }
+  .team.left{background:linear-gradient(45deg,#FF6B6B,#FF8E8E);color:#fff}
+  .team.right{background:linear-gradient(45deg,#4ECDC4,#6FDDDD);color:#fff}
+  .team .name{font-weight:700}
+  .team .score{font-size:14px;opacity:.95}
+
+  .center-controls{display:flex;align-items:center;gap:12px}
+  .timer{
+    background:rgba(255,255,255,0.95);padding:10px 16px;border-radius:20px;font-weight:700;
+    box-shadow:0 6px 18px rgba(0,0,0,0.18);
+    min-width:90px;text-align:center;
+  }
+  .control-btn{padding:8px 12px;border-radius:12px;border:none;cursor:pointer;font-weight:700}
+  .stop-btn{background:linear-gradient(45deg,#FF6B6B,#FF8E8E);color:#fff}
+  .start-btn{background:linear-gradient(45deg,#4CAF50,#45a049);color:#fff}
+
+  /* Page layout */
+  .game-wrap{position:absolute;top:72px;left:0;right:0;bottom:0;display:flex;gap:var(--panel-gap);padding:12px;align-items:stretch}
+  .panel{
+    flex:1;position:relative;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0.06));
+    box-shadow:inset 0 -20px 50px rgba(0,0,0,0.08);
+  }
+  .panel .label{position:absolute;top:10px;left:12px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,0.8);font-weight:700;z-index:30}
+  .panel.left .label{background:linear-gradient(45deg,#FF6B6B,#FF8E8E);color:white}
+  .panel.right .label{background:linear-gradient(45deg,#4ECDC4,#6FDDDD);color:white}
+
+  /* bins area */
+  .bins{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;display:flex;gap:18px;z-index:30}
+  .bin{width:86px;height:110px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;font-weight:700;cursor:pointer;border:3px solid transparent}
+  .bin.recycling{background:linear-gradient(145deg,#4CAF50,#45a049)}
+  .bin.garbage{background:linear-gradient(145deg,#757575,#616161)}
+  .bin .icon{font-size:28px}
+  .bin .label{font-size:13px;margin-top:6px}
+
+  /* game objects container */
+  .objects{position:absolute;inset:0;pointer-events:none} /* children can override pointer-events */
+  .emoji{
+    position:absolute;left:0;top:0;font-size:32px;padding:6px;border-radius:8px;user-select:none;
+    touch-action:none;pointer-events:auto;cursor:grab;transition:transform .12s ease;
+    will-change:transform,opacity;
+    background:rgba(255,255,255,0.0);
+  }
+  .emoji.dragging{cursor:grabbing;transform:scale(1.2);z-index:1000}
+  .emoji.fade-out{opacity:0;transition:opacity .35s ease, transform .45s ease}
+
+  /* slow near vertical fall */
+  @keyframes slowFall {
+    0%{transform:translateY(-20vh) translateX(0);opacity:0}
+    6%{opacity:1}
+    94%{transform:translateY(calc(100vh - 250px)) translateX(var(--drift,0px));opacity:1}
+    100%{transform:translateY(calc(100vh - 200px)) translateX(var(--drift,0px));opacity:0}
+  }
+  .emoji.auto-fall{animation: slowFall var(--fall-duration,40s) linear infinite}
+
+  /* small physics helper for thrown animation */
+  .tossing{transition: transform .6s cubic-bezier(.22,.9,.25,1), opacity .4s ease}
+
+  /* countdown overlay */
+  .overlay{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:1500;pointer-events:none
+  }
+  .countdown{
+    pointer-events:auto;background:rgba(0,0,0,0.72);color:var(--accent);font-size:120px;font-weight:900;padding:24px 36px;border-radius:18px;text-shadow:2px 2px 8px rgba(0,0,0,0.5)
+  }
+
+  /* modals */
+  .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:2000}
+  .modal .card{background:white;padding:22px;border-radius:14px;max-width:520px;width:92%;text-align:center}
+  .grade-grid{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+  .grade-btn{padding:10px 14px;border-radius:10px;border:none;background:linear-gradient(45deg,#4CAF50,#45a049);color:white;font-weight:700;cursor:pointer}
+
+  /* accessibility */
+  .high-contrast *{filter:contrast(140%) brightness(110%)}
+
+  /* responsive */
+  @media (max-width:760px){
+    .header{height:64px;padding:8px}
+    .team{min-width:120px;padding:8px}
+    .timer{min-width:70px;padding:8px}
+    .emoji{font-size:26px}
+  }
+</style>
+</head>
+<body>
+
+<!-- Grade selection modal (shown until a grade is chosen) -->
+<div id="gradeModal" class="modal" aria-hidden="false">
+  <div class="card" role="dialog" aria-modal="true">
+    <h2>选择年级 / Select Grade</h2>
+    <p>Pick a grade to load the student list (affects rotation)</p>
+    <div class="grade-grid">
+      <button class="grade-btn" data-grade="10">Grade 10</button>
+      <button class="grade-btn" data-grade="11">Grade 11</button>
+      <button class="grade-btn" data-grade="12">Grade 12</button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header class="header" role="banner">
+  <div class="team left" id="leftInfo">
+    <div class="name" id="leftName">Left Team</div>
+    <div class="score" id="leftScore">Score: 0</div>
+  </div>
+
+  <div class="center-controls">
+    <div class="timer" id="gameTimer">2:00</div>
+    <button class="control-btn start-btn" id="startBtn">Start</button>
+    <button class="control-btn stop-btn" id="pauseBtn">Pause</button>
+    <button class="control-btn" id="contrastBtn" title="Toggle contrast">Contrast</button>
+  </div>
+
+  <div class="team right" id="rightInfo">
+    <div class="name" id="rightName">Right Team</div>
+    <div class="score" id="rightScore">Score: 0</div>
+  </div>
+</header>
+
+<!-- Game area -->
+<main class="game-wrap" id="gameWrap" role="main">
+  <section class="panel left" id="leftPanel" aria-label="Left ocean panel">
+    <div class="label">Left</div>
+    <div class="objects" id="leftObjects"></div>
+    <div class="bins">
+      <div class="bin recycling" data-type="recycling" data-team="left"><div class="icon">♻️</div><div class="label">Recycling</div></div>
+      <div class="bin garbage" data-type="garbage" data-team="left"><div class="icon">🗑️</div><div class="label">Garbage</div></div>
+    </div>
+  </section>
+
+  <section class="panel right" id="rightPanel" aria-label="Right ocean panel">
+    <div class="label">Right</div>
+    <div class="objects" id="rightObjects"></div>
+    <div class="bins">
+      <div class="bin recycling" data-type="recycling" data-team="right"><div class="icon">♻️</div><div class="label">Recycling</div></div>
+      <div class="bin garbage" data-type="garbage" data-team="right"><div class="icon">🗑️</div><div class="label">Garbage</div></div>
+    </div>
+  </section>
+</main>
+
+<!-- Countdown overlay (hidden normally) -->
+<div class="overlay" id="overlay" aria-hidden="true" style="display:none">
+  <div class="countdown" id="countdown">3</div>
+</div>
+
+<!-- Results modal (hidden until round end) -->
+<div id="resultsModal" class="modal" style="display:none" aria-hidden="true">
+  <div class="card">
+    <h2>Round Complete</h2>
+    <div id="resultsText"></div>
+    <div style="margin-top:12px">
+      <button class="grade-btn" id="closeResults">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  // Config
+  const ROUND_SECONDS = 120; // 2 minutes
+  const EMOJI_SPAWN_INTERVAL = 700; // ms
+  const EMOJI_FALL_DURATION = 28; // seconds for auto-fall animation
+  const EMOJI_POOL = [
+    // recyclable: bottle, can, etc. garbage: pizza, banana peel, etc.
+    {ch:'🧴',type:'recycling'}, {ch:'🥤',type:'recycling'}, {ch:'🧪',type:'recycling'},
+    {ch:'🍕',type:'garbage'}, {ch:'🍌',type:'garbage'}, {ch:'🧻',type:'garbage'},
+    {ch:'🐟',type:'creature'}, {ch:'🐠',type:'creature'}, {ch:'🐢',type:'creature'},
+    {ch:'📦',type:'recycling'}, {ch:'🍟',type:'garbage'}, {ch:'🍼',type:'recycling'}
+  ];
+
+  // State
+  let grade = null;
+  let roundTimer = ROUND_SECONDS;
+  let roundInterval = null;
+  let spawnIntervals = { left: null, right: null };
+  let leftScore = 0, rightScore = 0;
+  let running = false;
+  let emojiId = 1;
+
+  // Elements
+  const gradeModal = document.getElementById('gradeModal');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const contrastBtn = document.getElementById('contrastBtn');
+  const gameTimerEl = document.getElementById('gameTimer');
+  const overlay = document.getElementById('overlay');
+  const countdownEl = document.getElementById('countdown');
+  const leftObjects = document.getElementById('leftObjects');
+  const rightObjects = document.getElementById('rightObjects');
+  const leftScoreEl = document.getElementById('leftScore');
+  const rightScoreEl = document.getElementById('rightScore');
+  const resultsModal = document.getElementById('resultsModal');
+  const resultsText = document.getElementById('resultsText');
+  const closeResults = document.getElementById('closeResults');
+
+  // Helpers
+  function formatTime(sec){
+    const m = Math.floor(sec/60).toString().padStart(2,'0');
+    const s = (sec%60).toString().padStart(2,'0');
+    return `${m}:${s}`;
+  }
+
+  function setTimerDisplay(){
+    gameTimerEl.textContent = formatTime(roundTimer);
+    if(roundTimer <= 10) gameTimerEl.style.boxShadow = '0 6px 20px rgba(255, 107, 107, 0.6)';
+    else gameTimerEl.style.boxShadow = '';
+  }
+
+  // Grade selection
+  document.querySelectorAll('.grade-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> {
+      grade = btn.dataset.grade;
+      gradeModal.style.display = 'none';
+      gradeModal.setAttribute('aria-hidden','true');
+      // Optionally adapt roster / spawn rules based on grade.
+      leftScore = 0; rightScore = 0;
+      updateScores();
+      // show a quick countdown before enabling start
+      showCountdown(3, ()=>{});
+    });
+  });
+
+  // Start / pause / reset
+  startBtn.addEventListener('click', ()=> {
+    if(!running){
+      startRound();
+    } else {
+      // force restart
+      stopRound();
+      startRound();
+    }
+  });
+  pauseBtn.addEventListener('click', ()=> {
+    togglePause();
+  });
+  contrastBtn.addEventListener('click', ()=> {
+    document.body.classList.toggle('high-contrast');
+  });
+
+  closeResults.addEventListener('click', ()=> {
+    resultsModal.style.display = 'none';
+    resultsModal.setAttribute('aria-hidden','true');
+  });
+
+  function startRound(){
+    if(running) return;
+    running = true;
+    roundTimer = ROUND_SECONDS;
+    setTimerDisplay();
+    // show small 3-2-1 overlay, then start.
+    showCountdown(3, ()=> {
+      // start timer
+      roundInterval = setInterval(()=> {
+        roundTimer--;
+        setTimerDisplay();
+        if(roundTimer <= 0){
+          endRound();
+        }
+      },1000);
+      // spawn on both sides
+      spawnIntervals.left = setInterval(()=> spawnEmojiInPanel('left'), EMOJI_SPAWN_INTERVAL);
+      spawnIntervals.right = setInterval(()=> spawnEmojiInPanel('right'), EMOJI_SPAWN_INTERVAL+200);
+    });
+  }
+
+  function togglePause(){
+    if(!running) return;
+    if(roundInterval){
+      clearInterval(roundInterval);
+      roundInterval = null;
+      clearInterval(spawnIntervals.left); clearInterval(spawnIntervals.right);
+      spawnIntervals.left = spawnIntervals.right = null;
+      running = false;
+      pauseBtn.textContent = 'Resume';
+    } else {
+      running = true;
+      // resume
+      setTimerDisplay();
+      roundInterval = setInterval(()=> {
+        roundTimer--;
+        setTimerDisplay();
+        if(roundTimer <= 0) endRound();
+      },1000);
+      spawnIntervals.left = setInterval(()=> spawnEmojiInPanel('left'), EMOJI_SPAWN_INTERVAL);
+      spawnIntervals.right = setInterval(()=> spawnEmojiInPanel('right'), EMOJI_SPAWN_INTERVAL+200);
+      pauseBtn.textContent = 'Pause';
+    }
+  }
+
+  function stopRound(){
+    running = false;
+    if(roundInterval){ clearInterval(roundInterval); roundInterval = null; }
+    if(spawnIntervals.left) clearInterval(spawnIntervals.left);
+    if(spawnIntervals.right) clearInterval(spawnIntervals.right);
+    spawnIntervals.left = spawnIntervals.right = null;
+  }
+
+  function endRound(){
+    stopRound();
+    // remove remaining emojis with fade
+    document.querySelectorAll('.emoji').forEach(e=>removeEmoji(e));
+    // show results
+    resultsText.innerHTML = `<p>Left: ${leftScore} &nbsp;&nbsp; Right: ${rightScore}</p>`;
+    resultsModal.style.display = 'flex';
+    resultsModal.setAttribute('aria-hidden','false');
+  }
+
+  function updateScores(){
+    leftScoreEl.textContent = `Score: ${leftScore}`;
+    rightScoreEl.textContent = `Score: ${rightScore}`;
+  }
+
+  // Countdown overlay utility
+  function showCountdown(n, cb){
+    overlay.style.display = 'flex';
+    overlay.setAttribute('aria-hidden','false');
+    let cur = n;
+    countdownEl.textContent = cur;
+    const t = setInterval(()=>{
+      cur--;
+      if(cur<=0){
+        clearInterval(t);
+        overlay.style.display = 'none';
+        overlay.setAttribute('aria-hidden','true');
+        cb();
+      } else {
+        countdownEl.textContent = cur;
+      }
+    },1000);
+  }
+
+  // Spawn logic
+  function spawnEmojiInPanel(panel){
+    const objects = panel === 'left' ? leftObjects : rightObjects;
+    const panelEl = panel === 'left' ? document.getElementById('leftPanel') : document.getElementById('rightPanel');
+    const r = pickRandom(EMOJI_POOL);
+    const el = document.createElement('div');
+    el.className = 'emoji auto-fall';
+    el.dataset.type = r.type;
+    el.dataset.id = (emojiId++);
+    el.textContent = r.ch;
+    // place near top with random horizontal position inside panel
+    const panelRect = panelEl.getBoundingClientRect();
+    const x = Math.floor(Math.random() * (panelRect.width - 60)) + 20;
+    el.style.left = `${x}px`;
+    el.style.top = `${-40 + Math.random()*20}px`;
+    // fall duration and drift
+    el.style.setProperty('--fall-duration', (EMOJI_FALL_DURATION + Math.random()*12)+'s');
+    el.style.setProperty('--drift', `${Math.round((Math.random()*80-40))}px`);
+    // enable pointer interactions
+    el.style.pointerEvents = 'auto';
+    objects.appendChild(el);
+
+    // attach drag/tap handlers
+    attachPointerHandlers(el, panel);
+    // auto remove after long time to keep DOM light
+    setTimeout(()=> {
+      if(el.parentElement) {
+        el.classList.add('fade-out');
+        setTimeout(()=> removeEmoji(el), 500);
+      }
+    }, (EMOJI_FALL_DURATION + 6) * 1000);
+  }
+
+  function pickRandom(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+  // Remove emoji element cleanly
+  function removeEmoji(el){
+    if(!el) return;
+    try{ el.remove(); }catch(e){}
+  }
+
+  // Check drop over bins
+  function getBinsForTeam(team){
+    const panel = team==='left' ? document.getElementById('leftPanel') : document.getElementById('rightPanel');
+    return Array.from(panel.querySelectorAll('.bin'));
+  }
+
+  function detectBinForPoint(x,y,team){
+    const bins = getBinsForTeam(team);
+    for(const b of bins){
+      const r = b.getBoundingClientRect();
+      if(x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return b;
+    }
+    return null;
+  }
+
+  // Interaction handling: pointer events for drag + tap-to-throw
+  function attachPointerHandlers(el, teamPanel){
+    // teamPanel is not directly stored for each emoji; determine team by which container it's in
+    let dragging = false;
+    let startX=0,startY=0,offsetX=0,offsetY=0;
+    let originRect = null;
+    let lastPointerUp = 0;
+
+    function pointerDown(e){
+      e.preventDefault();
+      el.setPointerCapture(e.pointerId);
+      dragging = true;
+      el.classList.add('dragging');
+      // stop auto animation while dragging
+      el.classList.remove('auto-fall');
+      originRect = el.getBoundingClientRect();
+      startX = e.clientX; startY = e.clientY;
+      offsetX = e.clientX - originRect.left;
+      offsetY = e.clientY - originRect.top;
+      // bring to top
+      el.style.zIndex = 2000;
+    }
+
+    function pointerMove(e){
+      if(!dragging) return;
+      e.preventDefault();
+      const panelEl = el.closest('.panel');
+      const panelRect = panelEl.getBoundingClientRect();
+      // compute local x,y inside panel
+      const x = e.clientX - panelRect.left - offsetX;
+      const y = e.clientY - panelRect.top - offsetY;
+      el.style.left = `${Math.max(6, Math.min(panelRect.width - 54, x))}px`;
+      el.style.top = `${Math.max(-60, Math.min(panelRect.height - 40, y))}px`;
+    }
+
+    function pointerUp(e){
+      if(!dragging){
+        // treat as tap: toss toward nearest bin
+        const now = Date.now();
+        if(now - lastPointerUp < 350) return; // debounce double-taps
+        lastPointerUp = now;
+        handleTapAction(el);
+        return;
+      }
+      dragging = false;
+      el.classList.remove('dragging');
+      el.releasePointerCapture(e.pointerId);
+      // check drop target
+      const centerX = el.getBoundingClientRect().left + el.getBoundingClientRect().width/2;
+      const centerY = el.getBoundingClientRect().top + el.getBoundingClientRect().height/2;
+      const team = el.closest('.panel').classList.contains('left') ? 'left' : 'right';
+      const hit = detectBinForPoint(centerX, centerY, team);
+      if(hit){
+        // scored
+        handleScore(el, hit, team);
+      } else {
+        // resume auto-fall if still inside panel
+        el.classList.add('auto-fall');
+        el.style.zIndex = '';
+      }
+    }
+
+    el.addEventListener('pointerdown', pointerDown);
+    el.addEventListener('pointermove', pointerMove);
+    el.addEventListener('pointerup', pointerUp);
+    el.addEventListener('pointercancel', pointerUp);
+    el.addEventListener('lostpointercapture', ()=> { dragging=false; el.classList.remove('dragging'); el.classList.add('auto-fall'); });
+
+    // For touch + quick taps (accessibility), also interpret click as tap
+    el.addEventListener('click', (ev)=>{
+      // prevent double action if click after pointerup
+      ev.preventDefault();
+      handleTapAction(el);
+    });
+  }
+
+  // On tap: toss to nearest correct bin automatically (visual)
+  function handleTapAction(el){
+    // Don't toss sea creatures
+    if(el.dataset.type === 'creature'){
+      // play little avoidance effect: wiggle then return
+      el.classList.add('avoiding');
+      setTimeout(()=> el.classList.remove('avoiding'), 600);
+      return;
+    }
+    const team = el.closest('.panel').classList.contains('left') ? 'left' : 'right';
+    // find nearest bin of either type in that team. Prefer correct type if possible.
+    const bins = getBinsForTeam(team);
+    if(bins.length === 0) return;
+    // find correct bin by type preference
+    let preferred = null;
+    if(el.dataset.type === 'recycling') preferred = bins.find(b=>b.classList.contains('recycling'));
+    if(el.dataset.type === 'garbage') preferred = bins.find(b=>b.classList.contains('garbage'));
+    const target = preferred || bins[0];
+    // compute target center
+    const r = target.getBoundingClientRect();
+    const tx = r.left + r.width/2;
+    const ty = r.top + r.height/2;
+    // animate toss
+    el.classList.add('tossing');
+    el.style.transform = `translate(${tx - el.getBoundingClientRect().left - el.getBoundingClientRect().width/2}px, ${ty - el.getBoundingClientRect().top - el.getBoundingClientRect().height/2}px) scale(.8)`;
+    el.style.opacity = '0.01';
+    // after animation, count score and remove
+    setTimeout(()=> {
+      handleScore(el, target, team, true);
+    }, 650);
+  }
+
+  // Scoring and feedback
+  function handleScore(el, binEl, team, viaToss=false){
+    if(!el || !binEl) return;
+    const correctType = binEl.classList.contains('recycling') ? 'recycling' : 'garbage';
+    const itemType = el.dataset.type || 'garbage';
+    // sea creatures are not scored; they bounce away
+    if(itemType === 'creature'){
+      // simple bounce effect
+      el.style.transition = 'transform .35s ease';
+      el.style.transform = 'translateY(-60px) rotate(-15deg)';
+      setTimeout(()=> {
+        el.style.transition = '';
+        el.classList.add('auto-fall');
+      },400);
+      return;
+    }
+    const correct = (itemType === correctType);
+    if(team==='left') leftScore += correct ? 1 : -1;
+    else rightScore += correct ? 1 : -1;
+    updateScores();
+
+    // Visual feedback on bin and emoji
+    binEl.classList.add('highlight');
+    setTimeout(()=> binEl.classList.remove('highlight'), 450);
+    el.classList.add('fade-out');
+    setTimeout(()=> removeEmoji(el), 400);
+    // confetti or small success burst for correct
+    if(correct){
+      spawnSuccessBurst(binEl);
+    } else {
+      // flash panel red briefly
+      const p = binEl.closest('.panel');
+      p.style.boxShadow = 'inset 0 0 0 6px rgba(244,67,54,0.16)';
+      setTimeout(()=> p.style.boxShadow = '', 420);
+    }
+  }
+
+  function spawnSuccessBurst(binEl){
+    const s = document.createElement('div');
+    s.className = 'success';
+    s.style.position = 'absolute';
+    const r = binEl.getBoundingClientRect();
+    const parent = binEl.closest('.panel');
+    const parentRect = parent.getBoundingClientRect();
+    s.style.left = `${r.left + r.width/2 - parentRect.left - 30}px`;
+    s.style.top = `${r.top - parentRect.top - 30}px`;
+    s.style.width = '60px'; s.style.height='60px';
+    s.style.borderRadius='50%';
+    s.style.background='radial-gradient(circle, rgba(76,175,80,0.6) 0%, transparent 70%)';
+    s.style.zIndex = 1000;
+    s.style.pointerEvents = 'none';
+    parent.appendChild(s);
+    s.animate([
+      {transform:'scale(0)',opacity:1},
+      {transform:'scale(1.2)',opacity:0.5},
+      {transform:'scale(2)',opacity:0}
+    ],{duration:520, easing:'ease-out'});
+    setTimeout(()=> s.remove(), 520);
+  }
+
+  // initialize some sample objects so game not empty (optional)
+  function seedInitial(){
+    // place a couple static emojis to show UI
+    spawnEmojiInPanel('left'); spawnEmojiInPanel('right');
+  }
+
+  // On load
+  setTimerDisplay();
+  seedInitial();
+
+  // expose some helpers for debugging from console (optional)
+  window.__game = {
+    spawnLeft: ()=> spawnEmojiInPanel('left'),
+    spawnRight: ()=> spawnEmojiInPanel('right'),
+    start: startRound,
+    stop: stopRound,
+    grade: ()=> grade
+  };
+
+  // simple cleanup when leaving page
+  window.addEventListener('beforeunload', ()=> stopRound());
+
+})();
+</script>
+</body>
+</html>

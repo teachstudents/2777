@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chinese Vocabulary Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+            overflow: hidden;
+            background: linear-gradient(270deg, #0f172a, #1e293b, #334155, #475569);
+            background-size: 800% 800%;
+            animation: gradient-animation 30s ease infinite;
+        }
+        @keyframes gradient-animation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .main-container {
+            background-color: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .btn:active { transform: scale(0.95); }
+        .card {
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+            cursor: pointer;
+        }
+        .card.is-flipped { transform: rotateY(180deg); }
+        .card.matched { animation: match-success 0.8s ease-out forwards; }
+        .card-face {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+        }
+        .card-face-back { transform: rotateY(180deg); }
+        @keyframes pulse-green-bg {
+            0% { background-color: #10b981; }
+            100% { background-color: transparent; }
+        }
+        @keyframes pulse-red-bg {
+            0% { background-color: #ef4444; }
+            100% { background-color: transparent; }
+        }
+        @keyframes match-success {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7); }
+            50% { transform: scale(1.1); box-shadow: 0 0 30px 15px rgba(52, 211, 153, 0.7); }
+            100% { transform: scale(0); opacity: 0; }
+        }
+        @keyframes correct-glow {
+            0% { box-shadow: 0 0 5px #34d399, 0 0 10px #34d399, 0 0 15px #34d399; }
+            100% { box-shadow: 0 0 0px transparent, 0 0 0px transparent, 0 0 0px transparent; }
+        }
+        .correct-flash { animation: pulse-green-bg 0.5s ease-out; }
+        .incorrect-flash { animation: pulse-red-bg 0.5s ease-out; }
+        .correct-glow-btn {
+            animation: correct-glow 1.5s ease-out;
+            background-color: #10b981;
+        }
+        .split-screen {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: start;
+            gap: 1rem;
+            width: 100%;
+        }
+        .player-area {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .coin {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background: radial-gradient(ellipse at center, #fef08a, #facc15 50%, #eab308 100%);
+            border-radius: 50%;
+            border: 2px solid #ca8a04;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0;
+            transition: transform 0.8s cubic-bezier(0.5, -0.5, 1, 1), opacity 0.8s ease-out;
+        }
+        .timer-bar-container {
+            width: 100%;
+            height: 10px;
+            background-color: rgba(0,0,0,0.3);
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+        .timer-bar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #6ee7b7, #34d399, #059669);
+            border-radius: 5px;
+            transition: width 0.1s linear;
+        }
+        #fireworks-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+        .firework {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background-color: white;
+            border-radius: 50%;
+            opacity: 1;
+        }
+        @keyframes feedback-anim {
+            0%, 100% { transform: translateY(20px); opacity: 0; }
+            10%, 90% { transform: translateY(0); opacity: 1; }
+        }
+        .feedback-text {
+            animation: feedback-anim 2s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+
+    <div id="game-container" class="main-container w-full max-w-5xl mx-auto h-full md:h-auto md:max-h-[100vh] md:my-0 p-4 md:p-6 rounded-lg shadow-2xl">
+        <div id="fireworks-container"></div>
+        <!-- Main Menu -->
+        <div id="main-menu" class="text-center flex flex-col items-center justify-center h-full">
+            <h1 class="text-5xl md:text-7xl font-black uppercase tracking-wider mb-4 text-cyan-400">Word Blitz</h1>
+            <p class="text-lg md:text-2xl text-gray-300 mb-8">Learn Chinese. Challenge Friends.</p>
+            <div id="player-name-inputs" class="hidden w-full max-w-sm mb-6 space-y-4">
+                <input id="p1-name-input" type="text" placeholder="Player 1 Name" class="w-full bg-gray-700 text-white text-center p-3 rounded-lg border-2 border-blue-500 focus:outline-none focus:border-blue-400">
+                <input id="p2-name-input" type="text" placeholder="Player 2 Name" class="w-full bg-gray-700 text-white text-center p-3 rounded-lg border-2 border-purple-500 focus:outline-none focus:border-purple-400">
+            </div>
+            <div class="space-y-6 w-full max-w-sm">
+                <button onclick="selectGameMode('1p')" class="btn w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-6 rounded-lg text-2xl shadow-lg">1 Player Practice</button>
+                <button onclick="selectGameMode('2p')" class="btn w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-4 px-6 rounded-lg text-2xl shadow-lg">2 Player Challenge</button>
+                <button id="start-2p-btn" onclick="startGame('2p')" class="btn hidden w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 px-6 rounded-lg text-2xl shadow-lg">Start Challenge!</button>
+            </div>
+        </div>
+
+        <!-- Game UI -->
+        <div id="game-ui" class="hidden flex-col h-full">
+            <!-- 1P Header -->
+            <div id="1p-header" class="flex justify-between items-center mb-4">
+                 <h2 id="game-title" class="text-2xl md:text-3xl font-bold text-cyan-400"></h2>
+                 <div class="text-right">
+                    <div id="round-display" class="text-xl md:text-2xl font-semibold"></div>
+                    <div id="score-display" class="text-lg font-bold text-green-400">Score: 0</div>
+                 </div>
+            </div>
+            <!-- 2P Header -->
+            <div id="2p-header" class="hidden split-screen mb-4">
+                <div class="bg-gray-800/50 p-2 rounded-lg text-center">
+                    <h3 id="p1-name-display" class="text-lg font-bold text-blue-400 truncate">Player 1</h3>
+                    <div id="p1-score" class="text-2xl font-extrabold">0</div>
+                </div>
+                <div class="text-center self-center">
+                    <div id="2p-timer" class="text-4xl md:text-5xl font-bold text-red-500">10:00</div>
+                    <div id="2p-word-counter" class="text-lg font-semibold text-gray-300">Word 0 / 40</div>
+                </div>
+                 <div class="bg-gray-800/50 p-2 rounded-lg text-center">
+                    <h3 id="p2-name-display" class="text-lg font-bold text-purple-400 truncate">Player 2</h3>
+                    <div id="p2-score" class="text-2xl font-extrabold">0</div>
+                </div>
+            </div>
+            <!-- Main Content Area -->
+            <div id="game-content" class="flex-grow flex items-center justify-center overflow-y-auto relative">
+                 <div id="feedback-container" class="absolute top-0 w-full text-center text-3xl font-black pointer-events-none"></div>
+            </div>
+            <!-- Footer / Controls -->
+            <div id="game-controls" class="mt-auto pt-4 text-center flex justify-center items-center gap-6">
+                <button id="mute-btn" onclick="toggleMusic()" class="btn bg-yellow-600 hover:bg-yellow-500 text-white font-bold p-3 rounded-full text-xl shadow-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                </button>
+                <button onclick="showMainMenu()" class="btn bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-lg text-xl">Main Menu</button>
+            </div>
+        </div>
+        
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="hidden text-center flex flex-col items-center justify-center h-full">
+             <h1 id="game-over-title" class="text-5xl md:text-7xl font-black uppercase tracking-wider mb-4 text-yellow-400"></h1>
+             <p id="game-over-message" class="text-xl md:text-2xl text-gray-300 mb-8"></p>
+             <div class="space-y-4 w-full max-w-sm">
+                <button onclick="restartGame()" class="btn w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 px-6 rounded-lg text-2xl shadow-lg">Play Again</button>
+                <button onclick="showMainMenu()" class="btn w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-4 px-6 rounded-lg text-2xl shadow-lg">Main Menu</button>
+             </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA ---
+        const allWords = [
+            { eng: "firm", sentence: "He has a firm handshake.", chi: "坚定的", pin: "jiāndìng de" }, { eng: "like", sentence: "I like to read books in my free time.", chi: "喜欢", pin: "xǐhuān" }, { eng: "diet", sentence: "A healthy diet is important for good health.", chi: "饮食", pin: "yǐnshí" }, { eng: "pressure", sentence: "She felt a lot of pressure to succeed.", chi: "压力", pin: "yālì" }, { eng: "activity", sentence: "Physical activity is good for your body.", chi: "活动", pin: "huódòng" }, { eng: "accept", sentence: "Please accept my apology.", chi: "接受", pin: "jiēshòu" }, { eng: "defeat", sentence: "Our team suffered a bitter defeat.", chi: "失败", pin: "shībài" }, { eng: "relay", sentence: "The runners passed the baton in the relay race.", chi: "接力赛", pin: "jiēlìsài" }, { eng: "evidence", sentence: "The police found evidence at the crime scene.", chi: "证据", pin: "zhèngjù" }, { eng: "imagine", sentence: "Can you imagine a world without technology?", chi: "想象", pin: "xiǎngxiàng" }, { eng: "relation", sentence: "The relation between the two countries improved.", chi: "关系", pin: "guānxì" }, { eng: "freedom", sentence: "He enjoys the freedom of the open road.", chi: "自由", pin: "zìyóu" }, { eng: "breakthrough", sentence: "Scientists made a major breakthrough in cancer research.", chi: "突破", pin: "tūpò" }, { eng: "left", sentence: "Turn left at the next corner.", chi: "左边", pin: "zuǒbiān" }, { eng: "confirm", sentence: "Please confirm your attendance by Friday.", chi: "确认", pin: "quèrèn" }, { eng: "ability", sentence: "She has the ability to solve complex problems.", chi: "能力", pin: "nénglì" }, { eng: "member", sentence: "He is a member of the local chess club.", chi: "成员", pin: "chéngyuán" }, { eng: "climate", sentence: "The Earth's climate is changing rapidly.", chi: "气候", pin: "qìhòu" }, { eng: "stupid", sentence: "That was a stupid mistake to make.", chi: "愚蠢的", pin: "yúchǔn de" }, { eng: "organise", sentence: "She helped to organise the charity event.", chi: "组织", pin: "zǔzhī" }, { eng: "decorate", sentence: "They plan to decorate the house for Christmas.", chi: "装饰", pin: "zhuāngshì" }, { eng: "wage", sentence: "The company offers a competitive wage.", chi: "工资", pin: "gōngzī" }, { eng: "target", sentence: "The archer hit the target with precision.", chi: "目标", pin: "mùbiāo" }, { eng: "conservative", sentence: "He has very conservative views on social issues.", chi: "保守的", pin: "bǎoshǒu de" }, { eng: "lonely", sentence: "She felt lonely after her friends moved away.", chi: "孤独的", pin: "gūdú de" }, { eng: "slip", sentence: "Be careful not to slip on the icy pavement.", chi: "滑倒", pin: "huádǎo" }, { eng: "away", sentence: "The bird flew away when I approached.", chi: "离开", pin: "líkāi" }, { eng: "congratulation", sentence: "Congratulation on your graduation!", chi: "祝贺", pin: "zhùhè" }, { eng: "valuable", sentence: "Time is a valuable resource.", chi: "宝贵的", pin: "bǎoguì de" }, { eng: "grey", sentence: "The sky was grey and overcast.", chi: "灰色的", pin: "huīsè de" }, { eng: "protect", sentence: "It's important to protect endangered species.", chi: "保护", pin: "bǎohù" }, { eng: "literature", sentence: "She enjoys reading classic literature.", chi: "文学", pin: "wénxué" }, { eng: "senior", sentence: "He is a senior manager in the company.", chi: "高级的", pin: "gāojí de" }, { eng: "busy", sentence: "She is always busy with her work.", chi: "忙碌的", pin: "mánglù de" }, { eng: "different", sentence: "They have very different opinions on the matter.", chi: "不同的", pin: "bùtóng de" }, { eng: "citizen", sentence: "He is a proud citizen of his country.", chi: "公民", pin: "gōngmín" }, { eng: "seize", sentence: "The police managed to seize the stolen goods.", chi: "抓住", pin: "zhuāzhù" }, { eng: "occur", sentence: "The accident occurred late at night.", chi: "发生", pin: "fāshēng" }, { eng: "waste", sentence: "Don't waste your time on unimportant things.", chi: "浪费", pin: "làngfèi" }, { eng: "shot", sentence: "The basketball player made an amazing shot.", chi: "投篮", pin: "tóulán" }
+        ];
+        const praiseWords = ["Awesome!", "Great Job!", "Superb!", "Perfect!", "Excellent!"];
+        const encouragementWords = ["Not quite", "Keep trying", "Almost there", "So close"];
+
+        // --- GAME STATE ---
+        let gameState = {};
+        const englishVoices = ['Ava', 'Emma', 'Brian', 'Andrew', 'William', 'Remy'];
+        let availableVoices = [];
+
+        // --- AUDIO ---
+        let audioCtx, musicSource, musicGain;
+        let isMuted = false;
+
+        function playSound(type) {
+            if (!audioCtx || isMuted) return;
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            
+            if (type === 'correct') {
+                gainNode.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.01);
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(900, audioCtx.currentTime + 0.1);
+            } else if (type === 'incorrect') {
+                gainNode.gain.linearRampToValueAtTime(0.4, audioCtx.currentTime + 0.01);
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+            } else if (type === 'flip') {
+                gainNode.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.01);
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(400, audioCtx.currentTime);
+            } else if (type === 'point') {
+                gainNode.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(1200, audioCtx.currentTime + 0.2);
+            }
+            
+            oscillator.start(audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.2);
+            oscillator.stop(audioCtx.currentTime + 0.2);
+        }
+
+        // --- DOM ELEMENTS ---
+        const mainMenu = document.getElementById('main-menu');
+        const gameUi = document.getElementById('game-ui');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const gameContent = document.getElementById('game-content');
+        const onePlayerHeader = document.getElementById('1p-header');
+        const gameTitle = document.getElementById('game-title');
+        const roundDisplay = document.getElementById('round-display');
+        const scoreDisplay = document.getElementById('score-display');
+        const twoPlayerHeader = document.getElementById('2p-header');
+        const twoPlayerTimerDisplay = document.getElementById('2p-timer');
+        const twoPlayerWordCounter = document.getElementById('2p-word-counter');
+        const p1NameDisplay = document.getElementById('p1-name-display');
+        const p2NameDisplay = document.getElementById('p2-name-display');
+        const p1ScoreDisplay = document.getElementById('p1-score');
+        const p2ScoreDisplay = document.getElementById('p2-score');
+        const gameOverTitle = document.getElementById('game-over-title');
+        const gameOverMessage = document.getElementById('game-over-message');
+        const playerNameInputs = document.getElementById('player-name-inputs');
+        const start2PBtn = document.getElementById('start-2p-btn');
+        const muteBtn = document.getElementById('mute-btn');
+        const feedbackContainer = document.getElementById('feedback-container');
+
+        // --- UTILITY & SETUP ---
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function loadVoices() {
+            availableVoices = speechSynthesis.getVoices().filter(v => v.lang.startsWith('en'));
+        }
+        loadVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
+
+        function speak(text, lang = 'en-US', onEndCallback = null) {
+            if ('speechSynthesis' in window && text && !isMuted) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = lang;
+                utterance.rate = 0.85;
+
+                if (lang === 'en-US') {
+                    const voiceName = englishVoices[gameState.voiceIndex % englishVoices.length];
+                    const selectedVoice = availableVoices.find(v => v.name.includes(voiceName));
+                    utterance.voice = selectedVoice || availableVoices.find(v => v.lang === 'en-US');
+                    gameState.voiceIndex++;
+                }
+                
+                utterance.onend = () => { if (onEndCallback) onEndCallback(); };
+                utterance.onerror = () => { if (onEndCallback) setTimeout(onEndCallback, 500); };
+                window.speechSynthesis.speak(utterance);
+            } else {
+                if (onEndCallback) setTimeout(onEndCallback, 1500);
+            }
+        }
+        
+        // --- GAME LOGIC ---
+        function initGameState(mode) {
+             const shuffledWords = shuffleArray([...allWords]);
+             gameState = {
+                mode: mode, score: 0, p1Score: 0, p2Score: 0,
+                p1Name: document.getElementById('p1-name-input').value || 'Player 1',
+                p2Name: document.getElementById('p2-name-input').value || 'Player 2',
+                currentRoundNum: 0, currentActivity: 0, wordInActivity: 0, voiceIndex: 0,
+                rounds: [], questionTimer: null, gameTimer: null, 
+                timeLeft: 600, isGameOver: false,
+             };
+             for (let i = 0; i < 4; i++) {
+                 gameState.rounds.push(shuffledWords.slice(i * 10, (i + 1) * 10));
+             }
+        }
+
+        function selectGameMode(mode) {
+            if (mode === '1p') {
+                startGame('1p');
+            } else {
+                playerNameInputs.classList.remove('hidden');
+                start2PBtn.classList.remove('hidden');
+                document.querySelector('button[onclick="selectGameMode(\'1p\')"]').classList.add('hidden');
+                document.querySelector('button[onclick="selectGameMode(\'2p\')"]').classList.add('hidden');
+            }
+        }
+
+        function startGame(mode) {
+            initGameState(mode);
+            mainMenu.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            gameUi.classList.remove('hidden');
+            gameUi.classList.add('flex');
+            
+            if (mode === '1p') {
+                onePlayerHeader.style.display = 'flex';
+                twoPlayerHeader.classList.add('hidden');
+                start1PGame();
+            } else {
+                onePlayerHeader.style.display = 'none';
+                twoPlayerHeader.classList.remove('hidden');
+                twoPlayerHeader.classList.add('split-screen');
+                p1NameDisplay.textContent = gameState.p1Name;
+                p2NameDisplay.textContent = gameState.p2Name;
+                start2PGame();
+            }
+        }
+        
+        function restartGame() { startGame(gameState.mode); }
+
+        function showMainMenu() {
+            if (gameState.gameTimer) clearInterval(gameState.gameTimer);
+            if (gameState.questionTimer) clearInterval(gameState.questionTimer);
+            window.speechSynthesis.cancel();
+            mainMenu.classList.remove('hidden');
+            gameUi.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            playerNameInputs.classList.add('hidden');
+            start2PBtn.classList.add('hidden');
+            document.querySelector('button[onclick="selectGameMode(\'1p\')"]').classList.remove('hidden');
+            document.querySelector('button[onclick="selectGameMode(\'2p\')"]').classList.remove('hidden');
+        }
+
+        function updateScore(points) {
+            gameState.score += points;
+            scoreDisplay.textContent = `Score: ${gameState.score}`;
+        }
+        
+        function next1PStep() {
+            if (gameState.questionTimer) clearInterval(gameState.questionTimer);
+            gameState.wordInActivity++;
+
+            if (gameState.wordInActivity > 9) {
+                gameState.currentActivity++;
+                gameState.wordInActivity = 0;
+            }
+            if (gameState.currentActivity > 3) {
+                createFireworks();
+                gameState.currentRoundNum++;
+                gameState.currentActivity = 0;
+            }
+            if (gameState.currentRoundNum > 3) {
+                endGame("1p");
+                return;
+            }
+            start1PGame();
+        }
+
+        // --- 1 PLAYER MODE ---
+        const activityTitles = ["Learn", "Match", "Quiz", "Spell"];
+        function start1PGame() {
+            const currentWords = gameState.rounds[gameState.currentRoundNum];
+            const currentWord = currentWords[gameState.wordInActivity];
+            
+            roundDisplay.textContent = `Round ${gameState.currentRoundNum + 1} of 4`;
+            gameTitle.textContent = activityTitles[gameState.currentActivity];
+
+            switch(gameState.currentActivity) {
+                case 0: displayLearnWord(currentWord); break;
+                case 1: if (gameState.wordInActivity === 0) displayMatchingGame(currentWords); break;
+                case 2: displayMCQ(currentWord, '1p'); break;
+                case 3: displaySpellingGame(currentWord); break;
+            }
+        }
+
+        function displayLearnWord(word) {
+            gameContent.innerHTML = `<div class="text-center bg-gray-800/50 p-8 rounded-lg shadow-xl w-full max-w-md"><h3 class="text-6xl font-bold mb-2">${word.chi}</h3><p class="text-2xl text-gray-400 mb-4">${word.pin}</p><p class="text-4xl font-semibold mb-6">${word.eng}</p><p class="text-lg italic text-cyan-300">"${word.sentence}"</p></div>`;
+            setTimeout(() => speak(word.sentence, 'en-US', () => setTimeout(next1PStep, 1200)), 500);
+        }
+
+        function displayMatchingGame(words) {
+            const gameWords = words.slice(0, 5); // 5 pairs
+            let cards = [];
+            gameWords.forEach((word, index) => {
+                cards.push({ content: word.chi, matchId: index });
+                cards.push({ content: word.eng, matchId: index });
+            });
+            cards = shuffleArray(cards);
+
+            let cardsHTML = cards.map((card) => `<div class="w-1/5 h-24 m-1 card" data-match-id="${card.matchId}" onclick="flipCard(this)"><div class="card-face absolute w-full h-full flex items-center justify-center bg-indigo-600 rounded-lg text-xl font-bold">?</div><div class="card-face card-face-back absolute w-full h-full flex items-center justify-center bg-gray-700 rounded-lg text-lg md:text-xl font-semibold p-2 text-center">${card.content}</div></div>`).join('');
+            gameContent.innerHTML = `<div class="w-full max-w-xl"><div class="flex flex-wrap justify-center">${cardsHTML}</div><div class="timer-bar-container"><div class="timer-bar"></div></div></div>`;
+            
+            gameState.matchGame = { flippedCards: [], matchedPairs: 0, totalPairs: gameWords.length };
+            setupQuestionTimer(45000, () => {
+                showFeedback("Time's Up!", 'incorrect');
+                setTimeout(() => {
+                    gameState.currentActivity++;
+                    gameState.wordInActivity = 0;
+                    start1PGame();
+                }, 2000);
+            });
+        }
+
+        function flipCard(cardElement) {
+            if (gameState.matchGame.flippedCards.length >= 2 || cardElement.classList.contains('is-flipped')) return;
+            playSound('flip');
+            cardElement.classList.add('is-flipped');
+            gameState.matchGame.flippedCards.push(cardElement);
+            if (gameState.matchGame.flippedCards.length === 2) setTimeout(checkMatch, 1000);
+        }
+
+        function checkMatch() {
+            const [card1, card2] = gameState.matchGame.flippedCards;
+            if (card1.dataset.matchId === card2.dataset.matchId) {
+                playSound('correct');
+                card1.classList.add('matched');
+                card2.classList.add('matched');
+                gameState.matchGame.matchedPairs++;
+                updateScore(4); // 20 points total
+            } else {
+                playSound('incorrect');
+                card1.classList.remove('is-flipped');
+                card2.classList.remove('is-flipped');
+            }
+            gameState.matchGame.flippedCards = [];
+
+            if (gameState.matchGame.matchedPairs === gameState.matchGame.totalPairs) {
+                if (gameState.questionTimer) clearInterval(gameState.questionTimer);
+                showFeedback('Round Complete!', 'correct');
+                setTimeout(() => {
+                    gameState.currentActivity++;
+                    gameState.wordInActivity = 0;
+                    start1PGame();
+                }, 1500);
+            }
+        }
+        
+        function setupQuestionTimer(duration, onEnd) {
+            if (gameState.questionTimer) clearInterval(gameState.questionTimer);
+            const timerBar = document.querySelector('.timer-bar');
+            if (!timerBar) return;
+            let timeLeft = duration;
+            timerBar.style.width = '100%';
+            gameState.questionTimer = setInterval(() => {
+                timeLeft -= 100;
+                timerBar.style.width = `${(timeLeft / duration) * 100}%`;
+                if (timeLeft <= 0) {
+                    clearInterval(gameState.questionTimer);
+                    onEnd();
+                }
+            }, 100);
+        }
+
+        function displayMCQ(word, mode, options = null) {
+            let currentOptions = options;
+            if (!currentOptions) {
+                 currentOptions = shuffleArray([word.eng, ...shuffleArray(allWords.filter(w => w.eng !== word.eng)).slice(0, 3).map(w => w.eng)]);
+            }
+            let optionsHTML = shuffleArray(currentOptions).map(option => `<button class="btn w-full text-left p-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-xl mb-3 transition-colors" onclick="checkMCQAnswer(this, '${option.replace(/'/g, "\\'")}', '${word.eng.replace(/'/g, "\\'")}', '${mode}')">${option}</button>`).join('');
+            const questionHTML = `<div class="w-full max-w-md text-center"><div class="bg-gray-800/50 p-6 md:p-8 rounded-lg mb-6"><h3 class="text-4xl md:text-5xl font-bold">${word.chi}</h3><p class="text-xl md:text-2xl text-gray-400">${word.pin}</p></div><div class="options-container">${optionsHTML}</div><div class="timer-bar-container"><div class="timer-bar"></div></div></div>`;
+            
+            if (mode === '1p') {
+                gameContent.innerHTML = questionHTML;
+                setupQuestionTimer(8000, () => checkMCQAnswer(null, 'timeout', word.eng, '1p'));
+            } else { // '2p1' or '2p2'
+                const playerNum = mode.slice(-1);
+                document.getElementById(`p${playerNum}-mcq`).innerHTML = questionHTML;
+            }
+        }
+        
+        function checkMCQAnswer(button, selected, correct, mode) {
+            if (gameState.questionTimer) clearInterval(gameState.questionTimer);
+            const isCorrect = selected === correct;
+            
+            const allButtons = document.querySelectorAll('#game-content button');
+            allButtons.forEach(btn => btn.disabled = true);
+
+            if (mode.startsWith('2p')) {
+                const player = mode.slice(-1);
+                const container = document.getElementById(`p${player}-area`);
+                if (isCorrect) {
+                    playSound('correct');
+                    update2PScore(player, 10);
+                    animatePoints(button, player === '1' ? p1ScoreDisplay : p2ScoreDisplay);
+                    container.classList.add('correct-flash');
+                } else {
+                    playSound('incorrect');
+                    update2PScore(player, -5);
+                    update2PScore(player === '1' ? 2 : 1, 5);
+                    container.classList.add('incorrect-flash');
+                }
+                setTimeout(() => {
+                    container.classList.remove('correct-flash', 'incorrect-flash');
+                    next2PWord();
+                }, 1500);
+            } else { // 1 Player Logic
+                if (isCorrect) {
+                    playSound('correct');
+                    updateScore(4); // 40 points total
+                    if(button) {
+                        button.classList.add('correct-glow-btn');
+                        animatePoints(button, scoreDisplay);
+                    }
+                    showFeedback(praiseWords[Math.floor(Math.random() * praiseWords.length)], 'correct');
+                } else {
+                    playSound('incorrect');
+                    updateScore(-2);
+                    if(button) button.classList.add('bg-red-600');
+                    showFeedback(encouragementWords[Math.floor(Math.random() * encouragementWords.length)], 'incorrect');
+                }
+                 setTimeout(next1PStep, 1500);
+            }
+        }
+
+        function displaySpellingGame(word) {
+            gameContent.innerHTML = `<div class="w-full max-w-md text-center"><div class="bg-gray-800/50 p-8 rounded-lg mb-6"><h3 class="text-6xl font-bold">${word.chi}</h3><p class="text-2xl text-gray-400">${word.pin}</p></div><form onsubmit="checkSpelling(event, '${word.eng.toLowerCase()}')"><input id="spell-input" type="text" class="w-full bg-gray-900 border-2 border-gray-600 rounded-lg p-4 text-2xl text-center focus:outline-none focus:border-cyan-400" autocomplete="off" autocorrect="off" spellcheck="false"><button type="submit" class="btn w-full mt-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 px-8 rounded-lg text-xl">Check</button></form><div id="spell-feedback" class="mt-4 text-2xl font-bold h-8"></div><div class="timer-bar-container"><div class="timer-bar"></div></div></div>`;
+            document.getElementById('spell-input').focus();
+            setupQuestionTimer(12000, () => checkSpelling(null, word.eng.toLowerCase()));
+        }
+
+        function checkSpelling(event, correctWord) {
+            if(event) event.preventDefault();
+            if (gameState.questionTimer) clearInterval(gameState.questionTimer);
+
+            const input = document.getElementById('spell-input');
+            const feedback = document.getElementById('spell-feedback');
+            const isCorrect = input && input.value.trim().toLowerCase() === correctWord;
+            if(input) input.disabled = true;
+
+            if (isCorrect) {
+                playSound('correct');
+                feedback.textContent = "Perfect!";
+                feedback.className = "mt-4 text-2xl font-bold text-green-400";
+                updateScore(4); // 40 points total
+                animatePoints(input, scoreDisplay);
+            } else {
+                playSound('incorrect');
+                updateScore(-2);
+                feedback.textContent = `Correct: ${correctWord}`;
+                feedback.className = "mt-4 text-2xl font-bold text-red-400";
+            }
+            setTimeout(next1PStep, 2000);
+        }
+
+        // --- 2 PLAYER MODE ---
+        function start2PGame() {
+            gameState.currentWordIndex = 0;
+            gameState.isGameOver = false;
+            update2PScore(1, 0, true);
+            update2PScore(2, 0, true);
+            
+            gameContent.innerHTML = `<div class="split-screen w-full h-full flex-grow"><div id="p1-area" class="player-area border-4 border-blue-500 rounded-lg p-2 md:p-4"><div id="p1-mcq" class="flex-grow"></div></div><div></div><div id="p2-area" class="player-area border-4 border-purple-500 rounded-lg p-2 md:p-4"><div id="p2-mcq" class="flex-grow"></div></div></div>`;
+            
+            start2PTimer();
+            next2PWord();
+        }
+
+        function start2PTimer() {
+            if (gameState.gameTimer) clearInterval(gameState.gameTimer);
+            gameState.timeLeft = 600;
+            gameState.gameTimer = setInterval(() => {
+                gameState.timeLeft--;
+                const minutes = Math.floor(gameState.timeLeft / 60);
+                const seconds = gameState.timeLeft % 60;
+                twoPlayerTimerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                if (gameState.timeLeft <= 0) endGame('2p');
+            }, 1000);
+        }
+
+        function next2PWord() {
+            if (gameState.isGameOver) return;
+            const wordIndex = gameState.currentWordIndex % allWords.length;
+            const currentWord = allWords[wordIndex];
+            const options = [currentWord.eng, ...shuffleArray(allWords.filter(w => w.eng !== currentWord.eng)).slice(0, 3).map(w => w.eng)];
+            
+            displayMCQ(currentWord, '2p1', options);
+            displayMCQ(currentWord, '2p2', options);
+            
+            gameState.currentWordIndex++;
+            twoPlayerWordCounter.textContent = `Word ${gameState.currentWordIndex} / ${allWords.length}`;
+        }
+        
+        function update2PScore(player, points, reset = false) {
+            if (reset) { gameState.p1Score = 0; gameState.p2Score = 0; }
+            else {
+                 if (player == 1) gameState.p1Score += points;
+                 if (player == 2) gameState.p2Score += points;
+            }
+            p1ScoreDisplay.textContent = gameState.p1Score;
+            p2ScoreDisplay.textContent = gameState.p2Score;
+        }
+
+        function animatePoints(fromElement, toElement) {
+            playSound('point');
+            const rect = fromElement.getBoundingClientRect();
+            const coin = document.createElement('div');
+            coin.className = 'coin';
+            document.body.appendChild(coin);
+            const targetRect = toElement.getBoundingClientRect();
+            coin.style.left = `${rect.left + rect.width / 2}px`;
+            coin.style.top = `${rect.top + rect.height / 2}px`;
+            coin.style.opacity = '1';
+            requestAnimationFrame(() => {
+                coin.style.transform = `translate(${targetRect.left - rect.left + (targetRect.width / 2)}px, ${targetRect.top - rect.top + (targetRect.height / 2)}px) scale(0)`;
+                coin.style.opacity = '0';
+            });
+            setTimeout(() => coin.remove(), 800);
+        }
+
+        function showFeedback(text, type) {
+            const el = document.createElement('div');
+            el.className = 'feedback-text';
+            el.textContent = text;
+            el.style.color = type === 'correct' ? '#34d399' : '#f87171';
+            el.style.textShadow = '0 0 5px black';
+            feedbackContainer.innerHTML = '';
+            feedbackContainer.appendChild(el);
+        }
+
+        // --- END GAME & EFFECTS ---
+        function endGame(mode) {
+             if (gameState.gameTimer) clearInterval(gameState.gameTimer);
+             if (gameState.questionTimer) clearInterval(gameState.questionTimer);
+             gameState.isGameOver = true;
+             gameUi.classList.add('hidden');
+             gameOverScreen.classList.remove('hidden');
+             gameOverScreen.classList.add('flex');
+             createFireworks(15);
+             
+             if (mode === '1p') {
+                gameOverTitle.textContent = "Practice Complete!";
+                gameOverMessage.textContent = `You finished all rounds with a final score of ${gameState.score}! Great work!`;
+             } else {
+                let winnerMessage;
+                if (gameState.p1Score > gameState.p2Score) {
+                    winnerMessage = `${gameState.p1Name} Wins!`;
+                    gameOverTitle.style.color = '#60a5fa';
+                } else if (gameState.p2Score > gameState.p1Score) {
+                    winnerMessage = `${gameState.p2Name} Wins!`;
+                    gameOverTitle.style.color = '#c084fc';
+                } else {
+                    winnerMessage = "It's a Tie!";
+                    gameOverTitle.style.color = '#facc15';
+                }
+                gameOverTitle.textContent = winnerMessage;
+                gameOverMessage.textContent = `Final Score: ${gameState.p1Score} to ${gameState.p2Score}. Well played!`;
+             }
+        }
+
+        function createFireworks(count = 5) {
+            const container = document.getElementById('fireworks-container');
+            for(let i=0; i < count; i++) {
+                setTimeout(() => launchFirework(), Math.random() * 1000);
+            }
+        }
+        function launchFirework() {
+            const container = document.getElementById('fireworks-container');
+            const x = Math.random() * container.clientWidth;
+            const y = Math.random() * container.clientHeight;
+            const particleCount = 50 + Math.random() * 50;
+            const hue = Math.random() * 360;
+
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'firework';
+                particle.style.left = `${x}px`;
+                particle.style.top = `${y}px`;
+                particle.style.backgroundColor = `hsl(${hue + (Math.random() * 60 - 30)}, 100%, 50%)`;
+                container.appendChild(particle);
+
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 50 + Math.random() * 100;
+                const dx = Math.cos(angle) * speed;
+                const dy = Math.sin(angle) * speed;
+
+                particle.animate([
+                    { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                    { transform: `translate(${dx}px, ${dy}px) scale(0)`, opacity: 0 }
+                ], {
+                    duration: 800 + Math.random() * 400,
+                    easing: 'cubic-bezier(0.1, 0.5, 0.2, 1)'
+                });
+
+                setTimeout(() => particle.remove(), 1200);
+            }
+        }
+        
+        // --- MUSIC ---
+        function createMusic() {
+            if (!audioCtx || musicSource || isMuted) return;
+            const notes = [261.63, 293.66, 329.63, 392.00, 329.63, 293.66];
+            let noteIndex = 0;
+            
+            function playNote() {
+                if (isMuted) return;
+                musicSource = audioCtx.createOscillator();
+                musicGain = audioCtx.createGain();
+                musicSource.connect(musicGain);
+                musicGain.connect(audioCtx.destination);
+                
+                musicGain.gain.setValueAtTime(0, audioCtx.currentTime);
+                musicGain.gain.linearRampToValueAtTime(0.06, audioCtx.currentTime + 0.05);
+
+                musicSource.type = 'sine';
+                musicSource.frequency.setValueAtTime(notes[noteIndex % notes.length], audioCtx.currentTime);
+                noteIndex++;
+                
+                musicSource.start(audioCtx.currentTime);
+                musicGain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.8);
+                musicSource.stop(audioCtx.currentTime + 0.8);
+                musicSource.onended = () => setTimeout(playNote, 200);
+            }
+            playNote();
+        }
+
+        function toggleMusic() {
+            if (!audioCtx) return;
+            isMuted = !isMuted;
+            if (isMuted) {
+                if(musicSource) musicSource.onended = null;
+                muteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+            } else {
+                createMusic();
+                muteBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+            }
+        }
+
+        // --- Initial User Interaction Setup ---
+        function initAudio() {
+            if (!audioCtx) {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    loadVoices();
+                    createMusic();
+                } catch (e) {
+                    console.error("Web Audio API is not supported in this browser");
+                }
+            }
+        }
+        document.body.addEventListener('click', initAudio, { once: true });
+
+    </script>
+</body>
+</html>

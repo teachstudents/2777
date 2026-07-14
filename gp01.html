@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Joel Mitchell's Verb Practice 01</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    /* Basic styling */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }
+    /* Start Screen styling */
+    #startScreen {
+      max-width: 700px;
+      margin: auto;
+      text-align: center;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    /* Main Quiz Container (hidden until quiz starts) */
+    #container {
+      max-width: 700px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      display: none;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    /* Top-level displays: overall timer, level, per-question timer, score */
+    #overallTimer, #levelDisplay, #timer, #scoreDisplay {
+      text-align: center;
+      font-size: 1.2em;
+      margin-bottom: 10px;
+    }
+    .question {
+      font-size: 1.2em;
+      margin-bottom: 10px;
+    }
+    .feedback {
+      margin-top: 10px;
+      white-space: pre-wrap;
+    }
+    .correct {
+      color: #5cb85c;
+    }
+    .incorrect {
+      color: #d9534f;
+    }
+    input[type="text"] {
+      width: 80%;
+      padding: 10px;
+      font-size: 1em;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #0275d8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #aaa;
+    }
+    @media(max-width: 768px) {
+      input[type="text"] {
+        width: 100%;
+      }
+      button {
+        width: 100%;
+      }
+    }
+    #reward {
+      text-align: center;
+      padding: 10px;
+      margin-top: 10px;
+      display: none;
+    }
+    #reward img {
+      max-width: 150px;
+      width: 100%;
+      height: auto;
+    }
+    #summary {
+      display: none;
+      padding: 20px;
+      background: #e9ecef;
+      margin-top: 20px;
+      border-radius: 4px;
+    }
+    #summary p {
+      font-size: 1.2em;
+      text-align: center;
+    }
+    #printButton {
+      display: block;
+      margin: 10px auto;
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Start Screen -->
+  <div id="startScreen">
+    <h1>Joel Mitchell's Verb Practice 01</h1>
+    <input type="text" id="playerName" placeholder="Enter your name" />
+    <br/>
+    <button id="startBtn">Start Quiz</button>
+  </div>
+  <!-- Main Quiz Container -->
+  <div id="container">
+    <!-- Overall Timer (10 minutes countdown) -->
+    <div id="overallTimer">Overall Time Left: 10:00</div>
+    <p id="levelDisplay">Level: A1</p>
+    <div id="timer">Time left: </div>
+    <div class="question" id="questionDisplay"></div>
+    <input type="text" id="answerInput" placeholder="Type your answer here..." />
+    <button id="submitBtn">Submit Answer</button>
+    <div class="feedback" id="feedbackDisplay"></div>
+    <div class="info" id="scoreDisplay">Score: 0% (0/0)</div>
+    <div id="reward"></div>
+    <!-- Summary Section -->
+    <div id="summary">
+      <h2>Quiz Summary</h2>
+      <p id="summaryText"></p>
+      <button id="printButton">Print Summary</button>
+    </div>
+    <!-- Hidden Audio Elements for Rewards and End-of-Quiz -->
+    <audio id="rewardAudio" preload="auto"></audio>
+    <audio id="endRewardAudio" src="game1.mp3" preload="auto"></audio>
+  </div>
+  
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // ---------------------------
+      // Global Variables and Settings
+      // ---------------------------
+      var totalCorrect = 0;
+      var totalAttempted = 0;
+      var currentLevel = 1;
+      var currentQuestionIndex = 0;
+      var startTime = 0;
+      var timerInterval = null;
+      var overallInterval = null;
+      var answered = false;
+      var overallTime = 600; // 10 minutes in seconds
+      var playerName = "";
+      var currentQuestions = [];
+      
+      // ---------------------------
+      // Helper Functions: CEFR Label & Level Display
+      // ---------------------------
+      function getCEFRLabel(level) {
+        switch (level) {
+          case 1: return "A1";
+          case 2: return "A2";
+          case 3: return "B1";
+          case 4: return "B2";
+          default: return "";
+        }
+      }
+      
+      function updateLevelDisplay() {
+        document.getElementById("levelDisplay").innerText = "Level: " + getCEFRLabel(currentLevel);
+      }
+      
+      // ---------------------------
+      // Overall Timer Functions (10-minute countdown)
+      // ---------------------------
+      function updateOverallTimerDisplay() {
+        var minutes = Math.floor(overallTime / 60);
+        var seconds = overallTime % 60;
+        seconds = seconds < 10 ? "0" + seconds : seconds;
+        document.getElementById("overallTimer").innerText = "Overall Time Left: " + minutes + ":" + seconds;
+      }
+      
+      function startOverallTimer() {
+        updateOverallTimerDisplay();
+        overallInterval = setInterval(function () {
+          overallTime--;
+          updateOverallTimerDisplay();
+          if (overallTime <= 0) {
+            clearInterval(overallInterval);
+            finishQuiz();
+          }
+        }, 1000);
+      }
+      
+      // ---------------------------
+      // Question Generation Functions
+      // ---------------------------
+      // Level 1 (A1): Basic everyday sentences using simple past forms.
+      function generateLevel1Questions() {
+        return [
+          { template: "Yesterday, Joe ___ a book. (read)", answer: "read" },
+          { template: "Last evening, Mark ___ his friend at the park. (meet)", answer: "met" },
+          { template: "Yesterday, Paul ___ home early. (come)", answer: "came" },
+          { template: "Last night, Sarah ___ a delicious meal. (make)", answer: "made" },
+          { template: "Yesterday morning, David ___ to work by bus. (go)", answer: "went" },
+          { template: "Last Sunday, Anna ___ at the concert. (sing)", answer: "sang" },
+          { template: "Yesterday afternoon, Mike ___ his bike in the park. (ride)", answer: "rode" },
+          { template: "Last Friday, the team ___ the game. (win)", answer: "won" },
+          { template: "Yesterday, Jenny ___ a new dress at the store. (buy)", answer: "bought" },
+          { template: "Last night, the chef ___ a special dinner. (cook)", answer: "cooked" },
+          { template: "Yesterday, Lucy ___ an engaging book. (read)", answer: "read" },
+          { template: "Last evening, Chris ___ for a long walk. (take)", answer: "took" },
+          { template: "Yesterday, Oliver ___ the bus to work. (ride)", answer: "rode" },
+          { template: "Last night, Emma ___ a joke that made everyone laugh. (tell)", answer: "told" },
+          { template: "Yesterday, Mark ___ his car at the depot. (park)", answer: "parked" }
+        ];
+      }
+      
+      // Level 2 (A2): Moderate sentences using present perfect forms.
+      function generateLevel2Questions() {
+        return [
+          { template: "She has ___ her project ahead of schedule. (complete)", answer: "completed" },
+          { template: "He has ___ the announcement with excitement. (hear)", answer: "heard" },
+          { template: "They have ___ a new book series recently. (read)", answer: "read" },
+          { template: "I have ___ a wonderful lunch today. (eat)", answer: "eaten" },
+          { template: "We have ___ our project before the deadline. (finish)", answer: "finished" },
+          { template: "She has ___ her language skills for many years. (study)", answer: "studied" },
+          { template: "He has ___ his car for the trip. (prepare)", answer: "prepared" },
+          { template: "I have ___ at the meeting recently. (attend)", answer: "attended" },
+          { template: "They have ___ important data for the report. (gather)", answer: "gathered" },
+          { template: "We have ___ the invitation promptly. (accept)", answer: "accepted" },
+          { template: "She has ___ an important email today. (send)", answer: "sent" },
+          { template: "I have ___ all required documents. (collect)", answer: "collected" },
+          { template: "They have ___ the guidelines carefully. (follow)", answer: "followed" },
+          { template: "We have ___ our schedule for the week. (organize)", answer: "organized" },
+          { template: "He has ___ his assignment with diligence. (complete)", answer: "completed" }
+        ];
+      }
+      
+      // Level 3 (B1): Advanced sentences with strong-verb patterns.
+      function generateLevel3Questions() {
+        return [
+          { template: "He has ___ the record in the race. (break)", answer: "broken" },
+          { template: "She has ___ the best candidate for the position. (choose)", answer: "chosen" },
+          { template: "He has ___ across the country in his new car. (drive)", answer: "driven" },
+          { template: "They have ___ to Europe for a vacation. (fly)", answer: "flown" },
+          { template: "I have ___ that play several times. (see)", answer: "seen" },
+          { template: "She has ___ numerous photos during her trip. (take)", answer: "taken" },
+          { template: "He has ___ in the competition with great skill. (compete)", answer: "competed" },
+          { template: "They have ___ a new approach in their research. (develop)", answer: "developed" },
+          { template: "I have ___ my proposal with colleagues. (discuss)", answer: "discussed" },
+          { template: "He has ___ his speech with passion. (deliver)", answer: "delivered" },
+          { template: "She has ___ many awards for her work. (win)", answer: "won" },
+          { template: "They have ___ a breakthrough in technology. (achieve)", answer: "achieved" },
+          { template: "I have ___ a comprehensive plan. (formulate)", answer: "formulated" },
+          { template: "He has ___ numerous challenges bravely. (overcome)", answer: "overcome" },
+          { template: "She has ___ the market with innovative ideas. (capture)", answer: "captured" }
+        ];
+      }
+      
+      // Level 4 (B2): Complex sentences with mixed answer types.
+      function generateLevel4Questions() {
+        return [
+          { template: "After the meeting, the manager admitted that she had ___ a critical memo. (forget)", answer: "forgotten" },
+          { template: "In his memoir, the author revealed that he had ___ immense challenges. (overcome)", answer: "overcome" },
+          { template: "During the conference, the expert explained that the study had ___ unexpected results. (yield)", answer: "yielded" },
+          { template: "The curator remarked that the artwork had ___ over time. (deteriorate)", answer: "deteriorated" },
+          { template: "Following the merger, the CEO announced that the company had ___ a new strategy. (adopt)", answer: "adopted" },
+          { template: "The scientist confirmed that the experiment had ___ promising outcomes. (produce)", answer: "produced" },
+          { template: "In a recent interview, the novelist declared that her latest work had ___ fresh perspectives. (offer)", answer: "offered" },
+          { template: "The financial analyst noted that the market had ___ substantial shifts. (experience)", answer: "experienced" },
+          { template: "The policy review revealed that several measures had ___ efficiency. (boost)", answer: "boosted" },
+          { template: "The panel observed that the innovation had ___ industry standards. (redefine)", answer: "redefined" },
+          { template: "After careful analysis, the team concluded that the process had ___ several bottlenecks. (create)", answer: "created" },
+          { template: "The economist argued that the trends had ___ the market dramatically. (transform)", answer: "transformed" },
+          { template: "The critic noted that the performance had ___ its limitations. (exceed)", answer: "exceeded" },
+          { template: "The director stated that the film had ___ global acclaim. (garner)", answer: "garnered" },
+          { template: "Ultimately, the board decided that the proposal had ___ the necessary criteria. (meet)", answer: "met" }
+        ];
+      }
+      
+      // ---------------------------
+      // Question Bank
+      // ---------------------------
+      var questionBank = {
+        1: generateLevel1Questions(),
+        2: generateLevel2Questions(),
+        3: generateLevel3Questions(),
+        4: generateLevel4Questions()
+      };
+      
+      // ---------------------------
+      // Time Limits per Level (in seconds)
+      // ---------------------------
+      var timeLimits = { 1: 20, 2: 30, 3: 40, 4: 50 };
+      
+      // ---------------------------
+      // Helper Function: Shuffle Array (Fisher–Yates)
+      // ---------------------------
+      function shuffle(array) {
+        for (var i = array.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var temp = array[i];
+          array[i] = array[j];
+          array[j] = temp;
+        }
+        return array;
+      }
+      
+      // ---------------------------
+      // Reward Functions
+      // ---------------------------
+      function getRewardImageSource() {
+        if (currentLevel === 1) return "reward1.gif";
+        if (currentLevel === 2) return "reward2.gif";
+        if (currentLevel === 3) return "reward3.gif";
+        if (currentLevel === 4) return "reward4.gif";
+        return "reward1.gif";
+      }
+      
+      function getRewardAudioSource() {
+        if (currentLevel === 1) return "game1.mp3";
+        if (currentLevel === 2) return "game2.mp3";
+        if (currentLevel === 3) return "game3.mp3";
+        if (currentLevel === 4) return "game4.mp3";
+        return "game1.mp3";
+      }
+      
+      // ---------------------------
+      // Per-Question Timer Functions
+      // ---------------------------
+      function startTimer(limit) {
+        var timeLeft = limit;
+        document.getElementById("timer").innerText = "Time left: " + timeLeft + " s";
+        timerInterval = setInterval(function () {
+          timeLeft--;
+          document.getElementById("timer").innerText = "Time left: " + timeLeft + " s";
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            processTimeout();
+          }
+        }, 1000);
+      }
+      
+      function processTimeout() {
+        if (!answered) {
+          answered = true;
+          document.getElementById("feedbackDisplay").className = "feedback incorrect";
+          var currentQ = currentQuestions[currentQuestionIndex];
+          document.getElementById("feedbackDisplay").innerText =
+            "Too slow! (limit: " + timeLimits[currentLevel] + " s)\nThe correct answer was: " + currentQ.answer;
+          totalAttempted++;
+          updateScore();
+          setTimeout(nextQuestion, 2000);
+        }
+      }
+      
+      // ---------------------------
+      // Score Update Function
+      // ---------------------------
+      function updateScore() {
+        var scoreDisplay = document.getElementById("scoreDisplay");
+        var percentage = totalAttempted === 0 ? 0 : Math.round((totalCorrect / totalAttempted) * 100);
+        scoreDisplay.innerText = "Score: " + percentage + "% (" + totalCorrect + "/" + totalAttempted + ")";
+      }
+      
+      // ---------------------------
+      // Load Current Level Questions
+      // ---------------------------
+      function loadCurrentLevel() {
+        if (questionBank[currentLevel]) {
+          currentQuestions = shuffle([...questionBank[currentLevel]]);
+          currentQuestionIndex = 0;
+          updateLevelDisplay();
+        }
+      }
+      
+      // ---------------------------
+      // Next Question Function
+      // ---------------------------
+      function nextQuestion() {
+        clearInterval(timerInterval);
+        if (currentQuestionIndex < currentQuestions.length) {
+          answered = false;
+          var currentQ = currentQuestions[currentQuestionIndex];
+          document.getElementById("questionDisplay").innerText = currentQ.template;
+          document.getElementById("feedbackDisplay").innerText = "";
+          document.getElementById("answerInput").value = "";
+          startTime = Date.now();
+          startTimer(timeLimits[currentLevel]);
+        } else {
+          if (questionBank[currentLevel + 1]) {
+            currentLevel++;
+            loadCurrentLevel();
+            nextQuestion();
+          } else {
+            finishQuiz();
+          }
+        }
+      }
+      
+      // ---------------------------
+      // Show Reward Function
+      // ---------------------------
+      function showReward() {
+        var rewardDiv = document.getElementById("reward");
+        rewardDiv.innerHTML = '<img src="' + getRewardImageSource() + '" alt="Great Job!"/>';
+        rewardDiv.style.display = 'block';
+        var rewardAudio = document.getElementById("rewardAudio");
+        rewardAudio.src = getRewardAudioSource();
+        rewardAudio.load();
+        rewardAudio.currentTime = 0;
+        rewardAudio.play();
+        setTimeout(function () {
+          rewardDiv.style.display = 'none';
+        }, 1500);
+      }
+      
+      // ---------------------------
+      // Answer Submission Handler
+      // ---------------------------
+      document.getElementById("submitBtn").addEventListener("click", function () {
+        if (answered || currentQuestionIndex >= currentQuestions.length) return;
+        answered = true;
+        clearInterval(timerInterval);
+        var currentQ = currentQuestions[currentQuestionIndex];
+        var userAnswer = document.getElementById("answerInput").value.trim();
+        var elapsedTime = (Date.now() - startTime) / 1000;
+        totalAttempted++;
+        var feedbackMessage = "";
+        if (elapsedTime > timeLimits[currentLevel]) {
+          feedbackMessage = "Too slow! (limit: " + timeLimits[currentLevel] + " s)\nThe correct answer was: " + currentQ.answer;
+          document.getElementById("feedbackDisplay").className = "feedback incorrect";
+        } else if (userAnswer.toLowerCase() === currentQ.answer.toLowerCase()) {
+          feedbackMessage = "Correct!";
+          totalCorrect++;
+          document.getElementById("feedbackDisplay").className = "feedback correct";
+          showReward();
+        } else {
+          feedbackMessage = "Not quite right. The correct answer was: " + currentQ.answer;
+          document.getElementById("feedbackDisplay").className = "feedback incorrect";
+        }
+        document.getElementById("feedbackDisplay").innerText = feedbackMessage;
+        updateScore();
+        currentQuestionIndex++;
+        setTimeout(nextQuestion, 2000);
+      });
+      
+      // ---------------------------
+      // Finish Quiz Function
+      // ---------------------------
+      function finishQuiz() {
+        clearInterval(timerInterval);
+        clearInterval(overallInterval);
+        document.getElementById("levelDisplay").style.display = "none";
+        document.getElementById("timer").style.display = "none";
+        document.getElementById("overallTimer").style.display = "none";
+        document.getElementById("questionDisplay").style.display = "none";
+        document.getElementById("answerInput").style.display = "none";
+        document.getElementById("submitBtn").style.display = "none";
+        document.getElementById("feedbackDisplay").style.display = "none";
+        var endRewardAudio = document.getElementById("endRewardAudio");
+        endRewardAudio.currentTime = 0;
+        endRewardAudio.play();
+        var summaryDiv = document.getElementById("summary");
+        var percentage = totalAttempted === 0 ? 0 : Math.round((totalCorrect / totalAttempted) * 100);
+        summaryDiv.querySelector("#summaryText").innerText =
+          "You have completed the quiz, " + playerName + "!\nYour score is: " + percentage + "% (" + totalCorrect + " out of " + totalAttempted + ")\nThank you for practicing.";
+        summaryDiv.style.display = "block";
+      }
+      
+      // ---------------------------
+      // Print Summary Handler
+      // ---------------------------
+      document.getElementById("printButton").addEventListener("click", function () {
+        window.print();
+      });
+      
+      // ---------------------------
+      // Start Screen Logic
+      // ---------------------------
+      document.getElementById("startBtn").addEventListener("click", function () {
+        var nameInput = document.getElementById("playerName").value.trim();
+        if (nameInput === "") {
+          alert("Please enter your name to start the quiz.");
+          return;
+        }
+        playerName = nameInput;
+        document.getElementById("startScreen").style.display = "none";
+        document.getElementById("container").style.display = "block";
+        overallTime = 600; // Reset overall time to 10 minutes.
+        startOverallTimer();
+        loadCurrentLevel();
+        nextQuestion();
+      });
+      
+    });
+  </script>
+</body>
+</html>

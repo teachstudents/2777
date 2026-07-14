@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Falling Items Shooter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            border: 2px solid #fff;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            width: 100%;
+            height: 100%;
+            max-width: 800px;
+            max-height: 1200px;
+            overflow: hidden;
+            transition: background-color 0.5s linear;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        #ui-container {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            font-size: clamp(16px, 4vw, 24px);
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+            z-index: 5;
+        }
+        #rapid-fire-timer {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(20px, 5vw, 30px);
+            font-weight: bold;
+            color: #ffcc00;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 5;
+            display: none;
+        }
+        #score {
+            transition: color 0.2s;
+        }
+        #grass {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            border-top: 5px solid #1a681a;
+            transition: background-color 0.5s linear;
+        }
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            z-index: 10;
+        }
+        h1 {
+            font-size: clamp(32px, 8vw, 48px);
+            margin-bottom: 20px;
+        }
+        p {
+            font-size: clamp(14px, 3vw, 18px);
+            max-width: 90%;
+            line-height: 1.6;
+        }
+        #start-button, #restart-button {
+            padding: 15px 30px;
+            font-size: clamp(18px, 4vw, 24px);
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin-top: 30px;
+            box-shadow: 0 5px #999;
+            transition: all 0.1s ease-in-out;
+        }
+        #start-button:active, #restart-button:active {
+            box-shadow: 0 2px #666;
+            transform: translateY(4px);
+        }
+        #start-button:disabled {
+            background-color: #999;
+            cursor: not-allowed;
+        }
+        #touch-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 120px;
+            z-index: 6;
+            display: none; /* Hidden by default */
+            justify-content: space-between;
+            align-items: center;
+        }
+        .touch-button {
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            user-select: none;
+        }
+        #touch-left { margin-left: 20px; }
+        #touch-right { margin-right: 20px; }
+        #touch-shoot {
+            width: 100px;
+            height: 100px;
+            font-size: 50px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="start-screen">
+            <h1>Falling Items Shooter</h1>
+            <p>Use <strong>Arrow Keys</strong> or <strong>Touch Controls</strong> to move & <strong>Spacebar</strong> or the <strong>Shoot Button</strong> to fire.<br><br>
+            ✅ <strong>SHOOT</strong> items like food, clothes, and sports gear for points.<br>
+            ❌ <strong>DO NOT SHOOT</strong> any animals! You will lose points.<br>
+            Letting good items hit the grass also costs points.<br><br>
+            Collect power-ups (🛰️⬆️🔥💥) for special abilities and survive the <strong>Rapid Fire Rounds!</strong></p>
+            <button id="start-button">Start Game</button>
+        </div>
+
+        <div id="game-over-screen" style="display: none;">
+            <h1>Game Over</h1>
+            <p>Your final score is: <span id="final-score">0</span></p>
+            <button id="restart-button">Play Again</button>
+        </div>
+
+        <div id="ui-container">
+            <div id="score">Score: 0</div>
+            <div id="timer">Time: 10:00</div>
+        </div>
+        <div id="rapid-fire-timer"></div>
+        <canvas id="gameCanvas"></canvas>
+        <div id="grass"></div>
+        <div id="touch-controls">
+            <div id="touch-left" class="touch-button">⬅️</div>
+            <div id="touch-shoot" class="touch-button">🎯</div>
+            <div id="touch-right" class="touch-button">➡️</div>
+        </div>
+    </div>
+    
+    <script>
+        // Get DOM elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+        const scoreEl = document.getElementById('score');
+        const timerEl = document.getElementById('timer');
+        const rapidFireTimerEl = document.getElementById('rapid-fire-timer');
+        const grassEl = document.getElementById('grass');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const startButton = document.getElementById('start-button');
+        const restartButton = document.getElementById('restart-button');
+        const finalScoreEl = document.getElementById('final-score');
+        const touchControls = document.getElementById('touch-controls');
+        const touchLeft = document.getElementById('touch-left');
+        const touchRight = document.getElementById('touch-right');
+        const touchShoot = document.getElementById('touch-shoot');
+
+        // --- Game Data ---
+        const itemData = {
+            "Animals": { vocab: [ { word: "wolf", img: "🐺" }, { word: "zebra", img: "🦓" }, { word: "cheetah", img: "🐆" }, { word: "gazelle", img: "🦌" }, { word: "rhinoceros", img: "🦏" }, { word: "polar bear", img: "🐻‍❄️" }, { word: "squirrel", img: "🐿️" }, { word: "skunk", img: "🦨" }, { word: "crocodile", img: "🐊" }, { word: "ostrich", img: "🐦" }, { word: "panda", img: "🐼" }, { word: "penguin", img: "🐧" }, { word: "llama", img: "🦙" }, { word: "kangaroo", img: "🦘" }, { word: "koala", img: "🐨" }, { word: "hippopotamus", img: "🦛" }, { word: "lion", img: "🦁" }, { word: "tiger", img: "🐯" }, { word: "monkey", img: "🐒" }, { word: "elephant", img: "🐘" }, { word: "giraffe", img: "🦒" }, { word: "snake", img: "🐍" }, { word: "bear", img: "🐻" }, { word: "fox", img: "🦊" }, { word: "rabbit", img: "🐰" } ] },
+            "Pets": { vocab: [ { word: "dog", img: "🐶" }, { word: "cat", img: "🐱" }, { word: "hamster", img: "🐹" }, { word: "fish", img: "🐠" }, { word: "turtle", img: "🐢" }, { word: "bird", img: "🐦" }, { word: "lizard", img: "🦎" }, { word: "mouse", img: "🐭" } ] },
+            "Transportation": { vocab: [ { word: "car", img: "🚗" }, { word: "bus", img: "🚌" }, { word: "train", img: "🚆" }, { word: "bicycle", img: "🚲" }, { word: "motorcycle", img: "🏍️" }, { word: "airplane", img: "✈️" }, { word: "boat", img: "🚤" }, { word: "helicopter", img: "🚁" }, { word: "truck", img: "🚚" }, { word: "taxi", img: "🚕" }, { word: "scooter", img: "🛴" }, { word: "skateboard", img: "🛹" } ] },
+            "Food": { vocab: [ { word: "pizza", img: "🍕" }, { word: "hamburger", img: "🍔" }, { word: "fries", img: "🍟" }, { word: "taco", img: "🌮" }, { word: "sushi", img: "🍣" }, { word: "ice cream", img: "🍦" }, { word: "donut", img: "🍩" }, { word: "cake", img: "🍰" }, { word: "cookie", img: "🍪" }, { word: "popcorn", img: "🍿" }, { word: "candy", img: "🍬" }, { word: "peanuts", img: "🥜" }, { word: "cupcake", img: "🧁" }, { word: "blueberries", img: "🫐" }, { word: "cherries", img: "🍒" }, { word: "pudding", img: "🍮" }, { word: "pie", img: "🥧" }, { word: "tomatoes", img: "🍅" }, { word: "beans", img: "🫘" }, { word: "pretzels", img: "🥨" }, { word: "soda", img: "🥤" }, { word: "sandwiches", img: "🥪" } ] },
+            "Clothing": { vocab: [ { word: "shirt", img: "👕" }, { word: "dress", img: "👗" }, { word: "hat", img: "👒" }, { word: "shoes", img: "👞" }, { word: "socks", img: "🧦" }, { word: "jacket", img: "🧥" }, { word: "sweater", img: "👚" }, { word: "jeans", img: "👖" }, { word: "boots", img: "👢" }, { word: "sneakers", img: "👟" }, { word: "slippers", img: "🥿" } ] },
+            "Beach": { vocab: [ { word: "beach", img: "🏖️" }, { word: "sun", img: "☀️" }, { word: "sandcastle", img: "🏰" }, { word: "seashell", img: "🐚" }, { word: "towel", img: "🧖" }, { word: "swimsuit", img: "🩱" }, { word: "sunglasses", img: "🕶️" }, { word: "crabs", img: "🦀" }, { word: "bucket", img: "🪣" }, { word: "shovel", img: "⛏️" }, { word: "frisbee", img: "🥏" } ] },
+            "Body Parts": { vocab: [ { word: "eyes", img: "👀" }, { word: "nose", img: "👃" }, { word: "mouth", img: "👄" }, { word: "ear", img: "👂" }, { word: "hand", img: "🖐️" }, { word: "foot", img: "🦶" }, { word: "arm", img: "💪" }, { word: "leg", img: "🦵" } ] },
+            "Weather": { vocab: [ { word: "sun", img: "☀️" }, { word: "cloud", img: "☁️" }, { word: "rain", img: "🌧️" }, { word: "snow", img: "❄️" }, { word: "lightning", img: "⚡" }, { word: "wind", img: "🌬️" }, { word: "rainbow", img: "🌈" }, { word: "tornado", img: "🌪️" } ] },
+            "School": { vocab: [ { word: "pencil", img: "✏️" }, { word: "book", img: "📖" }, { word: "backpack", img: "🎒" }, { word: "scissors", img: "✂️" }, { word: "glue", img: "🧴" }, { word: "crayon", img: "🖍️" }, { word: "ruler", img: "📏" }, { word: "notebook", img: "📓" }, { word: "teacher", img: "🧑‍🏫" }, { word: "paint", img: "🎨" } ] },
+            "Farm Animals": { vocab: [ { word: "cow", img: "🐄" }, { word: "pig", img: "🐖" }, { word: "chicken", img: "🐔" }, { word: "sheep", img: "🐑" }, { word: "horse", img: "🐎" }, { word: "goat", img: "🐐" }, { word: "duck", img: "🦆" } ] },
+            "Fruits": { vocab: [ { word: "apple", img: "🍎" }, { word: "banana", img: "🍌" }, { word: "orange", img: "🍊" }, { word: "grapes", img: "🍇" }, { word: "strawberry", img: "🍓" }, { word: "watermelon", img: "🍉" }, { word: "pineapple", img: "🍍" }, { word: "kiwi", img: "🥝" } ] },
+            "Vegetables": { vocab: [ { word: "carrot", img: "🥕" }, { word: "broccoli", img: "🥦" }, { word: "corn", img: "🌽" }, { word: "potato", img: "🥔" }, { word: "tomato", img: "🍅" }, { word: "onion", img: "🧅" }, { word: "lettuce", img: "🥬" }, { word: "eggplant", img: "🍆" } ] },
+            "Sports": { vocab: [ { word: "soccer", img: "⚽" }, { word: "basketball", img: "🏀" }, { word: "football", img: "🏈" }, { word: "baseball", img: "⚾" }, { word: "tennis", img: "🎾" }, { word: "volleyball", img: "🏐" }, { word: "golf", img: "⛳" }, { word: "swimming", img: "🏊" } ] },
+            "Insects": { vocab: [ { word: "butterfly", img: "🦋" }, { word: "bee", img: "🐝" }, { word: "ant", img: "🐜" }, { word: "ladybug", img: "🐞" }, { word: "spider", img: "🕷️" }, { word: "caterpillar", img: "🐛" }, { word: "snail", img: "🐌" }, { word: "mosquito", img: "🦟" }, { word: "cricket", img: "🦗" } ] },
+            "Sea Creatures": { vocab: [ { word: "octopus", img: "🐙" }, { word: "dolphin", img: "🐬" }, { word: "whale", img: "🐋" }, { word: "shark", img: "🦈" }, { word: "jellyfish", img: "🪼" }, { word: "seal", img: "🦭" }, { word: "lobster", img: "🦞" }, { word: "shrimp", img: "🦐" }, { word: "oyster", img: "🦪" } ] }
+        };
+
+        // --- Game State Variables ---
+        let player, bullets, items, score, timeLeft, gameTimer, gameLoopId;
+        let keys = {};
+        let lastShotTime = 0;
+        let baseItemSpawnRate = 1200;
+        let currentItemSpawnRate = 1200;
+        let lastItemSpawn = 0;
+        let hue = 200;
+        let grassHue = 120;
+        let isAudioReady = false;
+        let roundMessage = { text: '', alpha: 0 };
+        let isRapidFireRound = false;
+        let rapidFireEndTime = 0;
+        let nextRapidFireTime = 0;
+
+        const GRASS_HEIGHT = 50;
+        const GAME_DURATION = 600;
+
+        // --- Sound & Speech Synthesis ---
+        let sounds = {};
+        let music;
+        function setupSounds() {
+            sounds.shoot = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.05, release: 0.1 } }).toDestination();
+            sounds.hitGood = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.005, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination();
+            sounds.hitBad = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.3, sustain: 0.0, release: 0.3 } }).toDestination();
+            sounds.hitGrass = new Tone.Synth({ oscillator: { type: 'sawtooth' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.1 } }).toDestination();
+            sounds.hitPowerup = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.2, release: 0.4 } }).toDestination();
+
+            const musicSynth = new Tone.Synth({ oscillator: { type: "fatsawtooth" } }).toDestination();
+            musicSynth.volume.value = -18;
+            const pattern = new Tone.Pattern((time, note) => {
+                musicSynth.triggerAttackRelease(note, "8n", time);
+            }, ["C3", "E3", "G3", "B3"], "up");
+            pattern.interval = "8n";
+            music = pattern;
+            
+            isAudioReady = true;
+        }
+
+        function speak(text, rate = 0.85) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = rate;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // --- Flatten Item Data ---
+        const allItems = [];
+        for (const category in itemData) {
+            const isNonShootable = category === "Animals" || category === "Pets" || category === "Farm Animals";
+            itemData[category].vocab.forEach(item => {
+                allItems.push({ ...item, type: isNonShootable ? 'non-shootable' : 'shootable', points: isNonShootable ? -25 : 10 });
+            });
+        }
+        
+        const powerUps = [
+            { name: "Double Ship", img: '🛰️', type: 'powerup', effect: 'doubleShip', points: 50, duration: 15000 },
+            { name: "Vertical Movement", img: '⬆️', type: 'powerup', effect: 'verticalMove', points: 50, duration: 20000 },
+            { name: "Rapid Fire", img: '🔥', type: 'powerup', effect: 'rapidFire', points: 50, duration: 15000 },
+            { name: "Spread Shot", img: '💥', type: 'powerup', effect: 'spreadShot', points: 50, duration: 15000 }
+        ];
+
+        // --- Game Setup ---
+        function resizeCanvas() {
+            canvas.width = gameContainer.clientWidth;
+            canvas.height = gameContainer.clientHeight;
+        }
+
+        function init() {
+            resizeCanvas();
+            player = { x: canvas.width / 2, y: canvas.height - GRASS_HEIGHT - 60, width: 40, height: 40, speed: 6, emoji: '🚀', canMoveVertical: false, fireRate: 500, shotType: 'single', satellites: 0, activePowerups: {} };
+            bullets = [];
+            items = [];
+            score = 0;
+            timeLeft = GAME_DURATION;
+            lastItemSpawn = 0;
+            hue = 200;
+            grassHue = 120;
+            baseItemSpawnRate = 1200;
+            currentItemSpawnRate = baseItemSpawnRate;
+            nextRapidFireTime = GAME_DURATION - 90;
+            isRapidFireRound = false;
+            
+            updateScoreUI();
+            updateTimerUI();
+
+            if (gameTimer) clearInterval(gameTimer);
+            gameTimer = setInterval(() => {
+                timeLeft--;
+                updateTimerUI();
+                updateDifficulty();
+                checkSpecialRounds();
+                if (timeLeft <= 0) endGame();
+            }, 1000);
+        }
+
+        async function startGame() {
+            startButton.textContent = "Loading...";
+            startButton.disabled = true;
+
+            try {
+                if (typeof Tone !== 'undefined' && !isAudioReady) {
+                    await Tone.start();
+                    setupSounds();
+                    Tone.Transport.start();
+                    music.start(0);
+                } else if (isAudioReady) {
+                    Tone.Transport.start();
+                }
+            } catch (error) {
+                console.error("Could not initialize audio:", error);
+            }
+            
+            init();
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            startButton.textContent = "Start Game";
+            startButton.disabled = false;
+            
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            gameLoop(0);
+        }
+
+        function endGame() {
+            clearInterval(gameTimer);
+            cancelAnimationFrame(gameLoopId);
+            if (isAudioReady) Tone.Transport.stop();
+            finalScoreEl.textContent = score;
+            gameOverScreen.style.display = 'flex';
+            speak("Game Over");
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('resize', resizeCanvas);
+        document.addEventListener('keydown', e => { keys[e.code] = true; });
+        document.addEventListener('keyup', e => { keys[e.code] = false; });
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', startGame);
+        
+        // --- Touch Controls ---
+        function setupTouchControls() {
+            if ('ontouchstart' in window) {
+                touchControls.style.display = 'flex';
+                touchLeft.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowLeft'] = true; });
+                touchLeft.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowLeft'] = false; });
+                touchRight.addEventListener('touchstart', (e) => { e.preventDefault(); keys['ArrowRight'] = true; });
+                touchRight.addEventListener('touchend', (e) => { e.preventDefault(); keys['ArrowRight'] = false; });
+                touchShoot.addEventListener('touchstart', (e) => { e.preventDefault(); keys['Space'] = true; });
+                touchShoot.addEventListener('touchend', (e) => { e.preventDefault(); keys['Space'] = false; });
+            }
+        }
+
+        // --- Game Loop ---
+        function gameLoop(timestamp) {
+            updatePlayerPosition();
+            handleShooting(timestamp);
+            updateBullets();
+            updateItems(timestamp);
+            checkCollisions();
+            updateColors();
+            updateRapidFireTimer();
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            drawBullets();
+            drawItems();
+            drawRoundMessage();
+            
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // --- Update Functions ---
+        function updatePlayerPosition() {
+            const rightBoundary = canvas.width - player.width - (player.satellites * 60);
+            if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+            if (keys['ArrowRight'] && player.x < rightBoundary) player.x += player.speed;
+            if (player.canMoveVertical) {
+                if (keys['ArrowUp'] && player.y > 0) player.y -= player.speed;
+                if (keys['ArrowDown'] && player.y < canvas.height - GRASS_HEIGHT - player.height) player.y += player.speed;
+            }
+        }
+
+        function handleShooting(timestamp) {
+            let currentFireRate = player.fireRate;
+            if (isRapidFireRound) currentFireRate = 75;
+
+            if (keys['Space'] && timestamp - lastShotTime > currentFireRate) {
+                lastShotTime = timestamp;
+                createBullet();
+            }
+        }
+
+        function createBullet() {
+            if (isAudioReady) {
+                const notes = ['C5', 'D5', 'E5'];
+                sounds.shoot.triggerAttackRelease(notes[Math.floor(Math.random() * notes.length)], '8n');
+            }
+            const bulletBase = { y: player.y, width: 5, height: 15, speed: 8 };
+
+            const fire = (xOffset) => {
+                 if (player.shotType === 'single') {
+                    bullets.push({ ...bulletBase, x: xOffset + player.width / 2 - bulletBase.width / 2 });
+                } else if (player.shotType === 'spreadShot') {
+                    bullets.push({ ...bulletBase, x: xOffset + player.width / 2 - bulletBase.width / 2, dx: 0 });
+                    bullets.push({ ...bulletBase, x: xOffset, dx: -2 });
+                    bullets.push({ ...bulletBase, x: xOffset + player.width, dx: 2 });
+                }
+            }
+            
+            fire(player.x);
+            for(let i = 1; i <= player.satellites; i++) {
+                fire(player.x + (60 * i));
+            }
+        }
+
+        function updateBullets() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.y -= b.speed;
+                if (b.dx) b.x += b.dx;
+                if (b.y < 0) bullets.splice(i, 1);
+            }
+        }
+
+        function updateItems(timestamp) {
+            if (timestamp - lastItemSpawn > currentItemSpawnRate) {
+                lastItemSpawn = timestamp;
+                spawnItem();
+            }
+            for (let i = items.length - 1; i >= 0; i--) {
+                const item = items[i];
+                item.y += item.speed;
+                if (item.y > canvas.height - GRASS_HEIGHT) {
+                    if (item.type === 'shootable') {
+                        if(isAudioReady) sounds.hitGrass.triggerAttackRelease('A2', '8n');
+                        score -= 5;
+                        updateScoreUI();
+                        flashScore('orange');
+                    }
+                    items.splice(i, 1);
+                }
+            }
+        }
+
+        function spawnItem() {
+            const itemSize = 40;
+            const x = Math.random() * (canvas.width - itemSize);
+            const speed = 0.75 + Math.random() * (isRapidFireRound ? 2.5 : 1.5); 
+            let randomItem = (Math.random() < 0.25 && !isRapidFireRound) 
+                ? { ...powerUps[Math.floor(Math.random() * powerUps.length)] }
+                : { ...allItems[Math.floor(Math.random() * allItems.length)] };
+            items.push({ ...randomItem, x, y: -itemSize, width: itemSize, height: itemSize, speed });
+        }
+        
+        function checkCollisions() {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                for (let j = items.length - 1; j >= 0; j--) {
+                    if (isColliding(bullets[i], items[j])) {
+                        const item = items[j];
+                        score += item.points;
+
+                        if (isAudioReady) {
+                            if (item.type === 'powerup') sounds.hitPowerup.triggerAttackRelease('C6', '8n');
+                            else if (item.points > 0) sounds.hitGood.triggerAttackRelease('G5', '16n');
+                            else sounds.hitBad.triggerAttackRelease('C3', '8n');
+                        }
+
+                        if (item.type === 'powerup') activatePowerup(item);
+                        if (item.points > 0) flashScore('lime');
+                        else flashScore('red');
+                        
+                        bullets.splice(i, 1);
+                        items.splice(j, 1);
+                        updateScoreUI();
+                        break; 
+                    }
+                }
+            }
+        }
+        
+        function activatePowerup(powerup) {
+            const { effect, duration, name } = powerup;
+            speak(name);
+            
+            const now = performance.now();
+            const timerId = setTimeout(() => deactivatePowerup(effect, timerId), duration);
+
+            if (effect === 'doubleShip') {
+                player.satellites++;
+                 player.activePowerups[timerId] = { effect, endTime: now + duration, duration };
+            } else {
+                 if (player.activePowerups[effect]?.timeoutId) {
+                    clearTimeout(player.activePowerups[effect].timeoutId);
+                 }
+                 switch(effect) {
+                    case 'verticalMove': player.canMoveVertical = true; break;
+                    case 'rapidFire': player.fireRate = 150; break;
+                    case 'spreadShot': player.shotType = 'spreadShot'; break;
+                }
+                player.activePowerups[effect] = { timeoutId: timerId, endTime: now + duration, duration };
+            }
+        }
+
+        function deactivatePowerup(effect, timerId) {
+             if (effect === 'doubleShip') {
+                player.satellites = Math.max(0, player.satellites - 1);
+                delete player.activePowerups[timerId];
+             } else {
+                switch(effect) {
+                    case 'verticalMove': player.canMoveVertical = false; break;
+                    case 'rapidFire': player.fireRate = 500; break;
+                    case 'spreadShot': player.shotType = 'single'; break;
+                }
+                delete player.activePowerups[effect];
+             }
+        }
+
+        // --- Difficulty and Special Rounds ---
+        function updateDifficulty() {
+            if (isRapidFireRound) return;
+            const progress = (GAME_DURATION - timeLeft) / GAME_DURATION;
+            baseItemSpawnRate = 1200 - (800 * progress);
+            currentItemSpawnRate = baseItemSpawnRate;
+        }
+
+        function checkSpecialRounds() {
+            if (timeLeft === nextRapidFireTime && !isRapidFireRound) {
+                startRapidFireRound();
+            }
+            if (isRapidFireRound && performance.now() >= rapidFireEndTime) {
+                endRapidFireRound();
+            }
+        }
+
+        function startRapidFireRound() {
+            isRapidFireRound = true;
+            rapidFireEndTime = performance.now() + 15000;
+            currentItemSpawnRate = 100;
+            showRoundMessage("RAPID FIRE ROUND!");
+            speak("Rapid Fire Round!");
+        }
+
+        function endRapidFireRound() {
+            isRapidFireRound = false;
+            currentItemSpawnRate = baseItemSpawnRate;
+            nextRapidFireTime = timeLeft - 120;
+            if (nextRapidFireTime < 15) nextRapidFireTime = -1;
+            rapidFireTimerEl.style.display = 'none';
+        }
+
+        function updateRapidFireTimer() {
+            if (isRapidFireRound) {
+                const remaining = Math.max(0, (rapidFireEndTime - performance.now()) / 1000);
+                rapidFireTimerEl.textContent = `Rapid Fire: ${remaining.toFixed(1)}s`;
+                rapidFireTimerEl.style.display = 'block';
+            } else {
+                rapidFireTimerEl.style.display = 'none';
+            }
+        }
+
+        // --- Drawing Functions ---
+        function drawPlayer() {
+            ctx.font = `${player.width}px Arial`;
+            ctx.fillText(player.emoji, player.x, player.y + player.height);
+
+            for(let i = 1; i <= player.satellites; i++) {
+                ctx.fillText('🛰️', player.x + (60 * i), player.y + player.height);
+            }
+
+            const now = performance.now();
+            let yOffset = 0;
+            
+            const drawTimerBar = (x, y, width, remaining, duration) => {
+                const ratio = remaining / duration;
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.fillRect(x, y, width, 5);
+                ctx.fillStyle = ratio > 0.5 ? 'lightgreen' : (ratio > 0.2 ? 'gold' : 'red');
+                ctx.fillRect(x, y, width * ratio, 5);
+            };
+
+            Object.values(player.activePowerups).forEach(powerup => {
+                if (!powerup.endTime) return;
+                const remaining = powerup.endTime - now;
+                if (remaining > 0) {
+                    let icon = '';
+                    switch(powerup.effect) {
+                        case 'rapidFire': icon = '🔥'; break;
+                        case 'spreadShot': icon = '💥'; break;
+                        case 'verticalMove': icon = '⬆️'; break;
+                        case 'doubleShip': icon = '🛰️'; break;
+                    }
+                    if(icon) {
+                        ctx.font = '18px Arial';
+                        ctx.fillText(icon, player.x - 25, player.y + yOffset + 20);
+                        drawTimerBar(player.x - 25, player.y + yOffset + 25, 20, remaining, powerup.duration);
+                        yOffset += 25;
+                    }
+                }
+            });
+        }
+
+        function drawBullets() {
+            ctx.fillStyle = '#FFFF00';
+            bullets.forEach(b => ctx.fillRect(b.x, b.y, b.width, b.height));
+        }
+
+        function drawItems() {
+            ctx.font = '32px Arial';
+            items.forEach(item => ctx.fillText(item.img, item.x, item.y + item.height));
+        }
+        
+        function drawRoundMessage() {
+            if (roundMessage.alpha > 0) {
+                ctx.save();
+                ctx.globalAlpha = roundMessage.alpha;
+                ctx.fillStyle = 'white';
+                ctx.strokeStyle = 'black';
+                ctx.lineWidth = 4;
+                ctx.font = 'bold clamp(30px, 8vw, 60px) Arial';
+                ctx.textAlign = 'center';
+                ctx.strokeText(roundMessage.text, canvas.width / 2, canvas.height / 2);
+                ctx.fillText(roundMessage.text, canvas.width / 2, canvas.height / 2);
+                ctx.restore();
+                roundMessage.alpha -= 0.005;
+            }
+        }
+
+        function showRoundMessage(text) {
+            roundMessage.text = text;
+            roundMessage.alpha = 1.0;
+        }
+
+        // --- UI and Helper Functions ---
+        function updateColors() {
+            hue = (hue + 0.1) % 360;
+            grassHue = (grassHue + 0.1) % 360;
+            gameContainer.style.backgroundColor = `hsl(${hue}, 70%, 55%)`;
+            grassEl.style.backgroundColor = `hsl(${grassHue}, 50%, 30%)`;
+        }
+
+        function updateScoreUI() {
+            scoreEl.textContent = `Score: ${score}`;
+        }
+
+        function updateTimerUI() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerEl.textContent = `Time: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+        
+        function isColliding(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        function flashScore(color) {
+            scoreEl.style.color = color;
+            setTimeout(() => { scoreEl.style.color = 'white'; }, 300);
+        }
+
+        // --- Initial call ---
+        resizeCanvas();
+        setupTouchControls();
+        gameContainer.style.backgroundColor = `hsl(${hue}, 70%, 55%)`;
+        grassEl.style.backgroundColor = `hsl(${grassHue}, 50%, 30%)`;
+    </script>
+</body>
+</html>
