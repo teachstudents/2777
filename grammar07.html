@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Sentence Builder</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Fonts: Comic Neue for friendly look -->
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Comic Neue', 'Comic Sans MS', 'Comic Sans', cursive, sans-serif;
+            background-color: #f3f4f6;
+            touch-action: manipulation;
+        }
+
+        .no-select {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* Sentence highlighting logic */
+        .sentence-part {
+            border-bottom-width: 6px;
+            border-bottom-style: solid;
+            border-color: transparent;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            padding: 4px 10px; 
+            border-radius: 8px;
+            margin-right: 4px;
+            display: inline-block; 
+            line-height: 1.15; 
+        }
+
+        /* Active/Highlight States (Matched to Button Colors) */
+        .active-orange { border-color: #f97316; background-color: #fed7aa; color: #000; } /* Orange 200 */
+        .active-yellow { border-color: #eab308; background-color: #fef08a; color: #000; } /* Yellow 200 */
+        .active-green  { border-color: #16a34a; background-color: #bbf7d0; color: #000; } /* Green 200 */
+        .active-blue   { border-color: #0ea5e9; background-color: #bae6fd; color: #000; } /* Sky 200 */
+        .active-brown  { border-color: #854d0e; background-color: #e7d5c9; color: #000; } /* Custom Tan */
+        .active-pink   { border-color: #ec4899; background-color: #fbcfe8; color: #000; } /* Pink 200 */
+        .active-purple { border-color: #a855f7; background-color: #e9d5ff; color: #000; } /* Purple 200 */
+        .active-teal   { border-color: #14b8a6; background-color: #99f6e4; color: #000; } /* Teal 200 */
+
+        /* Button interactions */
+        .card:active {
+            transform: scale(0.95);
+        }
+        
+        /* Navigation Button Styles */
+        .nav-btn {
+            background-color: white;
+            border: 2px solid #e5e7eb;
+            padding: 6px 14px; 
+            border-radius: 9999px;
+            font-weight: bold;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            box-shadow: 0 3px 0 #e5e7eb;
+        }
+        .nav-btn:active {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+        .nav-btn:hover {
+            border-color: #d1d5db;
+            background-color: #f9fafb;
+        }
+        
+        /* Level Button Styles - Reduced Size */
+        .level-btn {
+            background-color: #e5e7eb;
+            color: #4b5563;
+            border: 2px solid transparent;
+            padding: 6px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 0.95rem; 
+            text-align: center;
+            transition: all 0.2s;
+            box-shadow: 0 2px 0 #d1d5db;
+        }
+        .level-btn.active {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 2px 0 #1d4ed8;
+            transform: translateY(-1px);
+        }
+        .level-btn:active {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+
+        /* Points Animation */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+        .pop-anim {
+            animation: pop 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden text-gray-800">
+
+    <!-- Header: Sentence Display & Navigation -->
+    <div class="bg-white shadow-lg z-20 sticky top-0 border-b-2 border-gray-200 shrink-0">
+        <div class="max-w-7xl mx-auto p-4 flex flex-col">
+             
+             <!-- The Sentence (Fixed Height Container) -->
+             <div class="h-[24rem] md:h-[30rem] w-full flex items-center bg-gray-50 rounded-xl border border-gray-100 p-4">
+                 <div id="sentence-container" class="text-4xl md:text-6xl lg:text-7xl font-bold text-gray-900 text-left leading-none no-select flex flex-wrap justify-start gap-x-2 gap-y-1 w-full overflow-y-auto max-h-full">
+                    <!-- Content injected via JS -->
+                </div>
+             </div>
+            
+            <!-- Navigation & Controls Toolbar -->
+            <div class="flex flex-wrap items-center justify-between gap-2 mt-2 pt-1">
+                
+                <!-- Left Group: Nav -->
+                <div class="flex items-center gap-2">
+                    <button onclick="goHome()" class="nav-btn text-gray-600" title="Start Over">
+                        <i class="ph ph-house text-xl"></i>
+                    </button>
+                    
+                    <button onclick="prevSentence()" class="nav-btn text-gray-600" title="Previous">
+                        <i class="ph ph-caret-left text-xl"></i>
+                    </button>
+                    
+                    <span id="counter" class="text-base font-bold text-gray-400 min-w-[80px] text-center">A1: 1/50</span>
+
+                    <button onclick="nextSentence()" class="nav-btn text-gray-600" title="Next">
+                        <i class="ph ph-caret-right text-xl"></i>
+                    </button>
+
+                    <!-- Shuffle Button -->
+                    <button onclick="randomSentence()" class="nav-btn text-purple-600 border-purple-200 hover:bg-purple-50" title="Random Sentence">
+                        <i class="ph ph-shuffle text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Center: Read -->
+                <button onclick="speakSentence()" class="bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-200 px-5 py-1.5 rounded-full font-bold text-base flex items-center gap-2 transition shadow-md border-b-4 active:translate-y-1 active:shadow-none">
+                    <i class="ph ph-speaker-high text-xl"></i>
+                    <span>Read</span>
+                </button>
+
+                <!-- Right: Points -->
+                <button id="pointsBtn" onclick="addPoint()" class="bg-yellow-100 hover:bg-yellow-200 text-yellow-700 border-yellow-200 px-4 py-1.5 rounded-full font-bold text-base flex items-center gap-2 transition shadow-md border-b-4 active:translate-y-1 active:shadow-none">
+                    <i class="ph ph-star-fill text-xl text-yellow-500"></i>
+                    <span id="pointsDisplay">0</span>
+                </button>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content: Buttons Grid -->
+    <div class="flex-1 overflow-y-auto p-4 bg-gray-100">
+        <div class="max-w-5xl mx-auto h-full flex flex-col justify-start pt-4 pb-12">
+            
+            <!-- Question Cards Grid -->
+            <div class="grid grid-cols-4 gap-2 md:gap-3 mb-3">
+                <!-- WHO? (Light Orange 200, Dark Orange Border) -->
+                <button onclick="activatePart('who')" class="card bg-[#fed7aa] text-black rounded-xl flex flex-col items-center justify-center shadow-md border-b-4 border-[#f97316] py-2 hover:bg-orange-200 hover:-translate-y-1 transition-all h-auto">
+                    <span class="text-[10px] md:text-xs font-bold uppercase opacity-80 mb-0.5">Who?</span>
+                    <i class="ph ph-user text-xl md:text-3xl"></i>
+                </button>
+                <!-- DOING WHAT? (Light Yellow 200, Dark Yellow Border) -->
+                <button onclick="activatePart('action')" class="card bg-[#fef08a] text-black rounded-xl flex flex-col items-center justify-center shadow-md border-b-4 border-[#eab308] py-2 hover:bg-yellow-200 hover:-translate-y-1 transition-all h-auto">
+                    <span class="text-[10px] md:text-xs font-bold uppercase opacity-80 mb-0.5 text-center leading-tight">Doing<br>what?</span>
+                    <i class="ph ph-person-simple-run text-xl md:text-3xl"></i>
+                </button>
+                <!-- WHAT? (Light Green 200, Dark Green Border) -->
+                <button onclick="activatePart('what')" class="card bg-[#bbf7d0] text-black rounded-xl flex flex-col items-center justify-center shadow-md border-b-4 border-[#16a34a] py-2 hover:bg-green-200 hover:-translate-y-1 transition-all h-auto">
+                    <span class="text-[10px] md:text-xs font-bold uppercase opacity-80 mb-0.5">What?</span>
+                    <i class="ph ph-soccer-ball text-xl md:text-3xl"></i>
+                </button>
+                <!-- WHERE? (Light Blue 200, Dark Sky Border) -->
+                <button onclick="activatePart('where')" class="card bg-[#bae6fd] text-black rounded-xl flex flex-col items-center justify-center shadow-md border-b-4 border-[#0ea5e9] py-2 hover:bg-sky-200 hover:-translate-y-1 transition-all h-auto">
+                    <span class="text-[10px] md:text-xs font-bold uppercase opacity-80 mb-0.5">Where?</span>
+                    <i class="ph ph-globe text-xl md:text-3xl"></i>
+                </button>
+                <!-- WHEN? (Custom Light Brown/Tan, Dark Brown Border) -->
+                <button onclick="activatePart('when')" class="card bg-[#e7d5c9] text-black rounded-xl flex flex-col items-center justify-center shadow-md border-b-4 border-[#854d0e] py-2 hover:bg-[#dcc0b0] hover:-translate-y-1 transition-all h-auto">
+                    <span class="text-[10px] md:text-xs font-bold uppercase opacity-80 mb-0.5">When?</span>
+                    <i class="ph ph-clock text-xl md:text-3xl"></i>
+                </button>
+                <!-- TO WHOM? (Light Pink 200, Dark Pink Border) -->
+                <button onclick="activatePart('whom')" class="card bg-[#fbcfe8] text-black rounded-xl flex flex-col items-center justify-center shadow-md border-b-4 border-[#ec4899] py-2 hover:bg-pink-200 hover:-translate-y-1 transition-all h-auto">
+                    <span class="text-[10px] md:text-xs font-bold uppercase opacity-80 mb-0.5 text-center leading-tight">To<br>whom?</span>
+                    <i class="ph ph-gift text-xl md:text-3xl"></i>
+                </button>
+                <!-- WHY? (Light Purple 200, Dark Purple Border) -->
+                <button onclick="activatePart('why')" class="card bg-[#e9d5ff] text-black rounded-xl flex flex-col items-center justify-center shadow-md border-b-4 border-[#a855f7] py-2 hover:bg-purple-200 hover:-translate-y-1 transition-all h-auto">
+                    <span class="text-[10px] md:text-xs font-bold uppercase opacity-80 mb-0.5">Why?</span>
+                    <i class="ph ph-question text-xl md:text-3xl"></i>
+                </button>
+                <!-- HOW? (Light Teal 200, Dark Teal Border) -->
+                <button onclick="activatePart('how')" class="card bg-[#99f6e4] text-black rounded-xl flex flex-col items-center justify-center shadow-md border-b-4 border-[#14b8a6] py-2 hover:bg-teal-200 hover:-translate-y-1 transition-all h-auto">
+                    <span class="text-[10px] md:text-xs font-bold uppercase opacity-80 mb-0.5">How?</span>
+                    <i class="ph ph-lightning text-xl md:text-3xl"></i>
+                </button>
+            </div>
+
+            <!-- Level Selector -->
+            <div class="bg-white rounded-xl p-2 shadow-sm border border-gray-200">
+                <h3 class="text-center font-bold text-gray-400 uppercase tracking-widest mb-1 text-[10px]">Select Level</h3>
+                <div class="grid grid-cols-4 gap-3">
+                    <button onclick="setLevel('A1')" id="btn-A1" class="level-btn active">A1</button>
+                    <button onclick="setLevel('A2')" id="btn-A2" class="level-btn">A2</button>
+                    <button onclick="setLevel('B1')" id="btn-B1" class="level-btn">B1</button>
+                    <button onclick="setLevel('B2')" id="btn-B2" class="level-btn">B2</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Hidden Voice Selector -->
+    <select id="voiceSelect" class="hidden"></select>
+
+    <script>
+        // --- Data: 400 Sentences (100 per CEFR Level) ---
+        const allSentences = [
+            // --- A1: Beginner (100 sentences) ---
+            { level: 'A1', who: "Sam", action: "will kick", what: "the ball", whom: "to Ben", where: "in the park", when: "tomorrow", why: "to practice", how: "happily." },
+            { level: 'A1', who: "The cat", action: "slept", what: "", whom: "", where: "on the rug", when: "all day", why: "because it was tired", how: "quietly." },
+            { level: 'A1', who: "I", action: "eat", what: "an apple", whom: "", where: "in the kitchen", when: "in the morning", why: "for breakfast", how: "slowly." },
+            { level: 'A1', who: "She", action: "walks", what: "to school", whom: "", where: "down the street", when: "every day", why: "to learn", how: "quickly." },
+            { level: 'A1', who: "The dog", action: "barks", what: "", whom: "at the mailman", where: "in the garden", when: "at noon", why: "to protect us", how: "loudly." },
+            { level: 'A1', who: "We", action: "play", what: "soccer", whom: "with friends", where: "at the field", when: "on Sundays", why: "for fun", how: "well." },
+            { level: 'A1', who: "My mom", action: "cooks", what: "dinner", whom: "for us", where: "at home", when: "at 6pm", why: "because we are hungry", how: "nicely." },
+            { level: 'A1', who: "The bird", action: "sings", what: "a song", whom: "", where: "in the tree", when: "now", why: "for the morning", how: "sweetly." },
+            { level: 'A1', who: "They", action: "watch", what: "TV", whom: "", where: "in the living room", when: "after dinner", why: "to relax", how: "quietly." },
+            { level: 'A1', who: "He", action: "drinks", what: "milk", whom: "", where: "at the table", when: "before bed", why: "to sleep well", how: "calmly." },
+            { level: 'A1', who: "The car", action: "goes", what: "", whom: "", where: "to the shop", when: "today", why: "for repairs", how: "fast." },
+            { level: 'A1', who: "Anna", action: "reads", what: "a book", whom: "", where: "in bed", when: "at night", why: "because it is fun", how: "silently." },
+            { level: 'A1', who: "Fish", action: "swim", what: "", whom: "", where: "in the water", when: "always", why: "to live", how: "fast." },
+            { level: 'A1', who: "The sun", action: "shines", what: "", whom: "", where: "in the sky", when: "in summer", why: "to warm us", how: "brightly." },
+            { level: 'A1', who: "Dad", action: "washes", what: "the car", whom: "", where: "outside", when: "on Saturday", why: "to clean it", how: "well." },
+            { level: 'A1', who: "I", action: "use", what: "a pen", whom: "", where: "in my book", when: "now", why: "to write", how: "neatly." },
+            { level: 'A1', who: "The baby", action: "cries", what: "", whom: "for Mom", where: "in the crib", when: "at night", why: "for milk", how: "loudly." },
+            { level: 'A1', who: "We", action: "go", what: "", whom: "", where: "to the zoo", when: "in June", why: "to see animals", how: "happily." },
+            { level: 'A1', who: "Tom", action: "eats", what: "pizza", whom: "", where: "at the party", when: "today", why: "because it is good", how: "quickly." },
+            { level: 'A1', who: "The bus", action: "stops", what: "", whom: "", where: "here", when: "at 8am", why: "for students", how: "suddenly." },
+            { level: 'A1', who: "You", action: "wear", what: "a hat", whom: "", where: "outside", when: "in winter", why: "to stay warm", how: "always." },
+            { level: 'A1', who: "The teacher", action: "writes", what: "words", whom: "", where: "on the board", when: "in class", why: "to teach", how: "clearly." },
+            { level: 'A1', who: "Rain", action: "falls", what: "", whom: "", where: "on the ground", when: "in April", why: "for flowers", how: "softly." },
+            { level: 'A1', who: "My brother", action: "runs", what: "", whom: "", where: "in the park", when: "after school", why: "for sport", how: "fast." },
+            { level: 'A1', who: "The moon", action: "shines", what: "", whom: "", where: "in the sky", when: "tonight", why: "for light", how: "beautifully." },
+            { level: 'A1', who: "My friend", action: "calls", what: "me", whom: "", where: "on the phone", when: "every day", why: "to talk", how: "happily." },
+            { level: 'A1', who: "The cat", action: "chases", what: "a mouse", whom: "", where: "in the house", when: "sometimes", why: "for food", how: "quickly." },
+            { level: 'A1', who: "We", action: "study", what: "English", whom: "", where: "at school", when: "on Mondays", why: "to learn", how: "hard." },
+            { level: 'A1', who: "Mom", action: "buys", what: "food", whom: "", where: "at the store", when: "on Friday", why: "for the week", how: "carefully." },
+            { level: 'A1', who: "The boys", action: "jump", what: "", whom: "", where: "on the bed", when: "before sleep", why: "for fun", how: "loudly." },
+            { level: 'A1', who: "I", action: "open", what: "the door", whom: "for you", where: "at home", when: "when you knock", why: "to be nice", how: "wide." },
+            { level: 'A1', who: "The girl", action: "draws", what: "a flower", whom: "", where: "on paper", when: "in art class", why: "for fun", how: "neatly." },
+            { level: 'A1', who: "They", action: "dance", what: "", whom: "together", where: "at the club", when: "at night", why: "to music", how: "well." },
+            { level: 'A1', who: "He", action: "walks", what: "to school", whom: "", where: "on the path", when: "today", why: "for class", how: "slowly." },
+            { level: 'A1', who: "The horse", action: "eats", what: "grass", whom: "", where: "in the field", when: "all day", why: "because hungry", how: "slowly." },
+            { level: 'A1', who: "We", action: "listen", what: "to music", whom: "", where: "in the car", when: "on trips", why: "to enjoy", how: "loudly." },
+            { level: 'A1', who: "Grandma", action: "sits", what: "", whom: "", where: "in the chair", when: "in the afternoon", why: "to rest", how: "quietly." },
+            { level: 'A1', who: "The shop", action: "opens", what: "", whom: "", where: "in town", when: "at 9am", why: "for business", how: "early." },
+            { level: 'A1', who: "I", action: "love", what: "my family", whom: "", where: "at home", when: "always", why: "because they are kind", how: "very much." },
+            { level: 'A1', who: "You", action: "help", what: "me", whom: "", where: "with homework", when: "now", why: "because it is hard", how: "kindly." },
+            { level: 'A1', who: "The train", action: "comes", what: "", whom: "", where: "to the station", when: "soon", why: "for passengers", how: "fast." },
+            { level: 'A1', who: "We", action: "clean", what: "the house", whom: "", where: "inside", when: "on Sunday", why: "to be tidy", how: "well." },
+            { level: 'A1', who: "The star", action: "twinkles", what: "", whom: "", where: "above us", when: "at night", why: "like a diamond", how: "brightly." },
+            { level: 'A1', who: "My dad", action: "works", what: "", whom: "", where: "in an office", when: "every week", why: "for money", how: "hard." },
+            { level: 'A1', who: "She", action: "smiles", what: "", whom: "at me", where: "in class", when: "when I joke", why: "because she is happy", how: "sweetly." },
+            { level: 'A1', who: "The game", action: "starts", what: "", whom: "", where: "on the TV", when: "at 5pm", why: "for fans", how: "soon." },
+            { level: 'A1', who: "I", action: "brush", what: "my teeth", whom: "", where: "in the bathroom", when: "at night", why: "to be clean", how: "well." },
+            { level: 'A1', who: "Birds", action: "fly", what: "", whom: "", where: "in the sky", when: "in the morning", why: "to find food", how: "high." },
+            { level: 'A1', who: "We", action: "say", what: "hello", whom: "to the teacher", where: "at the door", when: "at 8am", why: "to be polite", how: "loudly." },
+            { level: 'A1', who: "The snow", action: "falls", what: "", whom: "", where: "outside", when: "in winter", why: "from clouds", how: "silently." },
+            // A1 - 51-100
+            { level: 'A1', who: "The students", action: "sit", what: "", whom: "", where: "at their desks", when: "in class", why: "to learn", how: "quietly." },
+            { level: 'A1', who: "My sister", action: "draws", what: "a cat", whom: "", where: "in her book", when: "after dinner", why: "for fun", how: "well." },
+            { level: 'A1', who: "We", action: "walk", what: "", whom: "", where: "in the forest", when: "on Sunday", why: "for fresh air", how: "slowly." },
+            { level: 'A1', who: "The boy", action: "rides", what: "his bike", whom: "", where: "to the park", when: "after school", why: "to play", how: "fast." },
+            { level: 'A1', who: "I", action: "see", what: "a big dog", whom: "", where: "on the street", when: "today", why: "", how: "clearly." },
+            { level: 'A1', who: "She", action: "likes", what: "ice cream", whom: "", where: "", when: "in summer", why: "because it is cold", how: "very much." },
+            { level: 'A1', who: "He", action: "plays", what: "the guitar", whom: "", where: "in his room", when: "at night", why: "to practice", how: "loudly." },
+            { level: 'A1', who: "We", action: "drink", what: "juice", whom: "", where: "at lunch", when: "every day", why: "because it is sweet", how: "happily." },
+            { level: 'A1', who: "The teacher", action: "reads", what: "a story", whom: "to us", where: "in the library", when: "on Friday", why: "for fun", how: "clearly." },
+            { level: 'A1', who: "My dad", action: "cooks", what: "eggs", whom: "for breakfast", where: "in the kitchen", when: "on Sunday", why: "to eat", how: "well." },
+            { level: 'A1', who: "The girl", action: "sings", what: "", whom: "", where: "in the shower", when: "in the morning", why: "because she is happy", how: "loudly." },
+            { level: 'A1', who: "I", action: "wash", what: "my hands", whom: "", where: "in the sink", when: "before dinner", why: "to be clean", how: "carefully." },
+            { level: 'A1', who: "The bus", action: "goes", what: "", whom: "", where: "to the city", when: "every hour", why: "for people", how: "slowly." },
+            { level: 'A1', who: "We", action: "sleep", what: "", whom: "", where: "in our beds", when: "at night", why: "to rest", how: "soundly." },
+            { level: 'A1', who: "The sun", action: "comes", what: "", whom: "", where: "up", when: "in the morning", why: "to start the day", how: "brightly." },
+            { level: 'A1', who: "I", action: "write", what: "my name", whom: "", where: "on the paper", when: "in class", why: "for the teacher", how: "neatly." },
+            { level: 'A1', who: "She", action: "buys", what: "milk", whom: "", where: "at the shop", when: "today", why: "for cereal", how: "quickly." },
+            { level: 'A1', who: "He", action: "runs", what: "", whom: "", where: "to the bus", when: "in the morning", why: "because he is late", how: "fast." },
+            { level: 'A1', who: "They", action: "play", what: "games", whom: "", where: "outside", when: "after school", why: "for fun", how: "happily." },
+            { level: 'A1', who: "The cat", action: "eats", what: "fish", whom: "", where: "in the kitchen", when: "at dinner", why: "because hungry", how: "fast." },
+            { level: 'A1', who: "We", action: "look", what: "at the stars", whom: "", where: "outside", when: "at night", why: "because they are pretty", how: "quietly." },
+            { level: 'A1', who: "My mom", action: "works", what: "", whom: "", where: "at home", when: "every day", why: "for her job", how: "hard." },
+            { level: 'A1', who: "The dog", action: "sleeps", what: "", whom: "", where: "on the floor", when: "in the afternoon", why: "to rest", how: "quietly." },
+            { level: 'A1', who: "I", action: "close", what: "the window", whom: "", where: "in my room", when: "at night", why: "because it is cold", how: "tightly." },
+            { level: 'A1', who: "She", action: "wears", what: "a red dress", whom: "", where: "to the party", when: "tonight", why: "to look nice", how: "proudly." },
+            { level: 'A1', who: "He", action: "gives", what: "a flower", whom: "to his mom", where: "at home", when: "on Sunday", why: "for love", how: "kindly." },
+            { level: 'A1', who: "We", action: "make", what: "a cake", whom: "", where: "in the kitchen", when: "for a birthday", why: "to eat", how: "carefully." },
+            { level: 'A1', who: "The rain", action: "hits", what: "the window", whom: "", where: "in my room", when: "now", why: "from the storm", how: "hard." },
+            { level: 'A1', who: "I", action: "read", what: "words", whom: "", where: "in the book", when: "in class", why: "to learn", how: "slowly." },
+            { level: 'A1', who: "The bird", action: "flies", what: "", whom: "", where: "to the nest", when: "at night", why: "to sleep", how: "fast." },
+            { level: 'A1', who: "My friend", action: "smiles", what: "", whom: "", where: "at school", when: "today", why: "because happy", how: "nicely." },
+            { level: 'A1', who: "The car", action: "stops", what: "", whom: "", where: "at the light", when: "now", why: "for safety", how: "quickly." },
+            { level: 'A1', who: "We", action: "jump", what: "rope", whom: "", where: "in the yard", when: "after lunch", why: "for exercise", how: "high." },
+            { level: 'A1', who: "She", action: "calls", what: "her dad", whom: "", where: "on the phone", when: "at night", why: "to say hello", how: "happily." },
+            { level: 'A1', who: "He", action: "opens", what: "the box", whom: "", where: "on the table", when: "now", why: "to see inside", how: "carefully." },
+            { level: 'A1', who: "They", action: "walk", what: "", whom: "", where: "to the shop", when: "in the morning", why: "to buy food", how: "together." },
+            { level: 'A1', who: "The wind", action: "blows", what: "", whom: "", where: "outside", when: "today", why: "because of weather", how: "strongly." },
+            { level: 'A1', who: "I", action: "help", what: "my mom", whom: "", where: "in the kitchen", when: "at dinner", why: "to be good", how: "well." },
+            { level: 'A1', who: "The baby", action: "plays", what: "with toys", whom: "", where: "on the rug", when: "now", why: "for fun", how: "happily." },
+            { level: 'A1', who: "We", action: "sit", what: "", whom: "", where: "on the grass", when: "in summer", why: "to relax", how: "calmly." },
+            { level: 'A1', who: "My dad", action: "drives", what: "the car", whom: "", where: "to work", when: "at 8am", why: "to go there", how: "safely." },
+            { level: 'A1', who: "The girl", action: "eats", what: "lunch", whom: "", where: "at school", when: "at 12pm", why: "because hungry", how: "quickly." },
+            { level: 'A1', who: "I", action: "love", what: "my dog", whom: "", where: "at home", when: "always", why: "because he is cute", how: "truly." },
+            { level: 'A1', who: "The boy", action: "writes", what: "a letter", whom: "to grandma", where: "at the desk", when: "today", why: "to say hi", how: "slowly." },
+            { level: 'A1', who: "We", action: "watch", what: "a movie", whom: "", where: "at the cinema", when: "on Saturday", why: "for fun", how: "quietly." },
+            { level: 'A1', who: "She", action: "washes", what: "her face", whom: "", where: "in the bathroom", when: "in the morning", why: "to be clean", how: "well." },
+            { level: 'A1', who: "He", action: "listens", what: "to the teacher", whom: "", where: "in class", when: "now", why: "to learn", how: "carefully." },
+            { level: 'A1', who: "The sun", action: "goes", what: "", whom: "", where: "down", when: "at night", why: "to end the day", how: "slowly." },
+            { level: 'A1', who: "I", action: "am", what: "happy", whom: "", where: "at school", when: "today", why: "because of friends", how: "very." },
+            { level: 'A1', who: "We", action: "are", what: "family", whom: "", where: "at home", when: "always", why: "with love", how: "truly." },
+
+            // --- A2: Elementary (50 sentences) ---
+            { level: 'A2', who: "Sarah", action: "is painting", what: "a picture", whom: "for her grandma", where: "at school", when: "right now", why: "for her birthday", how: "carefully." },
+            { level: 'A2', who: "The students", action: "finished", what: "their homework", whom: "", where: "in the library", when: "yesterday", why: "to pass the test", how: "completely." },
+            { level: 'A2', who: "We", action: "are going", what: "camping", whom: "with dad", where: "in the forest", when: "next week", why: "for a holiday", how: "excitedly." },
+            { level: 'A2', who: "The pilot", action: "flew", what: "the airplane", whom: "", where: "over the mountains", when: "last night", why: "to travel", how: "safely." },
+            { level: 'A2', who: "Lions", action: "hunt", what: "food", whom: "", where: "in the jungle", when: "at night", why: "to survive", how: "silently." },
+            { level: 'A2', who: "My sister", action: "bought", what: "a new dress", whom: "", where: "at the mall", when: "on Tuesday", why: "for the party", how: "cheaply." },
+            { level: 'A2', who: "The doctor", action: "checked", what: "my ears", whom: "", where: "in the office", when: "this morning", why: "because they hurt", how: "gently." },
+            { level: 'A2', who: "It", action: "snowed", what: "a lot", whom: "", where: "in the city", when: "in December", why: "for Christmas", how: "heavily." },
+            { level: 'A2', who: "I", action: "cleaned", what: "my room", whom: "", where: "upstairs", when: "before playing", why: "because Mom asked", how: "quickly." },
+            { level: 'A2', who: "The farmer", action: "grows", what: "corn", whom: "for everyone", where: "on the farm", when: "in spring", why: "to sell", how: "hard." },
+            { level: 'A2', who: "Jenny", action: "danced", what: "ballet", whom: "", where: "on the stage", when: "during the show", why: "to perform", how: "gracefully." },
+            { level: 'A2', who: "We", action: "visited", what: "our cousins", whom: "", where: "in London", when: "last summer", why: "to say hello", how: "happily." },
+            { level: 'A2', who: "The fire", action: "burned", what: "the wood", whom: "", where: "in the fireplace", when: "all evening", why: "to keep warm", how: "brightly." },
+            { level: 'A2', who: "Harry", action: "found", what: "a coin", whom: "", where: "on the sidewalk", when: "walking home", why: "by chance", how: "luckily." },
+            { level: 'A2', who: "The mechanic", action: "fixed", what: "the engine", whom: "for the driver", where: "in the garage", when: "today", why: "so it works", how: "well." },
+            { level: 'A2', who: "Birds", action: "build", what: "nests", whom: "", where: "in high trees", when: "before eggs come", why: "for safety", how: "cleverly." },
+            { level: 'A2', who: "The police", action: "stopped", what: "the traffic", whom: "", where: "at the corner", when: "suddenly", why: "for an accident", how: "quickly." },
+            { level: 'A2', who: "I", action: "will send", what: "an email", whom: "to my teacher", where: "from home", when: "later", why: "to ask a question", how: "politely." },
+            { level: 'A2', who: "The baker", action: "makes", what: "fresh bread", whom: "for customers", where: "in the shop", when: "early morning", why: "for breakfast", how: "deliciously." },
+            { level: 'A2', who: "We", action: "swam", what: "laps", whom: "", where: "in the pool", when: "after school", why: "for exercise", how: "tiredly." },
+            { level: 'A2', who: "The clock", action: "ticked", what: "", whom: "", where: "on the wall", when: "all night long", why: "marking time", how: "steadily." },
+            { level: 'A2', who: "Alice", action: "lost", what: "her keys", whom: "", where: "at the park", when: "yesterday", why: "by mistake", how: "sadly." },
+            { level: 'A2', who: "The team", action: "won", what: "the game", whom: "", where: "at the stadium", when: "last Friday", why: "by scoring goals", how: "easily." },
+            { level: 'A2', who: "Clouds", action: "covered", what: "the sun", whom: "", where: "in the sky", when: "before the storm", why: "bringing rain", how: "completely." },
+            { level: 'A2', who: "I", action: "understand", what: "the lesson", whom: "", where: "in class", when: "now", why: "because I listened", how: "well." },
+            { level: 'A2', who: "My dad", action: "will drive", what: "us", whom: "", where: "to the cinema", when: "tonight", why: "to see a movie", how: "safely." },
+            { level: 'A2', who: "The leaves", action: "fell", what: "", whom: "", where: "on the grass", when: "in October", why: "because it is autumn", how: "gently." },
+            { level: 'A2', who: "We", action: "ate", what: "cake", whom: "", where: "at the party", when: "on Saturday", why: "to celebrate", how: "quickly." },
+            { level: 'A2', who: "The singer", action: "sang", what: "a pop song", whom: "for the fans", where: "at the concert", when: "last night", why: "to entertain", how: "loudly." },
+            { level: 'A2', who: "You", action: "should wear", what: "a coat", whom: "", where: "outside", when: "today", why: "because it is cold", how: "definitely." },
+            { level: 'A2', who: "The dog", action: "caught", what: "the ball", whom: "", where: "in the yard", when: "this afternoon", why: "during the game", how: "cleverly." },
+            { level: 'A2', who: "I", action: "am doing", what: "my project", whom: "", where: "at my desk", when: "now", why: "for science class", how: "carefully." },
+            { level: 'A2', who: "The boys", action: "played", what: "video games", whom: "", where: "in the bedroom", when: "after school", why: "for fun", how: "quietly." },
+            { level: 'A2', who: "Grandpa", action: "told", what: "a story", whom: "to us", where: "by the fire", when: "yesterday", why: "about his life", how: "slowly." },
+            { level: 'A2', who: "We", action: "bought", what: "tickets", whom: "", where: "online", when: "last week", why: "for the trip", how: "easily." },
+            { level: 'A2', who: "The rain", action: "stopped", what: "", whom: "", where: "outside", when: "suddenly", why: "after the storm", how: "completely." },
+            { level: 'A2', who: "She", action: "drinks", what: "tea", whom: "", where: "in the cafe", when: "every morning", why: "to wake up", how: "calmly." },
+            { level: 'A2', who: "I", action: "met", what: "my friend", whom: "", where: "at the park", when: "on Sunday", why: "to play", how: "happily." },
+            { level: 'A2', who: "The phone", action: "rang", what: "", whom: "", where: "in the hall", when: "at dinner", why: "with a call", how: "loudly." },
+            { level: 'A2', who: "We", action: "saw", what: "a dolphin", whom: "", where: "in the sea", when: "on holiday", why: "jumping high", how: "amazingly." },
+            { level: 'A2', who: "The writer", action: "wrote", what: "a book", whom: "for children", where: "at home", when: "last year", why: "to tell stories", how: "creatively." },
+            { level: 'A2', who: "I", action: "ride", what: "a bike", whom: "", where: "on the road", when: "now", why: "to go home", how: "fast." },
+            { level: 'A2', who: "The bus", action: "arrived", what: "late", whom: "", where: "at the stop", when: "this morning", why: "due to traffic", how: "annoyingly." },
+            { level: 'A2', who: "They", action: "built", what: "a snowman", whom: "", where: "in the garden", when: "when it snowed", why: "for fun", how: "well." },
+            { level: 'A2', who: "Mom", action: "gave", what: "a gift", whom: "to me", where: "in the kitchen", when: "on my birthday", why: "with love", how: "kindly." },
+            { level: 'A2', who: "The stars", action: "shone", what: "", whom: "", where: "in the sky", when: "last night", why: "in the dark", how: "brightly." },
+            { level: 'A2', who: "We", action: "walked", what: "home", whom: "", where: "from school", when: "yesterday", why: "because the bus left", how: "slowly." },
+            { level: 'A2', who: "The cat", action: "jumped", what: "", whom: "", where: "onto the table", when: "suddenly", why: "to get food", how: "quickly." },
+            { level: 'A2', who: "I", action: "waited", what: "for the bus", whom: "", where: "at school", when: "today", why: "to go home", how: "patiently." },
+            { level: 'A2', who: "The wind", action: "blew", what: "my hat", whom: "", where: "down the street", when: "in the storm", why: "with force", how: "far." },
+            // A2 51-100
+            { level: 'A2', who: "My brother", action: "likes", what: "science", whom: "", where: "at school", when: "this year", why: "because it is cool", how: "really." },
+            { level: 'A2', who: "The teacher", action: "explained", what: "the rule", whom: "to the class", where: "in the room", when: "before the test", why: "to help us", how: "clearly." },
+            { level: 'A2', who: "We", action: "practiced", what: "football", whom: "", where: "on the field", when: "after school", why: "for the match", how: "hard." },
+            { level: 'A2', who: "She", action: "visited", what: "the dentist", whom: "", where: "in town", when: "last week", why: "for a checkup", how: "bravely." },
+            { level: 'A2', who: "I", action: "lost", what: "my phone", whom: "", where: "on the bus", when: "this morning", why: "by accident", how: "sadly." },
+            { level: 'A2', who: "The baby", action: "started", what: "walking", whom: "", where: "in the lounge", when: "yesterday", why: "to get a toy", how: "shakily." },
+            { level: 'A2', who: "We", action: "planned", what: "a party", whom: "for Dad", where: "at home", when: "last month", why: "for his birthday", how: "secretly." },
+            { level: 'A2', who: "The shop", action: "sells", what: "candy", whom: "to kids", where: "on the corner", when: "after school", why: "for a treat", how: "cheaply." },
+            { level: 'A2', who: "He", action: "broke", what: "his arm", whom: "", where: "at the park", when: "on Sunday", why: "falling off a swing", how: "painfully." },
+            { level: 'A2', who: "They", action: "watched", what: "cartoons", whom: "", where: "on the sofa", when: "on Saturday morning", why: "to relax", how: "lazily." },
+            { level: 'A2', who: "I", action: "finished", what: "my book", whom: "", where: "in bed", when: "last night", why: "because it was good", how: "quickly." },
+            { level: 'A2', who: "The car", action: "stopped", what: "", whom: "", where: "at the red light", when: "suddenly", why: "to be safe", how: "smoothly." },
+            { level: 'A2', who: "We", action: "made", what: "pizza", whom: "", where: "in the kitchen", when: "for dinner", why: "because we like it", how: "messily." },
+            { level: 'A2', who: "She", action: "chose", what: "a dress", whom: "", where: "in the shop", when: "for the dance", why: "to look pretty", how: "carefully." },
+            { level: 'A2', who: "He", action: "missed", what: "the goal", whom: "", where: "in the game", when: "at the end", why: "by mistake", how: "narrowly." },
+            { level: 'A2', who: "The flowers", action: "grew", what: "", whom: "", where: "in the garden", when: "in spring", why: "with sun and rain", how: "tall." },
+            { level: 'A2', who: "I", action: "sent", what: "a text", whom: "to my friend", where: "from home", when: "after dinner", why: "to make plans", how: "quickly." },
+            { level: 'A2', who: "We", action: "cleaned", what: "the car", whom: "for Dad", where: "in the driveway", when: "on Sunday", why: "to help him", how: "well." },
+            { level: 'A2', who: "The bird", action: "flew", what: "away", whom: "", where: "into the sky", when: "when I moved", why: "because scared", how: "fast." },
+            { level: 'A2', who: "She", action: "learned", what: "French", whom: "", where: "at school", when: "last year", why: "for a trip", how: "cleverly." },
+            { level: 'A2', who: "He", action: "found", what: "a job", whom: "", where: "at the cafe", when: "in summer", why: "to earn money", how: "happily." },
+            { level: 'A2', who: "We", action: "stayed", what: "home", whom: "", where: "", when: "yesterday", why: "because of rain", how: "boredly." },
+            { level: 'A2', who: "The movie", action: "started", what: "", whom: "", where: "at the cinema", when: "at 7pm", why: "on time", how: "loudly." },
+            { level: 'A2', who: "I", action: "forgot", what: "my lunch", whom: "", where: "at home", when: "this morning", why: "in a rush", how: "silly." },
+            { level: 'A2', who: "They", action: "laughed", what: "", whom: "at the joke", where: "in the playground", when: "at break", why: "because it was funny", how: "loudly." },
+            { level: 'A2', who: "The music", action: "played", what: "", whom: "", where: "on the radio", when: "all day", why: "for fun", how: "softly." },
+            { level: 'A2', who: "We", action: "climbed", what: "the hill", whom: "", where: "in the country", when: "on holiday", why: "for the view", how: "slowly." },
+            { level: 'A2', who: "She", action: "drew", what: "a picture", whom: "of her dog", where: "in art class", when: "today", why: "for a project", how: "beautifully." },
+            { level: 'A2', who: "He", action: "wore", what: "boots", whom: "", where: "in the snow", when: "in winter", why: "to stay dry", how: "sensibly." },
+            { level: 'A2', who: "I", action: "asked", what: "a question", whom: "to the teacher", where: "in class", when: "during the lesson", why: "to understand", how: "shyly." },
+            { level: 'A2', who: "We", action: "shared", what: "sweets", whom: "with friends", where: "at the cinema", when: "during the film", why: "to be nice", how: "kindly." },
+            { level: 'A2', who: "The train", action: "left", what: "", whom: "", where: "the station", when: "early", why: "on schedule", how: "quietly." },
+            { level: 'A2', who: "She", action: "cooked", what: "pasta", whom: "for lunch", where: "in the kitchen", when: "at noon", why: "because easy", how: "quickly." },
+            { level: 'A2', who: "He", action: "caught", what: "a fish", whom: "", where: "in the river", when: "on Saturday", why: "for dinner", how: "proudly." },
+            { level: 'A2', who: "We", action: "ran", what: "a race", whom: "", where: "at school", when: "on sports day", why: "to win", how: "fast." },
+            { level: 'A2', who: "The sun", action: "set", what: "", whom: "", where: "over the sea", when: "in the evening", why: "ending the day", how: "beautifully." },
+            { level: 'A2', who: "I", action: "packed", what: "my bag", whom: "", where: "in my room", when: "before the trip", why: "to be ready", how: "neatly." },
+            { level: 'A2', who: "They", action: "talked", what: "", whom: "to each other", where: "on the bus", when: "going home", why: "about school", how: "loudly." },
+            { level: 'A2', who: "The snow", action: "melted", what: "", whom: "", where: "on the ground", when: "in spring", why: "because of sun", how: "slowly." },
+            { level: 'A2', who: "We", action: "visited", what: "the zoo", whom: "", where: "in the city", when: "last year", why: "to see lions", how: "happily." },
+            { level: 'A2', who: "She", action: "brushed", what: "her hair", whom: "", where: "in the mirror", when: "in the morning", why: "to look nice", how: "gently." },
+            { level: 'A2', who: "He", action: "closed", what: "the door", whom: "", where: "to his room", when: "at night", why: "to sleep", how: "quietly." },
+            { level: 'A2', who: "I", action: "tried", what: "sushi", whom: "", where: "at a restaurant", when: "for the first time", why: "to taste it", how: "bravely." },
+            { level: 'A2', who: "The lights", action: "went", what: "out", whom: "", where: "in the house", when: "during the storm", why: "no power", how: "suddenly." },
+            { level: 'A2', who: "We", action: "waited", what: "in line", whom: "", where: "at the shop", when: "yesterday", why: "to pay", how: "patiently." },
+            { level: 'A2', who: "She", action: "passed", what: "the test", whom: "", where: "at school", when: "last week", why: "with study", how: "easily." },
+            { level: 'A2', who: "He", action: "jumped", what: "high", whom: "", where: "in the gym", when: "for basketball", why: "to score", how: "well." },
+            { level: 'A2', who: "I", action: "heard", what: "a noise", whom: "", where: "outside", when: "at night", why: "strange", how: "clearly." },
+            { level: 'A2', who: "They", action: "arrived", what: "home", whom: "", where: "", when: "late", why: "after the party", how: "safely." },
+            { level: 'A2', who: "The cat", action: "slept", what: "", whom: "", where: "in the sun", when: "all afternoon", why: "warm", how: "peacefully." },
+
+            // --- B1: Intermediate (50 sentences) ---
+            { level: 'B1', who: "The scientist", action: "has discovered", what: "a new star", whom: "", where: "in the galaxy", when: "recently", why: "through research", how: "amazingly." },
+            { level: 'B1', who: "If it rains,", action: "we will stay", what: "", whom: "", where: "inside the house", when: "tomorrow", why: "to keep dry", how: "patiently." },
+            { level: 'B1', who: "The artist", action: "created", what: "a masterpiece", whom: "for the museum", where: "in his studio", when: "over many years", why: "to express feelings", how: "skillfully." },
+            { level: 'B1', who: "The traffic", action: "caused", what: "a delay", whom: "for commuters", where: "on the highway", when: "during rush hour", why: "due to construction", how: "frustratingly." },
+            { level: 'B1', who: "She", action: "has lived", what: "", whom: "", where: "in Paris", when: "since 2010", why: "for her job", how: "happily." },
+            { level: 'B1', who: "The wind", action: "blew", what: "the old leaves", whom: "", where: "across the yard", when: "during the storm", why: "with power", how: "ferociously." },
+            { level: 'B1', who: "I", action: "would travel", what: "the world", whom: "", where: "to every continent", when: "if I were rich", why: "to see cultures", how: "freely." },
+            { level: 'B1', who: "The manager", action: "organized", what: "a meeting", whom: "with the staff", where: "in the conference room", when: "on Monday", why: "to discuss plans", how: "efficiently." },
+            { level: 'B1', who: "Volcanoes", action: "erupt", what: "lava", whom: "", where: "on islands", when: "unexpectedly", why: "due to pressure", how: "violently." },
+            { level: 'B1', who: "He", action: "apologized", what: "for his mistake", whom: "to his friend", where: "at school", when: "immediately", why: "to fix it", how: "sincerely." },
+            { level: 'B1', who: "The internet", action: "connects", what: "people", whom: "to each other", where: "around the globe", when: "instantly", why: "to share info", how: "digitally." },
+            { level: 'B1', who: "We", action: "have been waiting", what: "for the bus", whom: "", where: "at the station", when: "for an hour", why: "to go home", how: "anxiously." },
+            { level: 'B1', who: "The chef", action: "prepared", what: "a gourmet meal", whom: "for the critics", where: "in the kitchen", when: "last night", why: "to win an award", how: "expertly." },
+            { level: 'B1', who: "Whales", action: "migrate", what: "long distances", whom: "", where: "through the ocean", when: "in winter", why: "to find warmer water", how: "slowly." },
+            { level: 'B1', who: "The student", action: "studied", what: "biology", whom: "", where: "at the university", when: "all semester", why: "to become a doctor", how: "diligently." },
+            { level: 'B1', who: "The ancient castle", action: "stands", what: "", whom: "", where: "on the hill", when: "for centuries", why: "to protect the town", how: "proudly." },
+            { level: 'B1', who: "If you practice,", action: "you will improve", what: "your skills", whom: "", where: "at the piano", when: "over time", why: "to play songs", how: "greatly." },
+            { level: 'B1', who: "The audience", action: "clapped", what: "their hands", whom: "for the actors", where: "in the theater", when: "at the end", why: "to show enjoyment", how: "enthusiastically." },
+            { level: 'B1', who: "Recycling", action: "helps", what: "the environment", whom: "for everyone", where: "in our cities", when: "daily", why: "to reduce waste", how: "significantly." },
+            { level: 'B1', who: "The novel", action: "tells", what: "a story", whom: "to readers", where: "in the book", when: "set in the past", why: "to entertain", how: "creatively." },
+            { level: 'B1', who: "We", action: "used to play", what: "hide and seek", whom: "", where: "in the garden", when: "when we were young", why: "for fun", how: "innocently." },
+            { level: 'B1', who: "The athlete", action: "trained", what: "hard", whom: "", where: "at the gym", when: "before the Olympics", why: "to win gold", how: "intensely." },
+            { level: 'B1', who: "Gravity", action: "pulls", what: "objects", whom: "", where: "towards the earth", when: "always", why: "because of mass", how: "invisibly." },
+            { level: 'B1', who: "I", action: "promised", what: "to help", whom: "my neighbor", where: "with the garden", when: "on Saturday", why: "because she is old", how: "kindly." },
+            { level: 'B1', who: "The invention", action: "changed", what: "life", whom: "for humans", where: "everywhere", when: "in the 20th century", why: "by adding power", how: "dramatically." },
+            { level: 'B1', who: "I", action: "have decided", what: "to learn Spanish", whom: "", where: "online", when: "this year", why: "to travel to Spain", how: "seriously." },
+            { level: 'B1', who: "The pollution", action: "damaged", what: "the river", whom: "", where: "near the factory", when: "last year", why: "due to chemicals", how: "badly." },
+            { level: 'B1', who: "We", action: "enjoy", what: "hiking", whom: "", where: "in the national park", when: "on weekends", why: "for fresh air", how: "immensely." },
+            { level: 'B1', who: "The library", action: "offers", what: "free wifi", whom: "to visitors", where: "in the main hall", when: "daily", why: "to help study", how: "generously." },
+            { level: 'B1', who: "He", action: "might come", what: "to the party", whom: "", where: "at your house", when: "tonight", why: "if he finishes work", how: "maybe." },
+            { level: 'B1', who: "The storm", action: "destroyed", what: "the barn", whom: "", where: "on the farm", when: "last night", why: "with strong winds", how: "completely." },
+            { level: 'B1', who: "I", action: "prefer", what: "tea over coffee", whom: "", where: "at breakfast", when: "always", why: "because it is healthier", how: "much." },
+            { level: 'B1', who: "They", action: "are developing", what: "a new app", whom: "for students", where: "at the company", when: "currently", why: "to make learning fun", how: "innovatively." },
+            { level: 'B1', who: "The movie", action: "was directed", what: "", whom: "by Spielberg", where: "in Hollywood", when: "in 1993", why: "to tell a story", how: "famously." },
+            { level: 'B1', who: "We", action: "should recycle", what: "plastic", whom: "", where: "at home", when: "every day", why: "to save the planet", how: "responsibly." },
+            { level: 'B1', who: "The tourists", action: "took", what: "photos", whom: "", where: "of the monument", when: "this morning", why: "for memories", how: "eagerly." },
+            { level: 'B1', who: "She", action: "wants to become", what: "an engineer", whom: "", where: "at college", when: "in the future", why: "to build bridges", how: "passionately." },
+            { level: 'B1', who: "The car", action: "broke down", what: "", whom: "", where: "on the motorway", when: "yesterday", why: "because of the engine", how: "unexpectedly." },
+            { level: 'B1', who: "I", action: "am reading", what: "a novel", whom: "", where: "in the garden", when: "this week", why: "for my English class", how: "slowly." },
+            { level: 'B1', who: "The team", action: "celebrated", what: "their victory", whom: "", where: "in the locker room", when: "after the match", why: "because they won", how: "loudly." },
+            { level: 'B1', who: "Technology", action: "improves", what: "our lives", whom: "", where: "everywhere", when: "constantly", why: "by making things easy", how: "quickly." },
+            { level: 'B1', who: "He", action: "didn't go", what: "to work", whom: "", where: "", when: "yesterday", why: "because he was sick", how: "sadly." },
+            { level: 'B1', who: "We", action: "have finished", what: "the project", whom: "", where: "at school", when: "just now", why: "before the deadline", how: "successfully." },
+            { level: 'B1', who: "The bird", action: "escaped", what: "from the cage", whom: "", where: "into the sky", when: "suddenly", why: "to be free", how: "happily." },
+            { level: 'B1', who: "I", action: "usually eat", what: "salad", whom: "", where: "for lunch", when: "on weekdays", why: "to stay fit", how: "healthily." },
+            { level: 'B1', who: "The plane", action: "will land", what: "", whom: "", where: "at the airport", when: "in ten minutes", why: "on schedule", how: "smoothly." },
+            { level: 'B1', who: "She", action: "succeeded", what: "in the test", whom: "", where: "at school", when: "last week", why: "by studying hard", how: "brilliantly." },
+            { level: 'B1', who: "We", action: "must protect", what: "animals", whom: "", where: "in the wild", when: "always", why: "for future generations", how: "actively." },
+            { level: 'B1', who: "The music", action: "sounded", what: "beautiful", whom: "to everyone", where: "in the hall", when: "during the concert", why: "with melody", how: "truly." },
+            { level: 'B1', who: "I", action: "believe", what: "in kindness", whom: "", where: "in my heart", when: "always", why: "to make the world better", how: "strongly." },
+            // B1 51-100
+            { level: 'B1', who: "My phone", action: "has run", what: "out of battery", whom: "", where: "", when: "just now", why: "because I used it", how: "completely." },
+            { level: 'B1', who: "We", action: "are planning", what: "a surprise", whom: "for Sarah", where: "at the cafe", when: "for her birthday", why: "to celebrate", how: "secretly." },
+            { level: 'B1', who: "The bridge", action: "was built", what: "", whom: "by engineers", where: "over the river", when: "in 1900", why: "to connect towns", how: "solidly." },
+            { level: 'B1', who: "I", action: "used to ride", what: "a skateboard", whom: "", where: "in the park", when: "years ago", why: "for fun", how: "badly." },
+            { level: 'B1', who: "The weather", action: "will improve", what: "", whom: "", where: "in the south", when: "tomorrow", why: "according to reports", how: "hopefully." },
+            { level: 'B1', who: "They", action: "have cleaned", what: "the park", whom: "", where: "in our town", when: "this morning", why: "to remove litter", how: "thoroughly." },
+            { level: 'B1', who: "The cat", action: "might catch", what: "the mouse", whom: "", where: "in the garden", when: "if it is fast", why: "for food", how: "luckily." },
+            { level: 'B1', who: "I", action: "enjoy", what: "coding", whom: "", where: "on my laptop", when: "in my free time", why: "to make games", how: "creatively." },
+            { level: 'B1', who: "The shop", action: "is closing", what: "", whom: "", where: "on Main Street", when: "next month", why: "due to low sales", how: "sadly." },
+            { level: 'B1', who: "We", action: "should eat", what: "vegetables", whom: "", where: "at dinner", when: "every day", why: "for health", how: "regularly." },
+            { level: 'B1', who: "The band", action: "played", what: "songs", whom: "for the crowd", where: "at the festival", when: "all night", why: "to entertain", how: "loudly." },
+            { level: 'B1', who: "I", action: "have lost", what: "my wallet", whom: "", where: "somewhere", when: "today", why: "by mistake", how: "stupidly." },
+            { level: 'B1', who: "The teacher", action: "gave", what: "homework", whom: "to us", where: "in class", when: "on Friday", why: "to practice", how: "strictly." },
+            { level: 'B1', who: "We", action: "will visit", what: "universities", whom: "", where: "in the city", when: "next term", why: "to choose one", how: "carefully." },
+            { level: 'B1', who: "The app", action: "helps", what: "students", whom: "", where: "on phones", when: "always", why: "to organize work", how: "usefully." },
+            { level: 'B1', who: "He", action: "has broken", what: "his leg", whom: "", where: "playing football", when: "last week", why: "in a tackle", how: "painfully." },
+            { level: 'B1', who: "I", action: "want to learn", what: "piano", whom: "", where: "at music school", when: "this year", why: "because I love music", how: "badly." },
+            { level: 'B1', who: "The news", action: "shocked", what: "everyone", whom: "", where: "in the country", when: "yesterday", why: "because it was sad", how: "deeply." },
+            { level: 'B1', who: "We", action: "recycled", what: "paper", whom: "", where: "at school", when: "this week", why: "for the planet", how: "helpfully." },
+            { level: 'B1', who: "The fire", action: "started", what: "", whom: "", where: "in the kitchen", when: "at night", why: "from the oven", how: "suddenly." },
+            { level: 'B1', who: "I", action: "am saving", what: "money", whom: "", where: "in the bank", when: "now", why: "to buy a car", how: "slowly." },
+            { level: 'B1', who: "They", action: "won", what: "the prize", whom: "", where: "in the contest", when: "last month", why: "for best project", how: "proudly." },
+            { level: 'B1', who: "The dog", action: "barked", what: "", whom: "at the stranger", where: "at the gate", when: "at night", why: "to warn us", how: "fiercely." },
+            { level: 'B1', who: "I", action: "feel", what: "tired", whom: "", where: "in class", when: "today", why: "because I stayed up", how: "very." },
+            { level: 'B1', who: "She", action: "speaks", what: "three languages", whom: "", where: "at work", when: "every day", why: "to help tourists", how: "fluently." },
+            { level: 'B1', who: "We", action: "ordered", what: "pizza", whom: "", where: "to the house", when: "for the party", why: "to eat", how: "quickly." },
+            { level: 'B1', who: "The rain", action: "delayed", what: "the match", whom: "", where: "at the stadium", when: "on Saturday", why: "for safety", how: "unfortunately." },
+            { level: 'B1', who: "I", action: "found", what: "a job", whom: "", where: "in a shop", when: "for summer", why: "to earn cash", how: "luckily." },
+            { level: 'B1', who: "The movie", action: "ended", what: "", whom: "", where: "in the cinema", when: "late", why: "after the credits", how: "happily." },
+            { level: 'B1', who: "We", action: "must finish", what: "the report", whom: "", where: "for school", when: "by tomorrow", why: "for a grade", how: "completely." },
+            { level: 'B1', who: "The stars", action: "look", what: "bright", whom: "", where: "in the country", when: "at night", why: "no pollution", how: "incredibly." },
+            { level: 'B1', who: "I", action: "miss", what: "my friends", whom: "", where: "from old school", when: "often", why: "we had fun", how: "sadly." },
+            { level: 'B1', who: "The bus", action: "was full", what: "", whom: "", where: "in the morning", when: "today", why: "many people", how: "completely." },
+            { level: 'B1', who: "She", action: "designed", what: "a poster", whom: "for the club", where: "on her computer", when: "yesterday", why: "to advertise", how: "artistically." },
+            { level: 'B1', who: "He", action: "fixed", what: "my bike", whom: "for me", where: "in the garage", when: "on Sunday", why: "so I can ride", how: "kindly." },
+            { level: 'B1', who: "We", action: "shared", what: "photos", whom: "with family", where: "online", when: "after the trip", why: "to show places", how: "happily." },
+            { level: 'B1', who: "The test", action: "was", what: "hard", whom: "for everyone", where: "in math", when: "today", why: "complex questions", how: "surprisingly." },
+            { level: 'B1', who: "I", action: "trust", what: "my best friend", whom: "", where: "", when: "always", why: "she is honest", how: "completely." },
+            { level: 'B1', who: "The plants", action: "need", what: "water", whom: "", where: "in the garden", when: "in summer", why: "to grow", how: "daily." },
+            { level: 'B1', who: "We", action: "celebrated", what: "New Year", whom: "with friends", where: "in the city", when: "at midnight", why: "for a new start", how: "joyfully." },
+            { level: 'B1', who: "The doctor", action: "helped", what: "the patient", whom: "", where: "in the hospital", when: "all night", why: "to save him", how: "tirelessly." },
+            { level: 'B1', who: "I", action: "understand", what: "the problem", whom: "", where: "now", when: "after study", why: "it makes sense", how: "clearly." },
+            { level: 'B1', who: "They", action: "built", what: "a house", whom: "for themselves", where: "on the hill", when: "last year", why: "to live in", how: "slowly." },
+            { level: 'B1', who: "The message", action: "arrived", what: "", whom: "to me", where: "on my phone", when: "instantly", why: "via internet", how: "quickly." },
+            { level: 'B1', who: "We", action: "avoided", what: "the traffic", whom: "", where: "by taking a shortcut", when: "this morning", why: "to be on time", how: "cleverly." },
+            { level: 'B1', who: "She", action: "sang", what: "a solo", whom: "for the school", where: "on stage", when: "at the concert", why: "she has talent", how: "beautifully." },
+            { level: 'B1', who: "He", action: "dropped", what: "the glass", whom: "", where: "on the floor", when: "by accident", why: "slippery hands", how: "loudly." },
+            { level: 'B1', who: "I", action: "chose", what: "the blue shirt", whom: "", where: "at the shop", when: "yesterday", why: "it fits well", how: "decisively." },
+            { level: 'B1', who: "The team", action: "lost", what: "the game", whom: "", where: "away", when: "on Saturday", why: "bad luck", how: "unfortunately." },
+            { level: 'B1', who: "We", action: "hope", what: "for peace", whom: "", where: "in the world", when: "always", why: "for happiness", how: "sincerely." },
+
+            // --- B2: Upper Intermediate (50 sentences) ---
+            { level: 'B2', who: "The diplomat", action: "negotiated", what: "a peace treaty", whom: "between nations", where: "at the summit", when: "last month", why: "to end the conflict", how: "diplomatically." },
+            { level: 'B2', who: "Renewable energy", action: "is replacing", what: "fossil fuels", whom: "", where: "in many countries", when: "gradually", why: "to combat climate change", how: "effectively." },
+            { level: 'B2', who: "The architect", action: "designed", what: "a skyscraper", whom: "for the city", where: "downtown", when: "recently", why: "to modernize the skyline", how: "innovatively." },
+            { level: 'B2', who: "The economy", action: "has recovered", what: "from the recession", whom: "", where: "globally", when: "this year", why: "due to new policies", how: "unexpectedly." },
+            { level: 'B2', who: "She", action: "regretted", what: "missing the opportunity", whom: "", where: "at work", when: "after the meeting", why: "because it was rare", how: "deeply." },
+            { level: 'B2', who: "The orchestra", action: "performed", what: "a symphony", whom: "for the public", where: "in the concert hall", when: "on opening night", why: "to celebrate culture", how: "magnificently." },
+            { level: 'B2', who: "Technology", action: "transforms", what: "how we communicate", whom: "with each other", where: "in society", when: "continuously", why: "to increase speed", how: "rapidly." },
+            { level: 'B2', who: "The researchers", action: "analyzed", what: "the data", whom: "", where: "in the lab", when: "over six months", why: "to find a cure", how: "meticulously." },
+            { level: 'B2', who: "Despite the rain,", action: "the festival", what: "continued", whom: "", where: "in the square", when: "until midnight", why: "to keep spirits high", how: "joyfully." },
+            { level: 'B2', who: "The government", action: "implemented", what: "new laws", whom: "for citizens", where: "in the capital", when: "last year", why: "to improve safety", how: "strictly." },
+            { level: 'B2', who: "The philosopher", action: "questioned", what: "the meaning of life", whom: "to his students", where: "in the lecture hall", when: "centuries ago", why: "to provoke thought", how: "wisely." },
+            { level: 'B2', who: "Biodiversity", action: "sustains", what: "ecosystems", whom: "for all life", where: "on the planet", when: "eternally", why: "to maintain balance", how: "crucially." },
+            { level: 'B2', who: "The entrepreneur", action: "launched", what: "a startup", whom: "", where: "in Silicon Valley", when: "in 2024", why: "to solve a problem", how: "boldly." },
+            { level: 'B2', who: "Unless you study,", action: "you might fail", what: "the exam", whom: "", where: "at university", when: "next term", why: "due to lack of knowledge", how: "regrettably." },
+            { level: 'B2', who: "The novel", action: "was written", what: "by the author", whom: "", where: "in isolation", when: "during the war", why: "to document history", how: "poignantly." },
+            { level: 'B2', who: "Globalization", action: "impacts", what: "local traditions", whom: "in communities", where: "worldwide", when: "increasingly", why: "through trade", how: "complexly." },
+            { level: 'B2', who: "The surgeon", action: "completed", what: "the operation", whom: "on the patient", where: "in the operating room", when: "after ten hours", why: "to save a life", how: "successfully." },
+            { level: 'B2', who: "Artificial Intelligence", action: "is learning", what: "patterns", whom: "from users", where: "in the cloud", when: "constantly", why: "to predict behavior", how: "autonomously." },
+            { level: 'B2', who: "The conservationist", action: "protected", what: "the endangered species", whom: "", where: "in the reserve", when: "for decades", why: "to prevent extinction", how: "bravely." },
+            { level: 'B2', who: "Investment", action: "generates", what: "wealth", whom: "for investors", where: "in the market", when: "over time", why: "through compound interest", how: "exponentially." },
+            { level: 'B2', who: "The eclipse", action: "darkened", what: "the sky", whom: "for observers", where: "across the continent", when: "at midday", why: "by blocking the sun", how: "eerily." },
+            { level: 'B2', who: "Education", action: "empowers", what: "individuals", whom: "", where: "in society", when: "throughout life", why: "to achieve goals", how: "fundamentally." },
+            { level: 'B2', who: "The volunteer", action: "dedicated", what: "time", whom: "to the poor", where: "in the shelter", when: "every weekend", why: "out of compassion", how: "selflessly." },
+            { level: 'B2', who: "Climate change", action: "threatens", what: "coastal cities", whom: "populations", where: "globally", when: "in the future", why: "due to rising seas", how: "severely." },
+            { level: 'B2', who: "The mystery", action: "was solved", what: "by the detective", whom: "", where: "at the scene", when: "finally", why: "using evidence", how: "brilliantly." },
+            { level: 'B2', who: "The committee", action: "approved", what: "the proposal", whom: "", where: "in the boardroom", when: "yesterday", why: "to start the project", how: "unanimously." },
+            { level: 'B2', who: "Social media", action: "influences", what: "public opinion", whom: "", where: "online", when: "daily", why: "through algorithms", how: "powerfully." },
+            { level: 'B2', who: "The virus", action: "spread", what: "rapidly", whom: "among the population", where: "globally", when: "in 2020", why: "via contact", how: "invisibly." },
+            { level: 'B2', who: "Democracy", action: "relies", what: "on voting", whom: "by citizens", where: "in the country", when: "during elections", why: "to choose leaders", how: "fairly." },
+            { level: 'B2', who: "The satellite", action: "orbits", what: "the earth", whom: "", where: "in space", when: "constantly", why: "to collect data", how: "silently." },
+            { level: 'B2', who: "Migration", action: "shapes", what: "demographics", whom: "", where: "in nations", when: "historically", why: "seeking better lives", how: "profoundly." },
+            { level: 'B2', who: "The sculpture", action: "represents", what: "freedom", whom: "to the viewers", where: "in the plaza", when: "forever", why: "to inspire hope", how: "abstractly." },
+            { level: 'B2', who: "Inflation", action: "decreases", what: "purchasing power", whom: "of consumers", where: "in the economy", when: "during crises", why: "as prices rise", how: "worryingly." },
+            { level: 'B2', who: "The lawyer", action: "defended", what: "the client", whom: "", where: "in court", when: "during the trial", why: "to prove innocence", how: "eloquently." },
+            { level: 'B2', who: "Innovation", action: "drives", what: "progress", whom: "", where: "in industry", when: "always", why: "to improve efficiency", how: "continuously." },
+            { level: 'B2', who: "The glacier", action: "is melting", what: "", whom: "", where: "in the arctic", when: "now", why: "due to warming", how: "alarmingly." },
+            { level: 'B2', who: "Literature", action: "reflects", what: "society", whom: "", where: "in books", when: "through ages", why: "to critique culture", how: "deeply." },
+            { level: 'B2', who: "The athlete", action: "overcame", what: "the injury", whom: "", where: "in rehabilitation", when: "before the season", why: "to compete again", how: "remarkably." },
+            { level: 'B2', who: "Space exploration", action: "expands", what: "our knowledge", whom: "", where: "of the universe", when: "future", why: "to find life", how: "infinitely." },
+            { level: 'B2', who: "The treaty", action: "established", what: "borders", whom: "between countries", where: "in the region", when: "long ago", why: "to stop war", how: "firmly." },
+            { level: 'B2', who: "Antibiotics", action: "fight", what: "infections", whom: "in patients", where: "in hospitals", when: "effectively", why: "to kill bacteria", how: "medically." },
+            { level: 'B2', who: "The jury", action: "reached", what: "a verdict", whom: "", where: "in the courtroom", when: "after deliberation", why: "to deliver justice", how: "impartially." },
+            { level: 'B2', who: "Urbanization", action: "increases", what: "population density", whom: "", where: "in cities", when: "modern times", why: "for employment", how: "drastically." },
+            { level: 'B2', who: "The theory", action: "explains", what: "evolution", whom: "", where: "in biology", when: "since Darwin", why: "to understand life", how: "logically." },
+            { level: 'B2', who: "The painting", action: "was auctioned", what: "for millions", whom: "", where: "at the gallery", when: "yesterday", why: "due to rarity", how: "spectacularly." },
+            { level: 'B2', who: "Diplomacy", action: "prevents", what: "conflict", whom: "between states", where: "internationally", when: "often", why: "through dialogue", how: "peacefully." },
+            { level: 'B2', who: "The volcano", action: "remains", what: "dormant", whom: "", where: "on the island", when: "currently", why: "despite history", how: "quietly." },
+            { level: 'B2', who: "Psychology", action: "studies", what: "the mind", whom: "of humans", where: "in research", when: "always", why: "to treat illness", how: "clinically." },
+            { level: 'B2', who: "The CEO", action: "announced", what: "a merger", whom: "to shareholders", where: "at the conference", when: "this morning", why: "to grow the firm", how: "strategically." },
+            { level: 'B2', who: "Philosophy", action: "seeks", what: "truth", whom: "", where: "in thought", when: "eternally", why: "to understand existence", how: "fundamentally." },
+            // B2 - 51-100
+            { level: 'B2', who: "The internship", action: "provided", what: "experience", whom: "to students", where: "at the firm", when: "in summer", why: "to prepare careers", how: "valuably." },
+            { level: 'B2', who: "Social movements", action: "demand", what: "justice", whom: "for minorities", where: "in streets", when: "nowadays", why: "to change laws", how: "passionately." },
+            { level: 'B2', who: "The software", action: "updated", what: "itself", whom: "", where: "on the server", when: "automatically", why: "to fix bugs", how: "seamlessly." },
+            { level: 'B2', who: "Critics", action: "praised", what: "the film", whom: "", where: "in reviews", when: "after release", why: "for acting", how: "highly." },
+            { level: 'B2', who: "The currency", action: "lost", what: "value", whom: "", where: "in the market", when: "last week", why: "due to inflation", how: "sharply." },
+            { level: 'B2', who: "We", action: "analyzed", what: "statistics", whom: "", where: "in math class", when: "this term", why: "to find trends", how: "accurately." },
+            { level: 'B2', who: "The debate", action: "clarified", what: "the issue", whom: "for voters", where: "on TV", when: "last night", why: "before elections", how: "effectively." },
+            { level: 'B2', who: "Universities", action: "compete", what: "for students", whom: "", where: "globally", when: "every year", why: "for prestige", how: "intensely." },
+            { level: 'B2', who: "The experiment", action: "proved", what: "the hypothesis", whom: "", where: "in the lab", when: "finally", why: "with evidence", how: "conclusively." },
+            { level: 'B2', who: "Mental health", action: "affects", what: "performance", whom: "of workers", where: "in offices", when: "often", why: "due to stress", how: "significantly." },
+            { level: 'B2', who: "The scholarship", action: "enabled", what: "her study", whom: "", where: "abroad", when: "last year", why: "covering costs", how: "generously." },
+            { level: 'B2', who: "Pollution", action: "harms", what: "marine life", whom: "", where: "in oceans", when: "daily", why: "from plastics", how: "irreversibly." },
+            { level: 'B2', who: "The campaign", action: "raised", what: "awareness", whom: "among youth", where: "on social media", when: "recently", why: "for climate", how: "successfully." },
+            { level: 'B2', who: "He", action: "invested", what: "his savings", whom: "", where: "in stocks", when: "wisely", why: "for retirement", how: "prudently." },
+            { level: 'B2', who: "The algorithm", action: "predicts", what: "behavior", whom: "of users", where: "online", when: "constantly", why: "using data", how: "accurately." },
+            { level: 'B2', who: "Demographics", action: "are shifting", what: "", whom: "", where: "in Europe", when: "now", why: "due to aging", how: "rapidly." },
+            { level: 'B2', who: "The protocol", action: "ensures", what: "safety", whom: "for staff", where: "in the lab", when: "always", why: "to prevent harm", how: "strictly." },
+            { level: 'B2', who: "She", action: "interpreted", what: "the speech", whom: "for the audience", where: "at the UN", when: "live", why: "to translate", how: "flawlessly." },
+            { level: 'B2', who: "The strike", action: "disrupted", what: "travel", whom: "for commuters", where: "in the city", when: "yesterday", why: "for wages", how: "severely." },
+            { level: 'B2', who: "History", action: "teaches", what: "lessons", whom: "to us", where: "in books", when: "always", why: "to avoid errors", how: "valuable." },
+            { level: 'B2', who: "The firewall", action: "blocked", what: "the attack", whom: "", where: "on the network", when: "instantly", why: "for security", how: "effectively." },
+            { level: 'B2', who: "She", action: "composed", what: "a sonata", whom: "", where: "on piano", when: "in youth", why: "inspired by nature", how: "creatively." },
+            { level: 'B2', who: "The telescope", action: "captured", what: "images", whom: "", where: "of space", when: "last night", why: "for NASA", how: "clearly." },
+            { level: 'B2', who: "Exports", action: "boost", what: "the economy", whom: "", where: "nationally", when: "yearly", why: "bringing income", how: "vitally." },
+            { level: 'B2', who: "The verdict", action: "was announced", what: "", whom: "to the court", where: "in London", when: "today", why: "ending the trial", how: "finally." },
+            { level: 'B2', who: "Vaccines", action: "prevent", what: "disease", whom: "in populations", where: "worldwide", when: "historically", why: "saving lives", how: "remarkably." },
+            { level: 'B2', who: "The storm", action: "intensified", what: "", whom: "", where: "at sea", when: "overnight", why: "due to heat", how: "dangerously." },
+            { level: 'B2', who: "He", action: "negotiated", what: "a raise", whom: "with his boss", where: "at work", when: "after review", why: "for hard work", how: "successfully." },
+            { level: 'B2', who: "The culture", action: "values", what: "respect", whom: "for elders", where: "in Japan", when: "traditionally", why: "for harmony", how: "deeply." },
+            { level: 'B2', who: "Physics", action: "explains", what: "motion", whom: "", where: "in nature", when: "always", why: "using laws", how: "mathematically." },
+            { level: 'B2', who: "The merger", action: "created", what: "jobs", whom: "for locals", where: "in the region", when: "last year", why: "expanding business", how: "surprisingly." },
+            { level: 'B2', who: "She", action: "qualified", what: "as a doctor", whom: "", where: "at university", when: "after years", why: "with dedication", how: "finally." },
+            { level: 'B2', who: "The market", action: "fluctuates", what: "", whom: "", where: "globally", when: "daily", why: "due to news", how: "unpredictably." },
+            { level: 'B2', who: "They", action: "established", what: "a charity", whom: "for orphans", where: "in the city", when: "recently", why: "to help", how: "generously." },
+            { level: 'B2', who: "Automation", action: "changes", what: "industry", whom: "", where: "in factories", when: "now", why: "reducing costs", how: "fundamentally." },
+            { level: 'B2', who: "The candidate", action: "persuaded", what: "voters", whom: "", where: "in the debate", when: "last week", why: "with promises", how: "skillfully." },
+            { level: 'B2', who: "Logic", action: "solves", what: "problems", whom: "", where: "in code", when: "always", why: "finding errors", how: "systematically." },
+            { level: 'B2', who: "The exhibition", action: "showcased", what: "art", whom: "to tourists", where: "in the gallery", when: "in summer", why: "promoting culture", how: "brilliantly." },
+            { level: 'B2', who: "He", action: "criticized", what: "the plan", whom: "", where: "in the paper", when: "publicly", why: "citing flaws", how: "harshly." },
+            { level: 'B2', who: "She", action: "mastered", what: "the violin", whom: "", where: "at the academy", when: "young", why: "through practice", how: "superbly." },
+            { level: 'B2', who: "The dam", action: "provides", what: "power", whom: "to the region", where: "on the river", when: "continuously", why: "using water", how: "efficiently." },
+            { level: 'B2', who: "Ethics", action: "guide", what: "decisions", whom: "in business", where: "ideally", when: "always", why: "for fairness", how: "morally." },
+            { level: 'B2', who: "The reaction", action: "occurred", what: "", whom: "", where: "in the tube", when: "during the test", why: "chemical mix", how: "instantly." },
+            { level: 'B2', who: "He", action: "advocated", what: "reform", whom: "", where: "in parliament", when: "for years", why: "to improve laws", how: "tirelessly." },
+            { level: 'B2', who: "The species", action: "evolved", what: "", whom: "", where: "on the island", when: "over eons", why: "to adapt", how: "gradually." },
+            { level: 'B2', who: "They", action: "collaborated", what: "on the project", whom: "with partners", where: "remotely", when: "this month", why: "sharing ideas", how: "productively." },
+            { level: 'B2', who: "The witness", action: "testified", what: "", whom: "against him", where: "in court", when: "under oath", why: "telling truth", how: "bravely." },
+            { level: 'B2', who: "Supply", action: "meets", what: "demand", whom: "", where: "in economics", when: "ideally", why: "setting price", how: "balanced." },
+            { level: 'B2', who: "She", action: "addressed", what: "the crowd", whom: "", where: "at the rally", when: "loudly", why: "inspiring hope", how: "charismatically." },
+            { level: 'B2', who: "The solution", action: "emerged", what: "", whom: "", where: "in the meeting", when: "after discussion", why: "solving it", how: "clearly." }
+        ];
+
+        // --- State Management ---
+        let currentLevel = 'A1';
+        let filteredSentences = [];
+        let currentIndex = 0;
+        let points = 0;
+        let currentActive = null;
+
+        // --- DOM Elements ---
+        const container = document.getElementById('sentence-container');
+        const counterDisplay = document.getElementById('counter');
+        const pointsDisplay = document.getElementById('pointsDisplay');
+
+        // --- Filter Logic ---
+        function setLevel(level) {
+            currentLevel = level;
+            // Update sentences
+            filteredSentences = allSentences.filter(s => s.level === level);
+            currentIndex = 0; // Reset index
+            
+            // Update UI buttons
+            document.querySelectorAll('.level-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById(`btn-${level}`).classList.add('active');
+            
+            renderSentence();
+        }
+
+        // --- Render Logic ---
+        function renderSentence() {
+            if (filteredSentences.length === 0) return;
+            const s = filteredSentences[currentIndex];
+            container.innerHTML = ''; // Clear previous
+            currentActive = null; // Reset highlight
+
+            // Define parts in order
+            const parts = [
+                { key: 'who', id: 'part-who', onclick: "activatePart('who')" },
+                { key: 'action', id: 'part-action', onclick: "activatePart('action')" },
+                { key: 'what', id: 'part-what', onclick: "activatePart('what')" },
+                { key: 'whom', id: 'part-whom', onclick: "activatePart('whom')" },
+                { key: 'where', id: 'part-where', onclick: "activatePart('where')" },
+                { key: 'when', id: 'part-when', onclick: "activatePart('when')" },
+                { key: 'why', id: 'part-why', onclick: "activatePart('why')" },
+                { key: 'how', id: 'part-how', onclick: "activatePart('how')" }
+            ];
+
+            // Create spans only for existing data
+            parts.forEach(p => {
+                if (s[p.key]) {
+                    const span = document.createElement('span');
+                    span.id = p.id;
+                    span.className = 'sentence-part';
+                    span.textContent = s[p.key];
+                    // Add click event manually since we are creating elements dynamically
+                    span.onclick = () => activatePart(p.key);
+                    container.appendChild(span);
+                    container.appendChild(document.createTextNode(' ')); // Space
+                }
+            });
+
+            counterDisplay.textContent = `${currentLevel}: ${currentIndex + 1}/${filteredSentences.length}`;
+            resetButtons();
+        }
+
+        // --- Navigation ---
+        function nextSentence() {
+            if (currentIndex < filteredSentences.length - 1) {
+                currentIndex++;
+                renderSentence();
+            }
+        }
+
+        function prevSentence() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                renderSentence();
+            }
+        }
+
+        function goHome() {
+            currentIndex = 0;
+            renderSentence();
+        }
+
+        function randomSentence() {
+            // Pick a random index
+            const randomIndex = Math.floor(Math.random() * filteredSentences.length);
+            currentIndex = randomIndex;
+            renderSentence();
+        }
+
+        // --- Points ---
+        function addPoint() {
+            points += 5;
+            pointsDisplay.textContent = points;
+            
+            const btn = document.getElementById('pointsBtn');
+            btn.classList.remove('pop-anim');
+            void btn.offsetWidth; // Trigger reflow
+            btn.classList.add('pop-anim');
+            playDing();
+        }
+
+        function playDing() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (AudioContext) {
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(500, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.2);
+            }
+        }
+
+        // --- Highlighting Logic ---
+        const config = {
+            'who': { id: 'part-who', class: 'active-orange' },
+            'action': { id: 'part-action', class: 'active-yellow' },
+            'what': { id: 'part-what', class: 'active-green' },
+            'where': { id: 'part-where', class: 'active-blue' },
+            'when': { id: 'part-when', class: 'active-brown' },
+            'whom': { id: 'part-whom', class: 'active-pink' },
+            'why': { id: 'part-why', class: 'active-purple' },
+            'how': { id: 'part-how', class: 'active-teal' }
+        };
+
+        function resetButtons() {
+             Object.values(config).forEach(item => {
+                const el = document.getElementById(item.id);
+                if (el) el.classList.remove(item.class);
+            });
+            currentActive = null;
+        }
+
+        function activatePart(partName) {
+            resetButtons();
+            const target = config[partName];
+            if (target) {
+                const el = document.getElementById(target.id);
+                if (el) {
+                    el.classList.add(target.class);
+                    currentActive = partName;
+                    
+                    // SPEAK THE PART (New Feature)
+                    speakText(el.innerText);
+                }
+            }
+        }
+
+        // --- TTS Logic ---
+        const synth = window.speechSynthesis;
+        let voices = [];
+
+        function populateVoices() {
+            voices = synth.getVoices();
+        }
+
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = populateVoices;
+        }
+
+        // Renamed/modified to support arbitrary text
+        function speakText(text) {
+            if (synth.speaking) synth.cancel();
+
+            const utterThis = new SpeechSynthesisUtterance(text);
+            utterThis.rate = 0.85; 
+
+            const preferredVoices = [
+                'Microsoft Ryan Online (Natural)',
+                'Microsoft Sonia Online (Natural)',
+                'Microsoft Brian Online (Natural)', 
+                'Google US English', 
+                'Samantha'
+            ];
+
+            let selectedVoice = null;
+            if (voices.length === 0) populateVoices();
+
+            for (const pref of preferredVoices) {
+                selectedVoice = voices.find(v => v.name.includes(pref));
+                if (selectedVoice) break;
+            }
+            if (!selectedVoice) selectedVoice = voices.find(v => v.lang.includes('en'));
+            if (selectedVoice) utterThis.voice = selectedVoice;
+
+            synth.speak(utterThis);
+        }
+
+        function speakSentence() {
+            const sentence = container.innerText;
+            speakText(sentence);
+        }
+        
+        // Initial load
+        window.onload = () => {
+            setTimeout(populateVoices, 100);
+            setLevel('A1'); // Default to A1
+        };
+
+    </script>
+</body>
+</html>

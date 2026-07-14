@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grammar & Convo Quest</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Nunito', sans-serif; 
+            touch-action: manipulation; 
+            background-color: #f8fafc; 
+            overflow-x: hidden;
+            color: #1e293b;
+            padding-top: 5rem; /* Space for fixed header */
+        }
+        
+        .screen { display: none; min-height: calc(100vh - 5rem); width: 100vw; flex-direction: column; align-items: center; padding: 2rem 1rem; }
+        .screen.active { display: flex; animation: fadeIn 0.4s ease-out forwards; }
+
+        /* Fixed Navigation Header */
+        #nav-header {
+            position: fixed; top: 0; left: 0; width: 100%; height: 5rem;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            z-index: 50; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 1rem;
+        }
+
+        /* Clean 3D Buttons */
+        .btn-3d { 
+            transition: all 0.1s ease;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.15);
+            cursor: pointer;
+        }
+        .btn-3d:hover { transform: translateY(-2px); box-shadow: 0 8px 0 rgba(0,0,0,0.15); filter: brightness(1.05); }
+        .btn-3d:active { transform: translateY(6px); box-shadow: 0 0px 0 rgba(0,0,0,0.15); }
+        
+        .btn-white { background-color: #ffffff; border: 2px solid #e2e8f0; color: #334155; }
+        .btn-blue { background-color: #3b82f6; border: 2px solid #2563eb; color: #ffffff; }
+        .btn-green { background-color: #10b981; border: 2px solid #059669; color: #ffffff; }
+        .btn-purple { background-color: #8b5cf6; border: 2px solid #7c3aed; color: #ffffff; }
+        .btn-orange { background-color: #f97316; border: 2px solid #ea580c; color: #ffffff; }
+        
+        .nav-btn {
+            background-color: #f1f5f9; border: 2px solid #cbd5e1; color: #475569;
+            font-weight: 800; padding: 0.5rem 1rem; border-radius: 1rem;
+            transition: all 0.2s;
+        }
+        .nav-btn:hover { background-color: #e2e8f0; transform: translateY(-2px); }
+        .nav-btn:active { transform: translateY(2px); }
+
+        .points-btn {
+            background-color: #fbbf24; border: 2px solid #f59e0b; color: #92400e;
+            font-weight: 900; padding: 0.5rem 1.2rem; border-radius: 1rem;
+            box-shadow: 0 4px 0 #d97706; transition: all 0.1s; cursor: pointer;
+        }
+        .points-btn:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 6px 0 #d97706; }
+        .points-btn:active { transform: translateY(4px); box-shadow: 0 0 0 #d97706; }
+
+        /* Chat Bubbles (No Names) */
+        #convo-container {
+            display: flex; flex-direction: column; gap: 0.8rem;
+            width: 100%; max-width: 800px;
+            height: 60vh; overflow-y: auto; padding: 1rem;
+            scroll-behavior: smooth;
+        }
+        .chat-bubble {
+            max-width: 80%; padding: 1rem 1.5rem;
+            border-radius: 2rem; font-size: 1.25rem;
+            line-height: 1.4; transition: all 0.3s ease;
+            opacity: 0; transform: translateY(10px);
+            border: 2px solid transparent;
+        }
+        .chat-bubble.active {
+            opacity: 1; transform: translateY(0) scale(1.02);
+            font-weight: 800; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+        .chat-bubble.inactive { opacity: 0.7; transform: scale(0.98); font-weight: 700; }
+        
+        .chat-left { align-self: flex-start; border-bottom-left-radius: 0.5rem; background-color: #f1f5f9; color: #0f172a; border-color: #cbd5e1; }
+        .chat-right { align-self: flex-end; border-bottom-right-radius: 0.5rem; background-color: #eff6ff; color: #1e3a8a; border-color: #bfdbfe; text-align: right; }
+
+        /* Animations */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+        
+        .pop-in { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .shake { animation: shake 0.3s ease-in-out; }
+        
+        .correct-bg { background-color: #dcfce7 !important; border-color: #22c55e !important; color: #166534 !important; }
+        .incorrect-bg { background-color: #fee2e2 !important; border-color: #ef4444 !important; color: #991b1b !important; }
+
+        #glitter-canvas { position: fixed; top: 0; left: 0; pointer-events: none; z-index: 100; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* Hide Emojis from screen readers if needed, handled by JS primarily */
+        .emoji { font-style: normal; }
+    </style>
+</head>
+<body>
+
+    <canvas id="glitter-canvas"></canvas>
+
+    <!-- FIXED NAVIGATION HEADER -->
+    <nav id="nav-header">
+        <div class="flex gap-2 sm:gap-4">
+            <button onclick="navBack()" class="nav-btn">⬅ Back</button>
+            <button onclick="navHome()" class="nav-btn">🏠 Home</button>
+        </div>
+        <div class="flex gap-2 sm:gap-4 items-center">
+            <button onclick="navNext()" class="nav-btn">Next ➡</button>
+            <button onclick="addBonusPoints()" class="points-btn" title="Click for Bonus Points!">
+                🌟 XP: <span id="nav-xp">0</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- MAIN MENU -->
+    <div id="menu-screen" class="screen active">
+        <header class="w-full max-w-4xl flex justify-between items-center mb-10 bg-white p-6 rounded-3xl shadow-sm border-2 border-slate-100">
+            <div>
+                <h1 class="text-3xl sm:text-4xl font-black text-slate-800 tracking-tight">English Quest 🎓</h1>
+                <p class="text-slate-500 font-bold text-lg">Grade 6 Mastery</p>
+            </div>
+            <div class="text-right hidden sm:block">
+                <div class="text-xs font-bold text-slate-400 uppercase tracking-widest">Player Level</div>
+                <div id="player-level" class="text-2xl font-black text-indigo-600">Novice</div>
+            </div>
+        </header>
+
+        <div class="w-full max-w-4xl mb-12">
+            <h2 class="text-2xl font-black text-slate-700 mb-6 text-center">Select a Topic 📚</h2>
+            <div id="topic-grid" class="grid grid-cols-2 md:grid-cols-3 gap-6">
+                <!-- Topics injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- TOPIC HUB SCREEN -->
+    <div id="hub-screen" class="screen">
+        <div class="w-full max-w-4xl">
+            <div class="bg-white rounded-[2rem] shadow-md border-2 border-slate-100 p-8 pop-in">
+                <div class="text-center mb-8 border-b-2 border-slate-50 pb-8">
+                    <span id="hub-emoji" class="text-6xl mb-4 block"></span>
+                    <h2 id="hub-title" class="text-4xl font-black text-slate-800 mb-2"></h2>
+                    <p id="hub-vocab" class="text-lg font-bold text-slate-500 leading-relaxed max-w-2xl mx-auto"></p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Grammar Section -->
+                    <div class="bg-slate-50 p-6 rounded-3xl border-2 border-slate-100">
+                        <h3 class="text-xl font-black text-slate-700 mb-4 flex items-center gap-2">Grammar Drills 📝</h3>
+                        <div class="flex flex-col gap-3">
+                            <button onclick="startQuiz('Simple Present')" class="btn-3d btn-white py-4 rounded-2xl font-bold text-lg text-left px-6 w-full flex justify-between items-center">
+                                Simple Present <span>▶</span>
+                            </button>
+                            <button onclick="startQuiz('Present Continuous')" class="btn-3d btn-white py-4 rounded-2xl font-bold text-lg text-left px-6 w-full flex justify-between items-center">
+                                Present Continuous <span>▶</span>
+                            </button>
+                            <button onclick="startQuiz('Simple Past')" class="btn-3d btn-white py-4 rounded-2xl font-bold text-lg text-left px-6 w-full flex justify-between items-center">
+                                Simple Past Verbs <span>▶</span>
+                            </button>
+                            <button onclick="startQuiz('Adjectives')" class="btn-3d btn-white py-4 rounded-2xl font-bold text-lg text-left px-6 w-full flex justify-between items-center">
+                                Adjective Focus <span>▶</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Conversation Section -->
+                    <div class="bg-indigo-50 p-6 rounded-3xl border-2 border-indigo-100">
+                        <h3 class="text-xl font-black text-indigo-900 mb-4 flex items-center gap-2">Conversation Practice 🗣️</h3>
+                        <p class="text-sm font-bold text-indigo-400 mb-6">Listen and read along to build fluency.</p>
+                        <div class="flex flex-col gap-4">
+                            <button onclick="startConvo('Basic')" class="btn-3d btn-blue py-5 rounded-2xl font-black text-xl w-full tracking-wide">
+                                BASIC CONVO
+                            </button>
+                            <button onclick="startConvo('Compound')" class="btn-3d btn-purple py-5 rounded-2xl font-black text-xl w-full tracking-wide">
+                                ADVANCED (COMPOUND)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUIZ SCREEN -->
+    <div id="quiz-screen" class="screen">
+        <div class="w-full max-w-3xl bg-white rounded-[2rem] shadow-lg p-8 border-2 border-slate-100 flex flex-col items-center pop-in relative">
+            <header class="w-full flex justify-between items-center mb-8">
+                <span id="quiz-type-title" class="text-xl font-black text-slate-400 uppercase tracking-widest"></span>
+                <span id="question-counter" class="text-lg font-bold text-slate-500 bg-slate-100 px-4 py-1 rounded-full"></span>
+            </header>
+
+            <div id="question-text" class="text-3xl font-black text-slate-800 text-center mb-10 leading-snug min-h-[100px] flex items-center"></div>
+
+            <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full"></div>
+
+            <div id="feedback-area" class="h-16 mt-6 flex items-center justify-center text-2xl font-black transition-all"></div>
+        </div>
+    </div>
+
+    <!-- CONVERSATION SCREEN -->
+    <div id="convo-screen" class="screen bg-white">
+        <div class="w-full max-w-4xl flex flex-col items-center h-full pop-in">
+            <header class="w-full flex justify-between items-center mb-4 pb-4 border-b-2 border-slate-100">
+                <h2 id="convo-header" class="text-xl font-black text-slate-800"></h2>
+                <button onclick="repeatConvo()" class="bg-slate-100 text-slate-600 font-bold py-2 px-4 rounded-xl hover:bg-slate-200 transition-colors">
+                    🔄 Repeat
+                </button>
+            </header>
+            
+            <div id="convo-container" class="flex-grow w-full"></div>
+        </div>
+    </div>
+
+    <!-- RESULTS SCREEN -->
+    <div id="results-screen" class="screen">
+        <div class="w-full max-w-2xl bg-white rounded-[2rem] shadow-xl p-10 border-2 border-slate-100 text-center pop-in">
+            <h2 id="results-header" class="text-5xl font-black text-slate-800 mb-6">Drill Complete! 🎯</h2>
+            
+            <div id="badge-celebration" class="hidden flex flex-col items-center mb-8">
+                <div class="w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center text-5xl shadow-inner border-4 border-yellow-300 mb-4 pop-in">
+                    <span id="earned-badge-icon"></span>
+                </div>
+                <p class="text-xl font-black text-yellow-600 uppercase tracking-widest">New Badge Unlocked!</p>
+            </div>
+
+            <p class="text-lg font-bold text-slate-500 mb-4 uppercase tracking-widest" id="res-subtitle"></p>
+            <div class="text-7xl font-black mb-8 text-indigo-600">
+                <span id="res-score"></span>
+            </div>
+            
+            <button onclick="navBack()" class="btn-3d btn-green py-4 px-12 rounded-2xl font-black text-2xl w-full max-w-sm mx-auto">
+                CONTINUE
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA DESIGNED FOR A2 CHINESE GRADE 6 STUDENTS ---
+        const lessons = {
+            "School": {
+                title: "School", emoji: "🏫",
+                vocab: "Math 📐, English 📚, Homework 📝, Exam 📋, Classroom 🏫, Teacher 👩‍🏫, Notebook 📒, Pencil ✏️, Eraser 🧽, Uniform 👕",
+                grammar: {
+                    "Simple Present": [
+                        { q: "I ___ my homework every evening at home.", options: ["do", "does", "doing", "did"], a: "do" },
+                        { q: "She usually ___ to school by bus.", options: ["goes", "go", "going", "went"], a: "goes" },
+                        { q: "Our teacher ___ us English every morning.", options: ["teaches", "teach", "teaching", "taught"], a: "teaches" },
+                        { q: "We always ___ uniforms at school.", options: ["wear", "wears", "wearing", "wore"], a: "wear" },
+                        { q: "He ___ an eraser in his pencil case today.", options: ["has", "have", "having", "had"], a: "has" },
+                        { q: "I ___ a math class every Tuesday.", options: ["have", "has", "having", "had"], a: "have" },
+                        { q: "They never ___ late for the morning assembly.", options: ["arrive", "arrives", "arriving", "arrived"], a: "arrive" },
+                        { q: "The bell always ___ at eight o'clock.", options: ["rings", "ring", "ringing", "rang"], a: "rings" },
+                        { q: "She usually ___ her lunch in the cafeteria.", options: ["eats", "eat", "eating", "ate"], a: "eats" },
+                        { q: "We sometimes ___ English books in the library.", options: ["read", "reads", "reading", "readed"], a: "read" }
+                    ],
+                    "Present Continuous": [
+                        { q: "The students ___ English right now.", options: ["are studying", "is studying", "study", "studied"], a: "are studying" },
+                        { q: "I ___ a story in my notebook at the moment.", options: ["am writing", "writing", "write", "wrote"], a: "am writing" },
+                        { q: "He ___ his math homework currently.", options: ["is doing", "are doing", "does", "did"], a: "is doing" },
+                        { q: "We ___ a big test right now.", options: ["are taking", "is taking", "take", "took"], a: "are taking" },
+                        { q: "The teacher ___ on the blackboard at the moment.", options: ["is drawing", "are drawing", "draws", "drew"], a: "is drawing" },
+                        { q: "Look! They ___ ping pong on the playground.", options: ["are playing", "is playing", "play", "played"], a: "are playing" },
+                        { q: "She ___ to the teacher right now.", options: ["is listening", "are listening", "listens", "listened"], a: "is listening" },
+                        { q: "We ___ for the school bus at the moment.", options: ["are waiting", "is waiting", "wait", "waited"], a: "are waiting" },
+                        { q: "Currently, I ___ my new backpack.", options: ["am using", "use", "using", "used"], a: "am using" },
+                        { q: "The students ___ their classroom now.", options: ["are cleaning", "is cleaning", "clean", "cleaned"], a: "are cleaning" }
+                    ],
+                    "Simple Past": [
+                        { q: "We ___ a big math test yesterday.", options: ["had", "have", "has", "having"], a: "had" },
+                        { q: "I ___ my English book at home yesterday morning.", options: ["left", "leave", "leaving", "leaves"], a: "left" },
+                        { q: "She ___ a great picture in art class last week.", options: ["drew", "draw", "drawing", "draws"], a: "drew" },
+                        { q: "They ___ a new song in music class yesterday.", options: ["learned", "learn", "learning", "learns"], a: "learned" },
+                        { q: "He ___ early for school this morning.", options: ["woke up", "wake up", "waking up", "wakes up"], a: "woke up" },
+                        { q: "I ___ my homework last night.", options: ["finished", "finish", "finishing", "finishes"], a: "finished" },
+                        { q: "The teacher ___ us a funny story yesterday.", options: ["told", "tell", "telling", "tells"], a: "told" },
+                        { q: "We ___ to the museum for a school trip last month.", options: ["went", "go", "going", "goes"], a: "went" },
+                        { q: "She ___ an English exam last Friday.", options: ["took", "take", "taking", "takes"], a: "took" },
+                        { q: "He ___ his pencil during the test yesterday.", options: ["broke", "break", "breaking", "breaks"], a: "broke" }
+                    ],
+                    "Adjectives": [
+                        { q: "The math homework yesterday was very ___.", options: ["hard", "hardly", "hards", "harding"], a: "hard" },
+                        { q: "Our classroom today is big and ___.", options: ["clean", "cleanly", "cleaning", "cleans"], a: "clean" },
+                        { q: "The English test last week was quite ___.", options: ["easy", "easily", "easing", "ease"], a: "easy" },
+                        { q: "My new backpack this year is very ___.", options: ["heavy", "heavily", "heaviness", "heavies"], a: "heavy" },
+                        { q: "She is a ___ student every day.", options: ["good", "well", "goodly", "best"], a: "good" },
+                        { q: "The school library is always very ___.", options: ["quiet", "quietly", "quietness", "quieter"], a: "quiet" },
+                        { q: "The new teacher is very ___ to us.", options: ["kind", "kindly", "kindness", "kinder"], a: "kind" },
+                        { q: "His notebook is very ___ right now.", options: ["neat", "neatly", "neatness", "neats"], a: "neat" },
+                        { q: "The morning assembly was very ___ today.", options: ["long", "longly", "length", "longer"], a: "long" },
+                        { q: "Our school uniform is very ___.", options: ["smart", "smartly", "smartness", "smarter"], a: "smart" }
+                    ]
+                },
+                convos: {
+                    "Basic": [
+                        { text: "Do you have homework today? 📝", side: "left", gender: "m", voice: "william" },
+                        { text: "Yes, I have math homework right now. 📐", side: "right", gender: "f", voice: "emma" },
+                        { text: "Is it difficult currently? 🤔", side: "left", gender: "m", voice: "william" },
+                        { text: "No, it is very easy today. ✅", side: "right", gender: "f", voice: "emma" },
+                        { text: "I left my notebook at school yesterday. 📒", side: "left", gender: "m", voice: "william" },
+                        { text: "You can use my paper right now. 📄", side: "right", gender: "f", voice: "emma" }
+                    ],
+                    "Compound": [
+                        { text: "Do you have homework today, or are you free right now? 📝🤔", side: "left", gender: "m", voice: "william" },
+                        { text: "I have math homework today, and I also need to read an English book tonight. 📐📚", side: "right", gender: "f", voice: "emma" },
+                        { text: "Is the math hard at the moment, or is it easy? 🧐", side: "left", gender: "m", voice: "william" },
+                        { text: "It is easy currently, because the teacher explained it well yesterday. 👩‍🏫✅", side: "right", gender: "f", voice: "emma" },
+                        { text: "I left my notebook at school yesterday, so I cannot do my work now. 📒😞", side: "left", gender: "m", voice: "william" },
+                        { text: "Do not worry, you can use my paper and my pencil right now. 📄✏️", side: "right", gender: "f", voice: "emma" }
+                    ]
+                }
+            },
+            "Technology": {
+                title: "Technology", emoji: "💻",
+                vocab: "Computer 💻, Smartphone 📱, Screen 🖥️, Keyboard ⌨️, Mouse 🖱️, Internet 🌐, Game 🎮, Battery 🔋, Charger 🔌, Tablet 📱",
+                grammar: {
+                    "Simple Present": [
+                        { q: "He usually ___ games on his phone after school.", options: ["plays", "play", "playing", "played"], a: "plays" },
+                        { q: "I always ___ my tablet to study in the evening.", options: ["use", "uses", "using", "used"], a: "use" },
+                        { q: "She ___ her smartphone every night.", options: ["charges", "charge", "charging", "charged"], a: "charges" },
+                        { q: "The battery generally ___ a long time.", options: ["lasts", "last", "lasting", "lasted"], a: "lasts" },
+                        { q: "We often ___ movies on the computer on weekends.", options: ["watch", "watches", "watching", "watched"], a: "watch" },
+                        { q: "He ___ his emails every morning.", options: ["checks", "check", "checking", "checked"], a: "checks" },
+                        { q: "She always ___ the app to learn English.", options: ["opens", "open", "opening", "opened"], a: "opens" },
+                        { q: "I ___ fast on my computer keyboard.", options: ["type", "types", "typing", "typed"], a: "type" },
+                        { q: "He often ___ the mouse to open files.", options: ["clicks", "click", "clicking", "clicked"], a: "clicks" },
+                        { q: "She usually ___ good websites with me.", options: ["shares", "share", "sharing", "shared"], a: "shares" }
+                    ],
+                    "Present Continuous": [
+                        { q: "I ___ a new computer game right now.", options: ["am playing", "is playing", "play", "played"], a: "am playing" },
+                        { q: "He ___ for information on the internet at the moment.", options: ["is looking", "are looking", "looks", "looked"], a: "is looking" },
+                        { q: "They ___ the new screen currently.", options: ["are touching", "is touching", "touch", "touched"], a: "are touching" },
+                        { q: "She ___ her tablet battery right now.", options: ["is charging", "are charging", "charges", "charged"], a: "is charging" },
+                        { q: "We ___ the mouse to click the link now.", options: ["are using", "is using", "use", "used"], a: "are using" },
+                        { q: "I ___ an email to my teacher at the moment.", options: ["am typing", "typing", "type", "typed"], a: "am typing" },
+                        { q: "He ___ a new app right now.", options: ["is downloading", "are downloading", "downloads", "downloaded"], a: "is downloading" },
+                        { q: "They ___ online at the moment.", options: ["are chatting", "is chatting", "chat", "chatted"], a: "are chatting" },
+                        { q: "She ___ a video on her tablet currently.", options: ["is watching", "are watching", "watches", "watched"], a: "is watching" },
+                        { q: "I ___ for my homework online now.", options: ["am searching", "is searching", "search", "searched"], a: "am searching" }
+                    ],
+                    "Simple Past": [
+                        { q: "My dad ___ me a new tablet last week.", options: ["bought", "buy", "buying", "buys"], a: "bought" },
+                        { q: "I ___ my phone at home yesterday morning.", options: ["left", "leave", "leaving", "leaves"], a: "left" },
+                        { q: "She ___ the computer after school yesterday.", options: ["used", "use", "using", "uses"], a: "used" },
+                        { q: "The battery ___ very quickly last night.", options: ["died", "die", "dying", "dies"], a: "died" },
+                        { q: "He ___ the game with his friends last Sunday.", options: ["played", "play", "playing", "plays"], a: "played" },
+                        { q: "I ___ my old keyboard yesterday.", options: ["broke", "break", "breaking", "breaks"], a: "broke" },
+                        { q: "She ___ a fun game last night.", options: ["downloaded", "download", "downloading", "downloads"], a: "downloaded" },
+                        { q: "We ___ our phones before the trip yesterday.", options: ["charged", "charge", "charging", "charges"], a: "charged" },
+                        { q: "They ___ a long video last Friday.", options: ["watched", "watch", "watching", "watches"], a: "watched" },
+                        { q: "He ___ the wrong button yesterday.", options: ["clicked", "click", "clicking", "clicks"], a: "clicked" }
+                    ],
+                    "Adjectives": [
+                        { q: "This old computer is very ___ today.", options: ["slow", "slowly", "slowing", "slows"], a: "slow" },
+                        { q: "My new smartphone is very ___ now.", options: ["fast", "fastly", "fasting", "fasts"], a: "fast" },
+                        { q: "The screen on the tablet is very ___.", options: ["big", "bigly", "biggest", "bigness"], a: "big" },
+                        { q: "This keyboard is very ___ right now.", options: ["loud", "loudly", "loudness", "louder"], a: "loud" },
+                        { q: "The new game is extremely ___.", options: ["fun", "funnily", "funny", "funs"], a: "fun" },
+                        { q: "That new laptop was very ___ yesterday.", options: ["expensive", "expensively", "expense", "expend"], a: "expensive" },
+                        { q: "My old phone was very ___ last year.", options: ["cheap", "cheaply", "cheapness", "cheaps"], a: "cheap" },
+                        { q: "The tablet screen is very ___.", options: ["bright", "brightly", "brightness", "brighter"], a: "bright" },
+                        { q: "The internet is very ___ for my homework.", options: ["useful", "usefully", "usefulness", "use"], a: "useful" },
+                        { q: "My old mouse is currently ___.", options: ["broken", "broke", "break", "breaking"], a: "broken" }
+                    ]
+                },
+                convos: {
+                    "Basic": [
+                        { text: "Right now, is that a new smartphone? 📱", side: "left", gender: "m", voice: "brian" },
+                        { text: "Yes, my dad bought it for me last week. 🎁", side: "right", gender: "f", voice: "ava" },
+                        { text: "Is it fast today? ⚡", side: "left", gender: "m", voice: "brian" },
+                        { text: "Yes, it is very fast currently. 🚀", side: "right", gender: "f", voice: "ava" },
+                        { text: "I want to play a game on it now. 🎮", side: "left", gender: "m", voice: "brian" },
+                        { text: "Okay, but the battery is low at the moment. 🔋", side: "right", gender: "f", voice: "ava" }
+                    ],
+                    "Compound": [
+                        { text: "Right now, is that a new smartphone, or is it your old one? 📱🤔", side: "left", gender: "m", voice: "brian" },
+                        { text: "My dad bought me this new smartphone last week because my old one was broken. 🎁💔", side: "right", gender: "f", voice: "ava" },
+                        { text: "Is it fast today, and does it have a good screen? ⚡🖥️", side: "left", gender: "m", voice: "brian" },
+                        { text: "Yes, it is very fast currently, and the screen is big. 🚀👍", side: "right", gender: "f", voice: "ava" },
+                        { text: "I want to play a game on it now, but I do not know how. 🎮🤷", side: "left", gender: "m", voice: "brian" },
+                        { text: "You can play now, but we need to find the charger first because the battery is low. 🔋🔌", side: "right", gender: "f", voice: "ava" }
+                    ]
+                }
+            },
+            "SocialMedia": {
+                title: "Social Media", emoji: "💬",
+                vocab: "Photo 📷, Message 💬, Video 📹, Friend 👦, Group 👨‍👩‍👦, Share 🔗, Emoji 😊, Chat 📱, WeChat 💬, Online 🟢",
+                grammar: {
+                    "Simple Present": [
+                        { q: "She usually ___ photos with her friends on WeChat.", options: ["shares", "share", "sharing", "shared"], a: "shares" },
+                        { q: "I always ___ a smiley emoji in my texts.", options: ["send", "sends", "sending", "sent"], a: "send" },
+                        { q: "He ___ in the family group every day.", options: ["chats", "chat", "chatting", "chatted"], a: "chats" },
+                        { q: "We often ___ online after finishing homework.", options: ["go", "goes", "going", "went"], a: "go" },
+                        { q: "They usually ___ funny videos on weekends.", options: ["watch", "watches", "watching", "watched"], a: "watch" },
+                        { q: "She ___ a new photo every Friday.", options: ["posts", "post", "posting", "posted"], a: "posts" },
+                        { q: "He always ___ his friends' pictures.", options: ["likes", "like", "liking", "liked"], a: "likes" },
+                        { q: "I ___ my messages every morning.", options: ["read", "reads", "reading", "readed"], a: "read" },
+                        { q: "She usually ___ her profile on Sundays.", options: ["updates", "update", "updating", "updated"], a: "updates" },
+                        { q: "He ___ many famous people online.", options: ["follows", "follow", "following", "followed"], a: "follows" }
+                    ],
+                    "Present Continuous": [
+                        { q: "We ___ a funny video right now.", options: ["are watching", "is watching", "watch", "watched"], a: "are watching" },
+                        { q: "I ___ a message to my friend at the moment.", options: ["am typing", "typing", "type", "typed"], a: "am typing" },
+                        { q: "She ___ a photo in the group currently.", options: ["is sharing", "are sharing", "shares", "shared"], a: "is sharing" },
+                        { q: "They ___ online right now.", options: ["are chatting", "is chatting", "chat", "chatted"], a: "are chatting" },
+                        { q: "He ___ a voice message at the moment.", options: ["is sending", "are sending", "sends", "sent"], a: "is sending" },
+                        { q: "I ___ a video for my friends now.", options: ["am recording", "recording", "record", "recorded"], a: "am recording" },
+                        { q: "She ___ the news online currently.", options: ["is reading", "are reading", "reads", "read"], a: "is reading" },
+                        { q: "They ___ a photo together right now.", options: ["are taking", "is taking", "take", "took"], a: "are taking" },
+                        { q: "He ___ through his WeChat at the moment.", options: ["is scrolling", "are scrolling", "scrolls", "scrolled"], a: "is scrolling" },
+                        { q: "I ___ to her message right now.", options: ["am replying", "replying", "reply", "replied"], a: "am replying" }
+                    ],
+                    "Simple Past": [
+                        { q: "I ___ him a message last night.", options: ["sent", "send", "sending", "sends"], a: "sent" },
+                        { q: "She ___ a nice photo of her cat yesterday.", options: ["shared", "share", "sharing", "shares"], a: "shared" },
+                        { q: "We ___ on WeChat for an hour last Friday.", options: ["chatted", "chat", "chatting", "chats"], a: "chatted" },
+                        { q: "He ___ my picture two hours ago.", options: ["liked", "like", "liking", "likes"], a: "liked" },
+                        { q: "They ___ a funny video in the group last weekend.", options: ["watched", "watch", "watching", "watches"], a: "watched" },
+                        { q: "I ___ a long message yesterday.", options: ["posted", "post", "posting", "posts"], a: "posted" },
+                        { q: "She ___ to my question last night.", options: ["replied", "reply", "replying", "replies"], a: "replied" },
+                        { q: "He ___ the group chat yesterday morning.", options: ["opened", "open", "opening", "opens"], a: "opened" },
+                        { q: "We ___ the new club online last week.", options: ["joined", "join", "joining", "joins"], a: "joined" },
+                        { q: "I ___ your post last Sunday.", options: ["saw", "see", "seeing", "sees"], a: "saw" }
+                    ],
+                    "Adjectives": [
+                        { q: "The funny video yesterday was very ___.", options: ["popular", "popularly", "popularity", "populars"], a: "popular" },
+                        { q: "This emoji is very ___.", options: ["cute", "cutely", "cuteness", "cuter"], a: "cute" },
+                        { q: "The message he sent was very ___.", options: ["short", "shortly", "shortness", "shorts"], a: "short" },
+                        { q: "Her photos online are always ___.", options: ["beautiful", "beautifully", "beauty", "beautify"], a: "beautiful" },
+                        { q: "Our class group is very ___ every day.", options: ["active", "actively", "action", "actives"], a: "active" },
+                        { q: "That video was very ___ last night.", options: ["funny", "funnily", "fun", "funs"], a: "funny" },
+                        { q: "The long message was very ___.", options: ["boring", "boringly", "boredom", "bored"], a: "boring" },
+                        { q: "Her story online is very ___ today.", options: ["interesting", "interestingly", "interest", "interested"], a: "interesting" },
+                        { q: "That news online was ___ yesterday.", options: ["fake", "fakely", "fakes", "faked"], a: "fake" },
+                        { q: "My friends are very ___ people.", options: ["real", "really", "reality", "reals"], a: "real" }
+                    ]
+                },
+                convos: {
+                    "Basic": [
+                        { text: "Did you see my photo yesterday? 📷", side: "left", gender: "f", voice: "emma" },
+                        { text: "Yes, I liked it last night. ❤️", side: "right", gender: "m", voice: "andrew" },
+                        { text: "It is my new cat today. 🐱", side: "left", gender: "f", voice: "emma" },
+                        { text: "It is very cute right now! 😊", side: "right", gender: "m", voice: "andrew" },
+                        { text: "I will send a video later today. 📹", side: "left", gender: "f", voice: "emma" },
+                        { text: "Okay, share it in the group tomorrow. 👨‍👩‍👦", side: "right", gender: "m", voice: "andrew" }
+                    ],
+                    "Compound": [
+                        { text: "Did you see my photo yesterday, or were you offline? 📷🔴", side: "left", gender: "f", voice: "emma" },
+                        { text: "I saw your photo on WeChat last night, and I sent it to our friends. ❤️🔗", side: "right", gender: "m", voice: "andrew" },
+                        { text: "It is my new cat, so I wanted everyone to see it today. 🐱👀", side: "left", gender: "f", voice: "emma" },
+                        { text: "It is very cute, and it looks very small right now. 😊📏", side: "right", gender: "m", voice: "andrew" },
+                        { text: "I will send a video later today, but I need to do homework first. 📹📝", side: "left", gender: "f", voice: "emma" },
+                        { text: "Okay, share it in the group when you are online again tonight. 👨‍👩‍👦🟢", side: "right", gender: "m", voice: "andrew" }
+                    ]
+                }
+            },
+            "Sports": {
+                title: "Sports", emoji: "⚽",
+                vocab: "Basketball 🏀, Football ⚽, Ping Pong 🏓, Run 🏃, Jump ⬆️, Team 👥, Win 🏆, Lose 😞, Match 🏟️, Player ⛹️",
+                grammar: {
+                    "Simple Present": [
+                        { q: "We usually ___ ping pong after school.", options: ["play", "plays", "playing", "played"], a: "play" },
+                        { q: "He always ___ very fast in PE class.", options: ["runs", "run", "running", "ran"], a: "runs" },
+                        { q: "Our team always ___ the match on Fridays.", options: ["wins", "win", "winning", "won"], a: "wins" },
+                        { q: "They ___ basketball on weekends.", options: ["practice", "practices", "practicing", "practiced"], a: "practice" },
+                        { q: "She often ___ high to catch the ball.", options: ["jumps", "jump", "jumping", "jumped"], a: "jumps" },
+                        { q: "He always ___ the ball into the goal.", options: ["kicks", "kick", "kicking", "kicked"], a: "kicks" },
+                        { q: "She usually ___ the ball with two hands.", options: ["catches", "catch", "catching", "caught"], a: "catches" },
+                        { q: "I always ___ the ball far away.", options: ["throw", "throws", "throwing", "threw"], a: "throw" },
+                        { q: "He often ___ the ping pong ball hard.", options: ["hits", "hit", "hitting", "hitted"], a: "hits" },
+                        { q: "She always ___ her legs before running.", options: ["stretches", "stretch", "stretching", "stretched"], a: "stretches" }
+                    ],
+                    "Present Continuous": [
+                        { q: "They ___ basketball on the playground right now.", options: ["are playing", "is playing", "play", "played"], a: "are playing" },
+                        { q: "I ___ for the ball at the moment.", options: ["am running", "is running", "run", "ran"], a: "am running" },
+                        { q: "The team ___ the match today.", options: ["is winning", "are winning", "win", "won"], a: "is winning" },
+                        { q: "He ___ ping pong with his dad currently.", options: ["is playing", "are playing", "plays", "played"], a: "is playing" },
+                        { q: "We ___ high to shoot the basketball now.", options: ["are jumping", "is jumping", "jump", "jumped"], a: "are jumping" },
+                        { q: "I ___ in the pool right now.", options: ["am swimming", "is swimming", "swim", "swam"], a: "am swimming" },
+                        { q: "She ___ the football at the moment.", options: ["is kicking", "are kicking", "kicks", "kicked"], a: "is kicking" },
+                        { q: "They ___ the ball to each other currently.", options: ["are throwing", "is throwing", "throw", "threw"], a: "are throwing" },
+                        { q: "He ___ after the long game now.", options: ["is resting", "are resting", "rests", "rested"], a: "is resting" },
+                        { q: "I ___ the match on TV right now.", options: ["am watching", "watching", "watch", "watched"], a: "am watching" }
+                    ],
+                    "Simple Past": [
+                        { q: "Our school team ___ the football match last Saturday.", options: ["won", "win", "winning", "wins"], a: "won" },
+                        { q: "I ___ basketball with my friends yesterday.", options: ["played", "play", "playing", "plays"], a: "played" },
+                        { q: "He ___ very fast in the race last week.", options: ["ran", "run", "running", "runs"], a: "ran" },
+                        { q: "We ___ the game last Friday.", options: ["lost", "lose", "losing", "loses"], a: "lost" },
+                        { q: "She ___ over the box in PE class yesterday.", options: ["jumped", "jump", "jumping", "jumps"], a: "jumped" },
+                        { q: "He ___ the ball very far last game.", options: ["kicked", "kick", "kicking", "kicks"], a: "kicked" },
+                        { q: "She ___ the ball well yesterday.", options: ["threw", "throw", "throwing", "throws"], a: "threw" },
+                        { q: "I ___ the ball with one hand last Sunday.", options: ["caught", "catch", "catching", "catches"], a: "caught" },
+                        { q: "He ___ the ball hard yesterday morning.", options: ["hit", "hitting", "hits", "hitted"], a: "hit" },
+                        { q: "The match ___ at two o'clock last Saturday.", options: ["started", "start", "starting", "starts"], a: "started" }
+                    ],
+                    "Adjectives": [
+                        { q: "The basketball player is very ___ today.", options: ["tall", "tally", "tallness", "taller"], a: "tall" },
+                        { q: "I am very ___ after the football game.", options: ["tired", "tiredly", "tiring", "tire"], a: "tired" },
+                        { q: "Ping pong is a ___ sport.", options: ["fast", "fastly", "fastness", "faster"], a: "fast" },
+                        { q: "Our team is very ___ this year.", options: ["strong", "strongly", "strength", "stronger"], a: "strong" },
+                        { q: "Winning the match yesterday was very ___.", options: ["exciting", "excite", "excitedly", "excitement"], a: "exciting" },
+                        { q: "He is a very ___ runner on the team.", options: ["quick", "quickly", "quickness", "quicker"], a: "quick" },
+                        { q: "The turtle is a ___ animal.", options: ["slow", "slowly", "slowness", "slower"], a: "slow" },
+                        { q: "Sports make you very ___.", options: ["healthy", "health", "healthily", "healthier"], a: "healthy" },
+                        { q: "The basketball game was very ___ yesterday.", options: ["difficult", "difficulty", "differ", "difficultly"], a: "difficult" },
+                        { q: "The ping pong game is ___ for him.", options: ["easy", "easily", "easing", "ease"], a: "easy" }
+                    ]
+                },
+                convos: {
+                    "Basic": [
+                        { text: "Let's play ping pong now. 🏓", side: "left", gender: "m", voice: "brian" },
+                        { text: "Okay, let's go to the playground right now. 🏟️", side: "right", gender: "m", voice: "william" },
+                        { text: "I ran very fast yesterday. 🏃", side: "left", gender: "m", voice: "brian" },
+                        { text: "But I have a strong team today. 👥", side: "right", gender: "m", voice: "william" },
+                        { text: "We will see who wins this afternoon! 🏆", side: "left", gender: "m", voice: "brian" },
+                        { text: "Yes, it will be fun later. 🎉", side: "right", gender: "m", voice: "william" }
+                    ],
+                    "Compound": [
+                        { text: "I want to play ping pong now, but we do not have a ball today. 🏓😞", side: "left", gender: "m", voice: "brian" },
+                        { text: "We can play basketball because I brought my new ball this morning. 🏀👍", side: "right", gender: "m", voice: "william" },
+                        { text: "I ran very fast yesterday, so I think I will win today. 🏃🏆", side: "left", gender: "m", voice: "brian" },
+                        { text: "You are fast, but my team is very strong this year. 👥💪", side: "right", gender: "m", voice: "william" },
+                        { text: "We will see who wins this afternoon, and then we can get some water. 💧", side: "left", gender: "m", voice: "brian" },
+                        { text: "Yes, it will be a fun match, and I am ready right now! 🏟️🎉", side: "right", gender: "m", voice: "william" }
+                    ]
+                }
+            },
+            "Health": {
+                title: "Health", emoji: "🏥",
+                vocab: "Sick 🤒, Doctor 👨‍⚕️, Hospital 🏥, Medicine 💊, Water 💧, Sleep 🛌, Tired 🥱, Healthy 🍎, Wash 🧼, Hands 👐",
+                grammar: {
+                    "Simple Present": [
+                        { q: "I always ___ my hands before dinner.", options: ["wash", "washes", "washing", "washed"], a: "wash" },
+                        { q: "He usually ___ medicine when he is sick.", options: ["takes", "take", "taking", "took"], a: "takes" },
+                        { q: "She ___ healthy food every day.", options: ["eats", "eat", "eating", "ate"], a: "eats" },
+                        { q: "We often ___ eight hours every night.", options: ["sleep", "sleeps", "sleeping", "slept"], a: "sleep" },
+                        { q: "Water ___ you stay healthy every day.", options: ["helps", "help", "helping", "helped"], a: "helps" },
+                        { q: "He ___ warm water in the morning.", options: ["drinks", "drink", "drinking", "drank"], a: "drinks" },
+                        { q: "She always ___ in the park on weekends.", options: ["exercises", "exercise", "exercising", "exercised"], a: "exercises" },
+                        { q: "I ___ my teeth every morning.", options: ["brush", "brushes", "brushing", "brushed"], a: "brush" },
+                        { q: "He often ___ the doctor in winter.", options: ["visits", "visit", "visiting", "visited"], a: "visits" },
+                        { q: "My head sometimes ___ when I am sick.", options: ["hurts", "hurt", "hurting", "hurted"], a: "hurts" }
+                    ],
+                    "Present Continuous": [
+                        { q: "He ___ to the hospital right now.", options: ["is going", "go", "going", "went"], a: "is going" },
+                        { q: "I ___ my hands with soap at the moment.", options: ["am washing", "washing", "wash", "washed"], a: "am washing" },
+                        { q: "She ___ in bed because she is sick now.", options: ["is sleeping", "are sleeping", "sleeps", "slept"], a: "is sleeping" },
+                        { q: "We ___ warm water right now.", options: ["are drinking", "is drinking", "drink", "drank"], a: "are drinking" },
+                        { q: "The doctor ___ to him currently.", options: ["is talking", "are talking", "talks", "talked"], a: "is talking" },
+                        { q: "I ___ at home at the moment.", options: ["am resting", "resting", "rest", "rested"], a: "am resting" },
+                        { q: "He ___ a lot right now.", options: ["is coughing", "are coughing", "coughs", "coughed"], a: "is coughing" },
+                        { q: "They ___ healthy food today.", options: ["are eating", "is eating", "eat", "ate"], a: "are eating" },
+                        { q: "My nose ___ right now.", options: ["is running", "are running", "runs", "ran"], a: "is running" },
+                        { q: "I ___ very tired today.", options: ["am feeling", "feeling", "feel", "felt"], a: "am feeling" }
+                    ],
+                    "Simple Past": [
+                        { q: "I ___ sick yesterday, so I stayed home.", options: ["felt", "feel", "feeling", "feels"], a: "felt" },
+                        { q: "She ___ the medicine this morning.", options: ["took", "take", "taking", "takes"], a: "took" },
+                        { q: "We ___ to the doctor last week.", options: ["went", "go", "going", "goes"], a: "went" },
+                        { q: "He ___ his hands before eating yesterday.", options: ["washed", "wash", "washing", "washes"], a: "washed" },
+                        { q: "I ___ ten hours last night.", options: ["slept", "sleep", "sleeping", "sleeps"], a: "slept" },
+                        { q: "I ___ warm water yesterday morning.", options: ["drank", "drink", "drinking", "drinks"], a: "drank" },
+                        { q: "She ___ an apple last night.", options: ["ate", "eat", "eating", "eats"], a: "ate" },
+                        { q: "We ___ the hospital last Friday.", options: ["visited", "visit", "visiting", "visits"], a: "visited" },
+                        { q: "He ___ in bed all day yesterday.", options: ["stayed", "stay", "staying", "stays"], a: "stayed" },
+                        { q: "My leg ___ a lot last night.", options: ["hurt", "hurting", "hurts", "hurted"], a: "hurt" }
+                    ],
+                    "Adjectives": [
+                        { q: "Eating apples is very ___ for you.", options: ["good", "well", "goodly", "best"], a: "good" },
+                        { q: "I feel very ___ today.", options: ["sick", "sickly", "sickness", "sicks"], a: "sick" },
+                        { q: "She is always ___ in the morning.", options: ["tired", "tiredly", "tiring", "tire"], a: "tired" },
+                        { q: "You need a ___ body to play sports.", options: ["healthy", "health", "healthily", "healthier"], a: "healthy" },
+                        { q: "The medicine tastes very ___.", options: ["bad", "badly", "badness", "worst"], a: "bad" },
+                        { q: "I feel very ___ today.", options: ["hot", "hotly", "hotness", "hotter"], a: "hot" },
+                        { q: "The water was very ___ yesterday.", options: ["cold", "coldly", "coldness", "colder"], a: "cold" },
+                        { q: "You must be ___ to lift that.", options: ["strong", "strongly", "strength", "stronger"], a: "strong" },
+                        { q: "I feel very ___ after being sick.", options: ["weak", "weakly", "weakness", "weaker"], a: "weak" },
+                        { q: "My head is ___ right now.", options: ["dizzy", "dizzily", "dizziness", "dizzier"], a: "dizzy" }
+                    ]
+                },
+                convos: {
+                    "Basic": [
+                        { text: "Are you okay today? 🤕", side: "left", gender: "f", voice: "ava" },
+                        { text: "No, I have a cold right now. 🤧", side: "right", gender: "m", voice: "andrew" },
+                        { text: "Did you take medicine this morning? 💊", side: "left", gender: "f", voice: "ava" },
+                        { text: "Yes, I took it yesterday too. 🌅", side: "right", gender: "m", voice: "andrew" },
+                        { text: "You should drink water now. 💧", side: "left", gender: "f", voice: "ava" },
+                        { text: "I will. I need to sleep tonight. 🛌", side: "right", gender: "m", voice: "andrew" }
+                    ],
+                    "Compound": [
+                        { text: "Are you feeling okay today, or are you sick right now? 🤕🤔", side: "left", gender: "f", voice: "ava" },
+                        { text: "I have a cold today, so I must stay home and rest. 🤧🏠", side: "right", gender: "m", voice: "andrew" },
+                        { text: "Did you take medicine yesterday, or did you go to the doctor? 💊👨‍⚕️", side: "left", gender: "f", voice: "ava" },
+                        { text: "I took medicine this morning, but I still feel very tired right now. 🌅🥱", side: "right", gender: "m", voice: "andrew" },
+                        { text: "You should drink warm water now, and you should wash your hands often. 💧🧼", side: "left", gender: "f", voice: "ava" },
+                        { text: "I will do that tomorrow, because I want to be healthy again! 🍎💪", side: "right", gender: "m", voice: "andrew" }
+                    ]
+                }
+            },
+            "FreeTime": {
+                title: "Free Time", emoji: "🚲",
+                vocab: "Weekend 📅, Movie 🍿, Park 🏞️, Music 🎵, Book 📖, Shop 🛍️, Bike 🚲, Family 👨‍👩‍👧, Food 🍜, Fun 🎉",
+                grammar: {
+                    "Simple Present": [
+                        { q: "My family usually ___ to the park on Sundays.", options: ["goes", "go", "going", "went"], a: "goes" },
+                        { q: "I often ___ my bike on the weekend.", options: ["ride", "rides", "riding", "rode"], a: "ride" },
+                        { q: "She ___ to music in her free time every day.", options: ["listens", "listen", "listening", "listened"], a: "listens" },
+                        { q: "We sometimes ___ books at the library.", options: ["read", "reads", "reading", "readed"], a: "read" },
+                        { q: "He usually ___ movies with his friends.", options: ["watches", "watch", "watching", "watched"], a: "watches" },
+                        { q: "I always ___ games with my brother.", options: ["play", "plays", "playing", "played"], a: "play" },
+                        { q: "She often ___ pictures in her room.", options: ["draws", "draw", "drawing", "drew"], a: "draws" },
+                        { q: "He sometimes ___ English songs.", options: ["sings", "sing", "singing", "sang"], a: "sings" },
+                        { q: "We always ___ beautiful pictures in art class.", options: ["paint", "paints", "painting", "painted"], a: "paint" },
+                        { q: "My dad usually ___ dinner on weekends.", options: ["cooks", "cook", "cooking", "cooked"], a: "cooks" }
+                    ],
+                    "Present Continuous": [
+                        { q: "We ___ a movie at the cinema right now.", options: ["are watching", "is watching", "watch", "watched"], a: "are watching" },
+                        { q: "I ___ my bike in the park at the moment.", options: ["am riding", "riding", "ride", "rode"], a: "am riding" },
+                        { q: "She ___ to her favorite music currently.", options: ["is listening", "are listening", "listens", "listened"], a: "is listening" },
+                        { q: "They ___ delicious food now.", options: ["are eating", "is eating", "eat", "ate"], a: "are eating" },
+                        { q: "He ___ a new book right now.", options: ["is reading", "are reading", "reads", "read"], a: "is reading" },
+                        { q: "I ___ a picture for my mom at the moment.", options: ["am drawing", "drawing", "draw", "drew"], a: "am drawing" },
+                        { q: "She ___ a song right now.", options: ["is singing", "are singing", "sings", "sang"], a: "is singing" },
+                        { q: "They ___ a fun game currently.", options: ["are playing", "is playing", "play", "played"], a: "are playing" },
+                        { q: "He ___ dinner for the family now.", options: ["is making", "are making", "makes", "made"], a: "is making" },
+                        { q: "I ___ on the sofa right now.", options: ["am relaxing", "relaxing", "relax", "relaxed"], a: "am relaxing" }
+                    ],
+                    "Simple Past": [
+                        { q: "We ___ hot pot last weekend.", options: ["ate", "eat", "eating", "eats"], a: "ate" },
+                        { q: "I ___ a great movie yesterday.", options: ["watched", "watch", "watching", "watches"], a: "watched" },
+                        { q: "She ___ her bike to the shop yesterday morning.", options: ["rode", "ride", "riding", "rides"], a: "rode" },
+                        { q: "They ___ to the park on Saturday.", options: ["went", "go", "going", "goes"], a: "went" },
+                        { q: "He ___ a good book last night.", options: ["read", "readed", "reading", "reads"], a: "read" },
+                        { q: "We ___ games last Sunday.", options: ["played", "play", "playing", "plays"], a: "played" },
+                        { q: "She ___ a beautiful picture yesterday.", options: ["drew", "draw", "drawing", "draws"], a: "drew" },
+                        { q: "He ___ a song at the party last night.", options: ["sang", "sing", "singing", "sings"], a: "sang" },
+                        { q: "They ___ the wall last weekend.", options: ["painted", "paint", "painting", "paints"], a: "painted" },
+                        { q: "My mom ___ fish for dinner yesterday.", options: ["cooked", "cook", "cooking", "cooks"], a: "cooked" }
+                    ],
+                    "Adjectives": [
+                        { q: "The weekend trip was very ___.", options: ["fun", "funny", "funnily", "funs"], a: "fun" },
+                        { q: "The food at the shop was ___.", options: ["delicious", "deliciously", "delight", "deliciousness"], a: "delicious" },
+                        { q: "Riding a bike is very ___.", options: ["exciting", "excite", "excitedly", "excitement"], a: "exciting" },
+                        { q: "The new movie was ___.", options: ["great", "greatly", "greatness", "greater"], a: "great" },
+                        { q: "My family is very ___.", options: ["happy", "happily", "happiness", "happier"], a: "happy" },
+                        { q: "The movie last night was very ___.", options: ["boring", "boringly", "boredom", "bored"], a: "boring" },
+                        { q: "She is a very ___ girl.", options: ["creative", "creatively", "create", "creation"], a: "creative" },
+                        { q: "The book I read yesterday was ___.", options: ["interesting", "interestingly", "interest", "interested"], a: "interesting" },
+                        { q: "Sunday is a very ___ day.", options: ["relaxing", "relax", "relaxingly", "relaxed"], a: "relaxing" },
+                        { q: "The music at the party was very ___.", options: ["loud", "loudly", "loudness", "louder"], a: "loud" }
+                    ]
+                },
+                convos: {
+                    "Basic": [
+                        { text: "What did you do last weekend? 📅", side: "left", gender: "m", voice: "william" },
+                        { text: "I went to the park yesterday. 🏞️", side: "right", gender: "f", voice: "emma" },
+                        { text: "Did you ride your bike last Sunday? 🚲", side: "left", gender: "m", voice: "william" },
+                        { text: "Yes, I rode it with my family. 👨‍👩‍👧", side: "right", gender: "f", voice: "emma" },
+                        { text: "Did you eat good food last night? 🍜", side: "left", gender: "m", voice: "william" },
+                        { text: "Yes, we ate hot pot yesterday. It was delicious! 🍲", side: "right", gender: "f", voice: "emma" }
+                    ],
+                    "Compound": [
+                        { text: "What did you do last weekend, or did you stay home? 📅🏠", side: "left", gender: "m", voice: "william" },
+                        { text: "I went to the park on Saturday, and I ate hot pot on Sunday. 🏞️🍲", side: "right", gender: "f", voice: "emma" },
+                        { text: "Did you ride your bike last Sunday, or did you watch a movie? 🚲🍿", side: "left", gender: "m", voice: "william" },
+                        { text: "I rode my bike with my family yesterday, but we did not watch a movie. 👨‍👩‍👧🚫", side: "right", gender: "f", voice: "emma" },
+                        { text: "Was the hot pot spicy last night, or was it regular? 🌶️🍲", side: "left", gender: "m", voice: "william" },
+                        { text: "It was very spicy, so I drank a lot of water yesterday! 💧🔥", side: "right", gender: "f", voice: "emma" }
+                    ]
+                }
+            }
+        };
+
+        // --- GLOBAL STATE & NAVIGATION ---
+        let totalXP = parseInt(localStorage.getItem('gq_xp')) || 0;
+        let earnedBadges = JSON.parse(localStorage.getItem('gq_badges')) || [];
+        
+        let screenHistory = ['menu-screen'];
+        let currentTopic = null;
+        let currentQuizData = null;
+        let currentConvoData = null;
+        let qIndex = 0;
+        let cIndex = 0;
+        let quizScore = 0;
+        let lockUI = false;
+        let isTtsActive = false;
+
+        function navBack() {
+            if (screenHistory.length > 1) {
+                screenHistory.pop(); // Remove current
+                let prev = screenHistory[screenHistory.length - 1];
+                showScreenOnly(prev);
+            }
+        }
+
+        function navHome() {
+            screenHistory = ['menu-screen'];
+            showScreenOnly('menu-screen');
+        }
+
+        function navNext() {
+            const currentScreen = screenHistory[screenHistory.length - 1];
+            if (currentScreen === 'quiz-screen' && !lockUI) {
+                // Skip question in quiz
+                handleAnswer(null, null, true); 
+            } else if (currentScreen === 'convo-screen' && isTtsActive) {
+                // Skip convo line
+                synth.cancel();
+            } else if (currentScreen === 'hub-screen') {
+                // Go to next topic in list
+                const topicKeys = Object.keys(lessons);
+                let idx = topicKeys.indexOf(currentTopic);
+                if (idx >= 0 && idx < topicKeys.length - 1) {
+                    openTopicHub(topicKeys[idx + 1]);
+                } else {
+                    navHome();
+                }
+            } else if (currentScreen === 'menu-screen') {
+                // Open first topic
+                openTopicHub(Object.keys(lessons)[0]);
+            } else if (currentScreen === 'results-screen') {
+                navBack(); // Go back to hub
+            }
+        }
+
+        // --- TTS ENGINE ---
+        const synth = window.speechSynthesis;
+        let voicesMap = {};
+        
+        function initVoices() {
+            const voices = synth.getVoices();
+            if (voices.length === 0) { setTimeout(initVoices, 500); return; }
+            
+            // Priority: Microsoft Online > Exact Name > Gender > Fallback
+            const findV = (name, gender) => 
+                voices.find(v => v.name.includes(name) && v.name.includes("Online")) || 
+                voices.find(v => v.name.includes(name)) || 
+                voices.find(v => v.name.includes(gender) && v.lang.startsWith("en")) || 
+                voices[0];
+
+            voicesMap['brian'] = findV("Brian", "Male");
+            voicesMap['andrew'] = findV("Andrew", "Male");
+            voicesMap['william'] = findV("William", "Male");
+            voicesMap['emma'] = findV("Emma", "Female");
+            voicesMap['ava'] = findV("Ava", "Female");
+        }
+        if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = initVoices;
+        setTimeout(initVoices, 100);
+
+        // Emoji regex to strip out emojis before reading
+        const emojiRegex = /[\u{1F300}-\u{1F9FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F100}-\u{1F1FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{1F700}-\u{1F77F}]|[\u{1F780}-\u{1F7FF}]|[\u{1F800}-\u{1F8FF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA00}-\u{1FA6F}]|[\u{1FA70}-\u{1FAFF}]|[\u{2300}-\u{23FF}]|[\u{25A0}-\u{25FF}]|[\u{2900}-\u{297F}]|[\u{2B00}-\u{2BFF}]|[\u{3030}]|[\u{303D}]|[\u{3297}]|[\u{3299}]/gu;
+
+        function wrapEmojis(text) {
+            if (!text) return text;
+            return text.replace(emojiRegex, (match) => `<span class="emoji">${match}</span>`);
+        }
+
+        function stripEmojis(text) { return text.replace(emojiRegex, '').trim(); }
+        
+        function speak(text, voiceName, onEnd = null) {
+            if (!text || text.trim() === '') { if (onEnd) onEnd(); return; }
+            synth.cancel();
+            
+            // Clean text specifically for TTS
+            let cleanText = stripEmojis(text);
+            cleanText = cleanText.replace(/___/g, "blank");
+            
+            const utter = new SpeechSynthesisUtterance(cleanText);
+            utter.voice = voicesMap[voiceName] || voicesMap['emma'];
+            utter.rate = 0.85; // Persona Requirement: 85% speed
+            
+            if (onEnd) {
+                utter.onend = onEnd;
+                utter.onerror = (e) => { console.error('TTS Error', e); onEnd(); };
+            }
+            synth.speak(utter);
+        }
+
+        // --- PARTICLE SYSTEM ---
+        const canvas = document.getElementById('glitter-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.size = Math.random() * 8 + 4;
+                this.speedX = (Math.random() - 0.5) * 15;
+                this.speedY = (Math.random() - 0.5) * 15;
+                this.color = `hsl(${Math.random() * 60 + 40}, 100%, 50%)`; // Gold/Yellow spectrum
+                this.opacity = 1;
+            }
+            update() { this.x += this.speedX; this.y += this.speedY; this.opacity -= 0.02; }
+            draw() { 
+                ctx.globalAlpha = this.opacity; ctx.fillStyle = this.color; 
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill(); 
+            }
+        }
+
+        function triggerFireworks() {
+            for (let i = 0; i < 80; i++) particles.push(new Particle(window.innerWidth / 2, window.innerHeight / 2));
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update(); particles[i].draw();
+                if (particles[i].opacity <= 0) { particles.splice(i, 1); i--; }
+            }
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        // --- CORE LOGIC ---
+        function updateXP(amount) {
+            totalXP += amount;
+            localStorage.setItem('gq_xp', totalXP);
+            document.getElementById('nav-xp').textContent = totalXP;
+            
+            let level = "Novice";
+            if (totalXP >= 50) level = "Apprentice";
+            if (totalXP >= 100) level = "Scholar";
+            if (totalXP >= 200) level = "Master";
+            document.getElementById('player-level').textContent = level;
+        }
+
+        function addBonusPoints() {
+            updateXP(5);
+            triggerFireworks();
+            speak("Bonus points!", 'william');
+        }
+
+        function renderMenu() {
+            const topicGrid = document.getElementById('topic-grid');
+            topicGrid.innerHTML = '';
+            
+            Object.keys(lessons).forEach(key => {
+                const data = lessons[key];
+                
+                // Build Topic Buttons
+                const btn = document.createElement('button');
+                btn.className = 'btn-3d btn-white p-6 rounded-[2rem] text-center flex flex-col items-center justify-center';
+                btn.innerHTML = `<span class="text-5xl mb-3">${data.emoji}</span><span class="font-black text-slate-700 text-lg">${data.title}</span>`;
+                btn.onclick = () => openTopicHub(key);
+                topicGrid.appendChild(btn);
+            });
+            updateXP(0); // init display
+        }
+
+        function openTopicHub(key) {
+            currentTopic = key;
+            const data = lessons[key];
+            document.getElementById('hub-emoji').textContent = data.emoji;
+            document.getElementById('hub-title').textContent = data.title;
+            document.getElementById('hub-vocab').innerHTML = wrapEmojis(data.vocab);
+            showScreen('hub-screen');
+        }
+
+        function showScreen(id) {
+            if (screenHistory[screenHistory.length - 1] !== id) {
+                screenHistory.push(id);
+            }
+            showScreenOnly(id);
+        }
+
+        function showScreenOnly(id) {
+            synth.cancel();
+            isTtsActive = false;
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if(id === 'menu-screen') renderMenu();
+        }
+
+        // --- QUIZ LOGIC ---
+        let currentQuizType = '';
+        function startQuiz(grammarType) {
+            currentQuizType = grammarType;
+            currentQuizData = lessons[currentTopic].grammar[grammarType];
+            qIndex = 0;
+            quizScore = 0;
+            lockUI = false;
+            document.getElementById('quiz-type-title').textContent = `${lessons[currentTopic].title} - ${grammarType}`;
+            showScreen('quiz-screen');
+            renderQuestion();
+        }
+
+        function renderQuestion() {
+            const data = currentQuizData[qIndex];
+            document.getElementById('question-counter').textContent = `Drill ${qIndex + 1} / ${currentQuizData.length}`;
+            document.getElementById('question-text').innerHTML = wrapEmojis(data.q);
+            
+            const container = document.getElementById('options-container');
+            container.innerHTML = '';
+            
+            // Randomize options
+            const shuffledOptions = [...data.options].sort(() => Math.random() - 0.5);
+            
+            shuffledOptions.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-3d btn-white rounded-2xl py-6 px-4 text-2xl font-black text-slate-700 w-full';
+                btn.textContent = opt;
+                btn.onclick = () => handleAnswer(opt, btn, false);
+                container.appendChild(btn);
+            });
+            
+            document.getElementById('feedback-area').innerHTML = '';
+            speak(data.q, 'emma');
+        }
+
+        function handleAnswer(selected, btn, skipped = false) {
+            if (lockUI) return;
+            lockUI = true;
+            const data = currentQuizData[qIndex];
+            const feedback = document.getElementById('feedback-area');
+
+            if (skipped) {
+                feedback.innerHTML = "Skipped ⏭️";
+                feedback.className = "h-16 mt-6 flex items-center justify-center text-3xl font-black text-slate-500 pop-in";
+                speak("Skipped.", 'emma');
+            } else if (selected === data.a) {
+                quizScore++;
+                updateXP(5);
+                btn.classList.add('correct-bg');
+                feedback.innerHTML = "Perfect! ✨";
+                feedback.className = "h-16 mt-6 flex items-center justify-center text-3xl font-black text-green-600 pop-in";
+                speak("Perfect!", 'emma');
+            } else {
+                btn.classList.add('incorrect-bg', 'shake');
+                feedback.innerHTML = "Not quite! 💡";
+                feedback.className = "h-16 mt-6 flex items-center justify-center text-3xl font-black text-red-500 pop-in";
+                speak("Try again next time.", 'emma');
+            }
+
+            setTimeout(() => {
+                qIndex++;
+                if (qIndex < currentQuizData.length) { lockUI = false; renderQuestion(); } 
+                else finishQuiz();
+            }, 1500);
+        }
+
+        function finishQuiz() {
+            showScreen('results-screen');
+            document.getElementById('res-subtitle').textContent = currentQuizType;
+            document.getElementById('res-score').textContent = `${quizScore} / ${currentQuizData.length}`;
+            
+            const badgeBox = document.getElementById('badge-celebration');
+            // If perfect score and badge not earned
+            if (quizScore === currentQuizData.length && !earnedBadges.includes(currentTopic)) {
+                earnedBadges.push(currentTopic);
+                localStorage.setItem('gq_badges', JSON.stringify(earnedBadges));
+                
+                // Wrapping the badge in the emoji wrapper
+                document.getElementById('earned-badge-icon').innerHTML = wrapEmojis(lessons[currentTopic].emoji);
+                
+                badgeBox.classList.remove('hidden');
+                document.getElementById('results-header').textContent = "RANK UP! 🏅";
+                triggerFireworks();
+                speak(`Fantastic! You earned the ${lessons[currentTopic].title} badge!`, 'william');
+            } else {
+                badgeBox.classList.add('hidden');
+                document.getElementById('results-header').textContent = "Drill Complete! 🎯";
+                speak(`Well done! You got ${quizScore} out of ${currentQuizData.length}.`, 'william');
+            }
+        }
+
+        // --- CONVERSATION LOGIC ---
+        function startConvo(type) {
+            currentConvoData = lessons[currentTopic].convos[type];
+            cIndex = 0;
+            isTtsActive = true;
+            document.getElementById('convo-header').textContent = `${lessons[currentTopic].title} - ${type}`;
+            document.getElementById('convo-container').innerHTML = '';
+            showScreen('convo-screen');
+            playNextTurn();
+        }
+
+        function playNextTurn() {
+            if (!isTtsActive || !currentConvoData) return;
+            if (cIndex >= currentConvoData.length) {
+                isTtsActive = false;
+                updateXP(10); // Reward for finishing convo
+                return;
+            }
+            
+            const turn = currentConvoData[cIndex];
+            const container = document.getElementById('convo-container');
+            const bubble = document.createElement('div');
+            
+            const sideClass = turn.side === 'left' ? 'chat-left' : 'chat-right';
+            bubble.className = `chat-bubble ${sideClass} active`;
+            bubble.innerHTML = wrapEmojis(turn.text);
+            
+            container.appendChild(bubble);
+            container.scrollTop = container.scrollHeight;
+            
+            // Dim previous bubbles
+            const allBubbles = container.querySelectorAll('.chat-bubble');
+            if (allBubbles.length > 1) {
+                allBubbles[allBubbles.length - 2].classList.remove('active');
+                allBubbles[allBubbles.length - 2].classList.add('inactive');
+            }
+            
+            speak(turn.text, turn.voice, () => {
+                cIndex++;
+                if (cIndex < currentConvoData.length) {
+                    setTimeout(playNextTurn, 600);
+                } else {
+                    isTtsActive = false;
+                    updateXP(10);
+                }
+            });
+        }
+
+        function repeatConvo() { 
+            synth.cancel(); 
+            cIndex = 0; 
+            document.getElementById('convo-container').innerHTML = ''; 
+            isTtsActive = true; 
+            playNextTurn(); 
+        }
+
+        // Initialize App
+        window.onload = () => {
+            renderMenu();
+        };
+    </script>
+</body>
+</html>

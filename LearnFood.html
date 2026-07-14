@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Food Fun: Learn English</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            font-family: "Comic Sans MS", "Chalkboard SE", "Comic Neue", sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        @keyframes fade-in {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.5s ease-out forwards;
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #FFFDF0; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        // --- Safe Storage Helper ---
+        // Prevents crashes in iframe/incognito modes where localStorage is restricted
+        const safeStorage = {
+            getItem: (key) => {
+                try {
+                    return localStorage.getItem(key);
+                } catch (e) {
+                    console.warn('LocalStorage access denied', e);
+                    return null;
+                }
+            },
+            setItem: (key, value) => {
+                try {
+                    localStorage.setItem(key, value);
+                } catch (e) {
+                    console.warn('LocalStorage write failed', e);
+                }
+            }
+        };
+
+        // --- Inline Icons ---
+        const Star = (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+        );
+
+        const ArrowLeft = (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>
+            </svg>
+        );
+
+        const ArrowRight = (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+            </svg>
+        );
+
+        const Home = (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+        );
+
+        const Trophy = (props) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17"/><path d="M14 14.66V17"/><path d="M18 2h-3a5 5 0 0 0-5 5v7.5a2.5 2.5 0 0 0 2.5 2.5h5A2.5 2.5 0 0 0 20 14.5V7a5 5 0 0 0-5-5Z"/>
+            </svg>
+        );
+        
+        // --- Main App Component ---
+        const FoodLearningApp = () => {
+            const [currentCategory, setCurrentCategory] = useState(null);
+            const [grammarMode, setGrammarMode] = useState(null);
+            const [currentPage, setCurrentPage] = useState(0);
+            
+            // Initialize score from localStorage safely
+            const [score, setScore] = useState(() => {
+                const saved = safeStorage.getItem('foodFunScore');
+                return saved ? parseInt(saved, 10) : 0;
+            });
+            
+            const [confetti, setConfetti] = useState(false);
+            const [shuffledItems, setShuffledItems] = useState([]);
+            const [voices, setVoices] = useState([]);
+            const [revealedItems, setRevealedItems] = useState({});
+
+            // Save score safely
+            useEffect(() => {
+                safeStorage.setItem('foodFunScore', score);
+            }, [score]);
+
+            // --- Voice Setup ---
+            useEffect(() => {
+                const loadVoices = () => {
+                    // Filter out non-local voices if possible to reduce latency, 
+                    // but keep high quality online ones if available
+                    const available = window.speechSynthesis.getVoices();
+                    if (available.length > 0) {
+                        setVoices(available);
+                    }
+                };
+
+                loadVoices();
+                // Chrome loads voices asynchronously
+                if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                    window.speechSynthesis.onvoiceschanged = loadVoices;
+                }
+            }, []);
+
+            // Reset revealed items when page or mode changes
+            useEffect(() => {
+                setRevealedItems({});
+            }, [currentPage, grammarMode, currentCategory]);
+
+            // Voice Mapping Configuration
+            const categoryVoiceMap = {
+                'Fruit': 'Brian',
+                'Vegetable': 'Emma',
+                'Prepared': 'Andrew',
+                'Asian': 'Ava',
+                'Sweet': 'Emma',
+                'Drink': 'Brian'
+            };
+
+            const playAudio = useCallback((text) => {
+                if ('speechSynthesis' in window) {
+                    // Cancel current speech to prevent queue buildup
+                    window.speechSynthesis.cancel();
+                    
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    
+                    // Determine target voice name based on category
+                    const targetName = currentCategory ? categoryVoiceMap[currentCategory] : 'Brian'; 
+
+                    // Strict Priority: Microsoft Online [Name] -> Any [Name] -> Default English
+                    const selected = voices.find(v => v.name.includes(`Microsoft ${targetName} Online`) && v.lang.startsWith('en')) 
+                                  || voices.find(v => v.name.includes(targetName) && v.lang.startsWith('en'))
+                                  || voices.find(v => v.lang === 'en-US');
+
+                    if (selected) utterance.voice = selected;
+                    
+                    utterance.lang = 'en-US';
+                    utterance.rate = 0.85; // Set to 85% speed for clarity
+                    
+                    window.speechSynthesis.speak(utterance);
+                }
+            }, [currentCategory, voices]);
+
+            const handleItemClick = (idx, audioText, isTest) => {
+                playAudio(audioText);
+                if (isTest) {
+                    setRevealedItems(prev => ({ ...prev, [idx]: true }));
+                }
+            };
+
+            // --- Helpers ---
+            const pluralize = (item) => {
+                if (item.plural) return item.plural;
+                const name = item.name.toLowerCase();
+                if (name.endsWith('s') || name.endsWith('ch') || name.endsWith('sh')) return name + 'es';
+                if (name.endsWith('y')) return name.slice(0, -1) + 'ies';
+                return name + 's';
+            };
+
+            const getMeasure = (item) => {
+                return item.measure ? item.measure : '';
+            };
+
+            const getArticle = (word) => {
+                const vowels = ['a', 'e', 'i', 'o', 'u'];
+                return vowels.includes(word[0].toLowerCase()) ? 'an' : 'a';
+            };
+
+            // --- Grammar Logic ---
+            const grammarLessons = {
+                'ident': {
+                    title: 'Identification',
+                    subtitle: 'What is this?',
+                    color: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+                    getQuestion: () => "What is this?",
+                    getAudio: (item) => {
+                        if (!item.countable && item.measure) {
+                            return `It is a ${item.measure} ${item.name.toLowerCase()}.`;
+                        } else if (!item.countable) {
+                            return `It is ${item.name.toLowerCase()}.`;
+                        }
+                        return `It is ${getArticle(item.name)} ${item.name.toLowerCase()}.`;
+                    },
+                    getText: (item) => {
+                        if (!item.countable && item.measure) {
+                            return `It is a ${item.measure} ${item.name.toLowerCase()}.`;
+                        } else if (!item.countable) {
+                            return `It is ${item.name.toLowerCase()}.`;
+                        }
+                        return `It's ${getArticle(item.name)} ${item.name.toLowerCase()}.`;
+                    }
+                },
+                'pref': {
+                    title: 'Preference',
+                    subtitle: 'Do you like...?',
+                    color: 'bg-pink-100 text-pink-800 border-pink-300',
+                    getQuestion: (item) => `Do you like ${item.countable ? pluralize(item) : item.name.toLowerCase()}?`,
+                    getAudio: (item) => `Yes, I like ${item.countable ? pluralize(item) : item.name.toLowerCase()}.`,
+                    getText: (item) => `Yes, I like ${item.countable ? pluralize(item) : item.name.toLowerCase()}.`
+                },
+                'quant': {
+                    title: 'Quantity',
+                    subtitle: 'How many / How much?',
+                    color: 'bg-blue-100 text-blue-800 border-blue-300',
+                    getQuestion: (item) => item.countable 
+                        ? `How many ${pluralize(item)} are there?` 
+                        : `How much ${item.name.toLowerCase()} is there?`,
+                    getAudio: (item, qty) => {
+                        if (item.countable) {
+                            return qty === 1 
+                                ? `There is one ${item.name.toLowerCase()}.` 
+                                : `There are ${qty} ${pluralize(item)}.`;
+                        }
+                        return `There is some ${item.name.toLowerCase()}.`;
+                    },
+                    getText: (item, qty) => {
+                        if (item.countable) {
+                            return qty === 1 
+                                ? `There is one ${item.name.toLowerCase()}.` 
+                                : `There are ${qty} ${pluralize(item)}.`;
+                        }
+                        return `There is some ${item.name.toLowerCase()}.`;
+                    }
+                },
+                'choice': {
+                    title: 'Choice',
+                    subtitle: 'What do you want?',
+                    color: 'bg-purple-100 text-purple-800 border-purple-300',
+                    getQuestion: () => "What do you want?",
+                    getAudio: (item) => {
+                        if (!item.countable && item.measure) {
+                            return `I want a ${item.measure} ${item.name.toLowerCase()}, please.`;
+                        } else if (!item.countable) {
+                            return `I want some ${item.name.toLowerCase()}, please.`;
+                        }
+                        return `I want ${getArticle(item.name)} ${item.name.toLowerCase()}, please.`;
+                    },
+                    getText: (item) => {
+                         if (!item.countable && item.measure) {
+                            return `I want a ${item.measure} ${item.name.toLowerCase()}.`;
+                        } else if (!item.countable) {
+                            return `I want some ${item.name.toLowerCase()}.`;
+                        }
+                        return `I want ${getArticle(item.name)} ${item.name.toLowerCase()}.`;
+                    }
+                },
+                'context': {
+                    title: 'Context',
+                    subtitle: 'Meal Time',
+                    color: 'bg-green-100 text-green-800 border-green-300',
+                    getQuestion: (item, category) => category === 'Drink' ? "What do you drink?" : "What do you eat?",
+                    getAudio: (item, qty, category) => {
+                        const verb = category === 'Drink' ? 'drink' : 'eat';
+                        const obj = item.countable ? pluralize(item) : item.name.toLowerCase();
+                        return `I ${verb} ${obj}.`;
+                    },
+                    getText: (item, qty, category) => {
+                        const verb = category === 'Drink' ? 'drink' : 'eat';
+                        const obj = item.countable ? pluralize(item) : item.name.toLowerCase();
+                        return `I ${verb} ${obj}.`;
+                    }
+                }
+            };
+
+            // --- Data ---
+            const categories = {
+                'Fruit': {
+                    color: 'bg-red-100 text-red-800 border-red-200',
+                    btnColor: 'bg-red-500 hover:bg-red-600',
+                    items: [
+                        { emoji: '🍇', name: 'Grape', countable: true },
+                        { emoji: '🍈', name: 'Melon', countable: true },
+                        { emoji: '🍉', name: 'Watermelon', countable: true },
+                        { emoji: '🍊', name: 'Tangerine', countable: true },
+                        { emoji: '🍋', name: 'Lemon', countable: true },
+                        { emoji: '🍋‍🟩', name: 'Lime', countable: true },
+                        { emoji: '🍌', name: 'Banana', countable: true },
+                        { emoji: '🍍', name: 'Pineapple', countable: true },
+                        { emoji: '🥭', name: 'Mango', countable: true, plural: 'mangoes' },
+                        { emoji: '🍎', name: 'Red apple', countable: true },
+                        { emoji: '🍏', name: 'Green apple', countable: true },
+                        { emoji: '🍐', name: 'Pear', countable: true },
+                        { emoji: '🍑', name: 'Peach', countable: true, plural: 'peaches' },
+                        { emoji: '🍒', name: 'Cherry', countable: true, plural: 'cherries' },
+                        { emoji: '🍓', name: 'Strawberry', countable: true, plural: 'strawberries' },
+                        { emoji: '🫐', name: 'Blueberry', countable: true, plural: 'blueberries' },
+                        { emoji: '🥝', name: 'Kiwi', countable: true },
+                        { emoji: '🍅', name: 'Tomato', countable: true, plural: 'tomatoes' },
+                        { emoji: '🫒', name: 'Olive', countable: true },
+                        { emoji: '🥥', name: 'Coconut', countable: true }
+                    ]
+                },
+                'Vegetable': {
+                    color: 'bg-green-100 text-green-800 border-green-200',
+                    btnColor: 'bg-green-500 hover:bg-green-600',
+                    items: [
+                        { emoji: '🌽', name: 'Corn', countable: false, measure: 'ear of' },
+                        { emoji: '🥬', name: 'Lettuce', countable: false, measure: 'head of' },
+                        { emoji: '🥦', name: 'Broccoli', countable: false, measure: 'head of' },
+                        { emoji: '🧄', name: 'Garlic', countable: false, measure: 'bulb of' },
+                        { emoji: '🫚', name: 'Ginger', countable: false, measure: 'piece of' },
+                        { emoji: '🥑', name: 'Avocado', countable: true },
+                        { emoji: '🍆', name: 'Eggplant', countable: true },
+                        { emoji: '🥔', name: 'Potato', countable: true, plural: 'potatoes' },
+                        { emoji: '🥕', name: 'Carrot', countable: true },
+                        { emoji: '🌶️', name: 'Chili pepper', countable: true },
+                        { emoji: '🫑', name: 'Bell pepper', countable: true },
+                        { emoji: '🥒', name: 'Cucumber', countable: true },
+                        { emoji: '🧅', name: 'Onion', countable: true },
+                        { emoji: '🥜', name: 'Peanut', countable: true },
+                        { emoji: '🫘', name: 'Bean', countable: true },
+                        { emoji: '🌰', name: 'Chestnut', countable: true },
+                        { emoji: '🫛', name: 'Pea', countable: true }
+                    ]
+                },
+                'Prepared': {
+                    color: 'bg-orange-100 text-orange-800 border-orange-200',
+                    btnColor: 'bg-orange-500 hover:bg-orange-600',
+                    items: [
+                        { emoji: '🍞', name: 'Bread', countable: false, measure: 'slice of' },
+                        { emoji: '🧀', name: 'Cheese', countable: false, measure: 'piece of' },
+                        { emoji: '🥩', name: 'Meat', countable: false, measure: 'piece of' },
+                        { emoji: '🥓', name: 'Bacon', countable: false, measure: 'strip of' },
+                        { emoji: '🍟', name: 'Fries', countable: false, measure: 'box of' },
+                        { emoji: '🍕', name: 'Pizza', countable: false, measure: 'slice of' },
+                        { emoji: '🥘', name: 'Stew', countable: false, measure: 'bowl of' },
+                        { emoji: '🥗', name: 'Salad', countable: false, measure: 'bowl of' },
+                        { emoji: '🍿', name: 'Popcorn', countable: false, measure: 'bowl of' },
+                        { emoji: '🧈', name: 'Butter', countable: false, measure: 'stick of' },
+                        { emoji: '🧂', name: 'Salt', countable: false, measure: 'shaker of' },
+                        { emoji: '🥐', name: 'Croissant', countable: true },
+                        { emoji: '🥖', name: 'Baguette', countable: true },
+                        { emoji: '🥨', name: 'Pretzel', countable: true },
+                        { emoji: '🥞', name: 'Pancake', countable: true },
+                        { emoji: '🧇', name: 'Waffle', countable: true },
+                        { emoji: '🍗', name: 'Chicken leg', countable: true },
+                        { emoji: '🍔', name: 'Hamburger', countable: true },
+                        { emoji: '🌭', name: 'Hot dog', countable: true },
+                        { emoji: '🥪', name: 'Sandwich', countable: true, plural: 'sandwiches' },
+                        { emoji: '🌮', name: 'Taco', countable: true },
+                        { emoji: '🌯', name: 'Burrito', countable: true },
+                        { emoji: '🥚', name: 'Egg', countable: true },
+                        { emoji: '🍳', name: 'Fried egg', countable: true }
+                    ]
+                },
+                'Asian': {
+                    color: 'bg-red-50 text-red-900 border-red-200',
+                    btnColor: 'bg-rose-500 hover:bg-rose-600',
+                    items: [
+                        { emoji: '🍚', name: 'Rice', countable: false, measure: 'bowl of' },
+                        { emoji: '🍛', name: 'Curry rice', countable: false, measure: 'plate of' },
+                        { emoji: '🍜', name: 'Ramen', countable: false, measure: 'bowl of' },
+                        { emoji: '🍝', name: 'Spaghetti', countable: false, measure: 'plate of' },
+                        { emoji: '🍣', name: 'Sushi', countable: false, measure: 'piece of' },
+                        { emoji: '🥡', name: 'Takeout', countable: false, measure: 'box of' },
+                        { emoji: '🍱', name: 'Bento box', countable: true, plural: 'bento boxes' },
+                        { emoji: '🍙', name: 'Rice ball', countable: true },
+                        { emoji: '🍤', name: 'Fried shrimp', countable: true },
+                        { emoji: '🥟', name: 'Dumpling', countable: true },
+                        { emoji: '🥠', name: 'Fortune cookie', countable: true }
+                    ]
+                },
+                'Sweet': {
+                    color: 'bg-pink-100 text-pink-800 border-pink-200',
+                    btnColor: 'bg-pink-500 hover:bg-pink-600',
+                    items: [
+                        { emoji: '🍦', name: 'Ice cream', countable: false, measure: 'cone of' },
+                        { emoji: '🎂', name: 'Cake', countable: false, measure: 'slice of' },
+                        { emoji: '🥧', name: 'Pie', countable: false, measure: 'slice of' },
+                        { emoji: '🍫', name: 'Chocolate', countable: false, measure: 'bar of' },
+                        { emoji: '🍬', name: 'Candy', countable: false, measure: 'piece of' },
+                        { emoji: '🍮', name: 'Pudding', countable: false, measure: 'cup of' },
+                        { emoji: '🍯', name: 'Honey', countable: false, measure: 'jar of' },
+                        { emoji: '🍩', name: 'Donut', countable: true },
+                        { emoji: '🍪', name: 'Cookie', countable: true },
+                        { emoji: '🍰', name: 'Slice of cake', countable: true, plural: 'slices of cake' },
+                        { emoji: '🧁', name: 'Cupcake', countable: true },
+                        { emoji: '🍭', name: 'Lollipop', countable: true }
+                    ]
+                },
+                'Drink': {
+                    color: 'bg-blue-100 text-blue-800 border-blue-200',
+                    btnColor: 'bg-blue-500 hover:bg-blue-600',
+                    items: [
+                        { emoji: '🥛', name: 'Milk', countable: false, measure: 'glass of' },
+                        { emoji: '☕', name: 'Coffee', countable: false, measure: 'cup of' },
+                        { emoji: '🍵', name: 'Tea', countable: false, measure: 'cup of' },
+                        { emoji: '🥤', name: 'Soda', countable: false, measure: 'cup of' },
+                        { emoji: '🧋', name: 'Bubble tea', countable: false, measure: 'cup of' },
+                        { emoji: '🧊', name: 'Ice', countable: false, measure: 'cube of' },
+                        { emoji: '🍺', name: 'Beer', countable: false, measure: 'mug of' },
+                        { emoji: '🍷', name: 'Wine', countable: false, measure: 'glass of' },
+                        { emoji: '🍼', name: 'Baby bottle', countable: true },
+                        { emoji: '🫖', name: 'Tea pot', countable: true },
+                        { emoji: '🧃', name: 'Juice box', countable: true, plural: 'juice boxes' }
+                    ]
+                }
+            };
+
+            const ITEMS_PER_PAGE = 5;
+
+            const handleAddPoint = () => {
+                setScore(s => s + 10);
+                setConfetti(true);
+                setTimeout(() => setConfetti(false), 500);
+                const rewards = ["Awesome!", "Great!", "Super!", "Nice!", "Wow!"];
+                playAudio(rewards[Math.floor(Math.random() * rewards.length)]);
+            };
+
+            const selectCategory = (cat) => {
+                setCurrentCategory(cat);
+                setGrammarMode(null); 
+            };
+
+            const startLesson = (modeKey) => {
+                setGrammarMode(modeKey);
+                setCurrentPage(0);
+                
+                // 1. Sort: Uncountable (false) first, then Countable (true)
+                const sortedItems = [...categories[currentCategory].items].sort((a, b) => {
+                    return (a.countable === b.countable) ? 0 : a.countable ? 1 : -1;
+                });
+                
+                // 2. Create Learning Set (Show Answers)
+                const learningSet = sortedItems.map(item => ({ ...item, isTest: false }));
+                
+                // 3. Create Testing Set (Hide Answers) - added to end
+                const testingSet = sortedItems.map(item => ({ ...item, isTest: true }));
+
+                // 4. Combine into pagination array
+                setShuffledItems([...learningSet, ...testingSet]);
+            };
+
+            const currentItems = shuffledItems.slice(
+                currentPage * ITEMS_PER_PAGE, 
+                (currentPage + 1) * ITEMS_PER_PAGE
+            );
+
+            const totalPages = Math.ceil(shuffledItems.length / ITEMS_PER_PAGE);
+
+            return (
+                <div 
+                    className="min-h-screen bg-[#FFFDF0] font-sans text-slate-800 select-none pb-20"
+                >
+                    
+                    {/* --- UNIFIED HEADER --- */}
+                    <div className="fixed top-0 w-full bg-white shadow-lg z-50 px-2 py-2 flex justify-between items-center border-b-4 border-yellow-400 h-20">
+                        
+                        {/* Left Section: Navigation Controls */}
+                        <div className="flex items-center gap-2">
+                            {currentCategory ? (
+                                <button 
+                                    onClick={() => setCurrentCategory(null)}
+                                    className="p-2 bg-slate-100 hover:bg-slate-200 rounded-full border-2 border-slate-300 transition-colors"
+                                    title="Back to Menu"
+                                >
+                                    <Home className="w-6 h-6 text-slate-600" />
+                                </button>
+                            ) : (
+                                <div className="p-2 bg-transparent">
+                                    <span className="text-3xl">🍎</span>
+                                </div>
+                            )}
+
+                            {currentCategory && grammarMode && (
+                                <div className="flex items-center gap-1 ml-2">
+                                    <button 
+                                        disabled={currentPage === 0}
+                                        onClick={() => setCurrentPage(p => p - 1)}
+                                        className={`
+                                            p-2 rounded-xl border-b-4 transition-all
+                                            ${currentPage === 0 
+                                                ? 'bg-slate-50 text-slate-200 border-slate-100' 
+                                                : 'bg-blue-100 text-blue-600 border-blue-200 hover:bg-blue-200 active:border-b-0 active:translate-y-1'}
+                                        `}
+                                    >
+                                        <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" />
+                                    </button>
+                                    
+                                    <span className="text-sm font-bold text-slate-400 w-12 text-center hidden md:block">
+                                        {currentPage + 1} / {totalPages}
+                                    </span>
+
+                                    <button 
+                                        disabled={currentPage === totalPages - 1}
+                                        onClick={() => setCurrentPage(p => p + 1)}
+                                        className={`
+                                            p-2 rounded-xl border-b-4 transition-all
+                                            ${currentPage === totalPages - 1
+                                                ? 'bg-slate-50 text-slate-200 border-slate-100' 
+                                                : 'bg-blue-100 text-blue-600 border-blue-200 hover:bg-blue-200 active:border-b-0 active:translate-y-1'}
+                                        `}
+                                    >
+                                        <ArrowRight className="w-5 h-5 md:w-6 md:h-6" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {!grammarMode && (
+                            <div className="hidden md:flex items-center gap-2">
+                                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-violet-500">
+                                    Food Fun
+                                </span>
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-2 md:gap-4">
+                            <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1 md:px-4 md:py-2 rounded-full border-2 border-yellow-200">
+                                <Trophy className="w-4 h-4 md:w-5 md:h-5 text-yellow-500" />
+                                <span className="text-lg md:text-xl font-bold text-yellow-700">{score}</span>
+                            </div>
+                            
+                            <button 
+                                onClick={handleAddPoint}
+                                className="flex items-center gap-1 md:gap-2 bg-gradient-to-b from-green-400 to-green-500 hover:from-green-500 hover:to-green-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-full shadow-md transform active:scale-95 transition-all border-b-4 border-green-700"
+                            >
+                                <Star className="w-4 h-4 md:w-5 md:h-5 fill-current" />
+                                <span className="hidden md:inline font-bold">Reward!</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="pt-24 px-4 max-w-4xl mx-auto flex flex-col items-center">
+                        
+                        {/* VIEW 1: MAIN MENU */}
+                        {!currentCategory && (
+                            <div className="w-full animate-fade-in flex flex-col items-center">
+                                <h1 className="text-3xl md:text-5xl font-extrabold text-center mb-4 text-slate-800 tracking-wide mt-4">
+                                    What do you want to eat?
+                                </h1>
+                                <p className="text-slate-500 mb-8 text-xl font-medium">Pick a food group!</p>
+                                
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 w-full">
+                                    {Object.keys(categories).map((cat) => (
+                                        <button
+                                            key={cat}
+                                            onClick={() => selectCategory(cat)}
+                                            className={`
+                                                ${categories[cat].btnColor} 
+                                                h-32 md:h-40 rounded-3xl shadow-xl flex flex-col items-center justify-center gap-2 md:gap-3
+                                                transform hover:scale-105 transition-all duration-300 border-b-8 border-black/20
+                                                text-white group relative overflow-hidden
+                                            `}
+                                        >
+                                            <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            <span className="text-5xl md:text-6xl drop-shadow-md">
+                                                {categories[cat].items[0].emoji}
+                                            </span>
+                                            <span className="text-xl md:text-2xl font-black tracking-wide drop-shadow-sm">{cat}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW 2: GRAMMAR SELECTION MENU */}
+                        {currentCategory && !grammarMode && (
+                            <div className="w-full animate-fade-in flex flex-col items-center mt-4">
+                                <h2 className={`text-4xl font-black text-center mb-2 px-6 py-2 rounded-2xl ${categories[currentCategory].color} border-b-4`}>
+                                    {currentCategory}
+                                </h2>
+                                <p className="text-slate-500 mb-8 text-xl mt-4">What do you want to practice?</p>
+                                
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-3xl">
+                                    {Object.keys(grammarLessons).map((key) => {
+                                        const lesson = grammarLessons[key];
+                                        return (
+                                            <button
+                                                key={key}
+                                                onClick={() => startLesson(key)}
+                                                className={`
+                                                    ${lesson.color}
+                                                    p-6 rounded-3xl border-b-4 hover:brightness-95 active:scale-95 transition-all
+                                                    flex flex-col items-center text-center gap-2 shadow-sm
+                                                `}
+                                            >
+                                                <span className="font-black text-2xl">{lesson.title}</span>
+                                                <span className="text-lg opacity-80 font-medium">"{lesson.subtitle}"</span>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* VIEW 3: GAME / DRILL VIEW */}
+                        {currentCategory && grammarMode && (
+                            <div className="w-full animate-fade-in mt-2">
+                                <div className="text-center mb-6">
+                                    <span className={`inline-block px-6 py-2 rounded-full font-black text-xl border-2 ${grammarLessons[grammarMode].color.replace('bg-', 'border-').replace('text-', 'text-')}`}>
+                                        {/* Dynamic Title: Check if current page has items marked as test */}
+                                        {currentItems[0]?.isTest ? "TEST MODE" : grammarLessons[grammarMode].subtitle}
+                                    </span>
+                                </div>
+
+                                <div className="grid gap-6">
+                                    {currentItems.map((item, idx) => {
+                                        let quantity = 1;
+                                        // For Quantity game, if countable, show a random number (2-4). If uncountable, just show 1 emoji.
+                                        if (grammarMode === 'quant' && item.countable) {
+                                            quantity = (idx + currentPage) % 3 + 2; 
+                                        }
+
+                                        const displayEmojis = Array(quantity).fill(item.emoji);
+                                        const displayText = grammarLessons[grammarMode].getText(item, quantity, currentCategory);
+                                        const audioText = grammarLessons[grammarMode].getAudio(item, quantity, currentCategory);
+                                        const questionText = grammarLessons[grammarMode].getQuestion(item, currentCategory);
+                                        const isRevealed = revealedItems[idx];
+                                        
+                                        return (
+                                            <div 
+                                                key={item.name + idx}
+                                                onClick={() => handleItemClick(idx, audioText, item.isTest)}
+                                                className="bg-white rounded-3xl shadow-sm hover:shadow-xl border-4 border-slate-100 hover:border-blue-300 transition-all cursor-pointer p-4 flex items-center justify-between group active:bg-blue-50 active:scale-[0.99]"
+                                            >
+                                                <div className="flex items-center gap-4 md:gap-6 w-full">
+                                                    <div className="flex gap-1 md:gap-2 text-4xl md:text-6xl min-w-[100px] md:min-w-[140px] flex-wrap justify-center bg-slate-50 p-2 md:p-3 rounded-2xl border-2 border-slate-100 relative overflow-hidden">
+                                                        {/* Hint for uncountables */}
+                                                        {!item.countable && (
+                                                            <div className="absolute top-0 right-0 p-1">
+                                                                <div className="w-2 h-2 rounded-full bg-purple-400" title="Uncountable"></div>
+                                                            </div>
+                                                        )}
+                                                        {displayEmojis.map((em, i) => (
+                                                            <span key={i} className="transform group-hover:scale-[1.5] transition-transform duration-300">{em}</span>
+                                                        ))}
+                                                    </div>
+                                                    
+                                                    <div className="flex flex-col flex-grow">
+                                                        <span className="text-xs md:text-sm font-bold text-slate-400 mb-1">
+                                                            {questionText}
+                                                        </span>
+                                                        {!item.isTest || isRevealed ? (
+                                                            <span className={`text-xl md:text-3xl font-black text-slate-700 group-hover:text-blue-600 transition-colors ${item.isTest ? 'animate-fade-in text-blue-600' : ''}`}>
+                                                                {displayText}
+                                                            </span>
+                                                        ) : (
+                                                            /* Invisible placeholder */
+                                                            <span className="text-xl md:text-2xl font-bold text-transparent select-none bg-slate-100 rounded-lg px-2 animate-pulse">
+                                                                ?
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                
+                            </div>
+                        )}
+                    </div>
+
+                    {confetti && (
+                        <div className="fixed inset-0 pointer-events-none z-[100] flex justify-center items-start pt-20">
+                            <div className="animate-bounce text-6xl">🎉</div>
+                            <div className="animate-pulse text-6xl delay-75">✨</div>
+                            <div className="animate-bounce text-6xl delay-150">🌟</div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<FoodLearningApp />);
+    </script>
+</body>
+</html>

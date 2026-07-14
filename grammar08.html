@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Action Star: English Verbs</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body {
+            font-family: "Fredoka", "Comic Sans MS", sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        @keyframes slide-up {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-slide-up {
+          animation: slide-up 0.4s ease-out forwards;
+        }
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .animate-pop {
+            animation: pop 0.2s ease-in-out;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .animate-shake {
+            animation: shake 0.3s ease-in-out;
+        }
+        /* Hide scrollbar for clean UI */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useMemo } = React;
+
+        // --- Safe Storage Helper ---
+        const safeStorage = {
+            getItem: (key) => {
+                try { return localStorage.getItem(key); } 
+                catch (e) { return null; }
+            },
+            setItem: (key, value) => {
+                try { localStorage.setItem(key, value); } 
+                catch (e) { }
+            }
+        };
+
+        // --- Audio Helper (Synth) ---
+        const playSound = (type) => {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const now = ctx.currentTime;
+                
+                if (type === 'correct') {
+                    // Ding sound (Sine wave, high pitch)
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.exponentialRampToValueAtTime(1000, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                    osc.start(now);
+                    osc.stop(now + 0.5);
+                } else if (type === 'wrong') {
+                    // Buzz sound (Sawtooth, low pitch)
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'complete') {
+                    // Victory chord
+                    [400, 500, 600].forEach((freq, i) => {
+                        const o = ctx.createOscillator();
+                        const g = ctx.createGain();
+                        o.connect(g);
+                        g.connect(ctx.destination);
+                        o.type = 'triangle';
+                        o.frequency.value = freq;
+                        g.gain.setValueAtTime(0.1, now);
+                        g.gain.exponentialRampToValueAtTime(0.01, now + 1);
+                        o.start(now + i * 0.1);
+                        o.stop(now + 1.5);
+                    });
+                }
+            } catch (e) {
+                console.warn("Audio context failed", e);
+            }
+        };
+
+        // --- Icons ---
+        const Zap = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
+        const Home = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+        const Refresh = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>;
+        const ArrowRight = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>;
+        const ArrowLeft = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>;
+        const Check = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="20 6 9 17 4 12"/></svg>;
+        const XIcon = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+        const Fire = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none" {...props}><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-5-6.33-5-6.33S1 10.62 1 12a2.5 2.5 0 002.5 2.5 2.5 2.5 0 002.5-2.5 2.5 2.5 0 002.5 2.5z" transform="scale(1.5) translate(2,2)"/><path d="M15.58 7.37a5.55 5.55 0 00-1.66-2.61c-.55 2.12-2 3.69-2 3.69s1 5.34-3.13 8.36c4.69 2.15 9.21-1.77 9.21-5.71 0-1.92-1.34-3.52-2.42-3.73z"/></svg>;
+
+        // --- Helpers for Grammar/Capitalization ---
+        const cap = (str) => {
+            if (!str) return '';
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        };
+
+        const formatSubject = (sub) => {
+            if (sub === 'I') return 'I';
+            return sub.toLowerCase();
+        };
+
+        // --- Data: Verbs & Tenses ---
+        const categories = {
+            'Sports': {
+                color: 'bg-indigo-100 text-indigo-900 border-indigo-200',
+                btnColor: 'bg-indigo-500 hover:bg-indigo-600',
+                verbs: [
+                    { emoji: '⚽', base: 'play soccer', past: 'played soccer', pp: 'played soccer', cont: 'playing soccer', s: 'plays soccer' },
+                    { emoji: '🏀', base: 'play basketball', past: 'played basketball', pp: 'played basketball', cont: 'playing basketball', s: 'plays basketball' },
+                    { emoji: '🎾', base: 'play tennis', past: 'played tennis', pp: 'played tennis', cont: 'playing tennis', s: 'plays tennis' },
+                    { emoji: '🏊', base: 'swim', past: 'swam', pp: 'swum', cont: 'swimming', s: 'swims' },
+                    { emoji: '🏃', base: 'run', past: 'ran', pp: 'run', cont: 'running', s: 'runs' },
+                    { emoji: '🚲', base: 'ride a bike', past: 'rode a bike', pp: 'ridden a bike', cont: 'riding a bike', s: 'rides a bike' },
+                    { emoji: '🧘', base: 'do yoga', past: 'did yoga', pp: 'done yoga', cont: 'doing yoga', s: 'does yoga' },
+                    { emoji: '🛹', base: 'skateboard', past: 'skateboarded', pp: 'skateboarded', cont: 'skateboarding', s: 'skateboards' }
+                ]
+            },
+            'Creative': {
+                color: 'bg-fuchsia-100 text-fuchsia-900 border-fuchsia-200',
+                btnColor: 'bg-fuchsia-500 hover:bg-fuchsia-600',
+                verbs: [
+                    { emoji: '🎨', base: 'paint', past: 'painted', pp: 'painted', cont: 'painting', s: 'paints' },
+                    { emoji: '🎸', base: 'play guitar', past: 'played guitar', pp: 'played guitar', cont: 'playing guitar', s: 'plays guitar' },
+                    { emoji: '🎹', base: 'play piano', past: 'played piano', pp: 'played piano', cont: 'playing piano', s: 'plays piano' },
+                    { emoji: '🎤', base: 'sing', past: 'sang', pp: 'sung', cont: 'singing', s: 'sings' },
+                    { emoji: '📸', base: 'take photos', past: 'took photos', pp: 'taken photos', cont: 'taking photos', s: 'takes photos' },
+                    { emoji: '💃', base: 'dance', past: 'danced', pp: 'danced', cont: 'dancing', s: 'dances' },
+                    { emoji: '🎮', base: 'play games', past: 'played games', pp: 'played games', cont: 'playing games', s: 'plays games' },
+                    { emoji: '✍️', base: 'write', past: 'wrote', pp: 'written', cont: 'writing', s: 'writes' }
+                ]
+            },
+            'Daily Life': {
+                color: 'bg-emerald-100 text-emerald-900 border-emerald-200',
+                btnColor: 'bg-emerald-500 hover:bg-emerald-600',
+                verbs: [
+                    { emoji: '🍳', base: 'cook', past: 'cooked', pp: 'cooked', cont: 'cooking', s: 'cooks' },
+                    { emoji: '📚', base: 'study', past: 'studied', pp: 'studied', cont: 'studying', s: 'studies' },
+                    { emoji: '🧹', base: 'clean', past: 'cleaned', pp: 'cleaned', cont: 'cleaning', s: 'cleans' },
+                    { emoji: '😴', base: 'sleep', past: 'slept', pp: 'slept', cont: 'sleeping', s: 'sleeps' },
+                    { emoji: '🚿', base: 'take a shower', past: 'took a shower', pp: 'taken a shower', cont: 'taking a shower', s: 'takes a shower' },
+                    { emoji: '🍽️', base: 'eat', past: 'ate', pp: 'eaten', cont: 'eating', s: 'eats' },
+                    { emoji: '🥤', base: 'drink', past: 'drank', pp: 'drunk', cont: 'drinking', s: 'drinks' },
+                    { emoji: '🛒', base: 'shop', past: 'shopped', pp: 'shopped', cont: 'shopping', s: 'shops' }
+                ]
+            }
+        };
+
+        const subjects = [
+            { pronoun: 'I', be: 'am', bePast: 'was', do: 'do', have: 'have', type: 'first' },
+            { pronoun: 'You', be: 'are', bePast: 'were', do: 'do', have: 'have', type: 'plural' },
+            { pronoun: 'He', be: 'is', bePast: 'was', do: 'does', have: 'has', type: 'third' },
+            { pronoun: 'She', be: 'is', bePast: 'was', do: 'does', have: 'has', type: 'third' },
+            { pronoun: 'We', be: 'are', bePast: 'were', do: 'do', have: 'have', type: 'plural' },
+            { pronoun: 'They', be: 'are', bePast: 'were', do: 'do', have: 'have', type: 'plural' }
+        ];
+
+        // --- Logic for Sentence Construction (+, -, ?) ---
+        const modes = {
+            'habit': {
+                title: 'Habits',
+                subtitle: 'Routine',
+                desc: 'Present Simple',
+                color: 'bg-sky-100 text-sky-800 border-sky-300',
+                construct: (verb, subject, marker, form = 'pos') => {
+                    const isMid = marker.type === 'mid';
+                    const markerText = marker.text;
+                    const v = subject.type === 'third' ? verb.s : verb.base;
+
+                    if (form === 'neg') {
+                        const aux = subject.do === 'does' ? "doesn't" : "don't";
+                        if (isMid) {
+                            return { text: `${subject.pronoun} ${aux} ${markerText} ${verb.base}.`, audio: `${subject.pronoun} ${aux} ${markerText} ${verb.base}.` };
+                        } else {
+                            return { text: `${subject.pronoun} ${aux} ${verb.base} ${markerText}.`, audio: `${subject.pronoun} ${aux} ${verb.base} ${markerText}.` };
+                        }
+                    }
+                    if (form === 'que') {
+                        if (isMid) {
+                             const question = `${cap(subject.do)} ${formatSubject(subject.pronoun)} ${markerText} ${verb.base}?`;
+                             return { text: question, audio: question };
+                        } else {
+                             const question = `${cap(subject.do)} ${formatSubject(subject.pronoun)} ${verb.base} ${markerText}?`;
+                             return { text: question, audio: question };
+                        }
+                    }
+                    if (isMid) {
+                         return { text: `${subject.pronoun} ${markerText} ${v}.`, audio: `${subject.pronoun} ${markerText} ${v}.` };
+                    } else {
+                         return { text: `${subject.pronoun} ${v} ${markerText}.`, audio: `${subject.pronoun} ${v} ${markerText}.` };
+                    }
+                }
+            },
+            'now': {
+                title: 'Right Now',
+                subtitle: 'Action',
+                desc: 'Present Continuous',
+                color: 'bg-rose-100 text-rose-800 border-rose-300',
+                construct: (verb, subject, marker, form = 'pos') => {
+                    const markerText = marker.text; 
+                    if (form === 'neg') {
+                        return { text: `${subject.pronoun} ${subject.be} not ${verb.cont} ${markerText}.`, audio: `${subject.pronoun} ${subject.be} not ${verb.cont} ${markerText}.` };
+                    }
+                    if (form === 'que') {
+                        const question = `${cap(subject.be)} ${formatSubject(subject.pronoun)} ${verb.cont} ${markerText}?`;
+                        return { text: question, audio: question };
+                    }
+                    return { text: `${subject.pronoun} ${subject.be} ${verb.cont} ${markerText}.`, audio: `${subject.pronoun} ${subject.be} ${verb.cont} ${markerText}.` };
+                }
+            },
+            'past': {
+                title: 'Yesterday',
+                subtitle: 'History',
+                desc: 'Past Simple',
+                color: 'bg-amber-100 text-amber-800 border-amber-300',
+                construct: (verb, subject, marker, form = 'pos') => {
+                    const markerText = marker.text; 
+                    if (form === 'neg') {
+                        return { text: `${subject.pronoun} didn't ${verb.base} ${markerText}.`, audio: `${subject.pronoun} didn't ${verb.base} ${markerText}.` };
+                    }
+                    if (form === 'que') {
+                        const question = `Did ${formatSubject(subject.pronoun)} ${verb.base} ${markerText}?`;
+                        return { text: question, audio: question };
+                    }
+                    return { text: `${subject.pronoun} ${verb.past} ${markerText}.`, audio: `${subject.pronoun} ${verb.past} ${markerText}.` };
+                }
+            },
+            'future': {
+                title: 'Future',
+                subtitle: 'Plans',
+                desc: 'Going to',
+                color: 'bg-violet-100 text-violet-800 border-violet-300',
+                construct: (verb, subject, marker, form = 'pos') => {
+                    const markerText = marker.text;
+                    if (form === 'neg') {
+                        return { text: `${subject.pronoun} ${subject.be} not going to ${verb.base} ${markerText}.`, audio: `${subject.pronoun} ${subject.be} not going to ${verb.base} ${markerText}.` };
+                    }
+                    if (form === 'que') {
+                        const question = `${cap(subject.be)} ${formatSubject(subject.pronoun)} going to ${verb.base} ${markerText}?`;
+                        return { text: question, audio: question };
+                    }
+                    return { text: `${subject.pronoun} ${subject.be} going to ${verb.base} ${markerText}.`, audio: `${subject.pronoun} ${subject.be} going to ${verb.base} ${markerText}.` };
+                }
+            },
+            'perfect': {
+                title: 'Experience',
+                subtitle: 'Life',
+                desc: 'Present Perfect',
+                color: 'bg-teal-100 text-teal-800 border-teal-300',
+                construct: (verb, subject, marker, form = 'pos') => {
+                     if (form === 'neg') {
+                        return { text: `${subject.pronoun} ${subject.have} never ${verb.pp}.`, audio: `${subject.pronoun} ${subject.have} never ${verb.pp}.` };
+                    }
+                    if (form === 'que') {
+                         const question = `${cap(subject.have)} ${formatSubject(subject.pronoun)} ever ${verb.pp}?`;
+                        return { text: question, audio: question };
+                    }
+                    return { text: `${subject.pronoun} ${subject.have} ${verb.pp} before.`, audio: `${subject.pronoun} ${subject.have} ${verb.pp} before.` };
+                }
+            }
+        };
+
+        // --- SUB-VIEWS ---
+
+        // 1. Practice Mode (Drill + Toggle)
+        const PracticeView = ({ items, mode, speak, onScore, onStreak }) => {
+            const [formState, setFormState] = useState({}); // { 0: 'pos', 1: 'neg' ... }
+
+            const toggleForm = (idx, form, e) => {
+                e.stopPropagation();
+                setFormState(prev => ({...prev, [idx]: form}));
+                playSound('correct'); // Minor feedback on toggle
+            };
+
+            return (
+                <div className="grid gap-6 animate-slide-up w-full max-w-2xl">
+                    {items.map((item, idx) => {
+                        const form = formState[idx] || 'pos';
+                        const content = modes[mode].construct(item.verb, item.subject, item.marker, form);
+                        
+                        return (
+                            <div key={idx} className="bg-white rounded-3xl border-4 border-slate-100 shadow-sm overflow-hidden group hover:border-blue-200 transition-colors">
+                                <div className="p-4 flex flex-col md:flex-row items-center gap-4">
+                                    <div className="bg-slate-50 p-4 rounded-2xl flex flex-col items-center min-w-[100px] border border-slate-100">
+                                        <span className="text-5xl transform group-hover:scale-110 transition-transform">{item.verb.emoji}</span>
+                                        <span className="font-bold text-slate-500 mt-2">{item.subject.pronoun}</span>
+                                    </div>
+                                    <div className="flex-grow w-full flex flex-col items-center md:items-start gap-3">
+                                        <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
+                                            {['pos', 'neg', 'que'].map(f => (
+                                                <button 
+                                                    key={f}
+                                                    onClick={(e) => { toggleForm(idx, f, e); speak(modes[mode].construct(item.verb, item.subject, item.marker, f).audio); }}
+                                                    className={`px-3 py-1 rounded-md text-sm font-bold transition-all ${form === f ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400 hover:text-slate-600'}`}
+                                                >
+                                                    {f === 'pos' ? '+' : f === 'neg' ? '-' : '?'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <p className="text-xl md:text-2xl font-bold text-slate-800 text-center md:text-left cursor-pointer hover:text-blue-600" onClick={() => speak(content.audio)}>
+                                            {content.text}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        };
+
+        // 2. Quiz View (Multiple Choice)
+        const QuizView = ({ items, mode, speak, onScore, onStreak }) => {
+            const [answered, setAnswered] = useState({}); // { idx: 'correct' | 'wrong' }
+
+            const handleAnswer = (idx, isCorrect, correctText) => {
+                if (answered[idx]) return;
+                
+                if (isCorrect) {
+                    onScore(10);
+                    onStreak(true);
+                    setAnswered(prev => ({...prev, [idx]: 'correct'}));
+                    speak("Correct! " + correctText);
+                    playSound('correct');
+                } else {
+                    onStreak(false);
+                    setAnswered(prev => ({...prev, [idx]: 'wrong'}));
+                    speak("Try again.");
+                    playSound('wrong');
+                    setTimeout(() => setAnswered(prev => {
+                         const copy = {...prev};
+                         delete copy[idx];
+                         return copy;
+                    }), 1000);
+                }
+            };
+
+            const generateOptions = (item) => {
+                const correct = modes[mode].construct(item.verb, item.subject, item.marker, 'pos').text;
+                let distractors = [];
+                const mText = item.marker ? item.marker.text : '';
+
+                if (mode === 'habit') {
+                    const wrongV = item.subject.type === 'third' ? item.verb.base : item.verb.s; 
+                    if (item.marker.type === 'mid') {
+                         distractors.push(`${item.subject.pronoun} ${mText} ${wrongV}.`);
+                    } else {
+                         distractors.push(`${item.subject.pronoun} ${wrongV} ${mText}.`);
+                    }
+                    distractors.push(`${item.subject.pronoun} ${item.verb.cont} ${mText}.`);
+                } else if (mode === 'now') {
+                    distractors.push(`${item.subject.pronoun} ${item.verb.cont} ${mText}.`);
+                    distractors.push(`${item.subject.pronoun} ${item.subject.be} ${item.verb.base} ${mText}.`);
+                } else if (mode === 'past') {
+                    distractors.push(`${item.subject.pronoun} ${item.verb.base} ${mText}.`);
+                    distractors.push(`${item.subject.pronoun} ${item.subject.be} ${item.verb.past} ${mText}.`);
+                } else if (mode === 'future') {
+                     distractors.push(`${item.subject.pronoun} going to ${item.verb.base} ${mText}.`);
+                     distractors.push(`${item.subject.pronoun} will going to ${item.verb.base} ${mText}.`);
+                } else if (mode === 'perfect') {
+                     const wrongAux = item.subject.have === 'has' ? 'have' : 'has';
+                     distractors.push(`${item.subject.pronoun} ${wrongAux} ${item.verb.pp} before.`);
+                     distractors.push(`${item.subject.pronoun} ${item.subject.have} ${item.verb.base} before.`);
+                }
+                
+                if (distractors.length < 2) {
+                    distractors.push(`${item.subject.pronoun} ${item.verb.base}.`);
+                    distractors.push(`${item.subject.pronoun} is ${item.verb.base}.`);
+                }
+
+                return [
+                    { text: correct, correct: true },
+                    { text: distractors[0], correct: false },
+                    { text: distractors[1], correct: false }
+                ].sort(() => 0.5 - Math.random());
+            };
+
+            return (
+                <div className="grid gap-6 animate-slide-up w-full max-w-2xl">
+                    {items.map((item, idx) => {
+                        const status = answered[idx];
+                        const options = useMemo(() => generateOptions(item), [item]);
+
+                        return (
+                            <div key={idx} className={`bg-white rounded-3xl border-4 p-6 shadow-sm transition-all ${status === 'correct' ? 'border-green-400 bg-green-50' : status === 'wrong' ? 'border-red-400 animate-shake' : 'border-slate-100'}`}>
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-4xl">{item.verb.emoji}</span>
+                                        <span className="text-xl font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg">{item.subject.pronoun}</span>
+                                    </div>
+                                    <div className="grid gap-2 w-full">
+                                        {options.map((opt, oIdx) => (
+                                            <button
+                                                key={oIdx}
+                                                onClick={() => handleAnswer(idx, opt.correct, opt.text)}
+                                                disabled={status === 'correct'}
+                                                className={`
+                                                    w-full p-3 rounded-xl font-bold text-left transition-all border-2
+                                                    ${status === 'correct' && opt.correct ? 'bg-green-500 text-white border-green-600' : ''}
+                                                    ${status !== 'correct' ? 'hover:bg-slate-50 border-slate-100 hover:border-blue-200' : ''}
+                                                `}
+                                            >
+                                                {opt.text}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            );
+        };
+
+        // 3. Scramble View (Word Order)
+        const ScrambleView = ({ items, mode, speak, onScore, onStreak, onExit }) => {
+            const [currentIdx, setCurrentIdx] = useState(0);
+            const [builtSentence, setBuiltSentence] = useState([]);
+            const [availableWords, setAvailableWords] = useState([]);
+            const [isCorrect, setIsCorrect] = useState(null);
+            const [isFinished, setIsFinished] = useState(false);
+
+            const currentItem = items[currentIdx];
+            const targetSentence = currentItem ? modes[mode].construct(currentItem.verb, currentItem.subject, currentItem.marker, 'pos').text : "";
+
+            useEffect(() => {
+                if (currentItem) {
+                    const words = targetSentence.replace(/[.?!]/g, '').split(' ');
+                    setAvailableWords(words.map((w, i) => ({ id: i, text: w })).sort(() => 0.5 - Math.random()));
+                    setBuiltSentence([]);
+                    setIsCorrect(null);
+                }
+            }, [currentItem, targetSentence]);
+
+            const handleWordClick = (word) => {
+                setBuiltSentence([...builtSentence, word]);
+                setAvailableWords(availableWords.filter(w => w.id !== word.id));
+                playSound('correct'); // Subtle click sound
+            };
+
+            const handleRemoveWord = (word) => {
+                setAvailableWords([...availableWords, word]);
+                setBuiltSentence(builtSentence.filter(w => w.id !== word.id));
+            };
+
+            const check = () => {
+                const userStr = builtSentence.map(w => w.text).join(' ');
+                const targetClean = targetSentence.replace(/[.?!]/g, '');
+                
+                if (userStr === targetClean) {
+                    setIsCorrect(true);
+                    onStreak(true);
+                    speak("Great job! " + targetSentence);
+                    onScore(15);
+                    playSound('correct');
+                } else {
+                    setIsCorrect(false);
+                    onStreak(false);
+                    speak("Not quite.");
+                    playSound('wrong');
+                    setTimeout(() => {
+                        setIsCorrect(null);
+                        setAvailableWords([...availableWords, ...builtSentence]);
+                        setBuiltSentence([]);
+                    }, 1000);
+                }
+            };
+
+            const next = () => {
+                if (currentIdx < items.length - 1) {
+                    setCurrentIdx(p => p + 1);
+                } else {
+                    setIsFinished(true);
+                    playSound('complete');
+                }
+            };
+
+            if (isFinished) {
+                return (
+                    <div className="w-full max-w-xl animate-pop flex flex-col items-center gap-6 p-6">
+                        <div className="bg-white rounded-3xl border-4 border-yellow-300 p-8 flex flex-col items-center gap-6 shadow-lg text-center w-full">
+                            <div className="text-6xl">🏆</div>
+                            <h2 className="text-3xl font-bold text-slate-800">Level Complete!</h2>
+                            <p className="text-slate-500">You unscrambled all the sentences.</p>
+                            <button onClick={onExit} className="w-full bg-blue-500 text-white font-bold py-3 rounded-xl shadow-lg border-b-4 border-blue-700 active:border-b-0 active:translate-y-1">
+                                Play Again
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (!currentItem) return null;
+
+            return (
+                <div className="w-full max-w-xl animate-slide-up flex flex-col gap-6">
+                    <div className={`bg-white rounded-3xl border-4 p-6 flex flex-col items-center gap-6 min-h-[300px] shadow-sm relative overflow-hidden transition-colors ${isCorrect === false ? 'border-red-300 animate-shake' : 'border-slate-100'}`}>
+                        
+                        {isCorrect && <div className="absolute inset-0 bg-green-100/90 z-10 flex items-center justify-center animate-pop">
+                            <Check className="w-24 h-24 text-green-600" />
+                        </div>}
+
+                        <div className="flex gap-4 items-center">
+                            <span className="text-6xl">{currentItem.verb.emoji}</span>
+                            <span className="bg-slate-100 px-3 py-1 rounded-lg font-bold text-slate-500">{currentItem.subject.pronoun}</span>
+                        </div>
+
+                        <div className="w-full bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl min-h-[80px] flex flex-wrap items-center justify-center p-2 gap-2">
+                            {builtSentence.map(w => (
+                                <button key={w.id} onClick={() => handleRemoveWord(w)} className="bg-white border-2 border-blue-200 text-blue-800 px-3 py-1 rounded-lg font-bold shadow-sm animate-pop">
+                                    {w.text}
+                                </button>
+                            ))}
+                            {builtSentence.length === 0 && <span className="text-slate-300 font-bold">Tap words below</span>}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 justify-center">
+                            {availableWords.map(w => (
+                                <button key={w.id} onClick={() => handleWordClick(w)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border-b-4 border-slate-300 active:border-b-0 active:translate-y-1 px-4 py-2 rounded-xl font-bold transition-all">
+                                    {w.text}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="mt-auto flex w-full gap-2">
+                             {isCorrect ? (
+                                 <button onClick={next} className="w-full bg-green-500 text-white font-bold py-3 rounded-xl shadow-lg border-b-4 border-green-700 active:border-b-0 active:translate-y-1">Next Sentence</button>
+                             ) : (
+                                <button onClick={check} disabled={availableWords.length > 0} className="w-full bg-blue-500 disabled:bg-slate-300 text-white font-bold py-3 rounded-xl shadow-lg border-b-4 border-blue-700 active:border-b-0 active:translate-y-1">Check Answer</button>
+                             )}
+                        </div>
+                    </div>
+                    <div className="text-center text-slate-400 font-bold">
+                        {currentIdx + 1} / {items.length}
+                    </div>
+                </div>
+            );
+        }
+
+
+        // --- MAIN APP ---
+        const MainApp = () => {
+            const [view, setView] = useState('home');
+            const [activeCategory, setActiveCategory] = useState(null);
+            const [activeMode, setActiveMode] = useState(null);
+            const [activeActivity, setActiveActivity] = useState(null);
+            
+            const [score, setScore] = useState(() => parseInt(safeStorage.getItem('actionStarScore') || '0'));
+            const [streak, setStreak] = useState(0); // New Streak State
+            const [voices, setVoices] = useState([]);
+            
+            const [items, setItems] = useState([]);
+
+            useEffect(() => { safeStorage.setItem('actionStarScore', score); }, [score]);
+
+            useEffect(() => {
+                const load = () => {
+                    const vs = window.speechSynthesis.getVoices();
+                    if (vs.length) setVoices(vs);
+                };
+                load();
+                window.speechSynthesis.onvoiceschanged = load;
+            }, []);
+
+            const speak = useCallback((text) => {
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(text);
+                
+                const preferred = voices.find(v => v.name.includes('Microsoft English Multilingual')) ||
+                                  voices.find(v => v.name.includes('Microsoft Ryan')) ||
+                                  voices.find(v => v.name.includes('Google US English')) || 
+                                  voices.find(v => v.lang === 'en-US');
+                                  
+                if (preferred) u.voice = preferred;
+                u.rate = 0.85; 
+                window.speechSynthesis.speak(u);
+            }, [voices]);
+
+            const generateItems = (catKey, modeKey) => {
+                const catData = categories[catKey];
+                const pool = [...catData.verbs].sort(() => 0.5 - Math.random());
+                
+                const markers = {
+                    'habit': [
+                        { text: 'every day', type: 'end' },
+                        { text: 'on weekends', type: 'end' },
+                        { text: 'once a week', type: 'end' },
+                        { text: 'always', type: 'mid' },
+                        { text: 'usually', type: 'mid' },
+                        { text: 'often', type: 'mid' }
+                    ],
+                    'now': [
+                        { text: 'now', type: 'end' },
+                        { text: 'right now', type: 'end' },
+                        { text: 'at the moment', type: 'end' },
+                        { text: 'currently', type: 'end' }
+                    ],
+                    'past': [
+                        { text: 'yesterday', type: 'end' },
+                        { text: 'last night', type: 'end' },
+                        { text: 'last week', type: 'end' },
+                        { text: 'two days ago', type: 'end' }
+                    ],
+                    'future': [
+                        { text: 'tomorrow', type: 'end' },
+                        { text: 'next week', type: 'end' },
+                        { text: 'later', type: 'end' },
+                        { text: 'tonight', type: 'end' }
+                    ],
+                    'perfect': [
+                        { text: 'before', type: 'end' },
+                        { text: 'many times', type: 'end' },
+                        { text: 'once', type: 'end' }
+                    ]
+                };
+
+                const modeMarkers = markers[modeKey] || [{ text: '', type: 'end' }];
+
+                return pool.map(v => ({
+                    verb: v,
+                    subject: subjects[Math.floor(Math.random() * subjects.length)],
+                    marker: modeMarkers[Math.floor(Math.random() * modeMarkers.length)]
+                }));
+            };
+
+            const navigateToActivitySelect = (modeKey) => {
+                setActiveMode(modeKey);
+                setView('activity_select');
+            };
+
+            const startGame = (activityType) => {
+                setActiveActivity(activityType);
+                setItems(generateItems(activeCategory, activeMode));
+                setStreak(0); // Reset streak on new game start? Or keep global? Let's reset for new session focus.
+                setView('active_game');
+            };
+
+            const handleStreak = (isCorrect) => {
+                if (isCorrect) setStreak(s => s + 1);
+                else setStreak(0);
+            };
+
+            // RENDERERS
+            
+            // 1. HOME
+            if (view === 'home') {
+                return (
+                    <div className="min-h-screen bg-slate-50 flex flex-col items-center p-6">
+                         <div className="w-full max-w-md flex justify-between items-center mb-8">
+                            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">Action Star</h1>
+                            <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-full shadow-sm border border-slate-200">
+                                <Zap className="w-5 h-5 text-yellow-500 fill-current" />
+                                <span className="font-bold text-slate-700">{score}</span>
+                            </div>
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-800 mb-6 text-center">Choose a Topic</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl animate-slide-up">
+                            {Object.entries(categories).map(([key, data]) => (
+                                <button key={key} onClick={() => { setActiveCategory(key); setView('category'); }} 
+                                    className={`${data.btnColor} h-40 rounded-3xl shadow-lg border-b-8 border-black/20 flex flex-col items-center justify-center gap-2 text-white transform hover:scale-[1.02] active:scale-[0.98] transition-all`}>
+                                    <span className="text-6xl drop-shadow-md">{data.verbs[0].emoji}</span>
+                                    <span className="text-2xl font-bold tracking-wide">{key}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            // 2. TENSE SELECT
+            if (view === 'category') {
+                return (
+                    <div className="min-h-screen bg-slate-50 flex flex-col items-center p-6">
+                        <div className="w-full max-w-4xl mb-6 flex items-center justify-between">
+                            <button onClick={() => setView('home')} className="p-2 bg-white rounded-full shadow-sm border border-slate-200 text-slate-500 hover:bg-slate-100"><Home /></button>
+                            <h2 className={`text-2xl font-bold px-6 py-2 rounded-2xl ${categories[activeCategory].color} border-b-4 border-black/10`}>{activeCategory}</h2>
+                            <div className="w-10"></div>
+                        </div>
+                        <h2 className="text-xl font-bold text-slate-400 mb-6">Select a Time</h2>
+                        <div className="w-full max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4 animate-slide-up">
+                            {Object.entries(modes).map(([key, mode]) => (
+                                <button key={key} onClick={() => navigateToActivitySelect(key)} className={`${mode.color} p-6 rounded-3xl border-b-4 border-black/10 flex flex-col items-center justify-center gap-1 hover:brightness-95 active:scale-[0.98] transition-all shadow-sm`}>
+                                    <span className="text-xl font-bold">{mode.title}</span>
+                                    <span className="text-sm opacity-75 font-semibold">{mode.desc}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            // 3. ACTIVITY SELECT
+            if (view === 'activity_select') {
+                return (
+                     <div className="min-h-screen bg-slate-50 flex flex-col items-center p-6">
+                        <div className="w-full max-w-4xl mb-6 flex items-center justify-between">
+                            <button onClick={() => setView('category')} className="p-2 bg-white rounded-full shadow-sm border border-slate-200 text-slate-500 hover:bg-slate-100"><ArrowLeft /></button>
+                             <div className="flex flex-col items-center">
+                                <span className="text-xs font-bold text-slate-400 uppercase">{activeCategory}</span>
+                                <span className={`px-3 py-0.5 rounded-lg text-sm font-bold ${modes[activeMode].color}`}>{modes[activeMode].title}</span>
+                            </div>
+                            <div className="w-10"></div>
+                        </div>
+                        
+                        <h2 className="text-xl font-bold text-slate-400 mb-6">Choose an Activity</h2>
+                        
+                        <div className="w-full max-w-md flex flex-col gap-4 animate-slide-up">
+                            <button onClick={() => startGame('drill')} className="bg-white p-6 rounded-3xl border-b-4 border-slate-200 shadow-sm flex items-center gap-4 hover:bg-blue-50 hover:border-blue-200 transition-all group">
+                                <div className="bg-blue-100 p-3 rounded-2xl text-blue-600"><Zap /></div>
+                                <div className="text-left">
+                                    <div className="font-bold text-xl text-slate-800 group-hover:text-blue-600">Practice</div>
+                                    <div className="text-slate-400 text-sm">Learn with + / - / ? toggles</div>
+                                </div>
+                            </button>
+
+                            <button onClick={() => startGame('quiz')} className="bg-white p-6 rounded-3xl border-b-4 border-slate-200 shadow-sm flex items-center gap-4 hover:bg-green-50 hover:border-green-200 transition-all group">
+                                <div className="bg-green-100 p-3 rounded-2xl text-green-600"><Check /></div>
+                                <div className="text-left">
+                                    <div className="font-bold text-xl text-slate-800 group-hover:text-green-600">Quiz Mode</div>
+                                    <div className="text-slate-400 text-sm">Multiple choice challenge</div>
+                                </div>
+                            </button>
+
+                            <button onClick={() => startGame('scramble')} className="bg-white p-6 rounded-3xl border-b-4 border-slate-200 shadow-sm flex items-center gap-4 hover:bg-orange-50 hover:border-orange-200 transition-all group">
+                                <div className="bg-orange-100 p-3 rounded-2xl text-orange-600"><Refresh /></div>
+                                <div className="text-left">
+                                    <div className="font-bold text-xl text-slate-800 group-hover:text-orange-600">Word Scramble</div>
+                                    <div className="text-slate-400 text-sm">Fix the sentence order</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            // 4. ACTIVE GAME
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4 md:p-6 pb-24">
+                     <div className="w-full max-w-3xl flex items-center justify-between mb-6 bg-white p-3 rounded-2xl shadow-sm border border-slate-100 sticky top-2 z-20">
+                        <button onClick={() => setView('activity_select')} className="p-2 hover:bg-slate-100 rounded-xl transition-colors"><ArrowLeft className="text-slate-500" /></button>
+                        
+                        <div className="flex flex-col items-center">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{activeActivity === 'drill' ? 'Practice' : activeActivity === 'quiz' ? 'Quiz' : 'Scramble'}</span>
+                            <span className={`px-3 py-0.5 rounded-lg text-sm font-bold ${modes[activeMode].color}`}>
+                                {modes[activeMode].desc}
+                            </span>
+                        </div>
+
+                        {/* Streak Display */}
+                        <div className="flex items-center gap-4">
+                            {streak > 1 && (
+                                <div className="flex items-center gap-1 bg-orange-50 px-2 py-1 rounded-lg border border-orange-200 animate-pop">
+                                    <Fire className="text-orange-500" />
+                                    <span className="font-bold text-orange-600">{streak}</span>
+                                </div>
+                            )}
+                            <button onClick={() => setItems(generateItems(activeCategory, activeMode))} className="p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400">
+                                <Refresh />
+                            </button>
+                        </div>
+                    </div>
+
+                    {activeActivity === 'drill' && <PracticeView items={items} mode={activeMode} speak={speak} onScore={(n) => setScore(s => s+n)} onStreak={handleStreak} />}
+                    {activeActivity === 'quiz' && <QuizView items={items} mode={activeMode} speak={speak} onScore={(n) => setScore(s => s+n)} onStreak={handleStreak} />}
+                    {activeActivity === 'scramble' && <ScrambleView items={items} mode={activeMode} speak={speak} onScore={(n) => setScore(s => s+n)} onStreak={handleStreak} onExit={() => setView('activity_select')} />}
+
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MainApp />);
+    </script>
+</body>
+</html>
