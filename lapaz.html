@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Life Above the Clouds – Exploring La Paz, Bolivia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        @keyframes andeanSky {
+            0% { background-color: #3b82f6; } /* blue-500 */
+            25% { background-color: #7c3aed; } /* violet-600 */
+            50% { background-color: #ea580c; } /* orange-600 */
+            75% { background-color: #7c3aed; } /* violet-600 */
+            100% { background-color: #3b82f6; } /* blue-500 */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+            animation: andeanSky 240s linear infinite;
+            padding-top: 85px; /* Adjusted padding for progress bar */
+        }
+        #background-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+        }
+        .page { display: none; position: relative; }
+        .page.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .action-button, .nav-button, .quiz-option, .tfng-button, .word-bank-word, .btn-animated-3d {
+            transition: all 0.15s ease-out;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -2px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+            border: none;
+        }
+        .action-button:hover, .nav-button:hover, .quiz-option:hover:not(:disabled), .tfng-button:hover:not(:disabled), .word-bank-word:hover, .btn-animated-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px -3px rgba(0,0,0,0.2), 0 4px 6px -4px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+        }
+        .action-button:active, .nav-button:active, .quiz-option:active, .tfng-button:active, .btn-animated-3d:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px -1px rgba(0,0,0,0.2), 0 1px 2px -2px rgba(0,0,0,0.1), inset 0 -2px 0 0 rgba(0,0,0,0.2);
+        }
+        
+        /* Gap Fill Styles */
+        .gap-fill-container .gap {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 120px; height: 44px; padding: 0 4px;
+            border: 2px dashed #9ca3af; border-radius: 8px; margin: 0 4px;
+            vertical-align: middle; background-color: #f3f4f6;
+        }
+        .word-bank-word {
+            cursor: grab; padding: 8px 16px; border-radius: 8px;
+            background-color: white; user-select: none;
+        }
+        .word-bank-word.selected { outline: 2px solid #6366f1; transform: scale(1.05); }
+        .gap .word-bank-word { cursor: pointer; }
+        .gap.correct .word-bank-word { background-color: #dcfce7; border-color: #22c55e; color: #15803d; }
+        .gap.incorrect .word-bank-word { background-color: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+        /* Feedback Message & Badge Notification */
+        .feedback-toast, .badge-toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border-radius: 9999px; color: white;
+            font-weight: bold; z-index: 200;
+            animation: slideUpFadeIn 0.5s ease-out, slideDownFadeOut 0.5s ease-in 3.5s forwards;
+        }
+        .feedback-toast.correct { background-color: #22c55e; }
+        .feedback-toast.encouraging { background-color: #f59e0b; }
+        .badge-toast { background: linear-gradient(45deg, #fde047, #f97316); }
+        @keyframes slideUpFadeIn { from { opacity: 0; bottom: 0; } to { opacity: 1; bottom: 20px; } }
+        @keyframes slideDownFadeOut { from { opacity: 1; bottom: 20px; } to { opacity: 0; bottom: 0; } }
+
+        /* Certificate Canvas */
+        #completion-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        
+        /* Progress Bar */
+        #progress-container { background-color: #e5e7eb; border-radius: 9999px; overflow: hidden; height: 8px; width: 100%; margin-top: 8px; }
+        #progress-bar { height: 100%; width: 0%; background-color: #8b5cf6; transition: width 0.5s ease-out; }
+        
+        /* Vocab Game Timer */
+        #vocab-game-timer-bar { height: 6px; background-color: #8b5cf6; transition: width 0.1s linear; }
+        
+        /* Shake Animation for incorrect answers */
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .shake { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .explanation-text {
+            margin-top: 12px;
+            padding: 10px;
+            background-color: #f3f4f6;
+            border-left: 4px solid #f59e0b;
+            font-size: 0.9em;
+            color: #4b5563;
+            border-radius: 4px;
+        }
+
+        /* Print Styles */
+        @media print {
+            body * { visibility: hidden; }
+            #certificate-to-print, #certificate-to-print * { visibility: visible; }
+            #certificate-to-print { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+    <canvas id="background-canvas"></canvas>
+    <div id="reward-animation-container" class="fixed top-0 left-0 w-full h-full pointer-events-none z-[60]"></div>
+
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 p-2" style="display: none;">
+        <div class="max-w-md mx-auto bg-white/90 backdrop-blur-sm shadow-lg rounded-full p-2">
+            <div class="flex justify-center items-center gap-2">
+                <button onclick="goBack()" class="nav-button bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <div class="font-bold text-base text-violet-600 px-3 whitespace-nowrap">Points 🚠: <span id="score-display">0</span></div>
+                <button onclick="navigateTo('main-menu')" class="nav-button bg-gray-800 text-white font-bold p-2 rounded-full hover:bg-gray-900">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                </button>
+                <button onclick="toggleTTS(this)" class="nav-button p-2 rounded-full hover:bg-gray-200" title="Toggle Sound">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"></path></svg>
+                </button>
+                <button onclick="goNext()" class="nav-button bg-violet-600 hover:bg-violet-700 text-white font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+        <section id="page-title-screen" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 id="main-title" class="text-5xl md:text-6xl font-bold text-slate-800 mb-4"></h1>
+                <p id="main-subtitle" class="text-xl md:text-2xl text-gray-600 mb-8"></p>
+                <div id="main-svg-container" class="rounded-lg mb-8 w-full max-w-lg mx-auto"></div>
+                <button onclick="startApp()" class="action-button bg-violet-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-violet-700">START LESSON</button>
+            </div>
+        </section>
+        <div id="dynamic-pages-container"></div>
+    </div>
+    
+    <script>
+        // ===================================================================================
+        // --- LESSON CONTENT CONFIGURATION (LA PAZ, BOLIVIA) ---
+        // ===================================================================================
+        const lessonData = {
+            title: "Life Above the Clouds",
+            subtitle: "Exploring La Paz, Bolivia <span aria-hidden='true'>🇧🇴🚠⛰️</span>",
+            startPageId: 'title-screen',
+            homePageId: 'main-menu',
+            mainMenu: [
+                { id: 'menu-tps', text: '0. Think-Pair-Share <span aria-hidden="true">🧠</span>', color: 'green', target: 'tps-start' },
+                { id: 'menu-goals', text: '1. Learning Goals <span aria-hidden="true">🎯</span>', color: 'teal', target: 'learning-goals' },
+                { id: 'menu-warmup', text: '2. Warm-Up & Vocab <span aria-hidden="true">📚</span>', color: 'sky', target: 'warm-up' },
+                { id: 'menu-vocab-game', text: 'Vocab Game <span aria-hidden="true">🎮</span>', color: 'sky', target: 'vocab-game'},
+                { id: 'menu-reading', text: '3. Reading & Comprehension <span aria-hidden="true">📖</span>', color: 'blue', target: 'reading-main' },
+                { id: 'menu-convo', text: '4. Conversation Practice <span aria-hidden="true">🗣️</span>', color: 'indigo', target: 'conversation-practice' },
+                { id: 'menu-lecture', text: '5. Listening: High-Altitude Life <span aria-hidden="true">🚠</span>', color: 'amber', target: 'lecture-pre' },
+                { id: 'menu-inquiry', text: '6. Inquiry Project: Mi Teleférico <span aria-hidden="true">🔍</span>', color: 'rose', target: 'inquiry-teleferico' },
+                { id: 'menu-thinking', text: '7. Thinking & Exam Prep <span aria-hidden="true">📝</span>', color: 'purple', target: 'thinking-prompts' },
+                { id: 'menu-final', text: '8. Final Project <span aria-hidden="true">✍️</span>', color: 'violet', target: 'final-project-hub' },
+            ],
+            vocabulary: [
+                { word: 'Altitude', def: 'Height above sea level.', sentence: 'The high altitude of La Paz can make breathing difficult for visitors.' },
+                { word: 'Andes', def: 'A long mountain range along the western coast of South America.', sentence: 'La Paz is nestled within the Andes mountains.' },
+                { word: 'Aymara', def: 'An Indigenous group native to the Andes region of Bolivia.', sentence: 'The Aymara culture is a vibrant part of life in La Paz.' },
+                { word: 'Teleférico', def: 'A cable car system used for public transport.', sentence: 'Mi Teleférico is the amazing cable car system that connects the city.' },
+                { word: 'Heritage', def: 'Traditions and culture passed down through generations.', sentence: 'The city celebrates its rich Indigenous heritage through festivals.' }
+            ],
+            pages: [
+                // 0. Think Pair Share
+                { id: 'tps-start', type: 'simple', content: { title: 'Activity: Think-Pair-Share <span aria-hidden="true">🧠</span>', text: 'Let\'s think about urban challenges.' } },
+                { id: 'tps-think', type: 'timer', content: { title: '1. Think <span aria-hidden="true">🤔</span>', text: 'Think about a challenge people in La Paz face due to its steep, mountainous geography. How does this impact daily travel?', duration: 120, timerId: 'timer-think' } },
+                { id: 'tps-pair', type: 'timer', content: { title: '2. Pair <span aria-hidden="true">👥</span>', text: 'With a partner, discuss how you might solve the transportation problem in a city built on steep hills. What kind of solutions would work best?', duration: 180, timerId: 'timer-pair' } },
+                { id: 'tps-share', type: 'timer', content: { title: '3. Share <span aria-hidden="true">🗣️</span>', text: 'Let\'s share our ideas. What does La Paz\'s cable car system teach us about creative solutions to geographical challenges?', duration: 300, timerId: 'timer-share' } },
+                
+                // 1. Learning Goals
+                { id: 'learning-goals', type: 'html-content', content: { title: 'Learning Goals <span aria-hidden="true">🎯</span>', html: `
+                                        <div class="text-left space-y-4">
+                                            <p><strong class="text-teal-600">Learning Intention:</strong> We are learning about La Paz to understand how people adapt to high-altitude environments and preserve cultural traditions in modern cities.</p>
+                                            <hr class="my-4">
+                                            <h3 class="text-2xl font-bold text-teal-600 mb-3">Success Criteria</h3>
+                                            <ul class="list-disc list-inside space-y-2 text-xl">
+                                                <li>I can describe La Paz’s location, <strong>altitude</strong>, and cultural features.</li>
+                                                <li>I can explain how geography influences transportation and daily life in La Paz.</li>
+                                                <li>I can compare life in La Paz with my hometown, using specific examples.</li>
+                                            </ul>
+                                        </div>` } },
+                
+                // 2. Warm-Up & Vocab
+                { id: 'warm-up', type: 'html-content', content: { title: 'Background-Building Questions <span aria-hidden="true">📚</span>', html: `
+                                        <ol class="list-decimal list-inside space-y-4 text-xl text-left">
+                                            <li>What is the highest place you’ve ever visited? How did the air feel? ⛰️</li>
+                                            <li>How does the geography of your hometown (e.g., flat, hilly, coastal) affect how you travel?</li>
+                                            <li>Why is it important to preserve the traditions and languages of <strong>Indigenous</strong> people?</li>
+                                            <li>Have you ever ridden a cable car? What was it like? 🚠</li>
+                                        </ol>` } },
+                { id: 'vocab-start', type: 'simple', content: { title: 'Unit Vocabulary <span aria-hidden="true">📚</span>', text: 'Let\'s learn the key terms for this unit. Click the "Next" arrow to cycle through the words.' } },
+                { id: 'vocab-game', type: 'vocab-game', content: { title: 'Vocabulary Review Game <span aria-hidden="true">🎮</span>'} },
+                
+                // 3. Reading & Comprehension
+                { id: 'reading-main', type: 'html-content', content: { title: 'Reading: La Paz – Bolivia’s Sky-High Capital <span aria-hidden="true">📖</span>', html: `
+                                        <div class="space-y-6 text-left">
+                                            <div class="bg-blue-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-blue-800">Location and Geography 🗺️</h4>
+                                                <p>La Paz is the administrative capital of Bolivia, located in a deep valley in the <strong>Andes</strong> Mountains. It is the highest capital city in the world, with an average <strong>altitude</strong> of over 3,600 meters.</p>
+                                            </div>
+                                            <div class="bg-sky-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-sky-800">Culture and People 🧍</h4>
+                                                <p>La Paz has a large <strong>Indigenous</strong> population, primarily of <strong>Aymara</strong> descent. Their rich cultural <strong>heritage</strong> is visible everywhere, from traditional clothing and vibrant markets to colorful festivals. Spanish and Aymara are both widely spoken.</p>
+                                            </div>
+                                            <div class="bg-green-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-green-800">Transportation and Innovation 🚠</h4>
+                                                <p>The city's steep terrain makes walking and driving difficult. To solve this, La Paz built Mi <strong>Teleférico</strong>, the world’s largest urban cable car system. It connects different neighborhoods across the valley, providing fast, safe, and scenic public transport.</p>
+                                            </div>
+                                             <div class="bg-yellow-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-yellow-800">Education and Community 🧑‍🏫</h4>
+                                                <p>Schools in La Paz often incorporate <strong>bilingual</strong> education in Spanish and Aymara. Students learn about their unique history, Indigenous traditions, and how to live and thrive in a high-<strong>altitude</strong> environment.</p>
+                                            </div>
+                                            <div class="bg-red-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-red-800">Festivals and Identity 🎭</h4>
+                                                <p>La Paz is known for its incredible festivals, like Gran Poder, which blends Catholic beliefs with <strong>Aymara</strong> traditions. These celebrations are filled with music, elaborate costumes, and dances that express the city's unique cultural pride and identity.</p>
+                                            </div>
+                                        </div>` } },
+                { id: 'reading-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Comprehension: Gap-Fill', sentences: [] } },
+                { id: 'reading-quiz-tfng', type: 'quiz-tfng', content: { title: 'Comprehension: True/False', questions: [] } },
+                { id: 'reading-quiz-mcq', type: 'quiz-mcq', content: { title: 'Comprehension: Multiple Choice', questions: [] } },
+                
+                // 4. Conversation Practice
+                { id: 'conversation-practice', type: 'dialogue', content: { title: 'Conversation Practice <span aria-hidden="true">🗣️</span>', dialogue: "A: Have you heard of La Paz in Bolivia?\n\nB: Yes! It’s the highest capital city in the world, right? ⛰️\n\nA: Exactly. It’s way up in the Andes Mountains.\n\nB: How do people even get around a city on steep mountains?\n\nA: They have an amazing cable car system called Mi Teleférico. It connects the whole city.\n\nB: That’s so cool! I’d love to ride one and see the city from above. 🚠" } },
+
+                // 5. Listening: High-Altitude Life
+                { id: 'lecture-pre', type: 'html-content', content: { title: 'Pre-Listening: High-Altitude Life <span aria-hidden="true">🚠</span>', html: `<div class="text-left space-y-4 text-xl"><p>Before listening to the lecture, consider these questions:</p><ol class="list-decimal list-inside pl-4 space-y-2"><li>How might living at a high altitude affect your body and daily activities?</li><li>What are the benefits of using cable cars for public transportation in a city?</li></ol></div>`}},
+                { id: 'lecture-main', type: 'dialogue', content: { title: 'Listening: High-Altitude Life', dialogue: "Professor: Good morning, class. Today, we're going to ascend to incredible heights, both literally and figuratively, as we explore a truly extraordinary city, La Paz, Bolivia, the world's highest administrative capital. Its geography alone is breathtaking and poses fascinating challenges. So to begin, what immediately strikes you about La Paz when you hear it's the highest capital city? What does that high altitude imply, Leo?\n\nLeo: Well, Dr. Reed, the air must be really uh, thin up there, right? Like it would be hard to breathe if you're not used to it. And maybe it feels uh, very different from other cities.\n\nProfessor: Absolutely, Leo. The altitude is astonishing, over 3,600 meters, about 11,900 feet, above sea level in the main city. Yes, the air is significantly thinner, which profoundly impacts everything from physical exertion to daily life. It certainly makes La Paz feel unlike many other cities. Sofia, considering this extreme topography, built in a steep valley or canyon that climbs onto the Altiplano plateau, what kind of challenges do you think this creates for transportation within the city?\n\nSofia: Oh, wow. I guess it would be, um, really hard to get around, like walking up and down those steep hills all the time. And maybe traffic is a nightmare? It sounds really difficult.\n\nProfessor: You've hit on a major point, Sofia. Navigating such steep terrain is indeed a monumental challenge for transportation. Traditional buses and cars struggle with the inclines, leading to congestion and long travel times. But La Paz has developed a truly ingenious solution to this problem. Leo, can you tell us about this innovative system? What is it and how does it work?\n\nLeo: Oh, you mean the uh, cable car system? Mi Teleférico? I've seen pictures. It looks amazing. It's uh, like different colored lines of cable cars going all over the city, up and down the hills. It's used for uh, getting around like a bus or a train, but in the air. It's the main way lots of people travel now, isn't it?\n\nProfessor: Precisely, Leo. Mi Teleférico is an absolute marvel of urban engineering and a vibrant symbol of modern La Paz. It's the world's longest and highest urban cable car network. It consists of multiple color-coded lines that crisscross the city, effortlessly carrying passengers up and down the incredibly steep slopes, connecting different neighborhoods and the city center with the sprawling El Alto plateau above. It's not just a tourist attraction; it's a vital mode of public transportation for hundreds of thousands of residents daily, dramatically cutting commute times and offering breathtaking views. Sofia, what do you think the creation and success of Mi Teleférico tells us about La Paz as a city and about the people who live there? It's a significant investment and a bold solution.\n\nSofia: Um, I think it shows they are really, um, innovative. Like they didn't just accept that getting around was hard, they found a really, um, creative and modern solution. And maybe it shows they are, like, determined to improve their city, even with these big geographical problems. It's really inspiring that they built something like that.\n\nProfessor: Innovative and determined are excellent words, Sofia. Mi Teleférico is a powerful testament to human ingenuity and the determination to overcome challenging environmental constraints through bold engineering and urban planning. It's transformed daily life for many in La Paz. Beyond the altitude and transportation, La Paz has a rich and complex culture, blending indigenous traditions with Spanish colonial influences. Leo, what aspects of La Paz's culture stand out to you from your research?\n\nLeo: I was really interested in the uh, Witches' Market. It sounds really unique and maybe a bit mysterious. And uh, seeing the Aymara women, the Cholitas, in their traditional clothes on the streets, that seems like a really visible part of the culture, keeping old traditions alive.\n\nProfessor: Those are indeed fascinating aspects, Leo. The Witches' Market, or El Mercado de las Brujas, is a vibrant example of the blend of indigenous beliefs and modern life, where traditional remedies and spiritual items are sold. And yes, the presence of Aymara women, or Cholitas, with their distinctive dress, is a powerful visual reminder of the strong indigenous heritage that remains central to the city's identity amidst modernization. Sofia, considering how La Paz is perched precariously in a canyon, how do you think the city's geography might have influenced its cultural development or the resilience of its people? It's a challenging environment to build and live in.\n\nSofia: That's an interesting thought. Maybe living in such a difficult place, with the thin air and the steep hills, makes people really, um, strong. Like, you have to be tough to live there. And maybe it creates a really strong sense of community because people have to rely on each other more? It seems like a place where people would be very resilient.\n\nProfessor: I think you're absolutely right, Sofia. The demanding environment likely fosters a strong sense of resilience, adaptability, and community interdependence among its residents. Living literally and figuratively on the edge can shape a unique perspective. La Paz is a city defined by these striking contrasts: ancient traditions alongside cutting-edge technology, breathtaking beauty alongside daily physical challenges. For our enduring understanding question today, reflecting on everything we've discussed about La Paz, its extreme altitude and challenging topography, the innovative Mi Teleférico system, its rich blend of indigenous and Spanish cultures, and the apparent resilience of its people, what fundamental virtues or values do you believe are most essential for a city and its population to not just survive, but to truly thrive and innovate in such an exceptionally challenging environment? What can we learn from La Paz about human adaptability, ingenuity, and the power of culture and community in the face of significant environmental and historical hurdles? Leo, what are your thoughts on those core values?\n\nLeo: I think uh, adaptability is definitely key, like learning to live with the altitude and finding new ways to get around. And ingenuity to build something like Mi Teleférico. And uh, maybe a strong connection to their culture to keep those traditions alive.\n\nSofia: Yes, and I'd add, um, resilience, of course, like just being tough and not giving up because it's hard. And community spirit, helping each other in such a difficult place. And, um, foresight, thinking about the future and building infrastructure like the cable cars.\n\nProfessor: Excellent and truly insightful points, both of you. Adaptability to extreme environmental conditions, remarkable ingenuity in developing innovative solutions, a deep and sustaining connection to cultural heritage, profound resilience in facing daily challenges, a strong spirit of community and mutual support, and indeed, foresight in planning for urban development. These virtues and values are clearly central to La Paz's ability to not just endure, but to flourish and innovate against the odds. La Paz powerfully teaches us about the extraordinary capacity of humans to adapt, to create, and to maintain their identity and sense of community in the face of significant geographical and historical challenges. Thank you both, Sofia and Leo, for your thoughtful contributions." }},
+                { id: 'lecture-quiz-mcq', type: 'quiz-mcq', content: { title: 'High-Altitude Life Quiz (MCQ)', questions: [] } },
+                { id: 'lecture-quiz-tfng', type: 'quiz-tfng', content: { title: 'High-Altitude Life Quiz (TFNG)', questions: [] } },
+                { id: 'lecture-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'High-Altitude Life Quiz (Gap Fill)', sentences: [] } },
+                
+                // 6. Inquiry Project
+                { 
+                    id: 'inquiry-teleferico', 
+                    type: 'html-content', 
+                    content: { 
+                        title: 'Inquiry Project: Mi Teleférico 🚠', 
+                        html: `
+                            <div class="text-left space-y-6">
+                                <h3 class="text-2xl font-bold text-rose-600">Your Task: Investigate Mi Teleférico</h3>
+                                <p class="text-lg">You are now an urban planning researcher. Your mission is to investigate La Paz's innovative cable car system, Mi Teleférico. Explore how this system has transformed the city and what it means for the future of urban transportation in mountainous regions.</p>
+                                
+                                <h4 class="text-xl font-bold text-rose-600 mt-4">Guiding Questions for Your Research:</h4>
+                                <ul class="list-disc list-inside space-y-3 text-lg bg-gray-50 p-4 rounded-lg">
+                                    <li><strong>How does the system work?</strong> Look into the technology, the different lines, and the scale of the network. How many people does it serve daily?</li>
+                                    <li><strong>What was the social impact?</strong> How has Mi Teleférico improved daily life for residents, especially those living in the steep hillsides of La Paz and El Alto? Think about travel time, safety, and connecting communities.</li>
+                                    <li><strong>What is the environmental impact?</strong> Compare the cable car system to traditional transport like buses and cars. Is it a more sustainable option? Why?</li>
+                                    <li><strong>What can other cities learn?</strong> How could La Paz's solution inspire other cities around the world that face similar geographical challenges?</li>
+                                </ul>
+
+                                <p class="text-lg mt-4">Use online resources, watch videos of the system in action, and gather your findings. Prepare to share what you've learned with the class!</p>
+                            </div>
+                        ` 
+                    } 
+                },
+
+                // 7. Thinking & Exam Prep
+                { id: 'thinking-prompts', type: 'html-content', content: { title: 'Thinking & Exam Prep <span aria-hidden="true">📝</span>', html: `
+                                        <div class="text-left space-y-8">
+                                            <div>
+                                                <h3 class="text-2xl font-bold text-purple-600 mb-3">Higher-Order Thinking Questions</h3>
+                                                <ul class="list-disc list-inside space-y-2 text-lg">
+                                                    <li><b>Analyze:</b> How does La Paz’s geography influence its architecture and transportation systems?</li>
+                                                    <li><b>Evaluate:</b> Is Mi Teleférico a good long-term solution for urban mobility in mountainous cities? What are its benefits and potential drawbacks?</li>
+                                                    <li><b>Create:</b> Imagine you are designing a public space in La Paz. How would you incorporate both modern design and traditional Aymara cultural elements?</li>
+                                                </ul>
+                                            </div>
+                                             <div>
+                                                <h3 class="text-2xl font-bold text-purple-600 mb-3">IELTS & TOEFL Practice</h3>
+                                                <p class="mb-2"><strong>IELTS Part 2:</strong> Describe a city with a unique or interesting transportation system.</p>
+                                                <p><strong>TOEFL Speaking:</strong> Explain how geography can affect the way people live in a particular city. Use specific examples.</p>
+                                            </div>
+                                        </div>` } },
+
+                // 8. Final Project
+                { id: 'final-project-hub', type: 'html-content', content: { title: 'Final Project Hub <span aria-hidden="true">✍️</span>', html: `
+                                        <div class="bg-white rounded-2xl shadow-xl p-8 text-left">
+                                        <h2 class="text-3xl font-bold text-violet-600 mb-4">GRASPS Task: A Tale of Two Elevations 🚠</h2>
+                                        <div class="space-y-3 text-lg">
+                                            <p><strong class="font-semibold text-violet-700">Goal:</strong> To create a multimedia presentation that compares and contrasts life in high-altitude La Paz with life in your own hometown.</p>
+                                            <p><strong class="font-semibold text-violet-700">Role:</strong> You are a cultural geographer presenting at a conference on urban adaptation.</p>
+                                            <p><strong class="font-semibold text-violet-700">Audience:</strong> Urban planners, geographers, and students interested in how cities adapt to their environments.</p>
+                                            <p><strong class="font-semibold text-violet-700">Situation:</strong> You need to explain how La Paz has uniquely adapted to its high-altitude environment and draw insightful comparisons to the geographical realities of your own hometown.</p>
+                                            <p><strong class="font-semibold text-violet-700">Product:</strong> A 5-slide multimedia presentation comparing 1) Geography & Climate, 2) Transportation Systems, and 3) Cultural Heritage between La Paz and your hometown.</p>
+                                            <p><strong class="font-semibold text-violet-700">Standards:</strong> Your presentation will be judged on its clear analysis, use of specific examples, and its ability to explain how geography shapes almost every aspect of urban life.</p>
+                                        </div>
+                                        </div>` } },
+                { id: 'writing-task', type: 'writing-task', content: { 
+                    title: 'Project Writing Activity <span aria-hidden="true">✍️</span>', 
+                    prompt: 'For your presentation script, write a paragraph (200-250 words) describing how Mi Teleférico represents both a practical solution and a symbol of modern La Paz. How does it address the city\'s geographical challenges while also reflecting the community\'s identity?', 
+                    starters: [
+                        "Navigating the steep streets of La Paz presents a unique challenge, which the city has met with...",
+                        "Mi Teleférico is more than just a transportation system; it symbolizes...",
+                        "Practically, the cable cars solve the problem of... by...",
+                        "Culturally, the system connects diverse neighborhoods and represents..."
+                    ],
+                    wordBank: ['altitude', 'Andes', 'Aymara', 'cable car', 'capital', 'community', 'culture', 'heritage', 'Indigenous', 'innovation', 'mountain', 'public', 'sustainability', 'Teleférico', 'transport']
+                } },
+                { id: 'self-assessment', type: 'html-content', content: { title: 'Self-Assessment <span aria-hidden="true">🧑‍🏫</span>', html: `
+                                        <div class="text-left">
+                                            <h3 class="text-2xl font-bold text-purple-600 mb-3">Metacognitive Self-Assessments</h3>
+                                            <ol class="list-decimal list-inside space-y-4 text-xl">
+                                                <li>What was the most innovative solution to a geographical problem that I learned about in this lesson?</li>
+                                                <li>How did learning about the blend of Indigenous and colonial cultures in La Paz change my understanding of what a "modern" city can be?</li>
+                                            </ol>
+                                        </div>` } },
+                { id: 'certificate', type: 'certificate', content: { title: 'Module Complete! <span aria-hidden="true">🎉</span>', text: 'You have successfully completed the "Life Above the Clouds" module.', certificateTitle: 'Certificate of High-Altitude Studies' } }
+            ]
+        };
+        // --- END OF LESSON CONTENT CONFIGURATION ---
+        // ===================================================================================
+
+        class SpeechService {
+             constructor() {
+                 this.synth = window.speechSynthesis;
+                 this.isInitialized = false;
+                 this.isTtsEnabled = true;
+                 this.voices = {};
+                 this.speechRate = 0.85;
+                 this.isDialoguePlaying = false;
+                 this.keepAliveInterval = null;
+             }
+
+             _startKeepAlive() {
+                if (this.keepAliveInterval) {
+                    clearInterval(this.keepAliveInterval);
+                }
+                this.keepAliveInterval = setInterval(() => {
+                    if (this.synth && !this.synth.speaking) {
+                        this.synth.pause();
+                        this.synth.resume();
+                    }
+                }, 12000); 
+            }
+    
+            _stopKeepAlive() {
+                if (this.keepAliveInterval) {
+                    clearInterval(this.keepAliveInterval);
+                    this.keepAliveInterval = null;
+                }
+            }
+             
+             async _setupVoices() {
+                 const voicesPromise = new Promise(resolve => { if (this.synth.getVoices().length) return resolve(this.synth.getVoices()); this.synth.onvoiceschanged = () => resolve(this.synth.getVoices()); });
+                 const availableVoices = await voicesPromise;
+                 if (!availableVoices.length) { console.warn("No speech synthesis voices available."); return; }
+                 const speakerToVoiceMap = {
+                    'a': ['Microsoft Emma Online (Natural) - English (United States)', 'Microsoft Ava Online (Natural) - English (United States)'],
+                    'b': ['Microsoft Brian Online (Natural) - English (United States)', 'Microsoft Andrew Online (Natural) - English (United States)'],
+                    'professor': ['Microsoft Brian Online (Natural) - English (United States)', 'Google US English'],
+                    'leo': ['Microsoft Andrew Online (Natural) - English (United States)', 'Google US English'],
+                    'sofia': ['Microsoft Ava Online (Natural) - English (United States)', 'Google US English'],
+                 };
+                 for (const speaker in speakerToVoiceMap) {
+                     const voicePriorityList = speakerToVoiceMap[speaker];
+                     let chosenVoice = null;
+                     for (const voiceName of voicePriorityList) {
+                         const foundVoice = availableVoices.find(v => v.name === voiceName);
+                         if (foundVoice) { chosenVoice = foundVoice; break; }
+                     }
+                     if (chosenVoice) { this.voices[speaker] = chosenVoice; } else { console.warn(`Could not find specified voices for speaker: "${speaker}"`); }
+                 }
+                 this.voices['default'] = availableVoices.find(v => v.name === 'Microsoft Ava Online (Natural) - English (United States)') || availableVoices.find(v => v.lang === 'en-US');
+             }
+
+             async init() {
+                 if (this.isInitialized) return;
+                 try {
+                     const warmUp = new SpeechSynthesisUtterance(' ');
+                     warmUp.volume = 0;
+                     this.synth.speak(warmUp);
+                     this.synth.cancel(); 
+                     await this._setupVoices();
+                     this.isInitialized = true;
+                     this._startKeepAlive();
+                 } catch (e) {
+                     console.error("Speech synthesis setup failed:", e);
+                 }
+             }
+             
+             _cleanTextForSpeech(text) { const tempDiv = document.createElement('div'); const textWithoutSpans = text.replace(/<span aria-hidden="true">.*?<\/span>/g, ' '); tempDiv.innerHTML = textWithoutSpans; let cleanText = tempDiv.textContent || tempDiv.innerText || ''; cleanText = cleanText.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, ''); return cleanText; }
+             
+             async speak(text, { onEndCallback = null, voiceKey = 'default' } = {}) { 
+                if (!this.isInitialized || !this.isTtsEnabled || !text) { 
+                    if (onEndCallback) onEndCallback(); 
+                    return; 
+                } 
+                if (this.synth.speaking) { 
+                    this.synth.cancel(); 
+                    await new Promise(resolve => setTimeout(resolve, 100)); 
+                } 
+                const cleanText = this._cleanTextForSpeech(text); 
+                if (!cleanText.trim()) { 
+                    if (onEndCallback) onEndCallback(); 
+                    return; 
+                } 
+                const utter = new SpeechSynthesisUtterance(cleanText); 
+                utter.voice = this.voices[voiceKey] || this.voices['default']; 
+                utter.rate = this.speechRate; 
+                utter.onend = () => {
+                    if (onEndCallback) onEndCallback();
+                };
+                utter.onerror = (e) => { 
+                    console.warn('SpeechSynthesisUtterance.onerror. Trying to recover.', e); 
+                    try { this.synth.cancel(); } catch (cancelError) { /* ignore */ }
+                    if (onEndCallback) {
+                        setTimeout(onEndCallback, 100);
+                    }
+                }; 
+                try { 
+                    this.synth.speak(utter); 
+                } catch (e) { 
+                    console.error("Error calling synth.speak:", e); 
+                    if (onEndCallback) onEndCallback(); 
+                } 
+            }
+            
+             async speakDialogue(text) { if (!this.isInitialized || !this.isTtsEnabled || !text || this.isDialoguePlaying) return; this.cancel(); this.isDialoguePlaying = true; const lines = text.split('\n').filter(line => line.trim() !== '' && line.includes(':')); const queue = lines.map(line => { const [speaker, ...parts] = line.split(':'); const dialogue = parts.join(':').trim(); const cleanDialogue = this._cleanTextForSpeech(dialogue); const voiceKey = speaker.toLowerCase().replace(/dr\. |professor /g, '').trim(); return { text: cleanDialogue, voiceKey: voiceKey }; }).filter(item => item.text); if (queue.length === 0) { this.isDialoguePlaying = false; return; } const playNext = () => { if (queue.length > 0 && this.isTtsEnabled) { const item = queue.shift(); const utter = new SpeechSynthesisUtterance(item.text); utter.voice = this.voices[item.voiceKey] || this.voices['default']; utter.rate = this.speechRate; utter.onend = playNext; utter.onerror = (e) => { console.warn('A speech synthesis error occurred, attempting to recover.', e.error); try { this.synth.cancel(); } catch (cancelError) { console.error("Error while cancelling synth:", cancelError); } setTimeout(playNext, 250); }; try { this.synth.speak(utter); } catch(e) { console.error("Error in synth.speak:", e); setTimeout(playNext, 250); } } else { this.isDialoguePlaying = false; } }; playNext(); }
+             
+             cancel() { if (this.synth) { this.isDialoguePlaying = false; this.synth.cancel(); } }
+             
+             toggleTTS(forceState) { this.isTtsEnabled = forceState === undefined ? !this.isTtsEnabled : forceState; if (!this.isTtsEnabled) { this.cancel(); } return this.isTtsEnabled; }
+        }
+
+        // --- Global App State and Functions ---
+        const speechService = new SpeechService();
+        let score = 0, currentPage = lessonData.startPageId, timerInterval;
+        const pageHistory = [lessonData.startPageId];
+        let pageSequence = [];
+        let completedSections = new Set();
+        let vocabGameTimer;
+        let selectedWord = { element: null, text: '' };
+
+        // --- Sound and Reward Effects ---
+        const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+        const noiseSynth = new Tone.NoiseSynth().toDestination();
+        
+        function playCorrectSound() {
+            if (!speechService.isTtsEnabled) return;
+            try {
+                const now = Tone.now();
+                synth.triggerAttackRelease(["C5", "E5", "G5"], "8n", now);
+            } catch(e) {
+                console.warn("Tone.js sound failed to play:", e);
+            }
+        }
+        
+        function playIncorrectSound() {
+            if (!speechService.isTtsEnabled) return;
+            try {
+                noiseSynth.triggerAttackRelease("4n");
+            } catch(e) {
+                console.warn("Tone.js sound failed to play:", e);
+            }
+        }
+
+        function triggerRewardAnimation() {
+            const container = document.getElementById('reward-animation-container');
+            if (!container) return;
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                const colors = ['#8b5cf6', '#d946ef', '#f97316', '#facc15'];
+                confetti.style.position = 'absolute';
+                confetti.style.left = `${Math.random() * 100}vw`;
+                confetti.style.top = `${Math.random() * -50 - 50}px`;
+                confetti.style.width = `${Math.random() * 10 + 5}px`;
+                confetti.style.height = confetti.style.width;
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.opacity = '1';
+                
+                container.appendChild(confetti);
+
+                const animation = confetti.animate([
+                    { transform: `translateY(0) rotate(0deg)`, opacity: 1 },
+                    { transform: `translateY(120vh) rotate(${Math.random() * 360}deg)`, opacity: 0 }
+                ], {
+                    duration: Math.random() * 3000 + 4000,
+                    easing: 'ease-out',
+                    iterations: 1
+                });
+
+                animation.onfinish = () => {
+                    confetti.remove();
+                };
+            }
+        }
+
+        // --- Progress and Completion Logic ---
+        const pageToMenuMap = {};
+        function buildPageToMenuMap() {
+            lessonData.mainMenu.forEach(menuItem => {
+                let queue = [menuItem.target];
+                let visited = new Set(queue);
+                while (queue.length > 0) {
+                    const pageId = queue.shift();
+                    pageToMenuMap[pageId] = menuItem.id;
+                    const pageDef = lessonData.pages.find(p => p.id === pageId);
+                    if (pageDef && pageDef.type.startsWith('quiz')) {
+                        const nextQuizPage = getNextQuizPage(pageId);
+                        if (nextQuizPage && !visited.has(nextQuizPage) && lessonData.pages.some(p => p.id === nextQuizPage)) {
+                            queue.push(nextQuizPage);
+                            visited.add(nextQuizPage);
+                        }
+                    }
+                }
+            });
+            // Manual mapping for vocab game
+            pageToMenuMap['vocab-game'] = 'menu-vocab-game';
+        }
+
+        function getNextQuizPage(pageId) {
+            const sequence = ['mcq','tfng', 'gap-fill'];
+            const parts = pageId.split('-quiz-');
+            if (parts.length < 2) return null;
+            const prefix = parts[0];
+            const type = parts[1];
+            const currentIndex = sequence.indexOf(type);
+            if (currentIndex > -1 && currentIndex < sequence.length - 1) {
+                return `${prefix}-quiz-${sequence[currentIndex + 1]}`;
+            }
+            return null;
+        }
+
+        function updateProgressBar() {
+            const progress = (completedSections.size / lessonData.mainMenu.length) * 100;
+            const bar = document.getElementById('progress-bar');
+            if (bar) bar.style.width = `${progress}%`;
+        }
+
+        function updateMenuCompletionState() {
+            const menuContainer = document.getElementById('page-main-menu');
+            if (!menuContainer) return;
+            lessonData.mainMenu.forEach(item => {
+                const button = menuContainer.querySelector(`#menu-btn-${item.id}`);
+                if (button && completedSections.has(item.id)) {
+                    if (!button.innerHTML.includes('✓')) {
+                        button.innerHTML += ' <span class="text-green-300">✓</span>';
+                    }
+                }
+            });
+        }
+
+        function markSectionAsComplete(pageId) {
+            const menuId = pageToMenuMap[pageId];
+            if (menuId && !completedSections.has(menuId)) {
+                completedSections.add(menuId);
+                updateProgressBar();
+            }
+        }
+        
+        function checkQuizPageCompletion(pageId) {
+            const pageElement = document.getElementById(`page-${pageId}`);
+            if (!pageElement) return false;
+
+            if (pageId.includes('gap-fill')) {
+                const gaps = pageElement.querySelectorAll('.gap');
+                return gaps.length > 0 && Array.from(gaps).every(g => g.classList.contains('correct'));
+            } else {
+                const questions = pageElement.querySelectorAll('.question-group');
+                return questions.length > 0 && Array.from(questions).every(q => q.querySelector('button:disabled'));
+            }
+        }
+
+
+        // --- App Navigation ---
+        window.toggleTTS = (button) => {
+            const isNowEnabled = speechService.toggleTTS();
+            const iconPath = isNowEnabled 
+                ? "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"
+                : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z M17 14l-4-4m0 4l4-4";
+            button.querySelector('svg').classList.toggle('text-gray-600', isNowEnabled);
+            button.querySelector('svg').classList.toggle('text-gray-400', !isNowEnabled);
+            button.querySelector('path').setAttribute('d', iconPath);
+
+            if (isNowEnabled) {
+                const pageData = lessonData.pages.find(p => p.id === currentPage);
+                const targetPage = document.getElementById(`page-${currentPage}`);
+                if (pageData && pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else if (targetPage) {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    if (readableContent) speechService.speak(readableContent.innerText);
+                    else if (titleElement) speechService.speak(titleElement.innerText);
+                }
+            }
+        };
+
+        window.startApp = async function() {
+            await speechService.init(); 
+            try { await Tone.start(); } catch (e) { console.error(e); }
+            navigateTo(lessonData.homePageId);
+        }
+        
+        function startTimer(duration, display, onComplete) {
+            let timer = duration;
+            const update = () => { display.textContent = `${String(Math.floor(timer/60)).padStart(2,'0')}:${String(timer%60).padStart(2,'0')}`; };
+            update();
+            timerInterval = setInterval(() => { timer--; update(); if (timer < 0) { clearInterval(timerInterval); if (onComplete) onComplete(); } }, 1000);
+        }
+
+        window.navigateTo = (pageId) => {
+            const previousPageId = currentPage;
+            
+            // Mark completion if leaving a quiz page and it's fully answered
+            if (previousPageId.includes('-quiz-')) {
+                if (checkQuizPageCompletion(previousPageId)) {
+                    markSectionAsComplete(previousPageId);
+                }
+            }
+            
+            const targetPage = document.getElementById(`page-${pageId}`);
+            if (!targetPage) return console.warn('navigateTo: no page found for id', pageId);
+            if (pageId === currentPage) return;
+            
+            clearInterval(timerInterval);
+            clearTimeout(vocabGameTimer);
+            speechService.cancel();
+
+            // Mark simple pages as complete on navigation
+            const previousPageDef = lessonData.pages.find(p => p.id === previousPageId);
+            if (previousPageDef && !previousPageDef.type.startsWith('quiz') && previousPageId !== 'vocab-game') {
+                 markSectionAsComplete(previousPageId);
+            }
+
+            document.getElementById(`page-${currentPage}`)?.classList.remove('active');
+            targetPage.classList.add('active');
+            currentPage = pageId;
+            if (pageHistory[pageHistory.length - 1] !== currentPage) pageHistory.push(currentPage);
+            
+            const pageData = lessonData.pages.find(p => p.id === pageId);
+            if (pageData) {
+                if (pageData.type === 'timer') {
+                    const timerEl = document.getElementById(pageData.content.timerId);
+                    if (timerEl) startTimer(pageData.content.duration, timerEl, goNext);
+                } else if (pageData.type === 'vocab-game') {
+                    startVocabGame();
+                }
+                
+                if (pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    let contentToSpeak = readableContent ? readableContent.innerText : (titleElement ? titleElement.innerText : '');
+                    let voice = 'default';
+                    if (pageId.startsWith('vocab-') || pageId === 'reading-main') {
+                       voice = 'oliver'; // Andrew voice
+                       if (pageId === 'reading-main') {
+                           contentToSpeak = Array.from(targetPage.querySelectorAll('h4, p')).map(el => el.innerText).join(' ');
+                       }
+                    }
+                    speechService.speak(contentToSpeak, { voiceKey: voice });
+                }
+            } else if (pageId === lessonData.homePageId) {
+                speechService.speak(targetPage.querySelector('h2').innerText);
+                updateMenuCompletionState();
+            }
+            updateNavButtons();
+            window.scrollTo(0, 0);
+        }
+
+        window.goNext = () => { const currentIndex = pageSequence.indexOf(currentPage); if (currentIndex > -1 && currentIndex < pageSequence.length - 1) navigateTo(pageSequence[currentIndex + 1]); }
+        window.goBack = () => { if (pageHistory.length > 1) { pageHistory.pop(); navigateTo(pageHistory.pop()); } }
+
+        function updateNavButtons() {
+            const nav = document.getElementById('nav-header');
+            if (!nav) return;
+            nav.style.display = (currentPage === lessonData.startPageId) ? 'none' : 'block';
+            const backBtn = nav.querySelector('button:first-child');
+            backBtn.disabled = pageHistory.length <= 1;
+            backBtn.classList.toggle('opacity-50', backBtn.disabled);
+            const nextBtn = nav.querySelector('button:last-child');
+            const currentIndex = pageSequence.indexOf(currentPage);
+            const isLast = currentIndex >= pageSequence.length - 1;
+            nextBtn.disabled = isLast || currentPage === lessonData.homePageId;
+            nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+        }
+        
+        function showFeedbackMessage(isCorrect) {
+            const correctFeedback = ["That's right!", "Excellent!", "Perfect!", "Great job!"];
+            const incorrectFeedback = ["Not quite.", "Keep trying!", "Almost there."];
+            const message = isCorrect ? correctFeedback[Math.floor(Math.random() * correctFeedback.length)] : incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.className = `feedback-toast ${isCorrect ? 'correct' : 'encouraging'}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function updateScore(points) { score += points; document.getElementById('score-display').textContent = score; }
+
+        function checkCompletionAndMark() {
+            if(checkQuizPageCompletion(currentPage)) {
+                markSectionAsComplete(currentPage);
+            }
+        }
+
+        window.checkTfngAnswer = function(clickedButton, chosenAnswer, correctAnswer) {
+            const buttonContainer = clickedButton.parentElement;
+            Array.from(buttonContainer.children).forEach(btn => btn.disabled = true);
+            const isCorrect = chosenAnswer === correctAnswer;
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                updateScore(10);
+                playCorrectSound();
+                triggerRewardAnimation();
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-green-500');
+            } else {
+                playIncorrectSound();
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-red-600');
+                const correctBtn = Array.from(buttonContainer.children).find(btn => btn.textContent === correctAnswer.charAt(0));
+                if (correctBtn) correctBtn.className = correctBtn.className.replace(/bg-\w+-500/, 'bg-green-500');
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+        
+        window.checkMcqAnswer = function(button, isCorrect) {
+            const questionGroup = button.closest('.question-group');
+            questionGroup.querySelectorAll('.quiz-option').forEach(opt => opt.disabled = true);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                updateScore(10);
+                playCorrectSound();
+                triggerRewardAnimation();
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+            } else {
+                playIncorrectSound();
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-red-500', 'border-red-600', 'text-white', 'shake');
+                const correctButton = questionGroup.querySelector(".quiz-option[data-correct='true']");
+                if (correctButton) {
+                    correctButton.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                    correctButton.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                }
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+
+        function initGapFill(pageId) {
+            const page = document.getElementById(pageId);
+            if (!page) return;
+            const gaps = page.querySelectorAll('.gap');
+            const words = page.querySelectorAll('.word-bank-word');
+            const wordBank = page.querySelector('.word-bank-container');
+
+            words.forEach(word => {
+                word.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', word.dataset.word); });
+                word.addEventListener('click', handleWordClick);
+            });
+            gaps.forEach(gap => {
+                gap.addEventListener('dragover', e => e.preventDefault());
+                gap.addEventListener('drop', e => handleDrop(e, gap));
+                gap.addEventListener('click', handleGapClick);
+            });
+
+            function handleWordClick(e) {
+                const clickedWord = e.currentTarget;
+                if (clickedWord.parentElement.classList.contains('gap')) { 
+                    wordBank.appendChild(clickedWord); 
+                    clickedWord.parentElement.classList.remove('correct', 'incorrect');
+                    return; 
+                }
+                if (selectedWord.element) selectedWord.element.classList.remove('selected');
+                if (selectedWord.element === clickedWord) { selectedWord = { element: null, text: '' }; } 
+                else { selectedWord = { element: clickedWord, text: clickedWord.dataset.word }; clickedWord.classList.add('selected'); }
+            }
+            function handleGapClick(e) {
+                const clickedGap = e.currentTarget;
+                if(clickedGap.children.length > 0) {
+                     wordBank.appendChild(clickedGap.children[0]);
+                     clickedGap.classList.remove('correct', 'incorrect');
+                }
+                if (!selectedWord.element) return;
+                clickedGap.appendChild(selectedWord.element);
+                checkGap(clickedGap);
+                selectedWord.element.classList.remove('selected');
+                selectedWord = { element: null, text: '' };
+            }
+            function handleDrop(e, gap) {
+                e.preventDefault();
+                if (gap.children.length > 0) return;
+                const wordText = e.dataTransfer.getData('text/plain');
+                const wordElement = page.querySelector(`.word-bank-word[data-word="${wordText}"]`);
+                if (wordElement) { gap.appendChild(wordElement); checkGap(gap); }
+            }
+            function checkGap(gap) {
+                const word = gap.querySelector('.word-bank-word');
+                const isCorrect = word && word.dataset.word.toLowerCase() === gap.dataset.answer.toLowerCase();
+                gap.classList.toggle('correct', isCorrect);
+                gap.classList.toggle('incorrect', !isCorrect);
+                if (isCorrect) { 
+                    updateScore(10); 
+                    playCorrectSound();
+                    triggerRewardAnimation();
+                    showFeedbackMessage(true); 
+                } else { 
+                    playIncorrectSound();
+                    showFeedbackMessage(false); 
+                }
+                setTimeout(checkCompletionAndMark, 100);
+            }
+        }
+
+        // --- Vocab Game Logic ---
+        let vocabGameQuestions = [];
+        let vocabGameCurrentIndex = 0;
+        let vocabGameScore = 0;
+        const ROUND_TIME = 10000; // 10 seconds
+
+        function startVocabGame() {
+            vocabGameQuestions = [...lessonData.vocabulary].sort(() => 0.5 - Math.random());
+            vocabGameCurrentIndex = 0;
+            vocabGameScore = 0;
+            document.getElementById('vocab-game-score').textContent = '0';
+            nextVocabGameRound();
+        }
+
+        function nextVocabGameRound() {
+            if (vocabGameCurrentIndex >= vocabGameQuestions.length) {
+                endVocabGame();
+                return;
+            }
+            
+            const question = vocabGameQuestions[vocabGameCurrentIndex];
+            document.getElementById('vocab-game-definition').textContent = question.def;
+            
+            const options = [question.word];
+            const wrongAnswers = lessonData.vocabulary.filter(v => v.word !== question.word);
+            while (options.length < 4 && wrongAnswers.length > 0) {
+                const randomWrong = wrongAnswers.splice(Math.floor(Math.random() * wrongAnswers.length), 1)[0];
+                options.push(randomWrong.word);
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.innerHTML = '';
+            options.sort(() => 0.5 - Math.random()).forEach(opt => {
+                const button = document.createElement('button');
+                button.className = 'quiz-option p-3 rounded-lg text-left bg-gray-100 hover:bg-gray-200 border border-gray-200';
+                button.textContent = opt;
+                button.onclick = () => checkVocabGameAnswer(button, opt === question.word);
+                optionsContainer.appendChild(button);
+            });
+
+            startRoundTimer();
+        }
+        
+        function startRoundTimer() {
+            clearTimeout(vocabGameTimer);
+            const timerBar = document.getElementById('vocab-game-timer-bar');
+            timerBar.style.transition = 'none';
+            timerBar.style.width = '100%';
+            
+            setTimeout(() => {
+                timerBar.style.transition = `width ${ROUND_TIME / 1000}s linear`;
+                timerBar.style.width = '0%';
+            }, 100);
+
+            vocabGameTimer = setTimeout(() => {
+                showFeedbackMessage(false);
+                playIncorrectSound();
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, ROUND_TIME);
+        }
+
+        function checkVocabGameAnswer(button, isCorrect) {
+            clearTimeout(vocabGameTimer);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                vocabGameScore++;
+                updateScore(5);
+                playCorrectSound();
+                triggerRewardAnimation();
+                document.getElementById('vocab-game-score').textContent = vocabGameScore;
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-green-500', 'text-white');
+            } else {
+                playIncorrectSound();
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-red-500', 'text-white', 'shake');
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.querySelectorAll('button').forEach(btn => btn.disabled = true);
+
+            setTimeout(() => {
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, 1500);
+        }
+
+        function endVocabGame() {
+            document.getElementById('vocab-game-definition').textContent = `Game Over! You scored ${vocabGameScore} out of ${vocabGameQuestions.length}.`;
+            document.getElementById('vocab-game-options').innerHTML = `<button onclick="startVocabGame()" class="action-button bg-blue-500 text-white font-bold p-3 rounded-lg">Play Again</button>`;
+            markSectionAsComplete('vocab-game');
+        }
+
+
+        function createPageElement(id, content) {
+            const section = document.createElement('section');
+            section.id = `page-${id}`;
+            section.className = 'page';
+            section.innerHTML = content;
+            document.getElementById('dynamic-pages-container').appendChild(section);
+        }
+        
+        function populateAllQuizzes() {
+            // Reading Quizzes
+            const readingGapFill = lessonData.pages.find(p => p.id === 'reading-quiz-gap-fill');
+             if(readingGapFill) readingGapFill.content.sentences = [
+                { text: ["La Paz is the highest", "city in the world."], answer: "capital" },
+                { text: ["The city is located in the", "Mountains."], answer: "Andes" },
+                { text: ["Many people in La Paz are", "."], answer: "Aymara" },
+                { text: ["The cable car system is called Mi", "."], answer: "Teleférico" },
+                { text: ["La Paz celebrates festivals like Gran", "."], answer: "Poder" }
+             ];
+            const readingTfng = lessonData.pages.find(p => p.id === 'reading-quiz-tfng');
+            if(readingTfng) readingTfng.content.questions = [ 
+                { statement: 'La Paz is in the Andes Mountains.', correctAnswer: 'True' },
+                { statement: 'Only Spanish is spoken in La Paz.', correctAnswer: 'False' },
+                { statement: 'Mi Teleférico is a subway system.', correctAnswer: 'False' },
+                { statement: 'La Paz celebrates Indigenous and Catholic traditions.', correctAnswer: 'True' },
+                { statement: 'The city is flat and easy to walk.', correctAnswer: 'False' }
+            ];
+            const readingMcq = lessonData.pages.find(p => p.id === 'reading-quiz-mcq');
+            if(readingMcq) readingMcq.content.questions = [ 
+                { question: 'What makes La Paz unique?', options: ['It is near the ocean', 'It is the highest capital city', 'It has no public transport', 'It is a desert city'], correctAnswer: 'It is the highest capital city' },
+                { question: 'What is Mi Teleférico?', options: ['A train', 'A bus', 'A cable car system', 'A plane'], correctAnswer: 'A cable car system' },
+                { question: 'Who are the Aymara?', options: ['Tourists', 'Indigenous people of Bolivia', 'Politicians', 'Athletes'], correctAnswer: 'Indigenous people of Bolivia' },
+                { question: 'What languages are spoken in La Paz?', options: ['French and German', 'Spanish and Aymara', 'English and Chinese', 'Portuguese and Quechua'], correctAnswer: 'Spanish and Aymara' },
+                { question: 'What is Gran Poder?', options: ['A mountain', 'A festival', 'A school', 'A food dish'], correctAnswer: 'A festival' }
+            ];
+
+            // Lecture Quizzes
+            const lectureMcq = lessonData.pages.find(p => p.id === 'lecture-quiz-mcq');
+            if(lectureMcq) lectureMcq.content.questions = [
+                { question: "What is the most immediate physical challenge of being at La Paz's altitude?", options: ["The cold temperatures", "The intense sunlight", "The thin air is hard to breathe", "The frequent rainfall"], correctAnswer: "The thin air is hard to breathe" },
+                { question: "What is the name of La Paz's innovative cable car system?", options: ["El Alto", "Mi Teleférico", "AndesConnect", "SkyTram"], correctAnswer: "Mi Teleférico" },
+                { question: "What is the name for the Aymara women known for their distinctive traditional dress?", options: ["Señoras", "Brujas", "Cholitas", "Paceñas"], correctAnswer: "Cholitas" },
+                { question: "What is El Mercado de las Brujas?", options: ["A modern shopping mall", "A historical museum", "The Witches' Market", "A famous restaurant"], correctAnswer: "The Witches' Market" },
+                { question: "What value does Sofia suggest is fostered by living in such a difficult environment?", options: ["Competition", "Individualism", "A strong sense of community", "A focus on technology"], correctAnswer: "A strong sense of community" }
+            ];
+            const lectureTfng = lessonData.pages.find(p => p.id === 'lecture-quiz-tfng');
+            if(lectureTfng) lectureTfng.content.questions = [
+                { statement: "La Paz is located at sea level.", correctAnswer: "False" },
+                { statement: "Mi Teleférico is described as only a tourist attraction.", correctAnswer: "False" },
+                { statement: "The Witches' Market is an example of the blend of indigenous beliefs and modern life.", correctAnswer: "True" },
+                { statement: "The professor suggests that the city's geography has little influence on its culture.", correctAnswer: "False" },
+                { statement: "Leo and Sofia agree that resilience and adaptability are important values for people in La Paz.", correctAnswer: "True" }
+            ];
+            const lectureGap = lessonData.pages.find(p => p.id === 'lecture-quiz-gap-fill');
+            if(lectureGap) lectureGap.content.sentences = [
+                { text: ["The city's high altitude profoundly impacts everything from physical exertion to", "life."], answer: "daily" },
+                { text: ["Mi Teleférico is a vibrant symbol of modern La Paz and a marvel of urban", "."], answer: "engineering" },
+                { text: ["The distinctive dress of the Aymara women is a powerful visual reminder of the city's strong indigenous", "."], answer: "heritage" },
+                { text: ["The demanding environment likely fosters a strong sense of", "and adaptability."], answer: "resilience" },
+                { text: ["The professor concludes that La Paz is defined by its striking", "."], answer: "contrasts" }
+            ];
+        }
+
+        function initializeLesson() {
+            document.getElementById('main-title').innerHTML = lessonData.title;
+            document.getElementById('main-subtitle').innerHTML = lessonData.subtitle;
+            document.getElementById('main-svg-container').innerHTML = `<svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="grad-andes" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#f97316;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <rect width="600" height="300" fill="url(#grad-andes)"/>
+                <path d="M 0 300 L 150 200 L 300 250 L 450 180 L 600 220 L 600 300 Z" fill="#ffffff" opacity="0.3"/>
+                <path d="M -50 300 L 100 150 L 250 300 Z" fill="#6d28d9" opacity="0.4"/>
+                <path d="M 350 300 L 450 150 L 550 300 Z" fill="#6d28d9" opacity="0.4"/>
+                <circle cx="300" cy="80" r="40" fill="#fef08a"/>
+                <text x="50%" y="80%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="48" fill="#f0fdf4" font-weight="bold">Above the Clouds</text>
+            </svg>`;
+
+            populateAllQuizzes();
+            buildPageToMenuMap();
+
+            const menuButtons = lessonData.mainMenu.map(item => {
+                const colors = { green: 'bg-green-500 border-green-700', blue: 'bg-blue-500 border-blue-700', sky: 'bg-sky-500 border-sky-700', amber: 'bg-amber-500 border-amber-700', rose: 'bg-rose-500 border-rose-700', violet: 'bg-violet-500 border-violet-700', teal: 'bg-teal-500 border-teal-700', orange: 'bg-orange-500 border-orange-700', indigo: 'bg-indigo-500 border-indigo-700', lime: 'bg-lime-500 border-lime-700', emerald: 'bg-emerald-500 border-emerald-700', red: 'bg-red-500 border-red-700', purple: 'bg-purple-500 border-purple-700' };
+                return `<button id="menu-btn-${item.id}" onclick="navigateTo('${item.target}')" class="btn-animated-3d ${colors[item.color] || colors['green']} text-white font-bold text-xl p-4 rounded-xl">${item.text}</button>`;
+            }).join('');
+            createPageElement(lessonData.homePageId, `<div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-slate-800 mb-8">Main Menu</h2><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${menuButtons}</div></div>`);
+            
+            const pageOrderMap = { 
+                'warm-up': ['vocab-start'], 
+                'vocab-start': lessonData.vocabulary.map((v, i) => `vocab-${i}`), 
+                'reading-main': ['reading-quiz-gap-fill', 'reading-quiz-tfng', 'reading-quiz-mcq'],
+                'lecture-pre': ['lecture-main', 'lecture-quiz-mcq', 'lecture-quiz-tfng', 'lecture-quiz-gap-fill'],
+                'inquiry-teleferico': ['thinking-prompts'],
+                'final-project-hub': ['writing-task', 'self-assessment', 'certificate'] 
+            };
+            let flatPageList = [lessonData.startPageId];
+            lessonData.mainMenu.forEach(item => {
+                let queue = [item.target];
+                let visited = new Set();
+                while(queue.length > 0) {
+                    let current = queue.shift();
+                    if (visited.has(current)) continue;
+                    visited.add(current);
+                    flatPageList.push(current);
+                    if (pageOrderMap[current]) {
+                        queue.push(...pageOrderMap[current]);
+                    }
+                }
+            });
+            pageSequence = [...new Set(flatPageList)];
+
+            lessonData.vocabulary.forEach((v, i) => {
+                createPageElement(`vocab-${i}`, `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h3 class="text-2xl font-bold text-sky-600 mb-2">Vocabulary ${i + 1} / ${lessonData.vocabulary.length}</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">${v.word}</h2><p class="text-2xl text-gray-600 mb-4">${v.def}</p><p class="text-xl text-gray-500 italic">"${v.sentence}"</p></div></div></div>`);
+            });
+
+            lessonData.pages.forEach(page => {
+                let pageHTML = '';
+                switch (page.type) {
+                    case 'simple': pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-gray-800 mb-6">${page.content.title}</h2><p class="text-xl text-gray-600 mb-8">${page.content.text}</p></div></div>`; break;
+                    case 'timer': pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-left pt-16"><div class="w-full flex justify-between items-center mb-4"><h2 class="text-2xl md:text-3xl font-bold text-blue-700">${page.content.title}</h2><div id="${page.content.timerId}" class="text-3xl md:text-4xl font-bold text-gray-700 ml-4"></div></div><div class="readable-content"><p class="text-lg md:text-xl text-gray-600 mt-8">${page.content.text}</p></div></div>`; break;
+                    case 'dialogue':
+                    case 'html-content':
+                        const contentHTML = page.type === 'html-content' ? page.content.html : (page.content.dialogue || '').split('\n').map(line => `<p class="mb-2">${line.replace(/([^:]+):/, '<strong class="font-semibold text-violet-700">$1:</strong>')}</p>`).join('');
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-slate-800 mb-6">${page.content.title}</h2><div class="readable-content text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg max-h-[70vh] overflow-y-auto">${contentHTML}</div></div>`;
+                        break;
+                    case 'vocab-game':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-sky-600 mb-4">${page.content.title}</h2><div class="text-center mb-4 text-lg">Score: <span id="vocab-game-score" class="font-bold">0</span></div><div class="w-full bg-gray-200 rounded-full h-2.5 mb-4"><div id="vocab-game-timer-bar" class="bg-blue-600 h-2.5 rounded-full"></div></div><div id="vocab-game-definition" class="text-center text-2xl font-semibold my-6 min-h-[6rem]"></div><div id="vocab-game-options" class="grid grid-cols-2 gap-4"></div></div>`;
+                        break;
+                    case 'writing-task':
+                        const startersHTML = page.content.starters.map(s => `<li class="text-gray-500">${s}</li>`).join('');
+                        const wordBankHTML = page.content.wordBank ? `<div class="mt-6"><h4 class="font-bold text-lg text-violet-600">Word Bank:</h4><div class="flex flex-wrap gap-2 mt-2 p-4 bg-gray-100 rounded-lg">${page.content.wordBank.map(w => `<span class="bg-white px-2 py-1 rounded-md shadow-sm text-gray-700">${w}</span>`).join('')}</div></div>` : '';
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-center text-violet-700 mb-6">${page.content.title}</h2><div class="text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="font-bold text-xl text-violet-600">Prompt:</h3><p>${page.content.prompt}</p><h3 class="font-bold text-xl text-violet-600 mt-4">Sentence Starters:</h3><ul class="list-disc list-inside ml-4">${startersHTML}</ul>${wordBankHTML}</div></div><div class="text-center mt-6"><button onclick="goNext()" class="action-button bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-xl hover:bg-blue-700">Continue</button></div></div>`;
+                        break;
+                    case 'certificate':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16 relative overflow-hidden"><canvas id="completion-canvas"></canvas><div class="relative z-10"><div class="readable-content"><h2 class="text-4xl font-bold text-amber-600 mb-4">${page.content.title}</h2><p class="text-xl text-gray-600 mb-6">${page.content.text}</p></div><div id="certificate-to-print" class="bg-violet-50 border-4 border-dashed border-violet-300 rounded-lg p-8 max-w-2xl mx-auto"><div class="flex justify-center mb-4"><span class="text-6xl"><span aria-hidden="true">🇧🇴</span></span></div><h3 class="text-3xl font-bold text-slate-800">${page.content.certificateTitle}</h3><p class="mt-4 text-lg">This certificate is awarded to</p><p id="certificate-name" class="text-2xl font-bold text-violet-600 my-2 border-b-2 border-gray-400 pb-2">[Enter Your Name Here]</p><p class="mt-4 text-lg">for successfully completing this lesson.</p><p class="mt-6 text-md"><strong>Final Score:</strong> <span id="certificate-score" class="font-bold"></span> points</p><p class="text-sm mt-1"><strong>Date of Completion:</strong> <span id="certificate-date"></span></p></div><div id="cert-controls" class="mt-6"><div id="cert-initial-controls"><input type="text" id="name-input-cert" placeholder="Enter your name for the certificate" class="text-center p-2 border rounded-lg w-full max-w-md"><button onclick="generateCertificate()" class="action-button bg-violet-600 text-white font-bold py-2 px-6 rounded-full hover:bg-violet-700">Generate Certificate</button></div><div id="cert-generated-controls" class="hidden mt-4 flex flex-wrap justify-center gap-4"><button onclick="downloadCertificateAsImage()" class="action-button bg-violet-600 text-white font-bold py-2 px-4 rounded-full text-sm">Download Image</button></div></div></div></div>`;
+                        break;
+                    case 'quiz-tfng':
+                    case 'quiz-mcq':
+                    case 'quiz-gap-fill':
+                        let questionsHTML = '';
+                        if (page.type === 'quiz-tfng' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group flex items-center gap-4 p-4 rounded-lg bg-gray-100"><div class="flex-shrink-0 flex gap-2">${['True', 'False', 'Not Given'].map(l => `<button onclick="checkTfngAnswer(this, '${l}', '${q.correctAnswer}')" class="tfng-button bg-${l==='True'?'blue':l==='False'?'red':'gray'}-500 text-white font-bold w-12 h-10 rounded-full">${l.charAt(0)}</button>`).join('')}</div><p>${i + 1}. ${q.statement}</p></div>`).join('');
+                        } else if (page.type === 'quiz-mcq' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group ${i > 0 ? 'border-t pt-6 mt-6' : ''}"><p class="font-semibold mb-2">${i + 1}. ${q.question}</p><div class="grid grid-cols-1 md:grid-cols-2 gap-2">${q.options.map(o => `<button onclick="checkMcqAnswer(this, '${o.replace(/'/g, "\\'")}' === '${q.correctAnswer.replace(/'/g, "\\'")}')" data-correct="${o === q.correctAnswer}" class="quiz-option p-3 rounded-lg text-left bg-gray-100 hover:bg-gray-200 border border-gray-200">${o}</button>`).join('')}</div></div>`).join('');
+                        } else if (page.type === 'quiz-gap-fill' && page.content.sentences) {
+                            const words = page.content.sentences.map(s => s.answer).sort(() => Math.random() - 0.5);
+                            questionsHTML = `<div class="gap-fill-container">${page.content.sentences.map((s, i) => `<p class="text-lg mb-4">${i + 1}. ${s.text[0]} <span class="gap" data-answer="${s.answer}"></span> ${s.text[1]}</p>`).join('')}</div><div class="word-bank-container mt-8 p-4 bg-gray-100 rounded-lg flex flex-wrap gap-4 justify-center">${words.map(w => `<div class="word-bank-word" draggable="true" data-word="${w}">${w}</div>`).join('')}</div>`;
+                        }
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-3xl font-bold text-rose-600 mb-6 text-center">${page.content.title}</h3><div class="space-y-6">${questionsHTML}</div></div>`;
+                        break;
+                }
+                if (pageHTML) {
+                    createPageElement(page.id, pageHTML);
+                    if (page.type === 'quiz-gap-fill') initGapFill(`page-${page.id}`);
+                }
+            });
+            updateNavButtons();
+        }
+
+        function generateCertificate() {
+            const name = document.getElementById('name-input-cert').value || 'Dedicated Student';
+            document.getElementById('certificate-name').textContent = name;
+            document.getElementById('certificate-score').textContent = score;
+            document.getElementById('certificate-date').textContent = new Date().toLocaleDateString();
+            document.getElementById('cert-initial-controls').classList.add('hidden');
+            document.getElementById('cert-generated-controls').classList.remove('hidden');
+
+            const canvas = document.getElementById('completion-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            let particles = [];
+            for (let i = 0; i < 50; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 5 + 2,
+                    color: ['#8b5cf6', '#d946ef', '#f97316', '#facc15'][Math.floor(Math.random() * 4)],
+                    speed: Math.random() * 2 + 1
+                });
+            }
+
+            function drawConfetti() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.y += p.speed;
+                    if (p.y > canvas.height) {
+                        p.y = -p.radius;
+                        p.x = Math.random() * canvas.width;
+                    }
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                });
+                requestAnimationFrame(drawConfetti);
+            }
+            drawConfetti();
+        }
+
+        function downloadCertificateAsImage() {
+            html2canvas(document.querySelector("#certificate-to-print")).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'LaPaz_Certificate.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        }
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeLesson();
+            const bgCanvas = document.getElementById('background-canvas');
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            let particles = [];
+            function animateBackground() {
+                bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+                particles.forEach((p, i) => {
+                    p.y -= p.speed;
+                    if (p.y < -p.radius) {
+                        particles.splice(i, 1);
+                    }
+                    bgCtx.globalAlpha = p.opacity;
+                    bgCtx.fillStyle = p.color;
+                    bgCtx.fillRect(p.x, p.y, p.radius, p.radius);
+                });
+                if (Math.random() > 0.9) {
+                    particles.push({ 
+                        x: Math.random() * bgCanvas.width, 
+                        y: bgCanvas.height + 20, 
+                        radius: Math.random() * 30 + 10, 
+                        speed: Math.random() * 0.5 + 0.2, 
+                        color: `rgba(255, 255, 255, ${Math.random() * 0.1 + 0.05})`,
+                        opacity: Math.random() * 0.1 + 0.05
+                    });
+                }
+                requestAnimationFrame(animateBackground);
+            }
+            window.addEventListener('resize', () => { bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; });
+            animateBackground();
+        });
+    </script>
+</body>
+</html>
+

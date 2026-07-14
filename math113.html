@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Math Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'Fredoka', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+
+        .input-glow:focus {
+            box-shadow: 0 0 15px rgba(118, 75, 162, 0.5);
+            border-color: #764ba2;
+        }
+
+        .animate-pop {
+            animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes pop {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .correct-flash {
+            animation: greenFlash 0.5s ease;
+        }
+
+        .wrong-flash {
+            animation: redFlash 0.5s ease;
+        }
+
+        @keyframes greenFlash {
+            0% { background-color: rgba(72, 187, 120, 0.2); }
+            100% { background-color: rgba(255, 255, 255, 0.95); }
+        }
+
+        @keyframes redFlash {
+            0% { background-color: rgba(245, 101, 101, 0.2); }
+            100% { background-color: rgba(255, 255, 255, 0.95); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+
+    <!-- Main Container -->
+    <div id="game-container" class="glass-panel w-full max-w-2xl p-8 relative overflow-hidden min-h-[500px] flex flex-col justify-center">
+        
+        <!-- Audio Control -->
+        <button onclick="toggleAudio()" id="audio-btn" class="absolute top-6 right-6 text-gray-400 hover:text-indigo-600 transition-colors z-10">
+            <i class="fas fa-volume-up text-2xl"></i>
+        </button>
+
+        <!-- START SCREEN -->
+        <div id="start-screen" class="text-center space-y-8 animate-pop">
+            <h1 class="text-5xl font-bold text-gray-800 mb-2">Word Math</h1>
+            <p class="text-xl text-gray-600">Convert words to numbers in your head, add them up, and type the answer in words!</p>
+            <p class="text-md text-indigo-600 font-bold">100 Questions • 60 Seconds Each</p>
+            
+            <div class="bg-blue-50 p-6 rounded-xl border-2 border-blue-100 max-w-md mx-auto">
+                <p class="text-lg font-semibold text-blue-800 mb-2">Example:</p>
+                <div class="flex items-center justify-center space-x-2 text-xl text-gray-700">
+                    <span>thirty-two</span>
+                    <i class="fas fa-plus text-blue-500 text-sm"></i>
+                    <span>twenty-five</span>
+                    <i class="fas fa-equals text-blue-500 text-sm"></i>
+                    <span class="font-bold text-green-600">fifty-seven</span>
+                </div>
+            </div>
+
+            <button onclick="startGame()" class="group relative inline-flex items-center justify-center px-8 py-4 text-lg font-bold text-white transition-all duration-200 bg-indigo-600 font-pj rounded-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-600 hover:bg-indigo-700 hover:scale-105 shadow-lg">
+                <i class="fas fa-play mr-2"></i> Start Challenge
+            </button>
+        </div>
+
+        <!-- GAME SCREEN -->
+        <div id="game-screen" class="hidden h-full flex flex-col justify-between">
+            <!-- Header: Timer, Question Count and Score -->
+            <div class="flex justify-between items-center mb-8 gap-2">
+                <div class="flex items-center space-x-2 md:space-x-3 bg-indigo-50 px-3 py-2 rounded-lg">
+                    <i class="fas fa-clock text-indigo-600 text-lg md:text-xl"></i>
+                    <span id="timer" class="text-xl md:text-2xl font-bold text-indigo-900">60</span>
+                </div>
+                 <div class="flex items-center space-x-2 md:space-x-3 bg-blue-50 px-3 py-2 rounded-lg">
+                    <i class="fas fa-list-ol text-blue-600 text-lg md:text-xl"></i>
+                    <span id="question-count" class="text-xl md:text-2xl font-bold text-blue-900">1/100</span>
+                </div>
+                <div class="flex items-center space-x-2 md:space-x-3 bg-green-50 px-3 py-2 rounded-lg">
+                    <i class="fas fa-star text-green-600 text-lg md:text-xl"></i>
+                    <span id="score" class="text-xl md:text-2xl font-bold text-green-900">0</span>
+                </div>
+            </div>
+
+            <!-- Problem Display -->
+            <div class="flex-grow flex flex-col items-center justify-center space-y-8">
+                <div class="text-center w-full">
+                    <div id="problem-text" class="text-3xl md:text-5xl font-bold text-gray-800 leading-tight mb-2 transition-all">
+                        loading...
+                    </div>
+                    <button onclick="speakCurrentProblem()" class="text-indigo-400 hover:text-indigo-600 text-sm font-medium uppercase tracking-wider flex items-center justify-center mx-auto gap-2">
+                        <i class="fas fa-volume-up"></i> Solve & Type in Words
+                    </button>
+                </div>
+
+                <div class="w-full max-w-md relative">
+                    <input type="text" id="answer-input" autocomplete="off" 
+                        class="w-full text-center text-2xl p-4 border-2 border-gray-300 rounded-xl outline-none input-glow transition-all text-gray-700 placeholder-gray-300"
+                        placeholder="Type answer here..." 
+                        onkeydown="handleEnter(event)">
+                    <button onclick="submitAnswer()" class="absolute right-2 top-2 bottom-2 bg-indigo-600 text-white px-6 rounded-lg hover:bg-indigo-700 transition-colors font-bold shadow-md">
+                        GO
+                    </button>
+                </div>
+                <p id="feedback" class="h-6 text-center font-bold transition-opacity duration-200 opacity-0">Correct!</p>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mt-8">
+                <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full transition-all duration-1000" style="width: 100%"></div>
+            </div>
+        </div>
+
+        <!-- GAME OVER SCREEN -->
+        <div id="end-screen" class="hidden text-center space-y-6 animate-pop">
+            <div id="medal-icon" class="text-6xl text-yellow-400 mb-4 drop-shadow-md">
+                <i class="fas fa-trophy"></i>
+            </div>
+            
+            <h2 class="text-4xl font-bold text-gray-800">Challenge Complete!</h2>
+            
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <p class="text-gray-600 mb-1">Final Score</p>
+                <p id="final-score" class="text-5xl font-bold text-indigo-600 mb-4">0</p>
+                
+                <div class="border-t border-gray-200 pt-4">
+                    <p class="text-sm text-gray-500 uppercase tracking-wide font-semibold">Award Earned</p>
+                    <p id="award-title" class="text-2xl font-bold text-purple-600 mt-1">Calculating...</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-4 justify-center mt-6">
+                <button onclick="resetGame()" class="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg flex items-center justify-center">
+                    <i class="fas fa-redo mr-2"></i> Play Again
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Audio Context & Synth ---
+        let audioCtx;
+        let isMuted = false;
+        
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (isMuted || !audioCtx) return;
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'correct') {
+                // High pleasant ding
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.exponentialRampToValueAtTime(1046.5, now + 0.1); // C6
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } else if (type === 'tick') {
+                // Soft woodblock tick
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(800, now);
+                gainNode.gain.setValueAtTime(0.05, now); // Quiet
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'tick-fast') {
+                // Urgent tick
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(800, now);
+                gainNode.gain.setValueAtTime(0.05, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'end') {
+                // Time up
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.5);
+                gainNode.gain.setValueAtTime(0.2, now);
+                gainNode.gain.linearRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            }
+        }
+
+        function toggleAudio() {
+            isMuted = !isMuted;
+            const btn = document.getElementById('audio-btn');
+            if (isMuted) {
+                btn.innerHTML = '<i class="fas fa-volume-mute text-2xl text-red-400"></i>';
+                window.speechSynthesis.cancel();
+            } else {
+                btn.innerHTML = '<i class="fas fa-volume-up text-2xl"></i>';
+                initAudio();
+            }
+        }
+
+        // --- TTS Logic ---
+        function speakText(text) {
+            if (isMuted) return;
+            
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            
+            // Personalization: Slow down speech
+            utterance.rate = 0.85; 
+            
+            // Try to find a good voice
+            const voices = window.speechSynthesis.getVoices();
+            // Preference: Microsoft > Natural > English
+            let preferredVoice = voices.find(v => v.name.includes("Microsoft") && v.name.includes("English")) ||
+                                 voices.find(v => v.name.includes("Natural") && v.lang.startsWith("en")) ||
+                                 voices.find(v => v.lang === "en-US") ||
+                                 voices.find(v => v.lang.startsWith("en"));
+            
+            if (preferredVoice) {
+                utterance.voice = preferredVoice;
+            }
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Load voices immediately (some browsers load async)
+        window.speechSynthesis.getVoices();
+
+        // --- Game State ---
+        let score = 0;
+        let timeLeft = 60;
+        let timerInterval;
+        let problems = [];
+        let currentProblemIndex = 0;
+        let isGameActive = false;
+        const TOTAL_QUESTIONS = 100;
+
+        // --- Number to Words Logic ---
+        const ONES = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+        const TEENS = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+        const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+        function numberToWords(num) {
+            if (num === 0) return 'zero';
+            if (num === 100) return 'one hundred';
+            
+            let words = '';
+            
+            if (num < 10) {
+                words = ONES[num];
+            } else if (num < 20) {
+                words = TEENS[num - 10];
+            } else {
+                const tensDigit = Math.floor(num / 10);
+                const onesDigit = num % 10;
+                words = TENS[tensDigit];
+                if (onesDigit > 0) {
+                    words += '-' + ONES[onesDigit];
+                }
+            }
+            return words;
+        }
+
+        // --- Problem Generation ---
+        function generateProblems() {
+            problems = [];
+            for (let i = 0; i < 100; i++) {
+                let num1 = Math.floor(Math.random() * 50); 
+                let num2 = Math.floor(Math.random() * 49) + 1; 
+                let sum = num1 + num2;
+                
+                problems.push({
+                    q: `${numberToWords(num1)} + ${numberToWords(num2)}`,
+                    a: numberToWords(sum),
+                    sumVal: sum
+                });
+            }
+        }
+
+        function normalize(str) {
+            return str.toLowerCase().replace(/[\s-]/g, '');
+        }
+
+        // --- Game Flow ---
+        function startGame() {
+            initAudio(); // User interaction required to start audio context
+            score = 0;
+            currentProblemIndex = 0;
+            isGameActive = true;
+            
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('end-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            
+            generateProblems();
+            showNextProblem();
+        }
+
+        function startTimerForQuestion() {
+            clearInterval(timerInterval);
+            timeLeft = 60; // Reset for each question
+            updateTimerUI();
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerUI();
+                
+                // Sound logic for timer
+                if (timeLeft <= 10 && timeLeft > 0) {
+                    playSound('tick-fast');
+                } else if (timeLeft > 0) {
+                    playSound('tick'); 
+                }
+
+                if (timeLeft <= 0) {
+                    handleQuestionTimeout();
+                }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            document.getElementById('timer').innerText = timeLeft;
+            const percentage = (timeLeft / 60) * 100;
+            document.getElementById('progress-bar').style.width = `${percentage}%`;
+            
+            if (timeLeft <= 10) {
+                document.getElementById('progress-bar').classList.remove('bg-indigo-600');
+                document.getElementById('progress-bar').classList.add('bg-red-500');
+                document.getElementById('timer').classList.add('text-red-600');
+            } else {
+                document.getElementById('progress-bar').classList.add('bg-indigo-600');
+                document.getElementById('progress-bar').classList.remove('bg-red-500');
+                document.getElementById('timer').classList.remove('text-red-600');
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('score').innerText = score;
+            document.getElementById('question-count').innerText = `${currentProblemIndex + 1}/${TOTAL_QUESTIONS}`;
+        }
+
+        function showNextProblem() {
+            if (currentProblemIndex >= TOTAL_QUESTIONS) {
+                endGame();
+                return;
+            }
+
+            if (currentProblemIndex >= problems.length) {
+                generateProblems();
+            }
+            
+            const p = problems[currentProblemIndex];
+            const pText = document.getElementById('problem-text');
+            
+            pText.style.opacity = 0;
+            setTimeout(() => {
+                pText.innerText = `${p.q} = ?`;
+                pText.style.opacity = 1;
+                // Speak the problem
+                speakText(p.q); 
+            }, 100);
+
+            document.getElementById('answer-input').value = '';
+            document.getElementById('answer-input').focus();
+            
+            updateUI();
+            startTimerForQuestion();
+        }
+
+        function speakCurrentProblem() {
+            if (problems[currentProblemIndex]) {
+                speakText(problems[currentProblemIndex].q);
+            }
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') {
+                submitAnswer();
+            }
+        }
+
+        function submitAnswer() {
+            if (!isGameActive) return;
+
+            const input = document.getElementById('answer-input').value.trim();
+            if (!input) return;
+
+            // Stop timer while feedback shows
+            clearInterval(timerInterval);
+
+            const currentProblem = problems[currentProblemIndex];
+            const cleanInput = normalize(input);
+            const cleanAnswer = normalize(currentProblem.a);
+            
+            const isDigitCorrect = input == currentProblem.sumVal;
+
+            const container = document.getElementById('game-container');
+            const feedback = document.getElementById('feedback');
+
+            if (cleanInput === cleanAnswer || isDigitCorrect) {
+                // Correct
+                score++;
+                playSound('correct'); 
+                container.classList.add('correct-flash');
+                setTimeout(() => container.classList.remove('correct-flash'), 500);
+                
+                feedback.innerText = "Correct!";
+                feedback.className = "h-6 text-center font-bold text-green-600 opacity-100";
+            } else {
+                // Incorrect
+                container.classList.add('wrong-flash');
+                setTimeout(() => container.classList.remove('wrong-flash'), 500);
+                
+                feedback.innerText = `Incorrect. It was "${currentProblem.a}"`;
+                feedback.className = "h-6 text-center font-bold text-red-500 opacity-100";
+            }
+            
+            setTimeout(() => {
+                feedback.classList.add('opacity-0');
+            }, 1000);
+
+            currentProblemIndex++;
+            showNextProblem();
+        }
+
+        function handleQuestionTimeout() {
+            if (!isGameActive) return;
+            
+            clearInterval(timerInterval);
+            
+            const currentProblem = problems[currentProblemIndex];
+            const container = document.getElementById('game-container');
+            const feedback = document.getElementById('feedback');
+            
+            // Timeout Feedback
+            container.classList.add('wrong-flash');
+            setTimeout(() => container.classList.remove('wrong-flash'), 500);
+            
+            feedback.innerText = `Time's Up! It was "${currentProblem.a}"`;
+            feedback.className = "h-6 text-center font-bold text-red-500 opacity-100";
+            
+            playSound('end'); // Fail sound
+            
+            setTimeout(() => {
+                feedback.classList.add('opacity-0');
+            }, 1000);
+
+            currentProblemIndex++;
+            showNextProblem();
+        }
+
+        function endGame() {
+            isGameActive = false;
+            clearInterval(timerInterval);
+            playSound('correct'); 
+            window.speechSynthesis.cancel(); 
+            
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('end-screen').classList.remove('hidden');
+            
+            document.getElementById('final-score').innerText = `${score} / ${TOTAL_QUESTIONS}`;
+            
+            // Determine Award based on 100 questions
+            const awardElement = document.getElementById('award-title');
+            const medalIcon = document.getElementById('medal-icon');
+            let awardText = "";
+            let medalHtml = "";
+
+            if (score < 20) {
+                awardText = "Math Novice";
+                medalHtml = '<i class="fas fa-seedling text-green-400"></i>';
+            } else if (score < 50) {
+                awardText = "Number Student";
+                medalHtml = '<i class="fas fa-book-reader text-blue-400"></i>';
+            } else if (score < 70) {
+                awardText = "Word Wizard";
+                medalHtml = '<i class="fas fa-hat-wizard text-purple-500"></i>';
+            } else if (score < 90) {
+                awardText = "Calculation Captain";
+                medalHtml = '<i class="fas fa-medal text-silver-400"></i>';
+            } else {
+                awardText = "Grandmaster of Sums";
+                medalHtml = '<i class="fas fa-crown text-yellow-500 animate-bounce"></i>';
+            }
+
+            awardElement.innerText = awardText;
+            medalIcon.innerHTML = medalHtml;
+        }
+
+        function resetGame() {
+            document.getElementById('end-screen').classList.add('hidden');
+            document.getElementById('start-screen').classList.remove('hidden');
+        }
+
+    </script>
+</body>
+</html>

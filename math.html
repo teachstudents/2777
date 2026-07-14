@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Derivative Explorer</title>
+    <style>
+        /* --- Basic Styling --- */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+            overflow: hidden; /* Hide scrollbars */
+        }
+
+        /* --- Animated Background Canvas --- */
+        #backgroundCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -2;
+        }
+
+        /* --- Page Container --- */
+        .page {
+            position: absolute; /* Allow pages to stack for transitions */
+            width: 100%;
+            display: flex; 
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.4s ease-in-out, visibility 0.4s;
+        }
+        .page.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* --- General Content Styling --- */
+        .content-box {
+            text-align: center;
+            padding: 25px;
+            background-color: rgba(255, 255, 255, 0.9); /* Slightly transparent */
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 600px;
+        }
+
+        h1 { margin-top: 0; color: #1a237e; }
+        h2 { margin-top: 0; color: #303f9f; }
+
+        /* --- Formula & Question Styling --- */
+        .formula-box {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 1.1em;
+            background-color: #e8eaf6;
+            padding: 15px;
+            border-radius: 8px;
+            color: #3f51b5;
+            line-height: 1.6;
+            margin: 15px 0;
+            border: 1px solid #c5cae9;
+            overflow-x: auto;
+        }
+        .main-formula-title {
+            font-size: 0.8em;
+            color: #555;
+            font-family: sans-serif;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .essential-question {
+            font-style: italic;
+            color: #555;
+            margin: 10px 0 20px 0;
+            font-size: 1.1em;
+        }
+        .result-sentence {
+            font-size: 1em;
+            color: #333;
+            margin-top: -10px;
+            padding: 0 10px;
+            line-height: 1.5;
+            min-height: 48px; /* Reserve space to prevent layout shifts */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+        }
+        .result-explanation {
+            font-size: 0.9em;
+            color: #616161;
+            margin-top: 10px;
+            max-width: 85%;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.4;
+        }
+        /* Style for bold text inside the explanation notes */
+        .result-explanation b {
+            font-weight: bold;
+            color: #d32f2f;
+        }
+
+
+        /* --- Buttons --- */
+        .nav-button {
+            background-color: #3f51b5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            margin: 5px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        .nav-button:hover {
+            background-color: #303f9f;
+            transform: translateY(-2px);
+        }
+        .back-button {
+            background-color: #757575;
+        }
+        .back-button:hover {
+            background-color: #616161;
+        }
+        .button-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* --- Canvas & Controls --- */
+        canvas {
+            border: 2px solid #c5cae9;
+            border-radius: 8px;
+            width: 100%;
+            aspect-ratio: 2 / 1;
+            background-color: #ffffff;
+            margin-top: 15px;
+        }
+        .controls {
+            width: 100%;
+            text-align: center;
+            margin-top: 20px;
+        }
+        input[type="range"] {
+            width: 80%;
+            cursor: pointer;
+        }
+        /* Color Coding for Input and Output */
+        .input-value, .output-value {
+            display: inline-block; /* Prevents layout shifts */
+            min-width: 55px;       /* Gives numbers a consistent space */
+            padding: 0 3px;
+            margin: 0 0.25em; /* ADDED MARGIN FOR SPACING */
+            text-align: center;
+            font-weight: bold;
+        }
+        .input-value {
+            color: #1565c0; /* Blue for input */
+        }
+        .output-value {
+            color: #d32f2f; /* Red for output */
+        }
+        
+        #snowCanvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+        }
+        
+        @keyframes pulse { 50% { transform: scale(1.1); } }
+        .pulse-animation { animation: pulse 0.3s ease-out; }
+    </style>
+</head>
+<body>
+    <canvas id="backgroundCanvas"></canvas>
+
+    <!-- =========== MAIN MENU PAGE =========== -->
+    <div id="mainMenu" class="page active">
+        <div class="content-box">
+            <h1>The Definition of the Derivative</h1>
+            <div class="formula-box" style="font-size: 1.2em;">f'(x) = lim<sub>Δx→0</sub> [f(x + Δx) - f(x)] / Δx</div>
+            <p class="essential-question">How can we find the exact, instantaneous rate of change at a single moment in time?</p>
+            <div class="button-grid">
+                <button class="nav-button" onclick="showPage('skateboardPage')">🛹 Physics (Motion)</button>
+                <button class="nav-button" onclick="showPage('skiingPage')">⛷️ Sports (Slopes)</button>
+                <button class="nav-button" onclick="showPage('rocketPage')">🚀 Physics (Velocity)</button>
+                <button class="nav-button" onclick="showPage('economicsPage')">💰 Economics (Costs)</button>
+                <button class="nav-button" onclick="showPage('biologyPage')">🔬 Biology (Growth)</button>
+                <button class="nav-button" onclick="showPage('businessPage')">📈 Business (Profit)</button>
+                <button class="nav-button" onclick="showPage('environmentPage')">🌡️ Environment (Temp)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========== PAGE 1: SKATEBOARD =========== -->
+    <div id="skateboardPage" class="page">
+        <div class="content-box">
+            <h2>🛹 Skateboard Ramp Steepness</h2>
+            <p class="essential-question">How steep is the ramp at any exact point?</p>
+            <div class="formula-box">
+                <div class="main-formula-title">Live Calculation (with Δx = 0.001)</div>
+                [f(<span id="s_x_plus_dx" class="input-value">0.001</span>) - f(<span id="s_x" class="input-value">0.0</span>)] / 0.001 ≈ <span id="s_approx_slope" class="output-value">0.0</span>
+            </div>
+            <p class="result-sentence">
+                <span>At a <b style="color:#1565c0">position</b> of</span><span id="s_sentence_x" class="input-value">0.0</span><span>cm, the <b style="color:#d32f2f">steepness</b> is approx.</span><span id="s_sentence_slope" class="output-value">0.00</span>.
+            </p>
+            <p class="result-explanation">(Note: A steepness of <b>0.0</b> is flat. A value of <b>1.0</b> is a steep 45° angle.)</p>
+            <canvas id="rampCanvas"></canvas>
+            <div class="controls">
+                <button class="nav-button back-button" onclick="showPage('mainMenu')">Back to Menu</button>
+                <input type="range" id="positionSliderSkate" min="-20" max="20" value="0" step="0.1">
+            </div>
+        </div>
+    </div>
+
+    <!-- =========== PAGE 2: SKIING =========== -->
+    <div id="skiingPage" class="page">
+        <canvas id="snowCanvas"></canvas>
+        <div class="content-box">
+            <h2>⛷️ Downhill Ski Slope</h2>
+            <p class="essential-question">What is the slope of the mountain right under my skis?</p>
+            <div class="formula-box">
+                <div class="main-formula-title">Live Calculation (with Δx = 0.001)</div>
+                [f(<span id="ski_x_plus_dx" class="input-value">0.001</span>) - f(<span id="ski_x" class="input-value">0.0</span>)] / 0.001 ≈ <span id="ski_approx_slope" class="output-value">0.20</span>
+            </div>
+            <p class="result-sentence">
+                <span>At a <b style="color:#1565c0">position</b> of</span><span id="ski_sentence_x" class="input-value">0.0</span><span>m, the mountain's <b style="color:#d32f2f">slope</b> is approx.</span><span id="ski_sentence_slope" class="output-value">0.20</span>.
+            </p>
+            <p class="result-explanation">(Note: A <b>negative slope</b> means you're going downhill!)</p>
+            <canvas id="skiCanvas"></canvas>
+            <div class="controls">
+                <button class="nav-button back-button" onclick="showPage('mainMenu')">Back to Menu</button>
+                <input type="range" id="positionSliderSki" min="-10" max="10" value="0" step="0.1">
+            </div>
+        </div>
+    </div>
+    
+    <!-- =========== PAGE 3: ROCKET =========== -->
+    <div id="rocketPage" class="page">
+        <div class="content-box">
+            <h2>🚀 Rocket Launch Velocity</h2>
+            <p class="essential-question">What is the rocket's exact speed at any moment?</p>
+            <div class="formula-box">
+                <div class="main-formula-title">Live Calculation (with Δt = 0.001)</div>
+                [h(<span id="r_t_plus_dt" class="input-value">0.001</span>) - h(<span id="r_t" class="input-value">0.0</span>)] / 0.001 ≈ <span id="r_approx_vel" class="output-value">50.0</span>
+            </div>
+            <p class="result-sentence">
+                <span>At <b style="color:#1565c0">time</b></span><span id="r_sentence_t" class="input-value">0.0</span><span>s, the rocket's <b style="color:#d32f2f">velocity</b> is approx.</span><span id="r_sentence_vel" class="output-value">50.0</span><span>m/s.</span>
+            </p>
+            <p class="result-explanation">(Note: <b>Positive velocity</b> is upwards, <b>negative</b> is downwards.)</p>
+            <canvas id="rocketCanvas"></canvas>
+            <div class="controls">
+                <button class="nav-button back-button" onclick="showPage('mainMenu')">Back to Menu</button>
+                <input type="range" id="timeSliderRocket" min="0" max="10" value="0" step="0.1">
+            </div>
+        </div>
+    </div>
+
+    <!-- =========== PAGE 4: ECONOMICS =========== -->
+    <div id="economicsPage" class="page">
+        <div class="content-box">
+            <h2>💰 Economics: Marginal Cost</h2>
+            <p class="essential-question">How much extra does it cost to produce just one more item?</p>
+            <div class="formula-box">
+                <div class="main-formula-title">Live Calculation (with Δx = 1)</div>
+                [C(<span id="e_x_plus_dx" class="input-value">1</span>) - C(<span id="e_x" class="input-value">0</span>)] / 1 ≈ <span id="e_approx_cost" class="output-value">5.0</span>
+            </div>
+            <p class="result-sentence">
+                <span>When producing</span><span id="e_sentence_x" class="input-value">0</span><span>items, the <b style="color:#d32f2f">cost for one more</b> is about</span><span id="e_sentence_cost" class="output-value">$5.01</span>.
+            </p>
+            <p class="result-explanation">(This is the "marginal cost". Notice how it gets more expensive to make items as production increases.)</p>
+            <canvas id="economicsCanvas"></canvas>
+            <div class="controls">
+                <button class="nav-button back-button" onclick="showPage('mainMenu')">Back to Menu</button>
+                <input type="range" id="sliderEcon" min="0" max="100" value="0" step="1">
+            </div>
+        </div>
+    </div>
+
+    <!-- =========== PAGE 5: BIOLOGY =========== -->
+    <div id="biologyPage" class="page">
+        <div class="content-box">
+            <h2>🔬 Biology: Population Growth</h2>
+            <p class="essential-question">How fast is a bacteria colony growing at any given hour?</p>
+            <div class="formula-box">
+                <div class="main-formula-title">Live Calculation (with Δt = 0.001)</div>
+                [P(<span id="b_t_plus_dt" class="input-value">0.001</span>) - P(<span id="b_t" class="input-value">0.0</span>)] / 0.001 ≈ <span id="b_approx_growth" class="output-value">69.3</span>
+            </div>
+            <p class="result-sentence">
+                <span>At <b style="color:#1565c0">hour</b></span><span id="b_sentence_t" class="input-value">0.0</span>,<span> the <b style="color:#d32f2f">growth rate</b> is</span><span id="b_sentence_growth" class="output-value">69</span><span>cells/hr.</span>
+            </p>
+            <p class="result-explanation">(This is exponential growth. The rate of growth gets faster as the population gets bigger.)</p>
+            <canvas id="biologyCanvas"></canvas>
+            <div class="controls">
+                <button class="nav-button back-button" onclick="showPage('mainMenu')">Back to Menu</button>
+                <input type="range" id="sliderBio" min="0" max="5" value="0" step="0.05">
+            </div>
+        </div>
+    </div>
+
+    <!-- =========== PAGE 6: BUSINESS =========== -->
+    <div id="businessPage" class="page">
+        <div class="content-box">
+            <h2>📈 Business: Marginal Profit</h2>
+            <p class="essential-question">How much extra profit do we make by selling one more unit?</p>
+            <div class="formula-box">
+                <div class="main-formula-title">Live Calculation (with Δx = 1)</div>
+                [P(<span id="biz_x_plus_dx" class="input-value">1</span>) - P(<span id="biz_x" class="input-value">0</span>)] / 1 ≈ <span id="biz_approx_profit" class="output-value">10.0</span>
+            </div>
+            <p class="result-sentence">
+                <span>After <b style="color:#1565c0">selling</b></span><span id="biz_sentence_x" class="input-value">0</span><span>units, the <b style="color:#d32f2f">profit for one more</b> is</span><span id="biz_sentence_profit" class="output-value">$9.90</span>.
+            </p>
+            <p class="result-explanation">(When this value is <b>zero</b>, you've reached maximum profit!)</p>
+            <canvas id="businessCanvas"></canvas>
+            <div class="controls">
+                <button class="nav-button back-button" onclick="showPage('mainMenu')">Back to Menu</button>
+                <input type="range" id="sliderBiz" min="0" max="100" value="0" step="1">
+            </div>
+        </div>
+    </div>
+
+    <!-- =========== PAGE 7: ENVIRONMENT =========== -->
+    <div id="environmentPage" class="page">
+        <div class="content-box">
+            <h2>🌡️ Environment: Temperature Change</h2>
+            <p class="essential-question">How fast is the temperature changing at a specific time of day?</p>
+            <div class="formula-box">
+                <div class="main-formula-title">Live Calculation (with Δt = 0.001)</div>
+                [T(<span id="env_t_plus_dt" class="input-value">0.001</span>) - T(<span id="env_t" class="input-value">0.0</span>)] / 0.001 ≈ <span id="env_approx_rate" class="output-value">2.6</span>
+            </div>
+            <p class="result-sentence">
+                <span>At <b style="color:#1565c0">hour</b></span><span id="env_sentence_t" class="input-value">0.0</span>,<span> the <b style="color:#d32f2f">rate of change</b> is</span><span id="env_sentence_rate" class="output-value">2.6</span><span>°C/hr.</span>
+            </p>
+            <p class="result-explanation">(A <b>positive rate</b> means it's getting warmer; <b>negative</b> means it's cooling down.)</p>
+            <canvas id="environmentCanvas"></canvas>
+            <div class="controls">
+                <button class="nav-button back-button" onclick="showPage('mainMenu')">Back to Menu</button>
+                <input type="range" id="sliderEnv" min="0" max="24" value="0" step="0.1">
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- PAGE NAVIGATION ---
+        let currentPage = 'mainMenu';
+        const snowCanvas = document.getElementById('snowCanvas');
+        const pages = document.querySelectorAll('.page');
+
+        function showPage(pageId) {
+            const newPage = document.getElementById(pageId);
+            if (currentPage) {
+                document.getElementById(currentPage).classList.remove('active');
+            }
+            newPage.classList.add('active');
+            currentPage = pageId;
+            
+            snowCanvas.style.display = (pageId === 'skiingPage') ? 'block' : 'none';
+            const drawers = { skateboardPage: skateDrawer, skiingPage: skiDrawer, rocketPage: rocketDrawer, economicsPage: econDrawer, biologyPage: bioDrawer, businessPage: bizDrawer, environmentPage: envDrawer };
+            if (drawers[pageId]) drawers[pageId].draw();
+        }
+
+        // --- ANIMATION HELPER ---
+        function pulseElements(...elements) {
+            elements.forEach(el => { if (el) { el.classList.add('pulse-animation'); setTimeout(() => el.classList.remove('pulse-animation'), 300); } });
+        }
+        
+        // --- AXIS DRAWING HELPER ---
+        function drawAxes(c, ctx, oX, oY) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#cccccc';
+            ctx.lineWidth = 1;
+            // Y-Axis
+            ctx.moveTo(oX, 0);
+            ctx.lineTo(oX, c.height);
+            // X-Axis
+            ctx.moveTo(0, oY);
+            ctx.lineTo(c.width, oY);
+            ctx.stroke();
+        }
+
+        // --- UNIVERSAL DRAWER CLASS ---
+        class Drawer {
+            constructor(canvasId, sliderId, textIds, drawFunction) {
+                this.canvas = document.getElementById(canvasId); this.ctx = this.canvas.getContext('2d');
+                this.slider = document.getElementById(sliderId); this.textElements = {};
+                for (const key in textIds) { this.textElements[key] = document.getElementById(textIds[key]); }
+                this.drawFunction = drawFunction;
+                this.slider.addEventListener('input', () => this.draw());
+                window.addEventListener('resize', () => this.draw());
+            }
+            draw() {
+                const rect = this.canvas.getBoundingClientRect(); if (rect.width === 0) return;
+                this.canvas.width = rect.width; this.canvas.height = rect.height;
+                this.drawFunction(this.canvas, this.ctx, this.slider, this.textElements);
+            }
+        }
+        
+        // --- DRAWING LOGIC FOR EACH PAGE ---
+        const skateDrawer = new Drawer('rampCanvas', 'positionSliderSkate', { fx_p_dx: 's_x_plus_dx', fx: 's_x', approx: 's_approx_slope', sentence_x: 's_sentence_x', sentence_slope: 's_sentence_slope' }, (c, ctx, s, t) => {
+            const x=parseFloat(s.value), dx=0.001, f=v=>0.04*v*v, fx=f(x), fxdx=f(x+dx), slope=(fxdx-fx)/dx;
+            t.fx_p_dx.textContent=(x+dx).toFixed(3); t.fx.textContent=x.toFixed(1); t.approx.textContent=slope.toFixed(2);
+            t.sentence_x.textContent = x.toFixed(1); t.sentence_slope.textContent = slope.toFixed(2);
+            pulseElements(t.fx_p_dx, t.fx, t.approx, t.sentence_x, t.sentence_slope);
+            const oX=c.width/2, oY=c.height*0.9, sc=c.width/50; ctx.clearRect(0,0,c.width,c.height);
+            drawAxes(c, ctx, oX, oY);
+            ctx.beginPath(); ctx.strokeStyle='#673AB7'; ctx.lineWidth=4; for(let p=0;p<=c.width;p++){let xc=(p-oX)/sc;ctx.lineTo(p,oY-f(xc)*sc);} ctx.stroke();
+            const pX=oX+x*sc, pY=oY-fx*sc;
+            ctx.font="32px sans-serif"; ctx.fillStyle = '#d32f2f'; ctx.fillText("🛹", pX - 16, pY + 10);
+            ctx.beginPath(); ctx.strokeStyle='#32CD32'; ctx.lineWidth=3; const tL=4,sX=x-tL,sY=fx+slope*(sX-x),eX=x+tL,eY=fx+slope*(eX-x); ctx.moveTo(oX+sX*sc,oY-sY*sc); ctx.lineTo(oX+eX*sc,oY-eY*sc); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.moveTo(pX, pY); ctx.lineTo(pX, oY); ctx.stroke(); ctx.setLineDash([]);
+        });
+        const skiDrawer = new Drawer('skiCanvas', 'positionSliderSki', { fx_p_dx: 'ski_x_plus_dx', fx: 'ski_x', approx: 'ski_approx_slope', sentence_x: 'ski_sentence_x', sentence_slope: 'ski_sentence_slope' }, (c, ctx, s, t) => {
+            const x=parseFloat(s.value), dx=0.001, f=v=>-0.01*v*v*v+0.2*v+10, fx=f(x), fxdx=f(x+dx), slope=(fxdx-fx)/dx;
+            t.fx_p_dx.textContent=(x+dx).toFixed(3); t.fx.textContent=x.toFixed(1); t.approx.textContent=slope.toFixed(2);
+            t.sentence_x.textContent = x.toFixed(1); t.sentence_slope.textContent = slope.toFixed(2);
+            pulseElements(...Object.values(t));
+            const oX=c.width/2, oY=c.height*0.8, sc=c.width/30; ctx.clearRect(0,0,c.width,c.height);
+            drawAxes(c, ctx, oX, oY);
+            ctx.beginPath(); ctx.strokeStyle='#009688'; ctx.lineWidth=4; for(let p=0;p<=c.width;p++){let xc=(p-oX)/sc;ctx.lineTo(p,oY-f(xc)*sc);} ctx.stroke();
+            const pX=oX+x*sc, pY=oY-fx*sc;
+            ctx.font="32px sans-serif"; ctx.fillStyle = '#d32f2f'; ctx.fillText("⛷️", pX - 16, pY + 10);
+            ctx.beginPath(); ctx.strokeStyle='#32CD32'; ctx.lineWidth=3; const tL=2,sX=x-tL,sY=fx+slope*(sX-x),eX=x+tL,eY=fx+slope*(eX-x); ctx.moveTo(oX+sX*sc,oY-sY*sc); ctx.lineTo(oX+eX*sc,oY-eY*sc); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.moveTo(pX, pY); ctx.lineTo(pX, oY); ctx.stroke(); ctx.setLineDash([]);
+        });
+        const rocketDrawer = new Drawer('rocketCanvas', 'timeSliderRocket', { ht_p_dt: 'r_t_plus_dt', ht: 'r_t', approx: 'r_approx_vel', sentence_t: 'r_sentence_t', sentence_vel: 'r_sentence_vel' }, (c, ctx, s, t) => {
+            const time=parseFloat(s.value), dt=0.001, f=v=>-5*v*v+50*v, ht=f(time), htdt=f(time+dt), vel=(htdt-ht)/dt;
+            t.ht_p_dt.textContent=(time+dt).toFixed(3); t.ht.textContent=time.toFixed(1); t.approx.textContent=vel.toFixed(1);
+            t.sentence_t.textContent = time.toFixed(1); t.sentence_vel.textContent = vel.toFixed(1);
+            pulseElements(...Object.values(t));
+            const oX=c.width*0.1,oY=c.height*0.9,scX=(c.width*0.8)/10,scY=(c.height*0.8)/125; ctx.clearRect(0,0,c.width,c.height);
+            drawAxes(c, ctx, oX, oY);
+            ctx.beginPath(); ctx.strokeStyle='#004d40'; ctx.lineWidth=4; for(let tm=0;tm<=10;tm+=0.1){ctx.lineTo(oX+tm*scX,oY-f(tm)*scY);} ctx.stroke();
+            const pX=oX+time*scX,pY=oY-ht*scY;
+            ctx.font="32px sans-serif"; ctx.fillStyle = '#d32f2f'; ctx.fillText("🚀",pX-16,pY+10);
+            ctx.beginPath(); ctx.strokeStyle='#32CD32'; ctx.lineWidth=3; const tL=1,sT=time-tL,sH=ht+vel*(sT-time),eT=time+tL,eH=ht+vel*(eT-time);
+            ctx.moveTo(oX+sT*scX,oY-sH*scY); ctx.lineTo(oX+eT*scX,oY-eH*scY); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.moveTo(pX, pY); ctx.lineTo(pX, oY); ctx.stroke(); ctx.setLineDash([]);
+        });
+        const econDrawer = new Drawer('economicsCanvas', 'sliderEcon', { x_p_dx: 'e_x_plus_dx', x: 'e_x', approx: 'e_approx_cost', sentence_x: 'e_sentence_x', sentence_cost: 'e_sentence_cost' }, (c, ctx, s, t) => {
+            const x=parseInt(s.value), dx=1, f=v=>0.01*v*v+5*v+100, cx=f(x), cxdx=f(x+dx), cost=(cxdx-cx)/dx;
+            t.x_p_dx.textContent=(x+dx); t.x.textContent=x; t.approx.textContent=cost.toFixed(1);
+            t.sentence_x.textContent = x; t.sentence_cost.textContent = '$' + cost.toFixed(2);
+            pulseElements(...Object.values(t));
+            const oX=c.width*0.1,oY=c.height*0.9,scX=(c.width*0.8)/100,scY=(c.height*0.8)/700; ctx.clearRect(0,0,c.width,c.height);
+            drawAxes(c, ctx, oX, oY);
+            ctx.beginPath(); ctx.strokeStyle='#880e4f'; ctx.lineWidth=4; for(let i=0;i<=100;i++){ctx.lineTo(oX+i*scX,oY-f(i)*scY);} ctx.stroke();
+            const pX=oX+x*scX,pY=oY-cx*scY;
+            ctx.font="32px sans-serif"; ctx.fillStyle = '#d32f2f'; ctx.fillText("🪙", pX - 16, pY + 10);
+            ctx.beginPath(); ctx.strokeStyle='#32CD32'; ctx.lineWidth=3; const tL=10,sX=x-tL,sY=cx+cost*(sX-x),eX=x+tL,eY=cx+cost*(eX-x);
+            ctx.moveTo(oX+sX*scX,oY-sY*scY); ctx.lineTo(oX+eX*scX,oY-eY*scY); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.moveTo(pX, pY); ctx.lineTo(pX, oY); ctx.stroke(); ctx.setLineDash([]);
+        });
+        const bioDrawer = new Drawer('biologyCanvas', 'sliderBio', { t_p_dt: 'b_t_plus_dt', t: 'b_t', approx: 'b_approx_growth', sentence_t: 'b_sentence_t', sentence_growth: 'b_sentence_growth' }, (c, ctx, s, t) => {
+            const time=parseFloat(s.value), dt=0.001, f=v=>100*Math.exp(0.693*v), pt=f(time), ptdt=f(time+dt), growth=(ptdt-pt)/dt;
+            t.t_p_dt.textContent=(time+dt).toFixed(3); t.t.textContent=time.toFixed(1); t.approx.textContent=growth.toFixed(1);
+            t.sentence_t.textContent = time.toFixed(1); t.sentence_growth.textContent = growth.toFixed(0);
+            pulseElements(...Object.values(t));
+            const oX=c.width*0.1,oY=c.height*0.9,scX=(c.width*0.8)/5,scY=(c.height*0.8)/3200; ctx.clearRect(0,0,c.width,c.height);
+            drawAxes(c, ctx, oX, oY);
+            ctx.beginPath(); ctx.strokeStyle='#558b2f'; ctx.lineWidth=4; for(let tm=0;tm<=5;tm+=0.1){ctx.lineTo(oX+tm*scX,oY-f(tm)*scY);} ctx.stroke();
+            const pX=oX+time*scX,pY=oY-pt*scY;
+            ctx.font="32px sans-serif"; ctx.fillStyle = '#d32f2f'; ctx.fillText("🦠", pX - 16, pY + 10);
+            ctx.beginPath(); ctx.strokeStyle='#32CD32'; ctx.lineWidth=3; const tL=0.5,sT=time-tL,sP=pt+growth*(sT-time),eT=time+tL,eP=pt+growth*(eT-time);
+            ctx.moveTo(oX+sT*scX,oY-sP*scY); ctx.lineTo(oX+eT*scX,oY-eP*scY); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.moveTo(pX, pY); ctx.lineTo(pX, oY); ctx.stroke(); ctx.setLineDash([]);
+        });
+        const bizDrawer = new Drawer('businessCanvas', 'sliderBiz', { x_p_dx: 'biz_x_plus_dx', x: 'biz_x', approx: 'biz_approx_profit', sentence_x: 'biz_sentence_x', sentence_profit: 'biz_sentence_profit' }, (c, ctx, s, t) => {
+            const x=parseInt(s.value), dx=1, f=v=>-0.1*v*v+10*v, px=f(x), pxdx=f(x+dx), profit=(pxdx-px)/dx;
+            t.x_p_dx.textContent=(x+dx); t.x.textContent=x; t.approx.textContent=profit.toFixed(1);
+            t.sentence_x.textContent = x; t.sentence_profit.textContent = '$' + profit.toFixed(2);
+            pulseElements(...Object.values(t));
+            const oX=c.width*0.1,oY=c.height*0.9,scX=(c.width*0.8)/100,scY=(c.height*0.8)/250; ctx.clearRect(0,0,c.width,c.height);
+            drawAxes(c, ctx, oX, oY);
+            ctx.beginPath(); ctx.strokeStyle='#bf360c'; ctx.lineWidth=4; for(let i=0;i<=100;i++){ctx.lineTo(oX+i*scX,oY-f(i)*scY);} ctx.stroke();
+            const pX=oX+x*scX,pY=oY-px*scY;
+            ctx.font="32px sans-serif"; ctx.fillStyle = '#d32f2f'; ctx.fillText("💲", pX - 16, pY + 10);
+            ctx.beginPath(); ctx.strokeStyle='#32CD32'; ctx.lineWidth=3; const tL=10,sX=x-tL,sY=px+profit*(sX-x),eX=x+tL,eY=px+profit*(eX-x);
+            ctx.moveTo(oX+sX*scX,oY-sY*scY); ctx.lineTo(oX+eX*scX,oY-eY*scY); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.moveTo(pX, pY); ctx.lineTo(pX, oY); ctx.stroke(); ctx.setLineDash([]);
+        });
+        const envDrawer = new Drawer('environmentCanvas', 'sliderEnv', { t_p_dt: 'env_t_plus_dt', t: 'env_t', approx: 'env_approx_rate', sentence_t: 'env_sentence_t', sentence_rate: 'env_sentence_rate' }, (c, ctx, s, t) => {
+            const time=parseFloat(s.value), dt=0.001, f=v=>-10*Math.cos((Math.PI/12)*v)+15, Tt=f(time), Ttdt=f(time+dt), rate=(Ttdt-Tt)/dt;
+            t.t_p_dt.textContent=(time+dt).toFixed(3); t.t.textContent=time.toFixed(1); t.approx.textContent=rate.toFixed(1);
+            t.sentence_t.textContent = time.toFixed(1); t.sentence_rate.textContent = rate.toFixed(1);
+            pulseElements(...Object.values(t));
+            const oX=c.width*0.1,oY=c.height/2,scX=(c.width*0.8)/24,scY=(c.height*0.4)/25; ctx.clearRect(0,0,c.width,c.height);
+            drawAxes(c, ctx, oX, oY);
+            ctx.beginPath(); ctx.strokeStyle='#607D8B'; ctx.lineWidth=4; for(let tm=0;tm<=24;tm+=0.1){ctx.lineTo(oX+tm*scX,oY-f(tm)*scY);} ctx.stroke();
+            const pX=oX+time*scX,pY=oY-Tt*scY;
+            ctx.font="32px sans-serif"; ctx.fillStyle = '#d32f2f'; ctx.fillText("☀️", pX - 16, pY + 10);
+            ctx.beginPath(); ctx.strokeStyle='#32CD32'; ctx.lineWidth=3; const tL=2,sT=time-tL,sTemp=Tt+rate*(sT-time),eT=time+tL,eTemp=Tt+rate*(eT-time);
+            ctx.moveTo(oX+sT*scX,oY-sTemp*scY); ctx.lineTo(oX+eT*scX,oY-eTemp*scY); ctx.stroke();
+            ctx.beginPath(); ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.moveTo(pX, pY); ctx.lineTo(pX, oY); ctx.stroke(); ctx.setLineDash([]);
+        });
+
+        // --- BACKGROUND ANIMATION ---
+        const bgCanvas = document.getElementById('backgroundCanvas');
+        const bgCtx = bgCanvas.getContext('2d');
+        let time = 0;
+        function animateBackground() {
+            const width = bgCanvas.width = window.innerWidth;
+            const height = bgCanvas.height = window.innerHeight;
+            
+            const x = width / 2 + (width / 2.1) * Math.cos(time * 0.002);
+            const y = height / 2 + (height / 2.1) * Math.sin(time * 0.002);
+            const r1 = Math.min(width, height) * 0.6;
+            const r2 = Math.min(width, height) * 1.4;
+
+            const gradient = bgCtx.createRadialGradient(x, y, r1, x, y, r2);
+            gradient.addColorStop(0, 'rgba(200, 220, 255, 0.6)');
+            gradient.addColorStop(0.5, 'rgba(220, 200, 255, 0.6)');
+            gradient.addColorStop(1, 'rgba(240, 242, 245, 1)');
+
+            bgCtx.fillStyle = gradient;
+            bgCtx.fillRect(0, 0, width, height);
+
+            time++;
+            requestAnimationFrame(animateBackground);
+        }
+
+        // --- SNOW ANIMATION ---
+        const snowCtx = snowCanvas.getContext('2d'); let snowflakes = [];
+        function createSnowflakes() { snowflakes = []; for (let i=0;i<200;i++) { snowflakes.push({ x:Math.random()*snowCanvas.width, y:Math.random()*snowCanvas.height, r:Math.random()*3+1, s:Math.random()*1+0.5, o:Math.random()*0.5+0.3 }); } }
+        function animateSnow() { if (currentPage==='skiingPage') { snowCtx.clearRect(0,0,snowCanvas.width,snowCanvas.height); for (const f of snowflakes) { f.y+=f.s; if(f.y>snowCanvas.height){f.x=Math.random()*snowCanvas.width;f.y=-5;} snowCtx.beginPath(); snowCtx.fillStyle=`rgba(255,255,255,${f.o})`; snowCtx.arc(f.x,f.y,f.r,0,Math.PI*2); snowCtx.fill(); } } requestAnimationFrame(animateSnow); }
+        window.addEventListener('resize', () => { if (currentPage === 'skiingPage') { snowCanvas.width=window.innerWidth; snowCanvas.height=window.innerHeight; createSnowflakes(); } });
+        window.addEventListener('load', () => {
+            // Initialize all explanation texts
+            document.querySelector('#skateboardPage .result-explanation').innerHTML = `(Note: A steepness of <b>0.0</b> is flat. A value of <b>1.0</b> is a steep 45° angle.)`;
+            document.querySelector('#skiingPage .result-explanation').innerHTML = `(Note: A <b>negative slope</b> means you're going downhill!)`;
+            document.querySelector('#rocketPage .result-explanation').innerHTML = `(Note: <b>Positive velocity</b> is upwards, <b>negative</b> is downwards.)`;
+            document.querySelector('#economicsPage .result-explanation').innerHTML = `(This is the "marginal cost". Notice how it gets more expensive to make items as production increases.)`;
+            document.querySelector('#biologyPage .result-explanation').innerHTML = `(This is exponential growth. The rate of growth gets faster as the population gets bigger.)`;
+            document.querySelector('#businessPage .result-explanation').innerHTML = `(When this value is <b>zero</b>, you've reached maximum profit!)`;
+            document.querySelector('#environmentPage .result-explanation').innerHTML = `(A <b>positive rate</b> means it's getting warmer; <b>negative</b> means it's cooling down.)`;
+
+            snowCanvas.width=window.innerWidth; snowCanvas.height=window.innerHeight; createSnowflakes(); animateSnow(); animateBackground(); showPage('mainMenu'); 
+        });
+    </script>
+</body>
+</html>

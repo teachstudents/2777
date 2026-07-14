@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>City Map Speaking Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            touch-action: manipulation;
+            background-color: #f4f4f5;
+        }
+
+        /* Roads */
+        .road {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #a0aec0;
+        }
+        .road.horizontal {
+            left: 0;
+            width: 100%;
+            height: 48px;
+            border-top: 2px solid #718096;
+            border-bottom: 2px solid #718096;
+        }
+        .road.vertical {
+            top: 0;
+            width: 48px;
+            height: 100%;
+            border-left: 2px solid #718096;
+            border-right: 2px solid #718096;
+        }
+        .road.horizontal::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 4px;
+            background-image: linear-gradient(to right, #f7fafc 75%, transparent 25%);
+            background-size: 20px 4px;
+        }
+        .road.vertical::before {
+            content: '';
+            position: absolute;
+            height: 100%;
+            width: 4px;
+            background-image: linear-gradient(to bottom, #f7fafc 75%, transparent 25%);
+            background-size: 4px 20px;
+        }
+
+        /* Street name always above dashed line */
+        .street-name {
+            position: relative;
+            z-index: 5;
+            background-color: rgba(160, 174, 192, 0.7);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 1.05rem;
+            color: #1f2937;
+            pointer-events: none;
+        }
+
+        /* Buildings: keep labels off roads by positioning slots away from road bands */
+        .slot {
+            position: absolute;
+            width: 84px;
+            height: 84px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            background: none;
+            border: none;
+            box-shadow: none;
+        }
+        .emoji {
+            font-size: 2.25rem;
+            line-height: 1;
+        }
+        .slot p {
+            margin: 0;
+            text-transform: lowercase;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-align: center;
+            color: #1f2937;
+            padding: 0 6px;
+            border-radius: 6px;
+        }
+
+        /* Start/end highlights for challenge */
+        .highlight-start {
+            border: 5px solid #2563eb;
+            border-radius: 12px;
+            transform: scale(1.08);
+            z-index: 10;
+        }
+        .highlight-end {
+            border: 5px solid #dc2626;
+            border-radius: 12px;
+            transform: scale(1.08);
+            z-index: 10;
+        }
+
+        /* Map container to compute positions cleanly */
+        #map-container {
+            position: relative;
+        }
+    </style>
+</head>
+<body class="p-4">
+
+    <!-- Main menu (shows all building emojis before entering the map) -->
+    <div id="main-menu" class="w-full max-w-4xl mx-auto bg-white p-6 rounded-lg border shadow-lg">
+        <h1 class="text-2xl font-bold text-center mb-2">City Map Speaking Game</h1>
+        <p class="text-center text-gray-700 mb-6">Preview all buildings and names, then enter the map.</p>
+
+        <div id="building-preview" class="grid grid-cols-4 sm:grid-cols-5 gap-4"></div>
+
+        <div class="text-center mt-6">
+            <button id="start-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md">
+                Start Game
+            </button>
+        </div>
+    </div>
+
+    <!-- Game screen (hidden until Start Game) -->
+    <div id="game-screen" class="hidden w-full max-w-6xl mx-auto flex gap-4 items-start mt-6">
+        <!-- Sidebar: useful phrases + buttons -->
+        <div class="w-60 flex-shrink-0 bg-white p-4 rounded-lg border shadow-sm flex flex-col justify-between" style="height: 650px;">
+            <div>
+                <h3 class="font-bold text-gray-800 mb-3 text-lg">Useful Phrases:</h3>
+                <ul class="space-y-1.5 text-sm text-gray-700 font-semibold">
+                    <li class="font-bold text-purple-700 mt-2">Directions</li>
+                    <li>⬆️ go straight on...</li>
+                    <li>⬅️ turn left on...</li>
+                    <li>➡️ turn right on...</li>
+                    <li>🔄 go around the corner...</li>
+
+                    <li class="font-bold text-purple-700 mt-3">Locations</li>
+                    <li>🏠 ...is next to the...</li>
+                    <li>↔️ ...is across from the...</li>
+                    <li>◻️ ...is on the corner of...</li>
+                    <li>⬇️ ...is behind the...</li>
+                    <li>⬆️ ...is in front of the...</li>
+                    <li>↔️ ...is between __ and __</li>
+
+                    <li class="font-bold text-purple-700 mt-3">Questions</li>
+                    <li>❓ is there a ___ near here?</li>
+                    <li>❓ how can i get to the ___?</li>
+                    <li>❓ where is the nearest ___?</li>
+
+                    <li class="font-bold text-purple-700 mt-3">Clarifications</li>
+                    <li>👉 it’s on your left.</li>
+                    <li>👉 it’s on your right.</li>
+                    <li>👉 it’s opposite the ___.</li>
+                </ul>
+            </div>
+
+            <div class="flex flex-col space-y-2 mt-6">
+                <button id="shuffle-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-3 rounded-lg text-sm shadow-md">
+                    Shuffle Buildings
+                </button>
+                <button id="challenge-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 rounded-lg text-sm shadow-md">
+                    New Route Challenge
+                </button>
+                <button id="restart-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm shadow-md">
+                    Restart Session
+                </button>
+            </div>
+        </div>
+
+        <!-- Main game area -->
+        <div class="flex-grow bg-white p-6 rounded-lg border shadow-sm">
+            <!-- Timer -->
+            <div class="w-full bg-gray-200 rounded-full h-8 mb-4 border border-gray-300 overflow-hidden">
+                <div id="progress-bar-inner" class="bg-gradient-to-r from-green-400 to-blue-500 h-full rounded-full flex items-center justify-center transition-width duration-1000 linear">
+                    <span id="timer-text" class="font-bold text-white text-lg">2:00</span>
+                </div>
+            </div>
+
+            <!-- Challenge text -->
+            <div id="challenge-text" class="text-center text-lg font-bold my-4 p-3 bg-purple-100 border-l-4 border-purple-500 text-purple-800 rounded-md transition-colors duration-300">
+                Click "New Route Challenge" to start!
+            </div>
+
+            <!-- Map container -->
+            <div id="map-container" class="w-full max-w-xl mx-auto aspect-square bg-green-200 rounded-lg shadow-inner relative border-4 border-gray-300 overflow-hidden">
+                <!-- Roads built once, with deterministic positions -->
+                <div class="road horizontal" id="road-st" style="top: 50%;">
+                    <span class="street-name" id="name-st"></span>
+                </div>
+                <div class="road vertical" id="road-ave" style="left: 30%; transform: translateX(-50%);">
+                    <span class="street-name rotate-90 whitespace-nowrap" id="name-ave"></span>
+                </div>
+                <div class="road vertical" id="road-blvd" style="left: 70%; transform: translateX(-50%);">
+                    <span class="street-name rotate-90 whitespace-nowrap" id="name-blvd"></span>
+                </div>
+
+                <!-- Traffic lights positioned near intersections but off the road centers -->
+                <div class="absolute text-2xl z-10" style="top: 42%; left: 35%;">🚦</div>
+                <div class="absolute text-2xl z-10" style="top: 42%; left: 65%;">🚦</div>
+
+                <!-- Corrected Building Slots -->
+                <div class="slot" style="top: 28%; left: 10%;" id="slot-0"></div>
+                <div class="slot" style="top: 58%; left: 10%;" id="slot-1"></div>
+                <div class="slot" style="top: 28%; left: 80%;" id="slot-2"></div>
+                <div class="slot" style="top: 58%; left: 80%;" id="slot-3"></div>
+                <div class="slot" style="top: 10%; left: 10%;" id="slot-4"></div>
+                <div class="slot" style="bottom: 10%; left: 10%;" id="slot-5"></div>
+                <div class="slot" style="top: 10%; left: 80%;" id="slot-6"></div>
+                <div class="slot" style="bottom: 10%; left: 80%;" id="slot-7"></div>
+                <div class="slot" style="top: 10%; left: 45%;" id="slot-8"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Updated Buildings list
+        const allBuildings = [
+            { emoji: '🏪', name: 'Store' }, { emoji: '🏫', name: 'School' }, { emoji: '🏥', name: 'Hospital' },
+            { emoji: '🏦', name: 'Bank' }, { emoji: '🏤', name: 'Post Office' }, { emoji: '🏨', name: 'Hotel' },
+            { emoji: '🏛️', name: 'Museum' }, { emoji: '🏢', name: 'Office' }, { emoji: '🗽', name: 'Statue' },
+            { emoji: '🏰', name: 'Castle' }, { emoji: '🏟️', name: 'Stadium' }, { emoji: '🎡', name: 'Ferris Wheel' },
+            { emoji: '🏬', name: 'Mall' }, { emoji: '🚉', name: 'Train Station' }, { emoji: '🚏', name: 'Bus Stop' },
+            { emoji: '🏠', name: 'House' }, { emoji: '⛪', name: 'Church' }, { emoji: '⛳', name: 'Golf Course' }
+        ];
+
+        const streetNames = {
+            St: ["First","Second","Third","Fourth","Fifth","Sixth","Seventh","Eighth","Ninth","Tenth"],
+            Ave: ["Maple","Oak","Pine","Elm","Cedar","Birch","Willow","Cherry","Ash","Walnut"],
+            Blvd: ["Washington","Lincoln","Jefferson","Adams","Franklin","Roosevelt","Kennedy","King","Jackson","Madison"]
+        };
+
+        const startBtn = document.getElementById('start-btn');
+        const mainMenu = document.getElementById('main-menu');
+        const gameScreen = document.getElementById('game-screen');
+        const previewGrid = document.getElementById('building-preview');
+        const allSlots = document.querySelectorAll('.slot');
+        const shuffleBtn = document.getElementById('shuffle-btn');
+        const challengeBtn = document.getElementById('challenge-btn');
+        const restartBtn = document.getElementById('restart-btn');
+        const timerText = document.getElementById('timer-text');
+        const progressBarInner = document.getElementById('progress-bar-inner');
+        const challengeText = document.getElementById('challenge-text');
+        const nameSt = document.getElementById('name-st');
+        const nameAve = document.getElementById('name-ave');
+        const nameBlvd = document.getElementById('name-blvd');
+
+        let timerInterval;
+        let timeLeft = 120;
+        let lastStartName = "";
+        let lastEndName = "";
+
+        function populateMainMenu() {
+            previewGrid.innerHTML = '';
+            allBuildings.forEach(b => {
+                const div = document.createElement('div');
+                div.className = "p-3 border rounded bg-gray-50 flex flex-col items-center gap-1";
+                div.innerHTML = `<div class="emoji">${b.emoji}</div><p class="font-semibold text-gray-800">${b.name.toLowerCase()}</p>`;
+                previewGrid.appendChild(div);
+            });
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        function randomStreetName(type) {
+            const options = streetNames[type];
+            return options[Math.floor(Math.random() * options.length)] + " " + type + ".";
+        }
+
+        function refreshStreetNames() {
+            nameSt.textContent = randomStreetName("St");
+            nameAve.textContent = randomStreetName("Ave");
+            nameBlvd.textContent = randomStreetName("Blvd");
+        }
+
+        function clearHighlights() {
+            allSlots.forEach(s => s.classList.remove('highlight-start', 'highlight-end'));
+        }
+
+        function resetChallengeText() {
+            challengeText.textContent = 'Click "New Route Challenge" to start!';
+            challengeText.className = 'text-center text-lg font-bold my-4 p-3 bg-purple-100 border-l-4 border-purple-500 text-purple-800 rounded-md transition-colors duration-300';
+        }
+
+        function placeRandomBuildings() {
+            clearHighlights();
+            resetChallengeText();
+            allSlots.forEach(s => {
+                s.innerHTML = '';
+                s.dataset.buildingName = '';
+            });
+
+            const shuffledBuildings = shuffleArray([...allBuildings]).slice(0, allSlots.length);
+            allSlots.forEach((slot, i) => {
+                const b = shuffledBuildings[i];
+                slot.innerHTML = `<div class="emoji">${b.emoji}</div><p>${b.name}</p>`;
+                slot.dataset.buildingName = b.name;
+            });
+
+            refreshStreetNames();
+        }
+
+        function getSlotCenter(slotElement) {
+            const rect = slotElement.getBoundingClientRect();
+            const parentRect = slotElement.parentElement.getBoundingClientRect();
+            return {
+                x: rect.left - parentRect.left + rect.width / 2,
+                y: rect.top - parentRect.top + rect.height / 2
+            };
+        }
+
+        function pickFarApartBuildings(placed) {
+            let bestPair = [placed[0], placed[1]];
+            let maxDist = 0;
+            for (let i = 0; i < placed.length; i++) {
+                for (let j = i + 1; j < placed.length; j++) {
+                    const a = getSlotCenter(placed[i]);
+                    const b = getSlotCenter(placed[j]);
+                    const d = Math.hypot(a.x - b.x, a.y - b.y);
+                    if (d > maxDist) {
+                        maxDist = d;
+                        bestPair = [placed[i], placed[j]];
+                    }
+                }
+            }
+            return bestPair;
+        }
+
+        function highlightRoute() {
+            clearHighlights();
+            const placed = Array.from(allSlots).filter(s => s.dataset.buildingName);
+            if (placed.length < 2) return;
+
+            const [start, end] = pickFarApartBuildings(placed);
+            start.classList.add('highlight-start');
+            end.classList.add('highlight-end');
+
+            lastStartName = start.dataset.buildingName.toLowerCase();
+            lastEndName = end.dataset.buildingName.toLowerCase();
+
+            challengeText.textContent = `go from the ${lastStartName} to the ${lastEndName}!`;
+            challengeText.className = 'text-center text-lg font-bold my-4 p-3 bg-green-100 border-l-4 border-green-500 text-green-800 rounded-md transition-colors duration-300';
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timeLeft = 120;
+            lastStartName = "";
+            lastEndName = "";
+            updateTimerDisplay();
+
+            timerInterval = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateTimerDisplay();
+                } else {
+                    clearInterval(timerInterval);
+                    timerText.textContent = "Time's Up!";
+                    if (lastStartName && lastEndName) {
+                        challengeText.textContent = `time's up! the route was from the ${lastStartName} to the ${lastEndName}.`;
+                    } else {
+                        challengeText.textContent = "time's up!";
+                    }
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerText.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            const percentage = (timeLeft / 120) * 100;
+            progressBarInner.style.width = `${percentage}%`;
+        }
+
+        startBtn.addEventListener('click', () => {
+            mainMenu.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            init();
+        });
+
+        function init() {
+            placeRandomBuildings();
+            startTimer();
+        }
+
+        shuffleBtn.addEventListener('click', placeRandomBuildings);
+        challengeBtn.addEventListener('click', highlightRoute);
+        restartBtn.addEventListener('click', () => {
+            placeRandomBuildings();
+            startTimer();
+        });
+
+        populateMainMenu();
+    </script>
+</body>
+</html>

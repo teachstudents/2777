@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Job Match Quiz</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f9f9f9;
+      color: #333;
+      text-align: center;
+    }
+    #start-screen, #game, #certificate {
+      padding: 20px;
+    }
+    #start-screen {
+      margin-top: 50px;
+    }
+    input[type="text"] {
+      padding: 10px;
+      font-size: 16px;
+      width: 80%;
+      max-width: 300px;
+      margin: 10px auto;
+      display: block;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    #timers {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 15px;
+      font-size: 18px;
+    }
+    #job-description {
+      margin: 20px;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+    #image-container {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      margin: 20px auto;
+      max-width: 1000px;
+    }
+    .option {
+      flex: 1;
+      max-width: 18%;
+      margin: 5px;
+      text-align: center;
+    }
+    .option-letter {
+      font-weight: bold;
+      margin-bottom: 5px;
+      display: block;
+    }
+    .option img {
+      width: 100%;
+      height: auto;
+    }
+    #answer-feedback {
+      font-size: 20px;
+      height: 30px;
+      margin-bottom: 10px;
+    }
+    #reward-animation {
+      max-width: 300px;
+      display: none;
+      margin: 10px auto;
+    }
+    /* Certificate styling */
+    #certificate {
+      margin-top: 50px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Start Screen -->
+  <div id="start-screen">
+    <h1>Job Match Quiz</h1>
+    <input type="text" id="playerName" placeholder="Enter your name" />
+    <button id="startButton">Start Game</button>
+  </div>
+
+  <!-- Game Section -->
+  <div id="game" style="display:none;">
+    <div id="timers">
+      <div>Total Time Left: <span id="total-timer">10:00</span></div>
+      <div>Question Time: <span id="question-timer">0:30</span></div>
+    </div>
+    <div id="job-description"></div>
+    <div id="image-container"></div>
+    <div id="answer-feedback"></div>
+    <input type="text" id="answerInput" placeholder="Type A, B, C, D, or E" maxlength="1" autocomplete="off" />
+    <img id="reward-animation" src="" alt="Reward Animation" />
+  </div>
+
+  <!-- Final Certificate -->
+  <div id="certificate" style="display:none;">
+    <h1 id="certificateTitle"></h1>
+    <p id="finalScore"></p>
+    <button onclick="window.print()">Print Certificate</button>
+  </div>
+
+  <!-- Audio Elements -->
+  <audio id="rewardSound1" src="game1.mp3"></audio>
+  <audio id="rewardSound2" src="game2.mp3"></audio>
+  <audio id="wrongSound" src="wrong.mp3"></audio>
+
+  <script>
+    // Global Variables
+    let score = 100;
+    let currentQuestion = 0;
+    let totalQuestions = 25; // using 25 jobs from our pool
+    let totalTime = 600; // Total game time in seconds (10 minutes)
+    let questionTimeLimit = 30; // Each question time in seconds
+    let questionTimer;
+    let totalTimer;
+    let currentQuestionTime;
+    let currentCorrectLetter = "";
+    let playerName = "";
+
+    // Define job objects with id and image (using the folder "worker/")
+    const jobs = [
+      { id: "waiter", image: "worker/waiter.png" },
+      { id: "veterinarian", image: "worker/veterinarian.png" },
+      { id: "teacher", image: "worker/teacher.png" },
+      { id: "tour_guide", image: "worker/tour_guide.png" },
+      { id: "shop_assistant", image: "worker/shop_assistant.png" },
+      { id: "taxi", image: "worker/taxi.png" },
+      { id: "police", image: "worker/police.png" },
+      { id: "postal_worker", image: "worker/postal_worker.png" },
+      { id: "photographer", image: "worker/photographer.png" },
+      { id: "pilot", image: "worker/pilot.png" },
+      { id: "office_worker", image: "worker/office_worker.png" },
+      { id: "musician", image: "worker/musician.png" },
+      { id: "librarian", image: "worker/librarian.png" },
+      { id: "hairdresser", image: "worker/hairdresser.png" },
+      { id: "firefighter", image: "worker/firefighter.png" },
+      { id: "farmer", image: "worker/farmer.png" },
+      { id: "doctor", image: "worker/doctor.png" },
+      { id: "factory_worker", image: "worker/factory_worker.png" },
+      { id: "construction_worker", image: "worker/construction_worker.png" },
+      { id: "dentist", image: "worker/dentist.png" },
+      { id: "coach", image: "worker/coach.png" },
+      { id: "chef", image: "worker/chef.png" },
+      { id: "cleaner", image: "worker/cleaner.png" },
+      { id: "bus_driver", image: "worker/bus_driver.png" },
+      { id: "baker", image: "worker/baker.png" }
+    ];
+
+    // Expanded travel options in simple A2 language.
+    const travelOptions = [ 
+      { method: "by car", reason: "it is fast and safe" },
+      { method: "by subway", reason: "it is quick and reliable" },
+      { method: "by bus", reason: "it is cheap and good" },
+      { method: "on foot", reason: "I like to walk" },
+      { method: "by bicycle", reason: "it is fun and healthy" },
+      { method: "by rideshare", reason: "it is easy and convenient" },
+      { method: "by train", reason: "it is steady and comfy" },
+      { method: "by boat", reason: "it is relaxing and nice" },
+      { method: "by motorcycle", reason: "it is speedy and fun" },
+      { method: "by moped", reason: "it is small and quick" },
+      { method: "by skateboard", reason: "it is cool and fast" },
+      { method: "by ferry", reason: "it is calm and smooth" },
+      { method: "by tram", reason: "it is modern and efficient" }
+    ];
+
+    // Work description mapping in A2 level simple English.
+    const workDescriptions = {
+      waiter: "At work, I serve food to people and smile because I want them to enjoy their meal.",
+      veterinarian: "At work, I take care of animals and give them medicine because I care about them.",
+      teacher: "At work, I talk with students and help them learn because I want them to understand.",
+      tour_guide: "At work, I show visitors places and tell simple facts because I like to share.",
+      shop_assistant: "At work, I help customers and keep the shop neat because I want them to be happy.",
+      taxi: "At work, I drive people and make sure they are safe because I care about their ride.",
+      police: "At work, I help keep the city safe and stop small problems because I care about my community.",
+      postal_worker: "At work, I sort and deliver mail because I want people to get their letters.",
+      photographer: "At work, I take pictures and record moments because I like to make memories.",
+      pilot: "At work, I fly the plane and guide it well because I want people to travel safely.",
+      office_worker: "At work, I use a computer and talk to my friends because I help my company work well.",
+      musician: "At work, I play music and practice my instrument because I love making sounds.",
+      librarian: "At work, I look after books and help people find them because I like a quiet place.",
+      hairdresser: "At work, I cut and style hair because I want my clients to look good.",
+      firefighter: "At work, I help put out fires and rescue people because I want to keep everyone safe.",
+      farmer: "At work, I grow crops and take care of animals because I love nature.",
+      doctor: "At work, I help sick people and give them medicine because I care about their health.",
+      factory_worker: "At work, I work with machines and build things because I want the factory to run well.",
+      construction_worker: "At work, I use tools and build structures because I like to make safe buildings.",
+      dentist: "At work, I check teeth and help them be clean because I want people to smile.",
+      coach: "At work, I train players and teach them skills because I want them to do their best.",
+      chef: "At work, I cook food and make it tasty because I love good meals.",
+      cleaner: "At work, I clean rooms and tidy spaces because I want places to be nice.",
+      bus_driver: "At work, I drive a bus and follow my route because I help people go places.",
+      baker: "At work, I bake bread and cakes because I love making sweet treats."
+    };
+
+    // Function to generate a full description.
+    function generateDescription(job) {
+      const times = ["6:30", "7:00", "7:30", "8:00", "8:30"];
+      const selectedTime = times[Math.floor(Math.random() * times.length)];
+      // Simple departure in A2 English.
+      const departure = "At " + selectedTime + ", I leave my house because it is morning.";
+      const travel = travelOptions[Math.floor(Math.random() * travelOptions.length)];
+      const commute = " I go to work " + travel.method + " because " + travel.reason + ".";
+      const workPart = " " + workDescriptions[job.id];
+      return departure + commute + workPart;
+    }
+
+    // Shuffle function (Fisher–Yates)
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    // Global array to determine question order.
+    let questionOrder = jobs.slice();
+    shuffleArray(questionOrder);
+
+    // Start the game when the player clicks Start.
+    document.getElementById("startButton").addEventListener("click", function () {
+      playerName = document.getElementById("playerName").value.trim();
+      if (playerName === "") {
+        alert("Please enter your name.");
+        return;
+      }
+      document.getElementById("start-screen").style.display = "none";
+      document.getElementById("game").style.display = "block";
+      startTotalTimer();
+      loadQuestion();
+    });
+
+    // Start the overall 10-minute timer.
+    function startTotalTimer() {
+      totalTimer = setInterval(function () {
+        if (totalTime <= 0) {
+          clearInterval(totalTimer);
+          alert("Time is up!");
+          endGame();
+        }
+        updateTotalTimerDisplay();
+        totalTime--;
+      }, 1000);
+    }
+
+    function updateTotalTimerDisplay() {
+      const minutes = Math.floor(totalTime / 60);
+      const seconds = totalTime % 60;
+      document.getElementById("total-timer").textContent =
+        minutes + ":" + (seconds < 10 ? "0" + seconds : seconds);
+    }
+
+    // Load a new question.
+    function loadQuestion() {
+      clearInterval(questionTimer);
+      currentQuestionTime = questionTimeLimit;
+      updateQuestionTimerDisplay();
+
+      if (currentQuestion >= totalQuestions) {
+        endGame();
+        return;
+      }
+
+      const correctJob = questionOrder[currentQuestion];
+
+      // Build options: correct job plus 4 distractors.
+      let options = [correctJob];
+      let distractors = jobs.filter(job => job.id !== correctJob.id);
+      shuffleArray(distractors);
+      options = options.concat(distractors.slice(0, 4));
+      shuffleArray(options);
+
+      const letters = ["A", "B", "C", "D", "E"];
+      currentCorrectLetter = "";
+      let htmlOptions = "";
+      document.getElementById("image-container").innerHTML = "";
+      options.forEach((option, index) => {
+        if (option.id === correctJob.id) {
+          currentCorrectLetter = letters[index];
+        }
+        htmlOptions += `
+          <div class="option">
+            <span class="option-letter">${letters[index]}</span>
+            <img src="${option.image}" alt="${option.id}" />
+          </div>
+        `;
+      });
+      document.getElementById("image-container").innerHTML = htmlOptions;
+
+      // Display the new description.
+      document.getElementById("job-description").textContent = generateDescription(correctJob);
+      document.getElementById("answer-feedback").textContent = "";
+      document.getElementById("answerInput").value = "";
+
+      // Start the 30-second timer for this question.
+      questionTimer = setInterval(function () {
+        if (currentQuestionTime <= 0) {
+          playWrong();
+          document.getElementById("answer-feedback").textContent = "Time's up! Incorrect. Try again.";
+          score = Math.max(0, score - 10);
+          currentQuestionTime = questionTimeLimit;
+        }
+        updateQuestionTimerDisplay();
+        currentQuestionTime--;
+      }, 1000);
+    }
+
+    function updateQuestionTimerDisplay() {
+      let sec = currentQuestionTime % 60;
+      let min = Math.floor(currentQuestionTime / 60);
+      document.getElementById("question-timer").textContent = min + ":" + (sec < 10 ? "0" + sec : sec);
+    }
+
+    // Auto-check answer on keyup.
+    document.getElementById("answerInput").addEventListener("keyup", function () {
+      const answer = this.value.trim().toUpperCase();
+      if (answer.length === 1 && "ABCDE".includes(answer)) {
+        checkAnswer(answer);
+      }
+    });
+
+    function checkAnswer(answer) {
+      if (answer === currentCorrectLetter) {
+        clearInterval(questionTimer);
+        document.getElementById("answer-feedback").textContent = "Correct!";
+        playReward();
+        setTimeout(() => {
+          currentQuestion++;
+          loadQuestion();
+        }, 1000);
+      } else {
+        document.getElementById("answer-feedback").textContent = "Incorrect. Try again.";
+        score = Math.max(0, score - 10);
+        playWrong();
+        document.getElementById("answerInput").value = "";
+      }
+    }
+
+    // Play reward animation and sound.
+    function playReward() {
+      let rewardAnimation = document.getElementById("reward-animation");
+      if (currentQuestion < 10) {
+        rewardAnimation.src = "reward1.gif";
+        document.getElementById("rewardSound1").play();
+      } else {
+        rewardAnimation.src = "reward2.gif";
+        document.getElementById("rewardSound2").play();
+      }
+      rewardAnimation.style.display = "block";
+      setTimeout(() => { rewardAnimation.style.display = "none"; }, 1000);
+    }
+
+    function playWrong() {
+      document.getElementById("wrongSound").play();
+    }
+
+    // End the game and show the final certificate.
+    function endGame() {
+      clearInterval(totalTimer);
+      clearInterval(questionTimer);
+      document.getElementById("game").style.display = "none";
+      document.getElementById("certificate").style.display = "block";
+      document.getElementById("certificateTitle").textContent = "Congratulations, " + playerName + "!";
+      document.getElementById("finalScore").textContent = "Final Score: " + score;
+    }
+  </script>
+</body>
+</html>

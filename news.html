@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live News, Weather & AI Chat (Gemini Demo)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- STYLES -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        .card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        audio {
+            width: 100%;
+            border-radius: 8px;
+            filter: sepia(20%) saturate(70%) grayscale(1) contrast(99%) hue-rotate(-12deg);
+        }
+        .chat-container::-webkit-scrollbar { width: 6px; }
+        .chat-container::-webkit-scrollbar-track { background: #f1f1f1; }
+        .chat-container::-webkit-scrollbar-thumb { background: #888; border-radius: 3px; }
+        .chat-container::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        .message-bubble {
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+        .message-bubble ul {
+            padding-left: 20px;
+            list-style: disc;
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .weather-icon-emoji {
+            font-size: 4rem; /* 64px */
+            line-height: 1;
+        }
+        .prose {
+             line-height: 1.7;
+        }
+        .prose ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-7xl">
+        <!-- WEATHER SECTION -->
+        <section id="weather-section" class="bg-white p-6 rounded-xl shadow-lg mb-8">
+            <div id="weather-loading" class="text-center text-gray-600">Loading Beijing weather...</div>
+            <div id="weather-content" class="hidden">
+                <div class="flex flex-wrap justify-between items-center">
+                    <div class="flex-shrink-0 mb-4 sm:mb-0">
+                        <h2 class="text-2xl font-bold text-gray-800">Beijing Weather</h2>
+                        <p id="beijing-date" class="text-gray-500"></p>
+                        <p id="beijing-time" class="text-gray-500 font-semibold text-lg"></p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div id="weather-icon" class="weather-icon-emoji"></div>
+                        <div>
+                            <p id="weather-temp" class="text-4xl font-bold text-gray-800"></p>
+                            <p id="weather-desc" class="text-gray-600 capitalize"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+             <div id="weather-error" class="hidden text-center text-red-600 bg-red-100 p-3 rounded-lg"></div>
+        </section>
+
+        <!-- NEWS PAGE CONTENT -->
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-2">Live News Feed</h1>
+            <p class="text-lg text-gray-600">Your daily source for news and live audio broadcasts</p>
+        </header>
+
+        <section id="audio-streams" class="mb-10">
+            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-500 pb-2 mb-6">Live Audio Streams</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-4 rounded-lg shadow-md"><h3 class="font-semibold text-lg mb-3">BBC World Service</h3><audio controls preload="none"><source src="https://stream.live.vc.bbcmedia.co.uk/bbc_world_service" type="audio/mpeg">Your browser does not support the audio element.</audio></div>
+                <div class="bg-white p-4 rounded-lg shadow-md"><h3 class="font-semibold text-lg mb-3">NPR News</h3><audio controls preload="none"><source src="https://npr-ice.streamguys1.com/live.mp3" type="audio/mpeg">Your browser does not support the audio element.</audio></div>
+            </div>
+        </section>
+
+        <section id="news-articles">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b-2 border-blue-500 pb-2 mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 sm:mb-0">Top Stories</h2>
+                <div class="relative">
+                    <select id="news-source-selector" class="appearance-none w-full sm:w-auto bg-white border border-gray-300 rounded-md py-2 pl-3 pr-10 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"><option value="cna">Channel News Asia (Singapore)</option><option value="aljazeera">Al Jazeera</option></select>
+                    <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700"><svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg></span>
+                </div>
+            </div>
+            <div id="loading" class="text-center py-10"><div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div><p class="mt-4 text-gray-600">Fetching latest news...</p></div>
+            <div id="news-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            <div id="error-message" class="hidden text-center bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mt-6"><strong class="font-bold">Error:</strong><span class="block sm:inline" id="error-text"></span></div>
+        </section>
+    </div>
+
+    <!-- CHATBOT HTML -->
+    <div id="chatbot-container-wrapper" class="fixed bottom-20 right-5 hidden z-50">
+        <div class="w-full max-w-sm h-full sm:h-[80vh] sm:max-h-[600px] bg-white rounded-lg shadow-2xl flex flex-col">
+            <header class="bg-blue-600 text-white p-4 rounded-t-lg flex items-center shadow-md"><svg class="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg><h3 class="font-semibold text-lg">AI Assistant</h3></header>
+            <div id="chat-container" class="flex-1 p-6 overflow-y-auto chat-container bg-gray-50"><div class="flex justify-start mb-4"><div class="bg-gray-200 text-gray-800 p-3 rounded-lg message-bubble"><p>Hello! I am a live AI assistant. How can I help you today?</p></div></div></div>
+            <div id="chatbot-loading-indicator" class="p-4 hidden"><div class="flex justify-start items-center"><div class="bg-gray-200 p-3 rounded-lg"><div class="loader"></div></div></div></div>
+            <footer class="p-4 bg-white border-t border-gray-200 rounded-b-lg"><div class="flex items-center"><input type="text" id="user-input" class="flex-1 border border-gray-300 rounded-full py-3 px-5 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Type your message..."><button id="send-button" class="ml-4 bg-blue-600 text-white rounded-full p-3 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg></button></div></footer>
+        </div>
+    </div>
+    <button id="chatbot-toggle-button" class="fixed bottom-5 right-5 bg-blue-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 transition-transform transform hover:scale-110 z-50"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path></svg></button>
+    
+    <!-- AI SUMMARY MODAL -->
+    <div id="summary-modal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden z-50 transition-opacity duration-300">
+        <div id="modal-panel" class="bg-white rounded-xl shadow-2xl p-6 max-w-lg w-full transform transition-transform duration-300 scale-95">
+            <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 class="text-xl font-bold text-gray-900">✨ AI-Powered Summary</h3>
+                <button id="close-modal-btn" class="text-gray-400 hover:text-gray-800 text-3xl leading-none">&times;</button>
+            </div>
+            <div id="modal-content" class="text-gray-700 max-h-[60vh] overflow-y-auto">
+                <div id="modal-loader" class="text-center py-8">
+                    <div class="loader mx-auto"></div>
+                    <p class="mt-3 text-gray-500">Generating summary...</p>
+                </div>
+                <div id="summary-text" class="hidden prose max-w-none"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SCRIPT -->
+    <script>
+        // --- CHATBOT & MODAL ELEMENTS ---
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const chatbotLoadingIndicator = document.getElementById('chatbot-loading-indicator');
+        const chatbotToggleButton = document.getElementById('chatbot-toggle-button');
+        const chatbotContainerWrapper = document.getElementById('chatbot-container-wrapper');
+        const modal = document.getElementById('summary-modal');
+        const modalPanel = document.getElementById('modal-panel');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const modalLoader = document.getElementById('modal-loader');
+        const summaryTextEl = document.getElementById('summary-text');
+
+        // --- GENERAL HELPER FUNCTION ---
+        function parseMarkdown(text) {
+            let html = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            html = html.replace(/^\s*[\*-]\s+(.*)/gm, '<li>$1</li>');
+            html = html.replace(/<\/li>\s*<li>/g, '</li><li>');
+            const listRegex = /(<li>.*<\/li>)/s;
+            if (listRegex.test(html)) { html = html.replace(listRegex, '<ul>$1</ul>'); }
+            return html.split(/\n\s*\n/).map(p => {
+                if (p.startsWith('<ul>') || p.startsWith('<p>')) return p;
+                return p.trim() ? `<p>${p.replace(/\n/g, '<br>')}</p>` : '';
+            }).join('');
+        }
+
+        // --- AI API CALL ---
+        async function callGeminiAPI(prompt, systemInstructionText = "") {
+             const apiKey = ""; // API key is injected by the environment. Leave this empty.
+             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+             
+             const payload = {
+                 contents: [{ role: "user", parts: [{ text: prompt }] }],
+                 safetySettings: [
+                     { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_LOW_AND_ABOVE" },
+                     { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_LOW_AND_ABOVE" },
+                     { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_LOW_AND_ABOVE" },
+                     { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_LOW_AND_ABOVE" }
+                 ]
+             };
+
+             if (systemInstructionText) {
+                 payload.systemInstruction = { parts: [{ text: systemInstructionText }] };
+             }
+
+             const response = await fetch(apiUrl, {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify(payload)
+             });
+
+             if (!response.ok) {
+                 const errorData = await response.json();
+                 throw new Error(`API Error: ${errorData.error.message || response.statusText}`);
+             }
+
+             const result = await response.json();
+             
+             if (result.promptFeedback && result.promptFeedback.blockReason) {
+                 throw new Error("Request was blocked due to safety settings.");
+             }
+             if (result.candidates && result.candidates[0].finishReason === "SAFETY") {
+                 throw new Error("Response was blocked due to safety settings.");
+             }
+             if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                 return result.candidates[0].content.parts[0].text;
+             }
+             
+             throw new Error("Could not get a valid response from the AI.");
+        }
+
+
+        // --- CHATBOT LOGIC ---
+        function displayMessage(text, sender) {
+            const messageWrapper = document.createElement('div');
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('p-3', 'rounded-lg', 'message-bubble');
+            
+            if (sender === 'user') {
+                messageWrapper.classList.add('flex', 'justify-end', 'mb-4');
+                messageBubble.classList.add('bg-blue-600', 'text-white');
+                messageBubble.innerHTML = `<p>${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`;
+            } else { 
+                messageWrapper.classList.add('flex', 'justify-start', 'mb-4');
+                messageBubble.classList.add('bg-gray-200', 'text-gray-800');
+                messageBubble.innerHTML = parseMarkdown(text);
+            }
+            messageWrapper.appendChild(messageBubble);
+            chatContainer.appendChild(messageWrapper);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function sendMessage() {
+            const messageText = userInput.value.trim();
+            if (!messageText) return;
+            displayMessage(messageText, 'user');
+            userInput.value = '';
+            chatbotLoadingIndicator.classList.remove('hidden');
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            try {
+                const systemInstruction = "Please provide answers that are clear, simple, and suitable for all ages. Present information in an organized way, using lists when helpful.";
+                const aiResponse = await callGeminiAPI(messageText, systemInstruction);
+                displayMessage(aiResponse, 'ai');
+            } catch (error) {
+                console.error('Error fetching AI response:', error);
+                displayMessage(`Sorry, an error occurred. Details: ${error.message}`, 'ai');
+            } finally {
+                 chatbotLoadingIndicator.classList.add('hidden');
+            }
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (event) => { if (event.key === 'Enter') sendMessage(); });
+        chatbotToggleButton.addEventListener('click', () => { chatbotContainerWrapper.classList.toggle('hidden'); });
+        
+        // --- SUMMARY MODAL LOGIC ---
+        function showSummaryModal(articleContent) {
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.add('opacity-100'); modalPanel.classList.add('scale-100'); }, 10);
+            summaryTextEl.classList.add('hidden');
+            modalLoader.classList.remove('hidden');
+            getSummaryFromAI(articleContent);
+        }
+        function hideSummaryModal() {
+             modalPanel.classList.remove('scale-100');
+             modal.classList.remove('opacity-100');
+             setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+        async function getSummaryFromAI(articleContent) {
+            try {
+                const prompt = `Please provide a concise, neutral summary of the following news article, suitable for all audiences. The summary should be about 2-3 sentences long. Article: ${articleContent}`;
+                const summary = await callGeminiAPI(prompt);
+                summaryTextEl.innerHTML = parseMarkdown(summary);
+            } catch (error) {
+                console.error('Error fetching summary:', error);
+                summaryTextEl.textContent = `Sorry, an error occurred while generating the summary. (${error.message})`;
+            } finally {
+                modalLoader.classList.add('hidden');
+                summaryTextEl.classList.remove('hidden');
+            }
+        }
+        closeModalBtn.addEventListener('click', hideSummaryModal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) hideSummaryModal(); });
+
+
+        // --- PAGE LOAD INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- WEATHER SCRIPT ---
+            const weatherApiUrl = 'https://wttr.in/Beijing?format=j1';
+            async function fetchWeather() {
+                try {
+                    const response = await fetch(weatherApiUrl);
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                    const data = await response.json();
+                    displayWeather(data);
+                } catch (error) {
+                    console.error("Error fetching weather:", error);
+                    displayWeatherError(`Could not load weather. ${error.message}.`);
+                }
+            }
+            function displayWeather(data) {
+                document.getElementById('weather-loading').classList.add('hidden');
+                document.getElementById('weather-error').classList.add('hidden');
+                document.getElementById('weather-content').classList.remove('hidden');
+                const condition = data.current_condition[0];
+                document.getElementById('weather-temp').textContent = `${condition.temp_C}°C`;
+                document.getElementById('weather-desc').textContent = condition.weatherDesc[0].value;
+                document.getElementById('weather-icon').textContent = getWeatherEmoji(condition.weatherCode);
+            }
+            function getWeatherEmoji(weatherCode) {
+                const code = parseInt(weatherCode);
+                if (code >= 389 && code <= 395 || code >= 293 && code <= 308) return '🌨️';
+                if (code >= 353 && code <= 371 || code >= 263 && code <= 284) return '🌧️';
+                if (code >= 227 && code <= 230 || code == 386) return '🌩️';
+                if (code >= 200 && code <= 200) return '⛈️';
+                if (code >= 176 && code <= 185 || code == 248 || code == 260) return '🌫️';
+                if (code >= 119 && code <= 122 || code == 143) return '☁️';
+                if (code === 116) return '⛅';
+                if (code === 113) return '☀️';
+                return '🌡️';
+            }
+            function displayWeatherError(message) {
+                document.getElementById('weather-loading').classList.add('hidden');
+                const errorDiv = document.getElementById('weather-error');
+                errorDiv.textContent = `⚠️ ${message}`;
+                errorDiv.classList.remove('hidden');
+            }
+            function updateTime() {
+                const now = new Date();
+                const beijingDateOptions = { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+                const beijingTimeOptions = { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
+                document.getElementById('beijing-date').textContent = now.toLocaleDateString('en-US', beijingDateOptions);
+                document.getElementById('beijing-time').textContent = now.toLocaleTimeString('en-US', beijingTimeOptions);
+            }
+            fetchWeather();
+            updateTime();
+            setInterval(fetchWeather, 900000);
+            setInterval(updateTime, 1000);
+            
+            // --- NEWS SCRIPT ---
+            const newsContainer = document.getElementById('news-container');
+            const loadingIndicator = document.getElementById('loading');
+            const sourceSelector = document.getElementById('news-source-selector');
+            const errorMessageDiv = document.getElementById('error-message');
+            const errorTextSpan = document.getElementById('error-text');
+            const newsSources = { cna: 'https://www.channelnewsasia.com/rssfeeds/8395986', aljazeera: 'https://www.aljazeera.com/xml/rss/all.xml' };
+            const RSS2JSON_API_ENDPOINT = 'https://api.rss2json.com/v1/api.json?rss_url=';
+            
+            async function fetchNews(sourceKey) {
+                loadingIndicator.style.display = 'block';
+                newsContainer.innerHTML = '';
+                errorMessageDiv.classList.add('hidden');
+                const feedUrl = newsSources[sourceKey];
+                try {
+                    const response = await fetch(`${RSS2JSON_API_ENDPOINT}${encodeURIComponent(feedUrl)}`);
+                    if (!response.ok) { throw new Error(`Network response was not ok, status: ${response.status}`); }
+                    const data = await response.json();
+                    if (data.status !== 'ok') { throw new Error('Could not retrieve news feed. Source may be unavailable.'); }
+                    displayArticles(data.items, data.feed.title);
+                } catch (error) { console.error('Error fetching news:', error); displayNewsError(`Could not fetch news. Please try again later. Details: ${error.message}`); } 
+                finally { loadingIndicator.style.display = 'none'; }
+            }
+            function displayNewsError(message) { errorTextSpan.textContent = message; errorMessageDiv.classList.remove('hidden'); }
+            
+            function displayArticles(articles, feedTitle) {
+                if (!articles || articles.length === 0) { displayNewsError("No articles found for this source."); return; }
+                articles.forEach(article => {
+                    const articleEl = document.createElement('div');
+                    articleEl.className = 'card';
+                    const title = article.title || 'No Title';
+                    const link = article.link || '#';
+                    const pubDate = article.pubDate ? new Date(article.pubDate).toLocaleDateString() : 'N/A';
+                    const description = (article.description || 'No summary available.').replace(/<[^>]*>?/gm, '');
+                    
+                    articleEl.innerHTML = `
+                        <a href="${link}" target="_blank" rel="noopener noreferrer" class="flex flex-col h-full">
+                            <h3 class="font-bold text-lg mb-2 text-gray-800 hover:text-blue-600 transition-colors">${title}</h3>
+                            <p class="text-gray-600 text-sm mb-4 flex-grow">${description.substring(0, 150)}...</p>
+                            <div class="text-xs text-gray-500 mt-auto">
+                                <p><strong>${feedTitle}</strong></p>
+                                <p>Published: ${pubDate}</p>
+                            </div>
+                        </a>
+                        <div class="mt-4 pt-4 border-t border-gray-100">
+                             <button class="summarize-btn bg-blue-100 text-blue-800 text-sm font-semibold py-2 px-4 rounded-full w-full hover:bg-blue-200 transition-colors flex items-center justify-center">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stars mr-2" viewBox="0 0 16 16"><path d="M7.657 6.247c.11-.33.576-.33.686 0l.645 1.937a2.89 2.89 0 0 0 1.829 1.828l1.936.645c.33.11.33.576 0 .686l-1.937.645a2.89 2.89 0 0 0-1.828 1.829l-.645 1.936a.361.361 0 0 1-.686 0l-.645-1.937a2.89 2.89 0 0 0-1.828-1.828l-1.937-.645a.361.361 0 0 1 0-.686l1.937-.645a2.89 2.89 0 0 0 1.828-1.828zM3.794 1.148a.217.217 0 0 1 .412 0l.387 1.162c.173.518.579.924 1.097 1.097l1.162.387a.217.217 0 0 1 0 .412l-1.162.387A1.73 1.73 0 0 0 4.58 5.794l-.387 1.162a.217.217 0 0 1-.412 0L3.4 5.794A1.73 1.73 0 0 0 1.58 4.707l-1.162-.387a.217.217 0 0 1 0-.412l1.162-.387A1.73 1.73 0 0 0 3.4 1.58zM10.854 8.854a.217.217 0 0 1 .412 0l.387 1.162c.173.518.579.924 1.097 1.097l1.162.387a.217.217 0 0 1 0 .412l-1.162.387a1.73 1.73 0 0 0-1.097 1.097l-.387 1.162a.217.217 0 0 1-.412 0l-.387-1.162a1.73 1.73 0 0 0-1.097-1.097l-1.162-.387a.217.217 0 0 1 0-.412l1.162-.387a1.73 1.73 0 0 0 1.097-1.097z"/></svg>
+                                 Summarize with AI
+                             </button>
+                        </div>`;
+                    newsContainer.appendChild(articleEl);
+                    
+                    const summarizeBtn = articleEl.querySelector('.summarize-btn');
+                    summarizeBtn.addEventListener('click', (e) => {
+                        e.preventDefault(); e.stopPropagation();
+                        const articleContent = `${title}. ${description}`;
+                        showSummaryModal(articleContent);
+                    });
+                });
+            }
+            sourceSelector.addEventListener('change', (event) => { fetchNews(event.target.value); });
+            fetchNews(sourceSelector.value);
+        });
+    </script>
+</body>
+</html>
