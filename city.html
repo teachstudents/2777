@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emoji Place Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;700&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Nunito', sans-serif;
+            overflow: hidden; /* Prevent scrollbars from confetti */
+            animation: background-pan 20s linear infinite;
+            background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+            background-size: 400% 400%;
+        }
+
+        @keyframes background-pan {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .font-fredoka {
+            font-family: 'Fredoka', sans-serif;
+        }
+        /* 3D Card Flip - Updated for correct text orientation and new animations */
+        .card {
+            perspective: 1000px;
+            transform-style: preserve-3d; /* Apply 3D context to the container */
+            position: absolute; /* Needed for smooth animation in/out of the same spot */
+        }
+        .card-face {
+            backface-visibility: hidden; /* Hide the back of a card face when it's turned away */
+            transition: transform 0.6s;
+            width: 100%;
+            height: 100%;
+            position: absolute;
+        }
+        .card-face-back {
+            transform: rotateY(180deg); /* Pre-rotate the back face */
+        }
+        .card.is-flipped {
+            transform: rotateY(180deg) scale(1.05); /* Flip the card and add a 'pop' effect */
+        }
+
+        .shake {
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+        }
+
+        /* New animations for card entry and exit */
+        @keyframes card-enter {
+            from {
+                transform: scale(0.5) rotateY(-90deg) translateX(-200px);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1) rotateY(0deg) translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes card-fade-out {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+            }
+        }
+        
+        .card-enter-active {
+            animation: card-enter 0.6s ease-out forwards;
+        }
+
+        .card-fade-out-active {
+            animation: card-fade-out 0.5s ease-in forwards;
+        }
+
+        /* Confetti particle for correct answers */
+        .confetti-particle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            opacity: 0;
+            animation: confetti-burst 1s ease-out forwards;
+        }
+
+        @keyframes confetti-burst {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--x), var(--y)) scale(0);
+                opacity: 0;
+            }
+        }
+        
+        /* New subtle float animation for emojis */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-12px); }
+        }
+        .float-animation {
+            animation: float 4s ease-in-out infinite;
+        }
+        
+        /* New 3D button styles */
+        .btn-option {
+            position: relative;
+            top: 0;
+            border-radius: 1rem;
+            font-weight: 700;
+            transition: top 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+            border: none;
+            cursor: pointer;
+        }
+        .btn-option:active {
+            top: 6px;
+            box-shadow: 0 0px #0000; /* No shadow when pressed */
+        }
+        .btn-purple {
+            background-color: #f5f3ff; /* purple-50 */
+            color: #5b21b6; /* violet-700 */
+            box-shadow: 0 6px #d8b4fe; /* purple-300 */
+        }
+        .btn-purple:active { box-shadow: 0 0px #d8b4fe; }
+        .btn-sky {
+            background-color: #f0f9ff; /* sky-50 */
+            color: #0369a1; /* sky-700 */
+            box-shadow: 0 6px #7dd3fc; /* sky-300 */
+        }
+        .btn-sky:active { box-shadow: 0 0px #7dd3fc; }
+        .btn-correct {
+            background-color: #4ade80; /* green-400 */
+            color: white;
+            box-shadow: 0 6px #22c55e; /* green-500 */
+        }
+        .btn-wrong {
+            background-color: #f87171; /* red-400 */
+            color: white;
+            box-shadow: 0 6px #ef4444; /* red-500 */
+        }
+
+        /* Sparkle Animation */
+        .sparkle {
+            position: absolute;
+            background-color: white;
+            border-radius: 50%;
+            opacity: 0;
+            animation: sparkle-fly 10s linear infinite;
+        }
+        @keyframes sparkle-fly {
+            0% {
+                transform: translateY(100vh) scale(0.5);
+                opacity: 0.7;
+            }
+            100% {
+                transform: translateY(-100vh) scale(1);
+                opacity: 0;
+            }
+        }
+
+        /* Feedback animation */
+        @keyframes fade-in-out {
+            0%, 100% { opacity: 0; transform: translateY(10px); }
+            20%, 80% { opacity: 1; transform: translateY(0); }
+        }
+        .feedback-anim {
+            animation: fade-in-out 1.2s ease-in-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div id="sparkle-container" class="fixed top-0 left-0 w-full h-full -z-10 overflow-hidden"></div>
+
+    <div id="gameContainer" class="w-full max-w-4xl mx-auto text-center">
+
+        <!-- Start Screen -->
+        <div id="startScreen" class="bg-white/30 backdrop-blur-sm p-8 rounded-2xl">
+            <h1 class="font-fredoka text-6xl text-purple-800 mb-4">Emoji Place Game!</h1>
+            <p class="text-2xl text-gray-800 mb-8">Learn places with fun emojis!</p>
+            <div class="mb-8 text-xl">
+                <span class="font-fredoka text-gray-700">High Score: </span>
+                <span id="highScoreDisplay" class="font-bold text-yellow-500">0</span>
+            </div>
+            <button id="startButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold font-fredoka text-2xl py-4 px-10 rounded-full shadow-lg transform hover:scale-105 transition-transform duration-200">
+                START
+            </button>
+        </div>
+
+        <!-- Learning Screen -->
+        <div id="learningScreen" class="hidden flex flex-col h-screen justify-between">
+            <div id="learningCardArea" class="flex-grow flex items-start justify-center relative pt-8">
+                <!-- Card will be injected here into a container -->
+            </div>
+            <div class="text-center p-4 bg-white/30 backdrop-blur-sm rounded-t-2xl">
+                 <div id="learningCounter" class="text-xl font-bold text-gray-600 mb-4 h-6"></div>
+                 <h2 id="learningTitle" class="font-fredoka text-4xl text-purple-800 mb-2">Learning Round!</h2>
+                 <p class="text-gray-700">Watch and listen to learn the words.</p>
+                 <button id="startQuizButton" class="hidden mt-8 bg-green-500 hover:bg-green-600 text-white font-bold font-fredoka text-xl py-3 px-8 rounded-full shadow-lg transform hover:scale-105 transition-transform duration-200">
+                    I'm Ready!
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="hidden flex flex-col h-screen justify-start">
+            <!-- Question Area at the top -->
+            <div id="questionDisplay" class="text-center pt-4">
+                <div id="questionEmoji" class="text-9xl mb-4"></div>
+                <div id="questionWord" class="font-fredoka text-5xl text-white text-shadow-lg mb-6" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);"></div>
+            </div>
+
+            <!-- Feedback Message -->
+            <div id="feedbackMessage" class="text-center text-3xl font-bold h-10 mb-4"></div>
+
+            <!-- Options in the middle -->
+            <div id="optionsContainer" class="grid grid-cols-2 gap-4 w-full max-w-lg mx-auto">
+                <!-- Options will be injected here -->
+            </div>
+
+            <!-- Status bar at the bottom -->
+            <div id="statusBar" class="w-full mt-auto bg-white/30 backdrop-blur-sm rounded-t-2xl p-4">
+                 <div id="timerContainer" class="w-24 h-24 mx-auto mb-4 rounded-full flex items-center justify-center text-4xl font-bold border-8 transition-colors duration-300 bg-white/50">
+                     <span id="timer">10</span>
+                 </div>
+                <div class="flex justify-between items-center w-full max-w-2xl mx-auto">
+                    <div class="text-2xl font-bold text-purple-800">Score: <span id="score">0</span></div>
+                     <div class="text-xl font-bold text-gray-700">Round <span id="roundCounter">1</span> / 3</div>
+                    <div class="w-full max-w-md bg-gray-200 rounded-full h-4 mx-4">
+                        <div id="progressBar" class="bg-green-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <div class="text-xl text-gray-700"><span id="questionCounter">1</span> / <span id="totalQuestions">8</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Inter-round Screen -->
+        <div id="nextRoundScreen" class="hidden bg-white/30 backdrop-blur-sm p-8 rounded-2xl">
+            <h2 id="nextRoundTitle" class="font-fredoka text-5xl text-purple-800 mb-4">Round Complete!</h2>
+            <p id="nextRoundText" class="text-3xl text-gray-800">Get ready for the next one...</p>
+        </div>
+
+
+        <!-- End Screen -->
+        <div id="endScreen" class="hidden bg-white/30 backdrop-blur-sm p-8 rounded-2xl">
+            <h2 class="font-fredoka text-5xl text-purple-800 mb-4">Great Job!</h2>
+            <p class="text-3xl text-gray-800 mb-2">Your final score is:</p>
+            <p id="finalScore" class="font-fredoka text-8xl text-yellow-500 mb-8">0</p>
+            <button id="restartButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold font-fredoka text-2xl py-4 px-10 rounded-full shadow-lg transform hover:scale-105 transition-transform duration-200">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- Data ---
+        const allWords = [
+            { word: 'Hospital', emoji: '🏥' },
+            { word: 'Police Station', emoji: '👮‍♂️' },
+            { word: 'Fire Station', emoji: '🚒' },
+            { word: 'Cinema', emoji: '🎦' },
+            { word: 'School', emoji: '🏫' },
+            { word: 'Library', emoji: '📚' },
+            { word: 'Museum', emoji: '🏛️' },
+            { word: 'Park', emoji: '🌳' },
+            { word: 'Stadium', emoji: '🏟️' },
+            { word: 'Grocery Store', emoji: '🛒' },
+            { word: 'Restaurant', emoji: '🍽️' },
+            { word: 'Post Office', emoji: '📮' },
+            { word: 'Bank', emoji: '🏦' },
+            { word: 'Train Station', emoji: '🚉' },
+            { word: 'Airport', emoji: '✈️' },
+            { word: 'Hotel', emoji: '🏨' }
+        ];
+
+        const correctPhrases = ["Awesome!", "Great Job!", "You Got It!", "Amazing!", "Superstar!"];
+        const incorrectPhrases = ["Not Quite!", "Try Again!", "Almost There!", "Good Try!"];
+
+        // --- State Variables ---
+        let gameWords = [];
+        let gameQuestions = [];
+        let score = 0;
+        let currentQuestionIndex = 0;
+        let audioContext;
+        let synth;
+        let voices = [];
+        let timerInterval;
+        let timeLeft = 10;
+        
+        let currentRound = 0;
+        const wordsPerRound = 4;
+        const totalRounds = 3;
+
+
+        // --- DOM Elements ---
+        const startScreen = document.getElementById('startScreen');
+        const learningScreen = document.getElementById('learningScreen');
+        const gameScreen = document.getElementById('gameScreen');
+        const endScreen = document.getElementById('endScreen');
+        const nextRoundScreen = document.getElementById('nextRoundScreen');
+
+        const sparkleContainer = document.getElementById('sparkle-container');
+        const startButton = document.getElementById('startButton');
+        const startQuizButton = document.getElementById('startQuizButton');
+        const restartButton = document.getElementById('restartButton');
+
+        const learningCardArea = document.getElementById('learningCardArea');
+        const learningCounter = document.getElementById('learningCounter');
+        const learningTitle = document.getElementById('learningTitle');
+        const highScoreDisplay = document.getElementById('highScoreDisplay');
+        const scoreDisplay = document.getElementById('score');
+        const roundCounter = document.getElementById('roundCounter');
+        const questionCounter = document.getElementById('questionCounter');
+        const totalQuestionsDisplay = document.getElementById('totalQuestions');
+        const progressBar = document.getElementById('progressBar');
+        const questionDisplay = document.getElementById('questionDisplay');
+        const questionEmoji = document.getElementById('questionEmoji');
+        const questionWord = document.getElementById('questionWord');
+        const feedbackMessage = document.getElementById('feedbackMessage');
+        const optionsContainer = document.getElementById('optionsContainer');
+        const finalScore = document.getElementById('finalScore');
+        const timerDisplay = document.getElementById('timer');
+        const timerContainer = document.getElementById('timerContainer');
+
+
+        // --- Audio ---
+        function populateVoiceList() {
+            if(typeof synth === 'undefined' || !synth) return;
+            voices = synth.getVoices();
+        }
+
+        function initAudio() {
+             if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    synth = window.speechSynthesis;
+                    populateVoiceList();
+                    if (speechSynthesis.onvoiceschanged !== undefined) {
+                        speechSynthesis.onvoiceschanged = populateVoiceList;
+                    }
+                } catch (e) { console.error("Audio context not supported."); }
+            }
+        }
+
+        function playSound(type) {
+            if (!audioContext) return;
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            if (type === 'correct') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.3);
+            } else if (type === 'wrong' || type === 'timeout') {
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.3);
+            } else if (type === 'click') {
+                 oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + 0.2);
+            }
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+        }
+        
+        function speak(text) {
+            if (!synth) { console.error("Speech synthesis not supported."); return; }
+            if (synth.speaking) { synth.cancel(); }
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.85;
+
+            // Prioritize specific, high-quality voices if available on the user's system.
+            const preferredNames = ["Ava", "Brian", "Emma", "Andrew", "Microsoft"];
+            let selectedVoice = voices.find(voice => voice.lang.startsWith('en-') && preferredNames.some(name => voice.name.includes(name)));
+            if (!selectedVoice) { selectedVoice = voices.find(voice => voice.lang === 'en-US' && voice.default); }
+            if (!selectedVoice) { selectedVoice = voices.find(voice => voice.lang.startsWith('en-')); }
+            utterance.voice = selectedVoice;
+            synth.speak(utterance);
+        }
+
+        // --- Game Logic ---
+        function getHighScore() { return localStorage.getItem('emojiPlaceHighScore') || 0; }
+
+        function setHighScore(newScore) {
+            if (newScore > getHighScore()) {
+                localStorage.setItem('emojiPlaceHighScore', newScore);
+            }
+        }
+
+        function shuffleArray(array) { return array.sort(() => Math.random() - 0.5); }
+
+        function startGame() {
+            initAudio();
+            playSound('click');
+            score = 0;
+            updateScore();
+            currentRound = 0;
+            gameWords = shuffleArray([...allWords]).slice(0, wordsPerRound * totalRounds);
+            startNewRound();
+        }
+        
+        function startNewRound() {
+            gameScreen.classList.add('hidden');
+            nextRoundScreen.classList.add('hidden');
+            
+            const roundWords = gameWords.slice(currentRound * wordsPerRound, (currentRound + 1) * wordsPerRound);
+            showLearningScreen(roundWords);
+        }
+
+        function showLearningScreen(roundWords) {
+            startScreen.classList.add('hidden');
+            endScreen.classList.add('hidden');
+            learningScreen.classList.remove('hidden');
+            startQuizButton.classList.add('hidden');
+            learningTitle.textContent = `Learning Round ${currentRound + 1}`;
+            startCardRotation(roundWords, 0);
+        }
+
+        function startCardRotation(words, index) {
+            learningCounter.textContent = `${index + 1} / ${words.length}`;
+            if (index >= words.length) {
+                learningCounter.textContent = '';
+                learningCardArea.innerHTML = `<p class="font-bold text-2xl text-green-600 animate-pulse">You're ready!</p>`;
+                startQuizButton.onclick = () => { playSound('click'); startQuiz(words); };
+                startQuizButton.classList.remove('hidden');
+                return;
+            }
+
+            const item = words[index];
+            const cardContainer = document.createElement('div');
+            const cardWrapper = document.createElement('div');
+            const wordDisplay = document.createElement('div');
+            const learningElementContainer = document.createElement('div');
+
+            learningElementContainer.className = 'flex flex-col items-center';
+            cardWrapper.className = 'w-64 h-64 relative';
+            cardContainer.className = 'card w-full h-full'; 
+            cardContainer.innerHTML = `
+                <div class="card-face card-face-front w-full h-full flex items-center justify-center p-4 bg-white rounded-2xl shadow-lg">
+                    <div class="text-8xl">${item.emoji}</div>
+                </div>
+                <div class="card-face card-face-back w-full h-full flex flex-col items-center justify-center p-4 bg-purple-400 text-white rounded-2xl shadow-lg">
+                    <div class="font-bold text-4xl text-center">${item.word}</div>
+                </div>
+            `;
+            wordDisplay.className = 'font-bold text-4xl text-white transition-opacity duration-500 opacity-0 mt-6';
+            wordDisplay.style.textShadow = '2px 2px 4px rgba(0,0,0,0.5)';
+            wordDisplay.textContent = item.word;
+            cardWrapper.appendChild(cardContainer);
+            learningElementContainer.appendChild(cardWrapper);
+            learningElementContainer.appendChild(wordDisplay);
+            learningCardArea.innerHTML = '';
+            learningCardArea.appendChild(learningElementContainer);
+
+            cardContainer.classList.add('card-enter-active');
+            
+            setTimeout(() => {
+                speak(item.word);
+                wordDisplay.classList.remove('opacity-0');
+            }, 500);
+
+            setTimeout(() => {
+                speak(item.word);
+                cardContainer.classList.add('is-flipped');
+            }, 1500); 
+
+            setTimeout(() => {
+                wordDisplay.classList.add('opacity-0');
+                learningElementContainer.classList.add('card-fade-out-active');
+                setTimeout(() => {
+                    startCardRotation(words, index + 1);
+                }, 500);
+            }, 3800);
+        }
+        
+        function startQuiz(roundWords) {
+            learningScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+
+            const wordToEmojiQuestions = shuffleArray(roundWords.map(item => ({...item, type: 'wordToEmoji'})));
+            const emojiToWordQuestions = shuffleArray(roundWords.map(item => ({...item, type: 'emojiToWord'})));
+            gameQuestions = [...wordToEmojiQuestions, ...emojiToWordQuestions];
+            
+            currentQuestionIndex = 0;
+            displayQuestion();
+        }
+
+        function startTimer() {
+            timeLeft = 10;
+            timerDisplay.textContent = timeLeft;
+            timerContainer.classList.remove('border-yellow-400', 'border-red-500');
+            timerContainer.classList.add('border-green-400');
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.textContent = timeLeft;
+                if (timeLeft <= 5) { timerContainer.classList.remove('border-green-400'); timerContainer.classList.add('border-yellow-400'); }
+                if (timeLeft <= 2) { timerContainer.classList.remove('border-yellow-400'); timerContainer.classList.add('border-red-500'); }
+                if (timeLeft <= 0) { clearInterval(timerInterval); handleTimeout(); }
+            }, 1000);
+        }
+
+        function handleTimeout() {
+            playSound('timeout');
+            Array.from(optionsContainer.children).forEach(btn => btn.disabled = true);
+            feedbackMessage.textContent = "Time's up!";
+            feedbackMessage.className = 'text-center text-3xl font-bold h-10 mb-4 text-yellow-500 feedback-anim';
+            setTimeout(() => {
+                handleQuestionEnd();
+            }, 1200);
+        }
+
+        function displayQuestion() {
+            if (currentQuestionIndex >= gameQuestions.length) {
+                handleRoundEnd();
+                return;
+            }
+
+            feedbackMessage.textContent = '';
+            feedbackMessage.className = 'text-center text-3xl font-bold h-10 mb-4';
+            startTimer();
+            const question = gameQuestions[currentQuestionIndex];
+            const otherWords = allWords.filter(item => item.word !== question.word);
+            let wrongOptions = shuffleArray(otherWords).slice(0, 3);
+            const options = shuffleArray([question, ...wrongOptions]);
+            optionsContainer.innerHTML = '';
+            questionWord.textContent = '';
+            questionEmoji.textContent = '';
+            questionEmoji.classList.remove('float-animation');
+            questionWord.classList.remove('float-animation');
+
+            if (question.type === 'wordToEmoji') {
+                questionWord.textContent = question.word;
+                questionWord.classList.add('float-animation');
+                speak(question.word);
+                options.forEach(opt => {
+                    const button = document.createElement('button');
+                    button.className = "btn-option btn-purple p-4 text-6xl";
+                    button.textContent = opt.emoji;
+                    button.onclick = () => checkAnswer(opt.word === question.word, button);
+                    optionsContainer.appendChild(button);
+                });
+            } else { // emojiToWord
+                questionEmoji.textContent = question.emoji;
+                questionEmoji.classList.add('float-animation');
+                options.forEach(opt => {
+                    const button = document.createElement('button');
+                    button.className = "btn-option btn-sky p-4 text-2xl min-h-[80px] flex items-center justify-center text-center";
+                    button.textContent = opt.word;
+                    button.onclick = () => checkAnswer(opt.word === question.word, button);
+                    optionsContainer.appendChild(button);
+                });
+            }
+            updateProgress();
+        }
+
+        function createConfetti(element) {
+            const rect = element.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'confetti-particle';
+                const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800'];
+                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+                particle.style.left = `${x}px`;
+                particle.style.top = `${y}px`;
+                const randomX = (Math.random() - 0.5) * 300;
+                const randomY = (Math.random() - 0.5) * 300;
+                particle.style.setProperty('--x', `${randomX}px`);
+                particle.style.setProperty('--y', `${randomY}px`);
+                document.body.appendChild(particle);
+                setTimeout(() => { particle.remove(); }, 1000);
+            }
+        }
+
+        function checkAnswer(isCorrect, button) {
+            clearInterval(timerInterval);
+            Array.from(optionsContainer.children).forEach(btn => {
+                btn.disabled = true;
+                if(btn !== button) { btn.style.opacity = '0.6'; }
+            });
+
+            if (isCorrect) {
+                score += 10 + timeLeft;
+                playSound('correct');
+                createConfetti(button);
+                button.classList.remove('btn-purple', 'btn-sky');
+                button.classList.add('btn-correct');
+                feedbackMessage.textContent = correctPhrases[Math.floor(Math.random() * correctPhrases.length)];
+                feedbackMessage.className = 'text-center text-3xl font-bold h-10 mb-4 text-green-200 feedback-anim';
+            } else {
+                playSound('wrong');
+                button.classList.remove('btn-purple', 'btn-sky');
+                button.classList.add('btn-wrong');
+                questionDisplay.classList.add('shake');
+                feedbackMessage.textContent = incorrectPhrases[Math.floor(Math.random() * incorrectPhrases.length)];
+                feedbackMessage.className = 'text-center text-3xl font-bold h-10 mb-4 text-red-200 feedback-anim';
+            }
+            updateScore();
+            setTimeout(() => {
+                handleQuestionEnd();
+            }, 1200);
+        }
+        
+        function handleQuestionEnd() {
+            questionDisplay.classList.remove('shake');
+            currentQuestionIndex++;
+            displayQuestion();
+        }
+        
+        function handleRoundEnd() {
+            currentRound++;
+            if (currentRound >= totalRounds) {
+                endGame();
+            } else {
+                gameScreen.classList.add('hidden');
+                nextRoundScreen.classList.remove('hidden');
+                setTimeout(() => {
+                    startNewRound();
+                }, 2500);
+            }
+        }
+
+        function updateScore() { scoreDisplay.textContent = score; }
+
+        function updateProgress() {
+            roundCounter.textContent = currentRound + 1;
+            questionCounter.textContent = currentQuestionIndex + 1;
+            totalQuestionsDisplay.textContent = gameQuestions.length;
+            const progressPercentage = ((currentQuestionIndex + 1) / gameQuestions.length) * 100;
+            progressBar.style.width = `${progressPercentage}%`;
+        }
+        
+        function endGame() {
+            gameScreen.classList.add('hidden');
+            nextRoundScreen.classList.add('hidden');
+            endScreen.classList.remove('hidden');
+            finalScore.textContent = score;
+            setHighScore(score);
+            displayHighScore();
+        }
+
+        function displayHighScore() { highScoreDisplay.textContent = getHighScore(); }
+
+        function createSparkles() {
+            const count = 20;
+            for (let i = 0; i < count; i++) {
+                const sparkle = document.createElement('div');
+                sparkle.className = 'sparkle';
+                sparkle.style.left = `${Math.random() * 100}%`;
+                sparkle.style.width = `${Math.random() * 2 + 1}px`;
+                sparkle.style.height = sparkle.style.width;
+                sparkle.style.animationDelay = `${Math.random() * 10}s`;
+                sparkle.style.animationDuration = `${Math.random() * 5 + 5}s`;
+                sparkleContainer.appendChild(sparkle);
+            }
+        }
+
+        // --- Event Listeners ---
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', () => {
+            playSound('click');
+            startScreen.classList.remove('hidden');
+            endScreen.classList.add('hidden');
+        });
+
+        // --- Initial Load ---
+        window.onload = () => { 
+            displayHighScore(); 
+            createSparkles();
+        };
+
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Science of Climate Change</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @keyframes slowColorChange {
+            0% { background-color: #1e3a8a; } /* Deep Blue */
+            25% { background-color: #065f46; } /* Dark Green */
+            50% { background-color: #374151; } /* Cool Gray */
+            75% { background-color: #065f46; } /* Dark Green */
+            100% { background-color: #1e3a8a; } /* Deep Blue */
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            overscroll-behavior: none;
+            animation: slowColorChange 240s linear infinite;
+            padding-top: 70px; /* Add padding to prevent nav overlap */
+        }
+        #background-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+        }
+        .page { display: none; position: relative; }
+        .page.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .action-button, .nav-button, .quiz-option, .tfng-button, .word-bank-word, .btn-animated-3d {
+            transition: all 0.15s ease-out;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -2px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+            border: none;
+        }
+        .action-button:hover, .nav-button:hover, .quiz-option:hover:not(:disabled), .tfng-button:hover:not(:disabled), .word-bank-word:hover, .btn-animated-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px -3px rgba(0,0,0,0.2), 0 4px 6px -4px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+        }
+        .action-button:active, .nav-button:active, .quiz-option:active, .tfng-button:active, .btn-animated-3d:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px -1px rgba(0,0,0,0.2), 0 1px 2px -2px rgba(0,0,0,0.1), inset 0 -2px 0 0 rgba(0,0,0,0.2);
+        }
+        
+        /* Gap Fill Styles */
+        .gap-fill-container .gap {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 120px; height: 44px; padding: 0 4px;
+            border: 2px dashed #9ca3af; border-radius: 8px; margin: 0 4px;
+            vertical-align: middle; background-color: #f3f4f6;
+        }
+        .word-bank-word {
+            cursor: grab; padding: 8px 16px; border-radius: 8px;
+            background-color: white; user-select: none;
+        }
+        .word-bank-word.selected { outline: 2px solid #6366f1; transform: scale(1.05); }
+        .gap .word-bank-word { cursor: pointer; }
+        .gap.correct .word-bank-word { background-color: #dcfce7; border-color: #22c55e; color: #15803d; }
+        .gap.incorrect .word-bank-word { background-color: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+        /* Feedback Message & Badge Notification */
+        .feedback-toast, .badge-toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border-radius: 9999px; color: white;
+            font-weight: bold; z-index: 200;
+            animation: slideUpFadeIn 0.5s ease-out, slideDownFadeOut 0.5s ease-in 3.5s forwards;
+        }
+        .feedback-toast.correct { background-color: #22c55e; }
+        .feedback-toast.encouraging { background-color: #f59e0b; }
+        .badge-toast { background: linear-gradient(45deg, #fde047, #f97316); }
+        @keyframes slideUpFadeIn { from { opacity: 0; bottom: 0; } to { opacity: 1; bottom: 20px; } }
+        @keyframes slideDownFadeOut { from { opacity: 1; bottom: 20px; } to { opacity: 0; bottom: 0; } }
+
+        /* Certificate Canvas */
+        #completion-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        
+        /* Print Styles */
+        @media print {
+            body * { visibility: hidden; }
+            #certificate-to-print, #certificate-to-print * { visibility: visible; }
+            #certificate-to-print { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+    <canvas id="background-canvas"></canvas>
+
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 p-2" style="display: none;">
+        <div class="max-w-sm mx-auto p-1.5 flex justify-center items-center gap-2 bg-white/90 backdrop-blur-sm shadow-lg rounded-full">
+            <button onclick="goBack()" class="nav-button bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold p-2 rounded-full">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            </button>
+            <div class="font-bold text-base text-blue-600 px-3">Score: <span id="score-display">0</span></div>
+            <button onclick="navigateTo('main-menu')" class="nav-button bg-gray-800 text-white font-bold p-2 rounded-full hover:bg-gray-900">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+            </button>
+            <button onclick="toggleTTS(this)" class="nav-button p-2 rounded-full hover:bg-gray-200" title="Toggle Sound">
+                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"></path></svg>
+            </button>
+            <button onclick="goNext()" class="nav-button bg-blue-600 hover:bg-blue-700 text-white font-bold p-2 rounded-full">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+        <section id="page-title-screen" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 id="main-title" class="text-5xl md:text-6xl font-bold text-blue-800 mb-4"></h1>
+                <p id="main-subtitle" class="text-xl md:text-2xl text-gray-600 mb-8"></p>
+                <div id="main-svg-container" class="rounded-lg shadow-md mb-8 w-full max-w-lg mx-auto"></div>
+                <button onclick="startApp()" class="action-button bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-blue-700">START LESSON</button>
+            </div>
+        </section>
+        <div id="dynamic-pages-container"></div>
+    </div>
+
+    <script>
+        // ===================================================================================
+        // --- LESSON CONTENT CONFIGURATION ---
+        // ===================================================================================
+        const lessonData = {
+            title: "The Science of Climate Change",
+            subtitle: "Understanding Our Planet's Future �",
+            startPageId: 'title-screen',
+            homePageId: 'main-menu',
+            mainMenu: [
+                { id: 'menu-tps', text: '1. Think-Pair-Share 🧠', color: 'green', target: 'tps-start' },
+                { id: 'menu-goals', text: '2. Learning Goals 🎯', color: 'teal', target: 'learning-goals-1' },
+                { id: 'menu-vocab', text: '3. Vocabulary 📚', color: 'blue', target: 'vocab-start' },
+                { id: 'menu-lecture', text: '4. The Greenhouse Effect 💡', color: 'amber', target: 'lecture-1' },
+                { id: 'menu-dialogue', text: '5. A Skeptic\'s View 🗣️', color: 'orange', target: 'dialogue-1' },
+                { id: 'menu-dilemma', text: '6. Ethical Dilemma 🤔', color: 'rose', target: 'dilemma-1' },
+                { id: 'menu-quiz', text: '7. Knowledge Quiz ✅', color: 'violet', target: 'quiz-start' },
+                { id: 'menu-final', text: '8. Final Task ✍️', color: 'indigo', target: 'final-tasks' },
+            ],
+            badges: {
+                'STREAK_5': { name: 'Hot Streak', icon: '🔥', description: '5 correct answers in a row' },
+                'PERFECT_LEVEL': { name: 'Flawless', icon: '💎', description: 'Complete a level with no mistakes' },
+                'GAME_COMPLETE': { name: 'Climate Champion', icon: '🏆', description: 'Complete all challenges' },
+                'COMEBACK_KID': { name: 'Comeback Kid', icon: '💪', description: 'Pass a level after making a mistake' },
+                'PERFECTIONIST': { name: 'Perfectionist', icon: '💯', description: 'Complete the entire game with no mistakes' },
+                'SPEED_DEMON': { name: 'Speed Demon', icon: '⚡', description: 'Finish a level with more than half the time remaining' }
+            },
+            vocabulary: [
+                { word: 'Greenhouse Gas', def: 'A gas in the atmosphere that absorbs and emits radiation, trapping heat. Examples include Carbon Dioxide (CO2) and Methane.', sentence: 'Burning fossil fuels releases large amounts of greenhouse gases into the atmosphere.' },
+                { word: 'Fossil Fuels', def: 'Natural fuels such as coal, oil, and natural gas, formed from the remains of living organisms.', sentence: 'Our global economy is still heavily reliant on fossil fuels for energy.' },
+                { word: 'Carbon Cycle', def: 'The process by which carbon is exchanged among the atmosphere, oceans, land, and living things.', sentence: 'Human activities have significantly disrupted the natural carbon cycle.' },
+                { word: 'Climate Mitigation', def: 'Actions taken to reduce the causes of climate change, primarily by lowering greenhouse gas emissions.', sentence: 'Switching to renewable energy sources like solar and wind is a key climate mitigation strategy.' },
+                { word: 'Climate Adaptation', def: 'Adjusting to the current and future effects of climate change.', sentence: 'Building sea walls to protect coastal cities is an example of climate adaptation.' },
+            ],
+            pages: [
+                { id: 'tps-start', type: 'simple', content: { title: 'Activity: Think-Pair-Share', text: 'Let\'s brainstorm how our local environment might be changing.' } },
+                { id: 'tps-think', type: 'timer', content: { title: '1. Think 🤔', text: 'Think about one change you have noticed in your local weather or environment over the last few years (e.g., hotter summers, more extreme storms, changes in plant life).', duration: 120, timerId: 'timer-think' } },
+                { id: 'tps-pair', type: 'timer', content: { title: '2. Pair 👥', text: 'Pair with a colleague. Discuss the changes you each identified. Are they similar? What could be the causes?', duration: 180, timerId: 'timer-pair' } },
+                { id: 'tps-share', type: 'timer', content: { title: '3. Share 🗣️', text: 'Let\'s share some of the common observations. This helps us connect the global issue of climate change to our local experiences.', duration: 300, timerId: 'timer-share' } },
+                { id: 'learning-goals-1', type: 'html-content', content: { title: '📜 Learning Goals', html: `<p><strong class="text-rose-600">Topic:</strong> The Science of Climate Change</p><p><strong class="text-rose-600">Theme:</strong> Earth's Changing Systems</p><p><strong class="text-rose-600">Essential Question:</strong> How do human activities impact Earth's climate, and what can we do about it?</p><p><strong class="text-rose-600">Learning Intention:</strong> We are learning to explain the fundamental mechanism of the greenhouse effect and differentiate between mitigation and adaptation strategies.</p>` } },
+                { id: 'learning-goals-2', type: 'html-content', content: { title: '📜 Success Criteria', html: `<div class="mb-8"><h3 class="text-2xl font-bold text-rose-600 mb-3">Success Criteria</h3><ul class="list-disc list-inside space-y-2 text-xl"><li>I can define "greenhouse gas" and name at least two examples.</li><li>I can explain how greenhouse gases warm the planet using an analogy.</li><li>I can distinguish between an action that is "mitigation" and one that is "adaptation."</li><li>I can propose a local action to address climate change.</li></ul></div>` } },
+                { id: 'vocab-start', type: 'simple', content: { title: 'Climate Vocabulary 📚', text: 'Let\'s learn the key terms for this unit. Click "Next" in the header to cycle through the words.' } },
+                { id: 'lecture-1', type: 'lecture', content: { title: 'The Greenhouse Effect 💡', text: "Let's break down the core science of climate change: the greenhouse effect. It's a natural process that warms the Earth's surface. When the Sun's energy reaches our atmosphere, some is reflected back to space, but much of it passes through and warms the planet.\n\nThe Earth, now warmed, radiates heat back out. This is where greenhouse gases, like carbon dioxide (CO2), methane, and water vapor, play their role. Think of them as a blanket for the planet. They trap some of this outgoing heat, preventing it from escaping into space and keeping the Earth at a warm, habitable temperature. Without this natural greenhouse effect, Earth would be a frozen, lifeless rock.\n\nThe problem is, human activities—primarily burning fossil fuels like coal, oil, and gas for energy—have released an unprecedented amount of extra greenhouse gases, especially CO2. We've essentially made the blanket much, much thicker. This supercharged greenhouse effect is trapping more heat, leading to a rise in global temperatures, which disrupts weather patterns, melts ice caps, and causes the effects we now call climate change." } },
+                { id: 'dialogue-1', type: 'dialogue', content: { title: 'A Community Conversation 🗣️', dialogue: "Leo: Dr. Sharma, I hear all this talk about climate change, but the climate has always changed, right? We've had ice ages. How do we know this time is different?\n\nDr. Sharma: That's an excellent question, Leo. You're right, the climate does change naturally over long periods. But what's different now is the *speed* and the *cause*. Natural cycles take thousands of years. We're seeing dramatic changes happen in just a few decades. The science is clear: this rapid warming directly correlates with the massive increase in CO2 since the Industrial Revolution.\n\nLeo: But it was a really cold winter here. How can the planet be warming if we still have record cold snaps?\n\nDr. Sharma: That's the difference between weather and climate. Weather is what you see day-to-day—a snapshot. Climate is the long-term pattern, like the average weather over 30 years. A single cold day, or even a cold winter, doesn't disprove a long-term warming trend. In fact, a warming planet can disrupt atmospheric currents, sometimes leading to more extreme cold snaps in certain regions, even as the global average temperature rises." } },
+                { id: 'dilemma-1', type: 'lecture', content: { title: 'Ethical Dilemma: Who is Responsible? 🤔', text: "We are faced with a monumental challenge, and there's a debate about where to focus our efforts.\n\n<strong>ARGUMENT A: Personal Responsibility.</strong> This view holds that climate change is the sum of billions of individual choices. To solve it, we must change our lifestyles: drive less, eat less meat, recycle, and reduce consumption. The power is in our hands as consumers.\n\n<strong>ARGUMENT B: Corporate & Governmental Responsibility.</strong> This view argues that focusing on individual actions is a distraction. Just 100 companies have been the source of more than 70% of the world's greenhouse gas emissions. Real change can only come from large-scale policies: carbon taxes, regulating industries, and massive investments in renewable energy infrastructure.\n\nWhich approach do you think is more effective or just? Should we prioritize individual lifestyle changes or demand systemic change from our governments and corporations? Are these two ideas mutually exclusive, or must they work together?" } },
+                { id: 'quiz-start', type: 'simple', content: { title: 'Knowledge Quiz ✅', text: 'Let\'s check your understanding of the core concepts.' } },
+                { id: 'quiz-tfng', type: 'quiz-tfng', content: { title: 'Quiz: True / False / Not Given (1/3)', questions: [ /* Questions added in JS */ ] } },
+                { id: 'quiz-mcq', type: 'quiz-mcq', content: { title: 'Quiz: Multiple Choice (2/3)', questions: [ /* Questions added in JS */ ] } },
+                { id: 'quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Quiz: Gap Fill (3/3)', sentences: [ /* Content added in JS */ ] } },
+                { id: 'answer-key', type: 'answer-key', content: { title: 'Quiz Answer Key 🔑' } },
+                { id: 'final-tasks', type: 'writing-task', content: { title: 'Final Task: Propose a Local Solution ✍️', prompt: 'Based on what you\'ve learned, propose one practical, small-scale climate mitigation or adaptation project for your local community or school. Describe the goal, the specific actions to be taken, and why it would be beneficial.', starters: ['The goal of my project is to...', 'The specific actions would involve...', 'This would be a mitigation/adaptation effort because...', 'This would benefit my community by...'] } },
+                { id: 'certificate', type: 'certificate', content: { title: 'Module Complete! 🎉', text: 'You have successfully completed the "Science of Climate Change" module.', certificateTitle: 'Certificate of Completion' } }
+            ]
+        };
+        // --- END OF LESSON CONTENT CONFIGURATION ---
+        // ===================================================================================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            let score = 0, currentPage = lessonData.startPageId, timerInterval;
+            const pageHistory = [lessonData.startPageId];
+            let pageSequence = [];
+            let earnedBadges = [];
+            let selectedWord = { element: null, text: '' };
+            let correctStreak = 0;
+            let mistakesThisLevel = 0;
+
+            // --- Audio & TTS ---
+            let audioReady = false, isTtsEnabled = true, toneSynth;
+            const synthTTS = window.speechSynthesis;
+            let defaultVoice = null, leoVoice = null, sharmaVoice = null;
+            
+            const voicesPromise = new Promise(resolve => {
+                if (speechSynthesis.getVoices().length) {
+                    resolve(speechSynthesis.getVoices());
+                } else {
+                    speechSynthesis.onvoiceschanged = () => resolve(speechSynthesis.getVoices());
+                }
+            });
+
+            async function setupVoices() {
+                try {
+                    const voices = await voicesPromise;
+                    if (voices.length === 0) return console.warn("No speech synthesis voices available.");
+
+                    const usEnglishVoices = voices.filter(v => v.lang === 'en-US');
+                    const findVoice = (names) => usEnglishVoices.find(v => names.some(name => v.name.toLowerCase().includes(name)));
+
+                    leoVoice = findVoice(['microsoft onyx', 'leo', 'adam']) || findVoice(['male']);
+                    sharmaVoice = findVoice(['microsoft shimmer', 'anya', 'phoebe']) || findVoice(['female']);
+                    
+                    const qualityPriorities = ['neural', 'wavenet', 'google', 'premium'];
+                    defaultVoice = usEnglishVoices.find(v => qualityPriorities.some(p => v.name.toLowerCase().includes(p))) || usEnglishVoices[0];
+                    
+                    if (!leoVoice) leoVoice = defaultVoice;
+                    if (!sharmaVoice) sharmaVoice = defaultVoice;
+
+                } catch (e) { console.error("Error setting up voices:", e); }
+            }
+            
+            async function speak(text) {
+                if (!isTtsEnabled || !text) return;
+                synthTTS.cancel();
+                await new Promise(r=>setTimeout(r,150));
+                const u = new SpeechSynthesisUtterance(text);
+                u.voice = defaultVoice;
+                u.rate = 0.85;
+                synthTTS.speak(u);
+            }
+
+            async function speakDialogue(text) {
+                if (!isTtsEnabled || !text) return;
+                synthTTS.cancel();
+                await new Promise(r=>setTimeout(r,150));
+                
+                const lines = text.split('\n').filter(line => line.trim() !== '');
+                let utteranceQueue = [];
+
+                lines.forEach(line => {
+                    const [speaker, ...dialogueParts] = line.split(':');
+                    const dialogue = dialogueParts.join(':').trim();
+                    if (dialogue) {
+                        const u = new SpeechSynthesisUtterance(dialogue);
+                        if (speaker.trim().toLowerCase() === 'leo') u.voice = leoVoice;
+                        else if (speaker.trim().toLowerCase().includes('sharma')) u.voice = sharmaVoice;
+                        else u.voice = defaultVoice;
+                        u.rate = 0.85;
+                        utteranceQueue.push(u);
+                    }
+                });
+
+                const playNext = () => {
+                    if (utteranceQueue.length > 0) {
+                        const u = utteranceQueue.shift();
+                        u.onend = playNext;
+                        synthTTS.speak(u);
+                    }
+                };
+                playNext();
+            }
+
+            window.toggleTTS = (button) => {
+                isTtsEnabled = !isTtsEnabled;
+                const iconPath = isTtsEnabled 
+                    ? "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"
+                    : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z M17 14l-4-4m0 4l4-4";
+                button.querySelector('svg').classList.toggle('text-gray-600', isTtsEnabled);
+                button.querySelector('svg').classList.toggle('text-gray-400', !isTtsEnabled);
+                button.querySelector('path').setAttribute('d', iconPath);
+
+                if (!isTtsEnabled) {
+                    synthTTS.cancel();
+                } else {
+                    const pageData = lessonData.pages.find(p => p.id === currentPage);
+                    const targetPage = document.getElementById(`page-${currentPage}`);
+                    if (pageData.type === 'dialogue') {
+                        speakDialogue(pageData.content.dialogue);
+                    } else {
+                        const readableContent = targetPage.querySelector('.readable-content');
+                        const titleElement = targetPage.querySelector('h2, h3');
+                        if (readableContent) speak(readableContent.innerText);
+                        else if (titleElement) speak(titleElement.innerText);
+                    }
+                }
+            };
+
+            // --- Background & Completion Animations ---
+            const bgCanvas = document.getElementById('background-canvas');
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            let particles = [];
+            function animateBackground() {
+                bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+                particles.forEach((p, i) => {
+                    p.y -= p.speed;
+                    p.x += Math.sin(p.y / 50);
+                    if (p.y < -p.radius) particles.splice(i, 1);
+                    bgCtx.beginPath();
+                    bgCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    bgCtx.globalAlpha = p.opacity;
+                    bgCtx.fillStyle = p.color;
+                    bgCtx.fill();
+                });
+                if (Math.random() > 0.97 && particles.length < 100) {
+                    particles.push({ x: Math.random() * bgCanvas.width, y: bgCanvas.height + 20, radius: Math.random() * 5 + 2, speed: Math.random() * 2 + 1, color: ['#3b82f6', '#10b981', '#f59e0b'][Math.floor(Math.random() * 3)], opacity: Math.random() * 0.5 + 0.5 });
+                }
+                requestAnimationFrame(animateBackground);
+            }
+            window.addEventListener('resize', () => { bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; });
+            animateBackground();
+
+            function runCompletionAnimation() {
+                const canvas = document.getElementById('completion-canvas');
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+                let fireworks = [], confetti = [];
+
+                function Firework(sx, sy, tx, ty) {
+                    this.x = sx; this.y = sy; this.sx = sx; this.sy = sy; this.tx = tx; this.ty = ty;
+                    this.distanceToTarget = Math.sqrt(Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2));
+                    this.distanceTraveled = 0;
+                    this.angle = Math.atan2(ty - sy, tx - sx);
+                    this.speed = 2; this.acceleration = 1.05; this.brightness = Math.random() * 50 + 50;
+                    this.targetRadius = 1;
+                    this.particles = [];
+                }
+                Firework.prototype.update = function(index) {
+                    this.speed *= this.acceleration;
+                    let vx = Math.cos(this.angle) * this.speed;
+                    let vy = Math.sin(this.angle) * this.speed;
+                    this.distanceTraveled = Math.sqrt(Math.pow(this.x - this.sx, 2) + Math.pow(this.y - this.sy, 2));
+                    if (this.distanceTraveled >= this.distanceToTarget) {
+                        for(let i = 0; i < 30; i++) {
+                            this.particles.push(new Particle(this.tx, this.ty));
+                        }
+                        fireworks.splice(index, 1);
+                    } else {
+                        this.x += vx; this.y += vy;
+                    }
+                }
+                Firework.prototype.draw = function() { ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - Math.cos(this.angle) * 10, this.y - Math.sin(this.angle) * 10); ctx.strokeStyle = `hsl(${Math.random() * 360}, 100%, ${this.brightness}%)`; ctx.stroke(); }
+
+                function Particle(x, y) {
+                    this.x = x; this.y = y; this.angle = Math.random() * Math.PI * 2;
+                    this.speed = Math.random() * 10; this.friction = 0.95; this.gravity = 1;
+                    this.hue = Math.random() * 360; this.brightness = Math.random() * 50 + 50;
+                    this.alpha = 1; this.decay = Math.random() * 0.03 + 0.015;
+                }
+                Particle.prototype.update = function(index) {
+                    this.speed *= this.friction;
+                    this.x += Math.cos(this.angle) * this.speed;
+                    this.y += Math.sin(this.angle) * this.speed + this.gravity;
+                    this.alpha -= this.decay;
+                    if (this.alpha <= this.decay) this.particles.splice(index, 1);
+                }
+                Particle.prototype.draw = function() { ctx.beginPath(); ctx.arc(this.x, this.y, 2, 0, Math.PI * 2); ctx.fillStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, ${this.alpha})`; ctx.fill(); }
+
+                function Confetti() {
+                    this.x = Math.random() * canvas.width; this.y = -20; this.w = 10; this.h = 20;
+                    this.speed = Math.random() * 3 + 2; this.gravity = 0.5; this.angle = 0;
+                    this.rotation = Math.random() * 0.1 - 0.05; this.color = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                }
+                Confetti.prototype.update = function(index) {
+                    this.y += this.speed; this.speed += this.gravity; this.angle += this.rotation;
+                    if (this.y > canvas.height) confetti.splice(index, 1);
+                }
+                Confetti.prototype.draw = function() { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle); ctx.fillStyle = this.color; ctx.fillRect(-this.w / 2, -this.h / 2, this.w, this.h); ctx.restore(); }
+
+                let animationRunning = true;
+                function animate() {
+                    if (!animationRunning) return;
+                    ctx.globalCompositeOperation = 'destination-out';
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.globalCompositeOperation = 'lighter';
+                    
+                    fireworks.forEach((f, i) => { f.draw(); f.update(i); f.particles.forEach((p, j) => { p.draw(); p.update(j); }); });
+                    confetti.forEach((c, i) => { c.draw(); c.update(i); });
+                    
+                    requestAnimationFrame(animate);
+                }
+                
+                const interval = setInterval(() => {
+                    fireworks.push(new Firework(canvas.width / 2, canvas.height, Math.random() * canvas.width, Math.random() * canvas.height / 2));
+                    for(let i = 0; i < 10; i++) confetti.push(new Confetti());
+                }, 800);
+
+                setTimeout(() => {
+                    clearInterval(interval);
+                    setTimeout(() => animationRunning = false, 5000);
+                }, 5000);
+
+                animate();
+            }
+
+            // --- App Initialization ---
+            window.startApp = async function() {
+                if (!audioReady) try { await Tone.start(); toneSynth = new Tone.PolySynth(Tone.Synth).toDestination(); audioReady = true; } catch (e) { console.error(e); }
+                try {
+                    const u = new SpeechSynthesisUtterance(' '); u.volume=0; synthTTS.speak(u); synthTTS.cancel();
+                    await setupVoices();
+                } catch (e) { console.error(e); }
+                navigateTo(lessonData.homePageId);
+            }
+
+            const playSound = (correct) => {
+                if (audioReady) toneSynth.triggerAttackRelease(correct ? ["C5", "E5", "G5"] : "A2", "8n", Tone.now());
+            }
+            
+            function startTimer(duration, display, onComplete) {
+                let timer = duration;
+                const update = () => { display.textContent = `${String(Math.floor(timer/60)).padStart(2,'0')}:${String(timer%60).padStart(2,'0')}`; };
+                update();
+                timerInterval = setInterval(() => { timer--; update(); if (timer < 0) { clearInterval(timerInterval); if (onComplete) onComplete(); } }, 1000);
+            }
+
+            // --- Navigation & Page Flow ---
+            window.navigateTo = (pageId) => {
+                const targetPage = document.getElementById(`page-${pageId}`);
+                if (!targetPage) return console.warn('navigateTo: no page found for id', pageId);
+                if (pageId === currentPage) return;
+                
+                clearInterval(timerInterval);
+                synthTTS.cancel();
+
+                document.getElementById(`page-${currentPage}`)?.classList.remove('active');
+                targetPage.classList.add('active');
+                currentPage = pageId;
+                if (pageHistory[pageHistory.length - 1] !== currentPage) pageHistory.push(currentPage);
+                
+                const pageData = lessonData.pages.find(p => p.id === pageId);
+                if (pageData.type === 'timer') {
+                    const timerEl = document.getElementById(pageData.content.timerId);
+                    if (timerEl) startTimer(pageData.content.duration, timerEl, goNext);
+                }
+                
+                // Determine what content to speak
+                if (pageData.type === 'dialogue') {
+                    speakDialogue(pageData.content.dialogue);
+                } else if (pageData.type === 'certificate') {
+                    runCompletionAnimation();
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    if (readableContent) speak(readableContent.innerText);
+                } else {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    if (readableContent) {
+                        speak(readableContent.innerText);
+                    } else if (titleElement) {
+                        speak(titleElement.innerText);
+                    }
+                }
+
+                updateNavButtons();
+                window.scrollTo(0, 0);
+            }
+
+            window.goNext = () => {
+                const currentIndex = pageSequence.indexOf(currentPage);
+                if (currentIndex > -1 && currentIndex < pageSequence.length - 1) navigateTo(pageSequence[currentIndex + 1]);
+            }
+            window.goBack = () => {
+                if (pageHistory.length > 1) { pageHistory.pop(); navigateTo(pageHistory.pop()); }
+            }
+
+            function updateNavButtons() {
+                const nav = document.getElementById('nav-header');
+                if (!nav) return;
+                nav.style.display = (currentPage === lessonData.startPageId) ? 'none' : 'block';
+                const backBtn = nav.querySelector('button:first-child');
+                backBtn.disabled = pageHistory.length <= 1;
+                backBtn.classList.toggle('opacity-50', backBtn.disabled);
+                const nextBtn = nav.querySelector('button:last-child');
+                const currentIndex = pageSequence.indexOf(currentPage);
+                const isLast = currentIndex >= pageSequence.length - 1;
+                nextBtn.disabled = isLast || currentPage === lessonData.homePageId;
+                nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+            }
+            
+            // --- Feedback, Badges, & Score ---
+            function showFeedbackMessage(isCorrect) {
+                const correctFeedback = ["That's right!", "You got it!", "Excellent!", "Perfect!", "Great job!", "You're on fire!"];
+                const incorrectFeedback = ["Not quite!", "Give it another look!", "Keep trying!", "Don't give up!", "You'll get the next one!"];
+                const message = isCorrect ? correctFeedback[Math.floor(Math.random() * correctFeedback.length)] : incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+                
+                const toast = document.createElement('div');
+                toast.textContent = message;
+                toast.className = `feedback-toast ${isCorrect ? 'correct' : 'encouraging'}`;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            }
+
+            function awardBadge(badgeName) {
+                if (!earnedBadges.includes(badgeName)) {
+                    earnedBadges.push(badgeName);
+                    const badgeInfo = lessonData.badges[badgeName];
+                    const toast = document.createElement('div');
+                    toast.innerHTML = `🏅 Badge Unlocked: ${badgeInfo.name} ${badgeInfo.icon}`;
+                    toast.className = 'badge-toast';
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 4000);
+                }
+            }
+
+            function updateScore(points) {
+                score += points;
+                document.getElementById('score-display').textContent = score;
+            }
+
+            // --- Quiz Logic ---
+            window.checkTfngAnswer = function(clickedButton, chosenAnswer, correctAnswer) {
+                const buttonContainer = clickedButton.parentElement;
+                Array.from(buttonContainer.children).forEach(btn => btn.disabled = true);
+                const isCorrect = chosenAnswer === correctAnswer;
+                showFeedbackMessage(isCorrect);
+                
+                const feedbackIcon = document.createElement('span');
+                feedbackIcon.className = `ml-2 text-xl font-bold ${isCorrect ? 'text-green-500' : 'text-red-500'}`;
+                feedbackIcon.textContent = isCorrect ? '✓' : '✗';
+                clickedButton.closest('.question-group').appendChild(feedbackIcon);
+
+                if (isCorrect) {
+                    playSound(true);
+                    clickedButton.className = clickedButton.className.replace(/bg-(blue|red|gray)-500/, 'bg-green-500');
+                    updateScore(10);
+                } else {
+                    playSound(false);
+                    clickedButton.className = clickedButton.className.replace(/bg-(blue|red|gray)-500/, 'bg-red-600');
+                    const correctBtn = Array.from(buttonContainer.children).find(btn => btn.textContent === correctAnswer.charAt(0));
+                    if (correctBtn) correctBtn.className = correctBtn.className.replace(/bg-(blue|red|gray)-500/, 'bg-green-500');
+                }
+            }
+            
+            window.checkMcqAnswer = function(button, isCorrect) {
+                const questionGroup = button.closest('.question-group');
+                questionGroup.querySelectorAll('.quiz-option').forEach(opt => opt.disabled = true);
+                showFeedbackMessage(isCorrect);
+
+                const feedbackIcon = document.createElement('span');
+                feedbackIcon.className = `ml-2 text-xl font-bold ${isCorrect ? 'text-green-500' : 'text-red-500'}`;
+                feedbackIcon.textContent = isCorrect ? '✓' : '✗';
+                button.appendChild(feedbackIcon);
+
+                if (isCorrect) {
+                    playSound(true);
+                    button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                    button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                    updateScore(10);
+                } else {
+                    playSound(false);
+                    button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                    button.classList.add('bg-red-500', 'border-red-600', 'text-white');
+                    const correctButton = questionGroup.querySelector(".quiz-option[data-correct='true']");
+                    if (correctButton) {
+                        correctButton.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                        correctButton.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                    }
+                }
+            }
+
+            function initGapFill(pageId) {
+                const page = document.getElementById(pageId);
+                if (!page) return;
+                const gaps = page.querySelectorAll('.gap');
+                const words = page.querySelectorAll('.word-bank-word');
+                const wordBank = page.querySelector('.word-bank-container');
+
+                words.forEach(word => {
+                    word.addEventListener('dragstart', e => {
+                        e.dataTransfer.setData('text/plain', word.dataset.word);
+                        setTimeout(() => word.classList.add('opacity-50'), 0);
+                    });
+                    word.addEventListener('dragend', () => word.classList.remove('opacity-50'));
+                    word.addEventListener('click', handleWordClick);
+                });
+
+                gaps.forEach(gap => {
+                    gap.addEventListener('dragover', e => e.preventDefault());
+                    gap.addEventListener('drop', e => handleDrop(e, gap));
+                    gap.addEventListener('click', handleGapClick);
+                });
+
+                function handleWordClick(e) {
+                    const clickedWord = e.currentTarget;
+                    if (clickedWord.parentElement.classList.contains('gap')) {
+                        clickedWord.parentElement.classList.remove('correct', 'incorrect');
+                        wordBank.appendChild(clickedWord);
+                        return;
+                    }
+                    if (selectedWord.element) selectedWord.element.classList.remove('selected');
+                    if (selectedWord.element === clickedWord) {
+                        selectedWord = { element: null, text: '' };
+                    } else {
+                        selectedWord = { element: clickedWord, text: clickedWord.dataset.word };
+                        clickedWord.classList.add('selected');
+                    }
+                }
+
+                function handleGapClick(e) {
+                    const clickedGap = e.currentTarget;
+                    if (!selectedWord.element || clickedGap.children.length > 0) return;
+                    const wordElement = selectedWord.element;
+                    clickedGap.appendChild(wordElement);
+                    wordElement.classList.remove('selected');
+                    checkGap(clickedGap);
+                    selectedWord = { element: null, text: '' };
+                }
+
+                function handleDrop(e, gap) {
+                    e.preventDefault();
+                    if (gap.children.length > 0) return;
+                    const wordText = e.dataTransfer.getData('text/plain');
+                    const wordElement = page.querySelector(`.word-bank-word[data-word="${wordText}"]`);
+                    if (wordElement) {
+                        gap.appendChild(wordElement);
+                        checkGap(gap);
+                    }
+                }
+
+                function checkGap(gap) {
+                    const word = gap.querySelector('.word-bank-word');
+                    const isCorrect = word && word.dataset.word === gap.dataset.answer;
+                    gap.classList.remove('correct', 'incorrect');
+                    gap.classList.add(isCorrect ? 'correct' : 'incorrect');
+                    if (isCorrect) {
+                        playSound(true);
+                        updateScore(10);
+                        showFeedbackMessage(true);
+                        word.draggable = false;
+                    } else {
+                        playSound(false);
+                        showFeedbackMessage(false);
+                    }
+                }
+            }
+            
+            window.generateCertificate = function() {
+                const name = document.getElementById('name-input-cert').value || "Dedicated Learner";
+                document.getElementById('certificate-name').textContent = name;
+                document.getElementById('certificate-score').textContent = score;
+                document.getElementById('certificate-date').textContent = new Date().toLocaleDateString();
+                document.getElementById('cert-initial-controls').classList.add('hidden');
+                document.getElementById('cert-generated-controls').classList.remove('hidden');
+            }
+
+            window.saveCertificateAsPdf = function() {
+                window.print();
+            }
+
+            window.downloadCertificateAsImage = function() {
+                const certElement = document.getElementById('certificate-to-print');
+                html2canvas(certElement, { scale: 2 }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'climate-change-certificate.png';
+                    link.href = canvas.toDataURL();
+                    link.click();
+                });
+            }
+
+            // --- DYNAMIC PAGE GENERATION ---
+            function createPageElement(id, content) {
+                const section = document.createElement('section');
+                section.id = `page-${id}`;
+                section.className = 'page';
+                section.innerHTML = content;
+                document.getElementById('dynamic-pages-container').appendChild(section);
+            }
+
+            function initializeLesson() {
+                document.getElementById('main-title').textContent = lessonData.title;
+                document.getElementById('main-subtitle').textContent = lessonData.subtitle;
+                document.getElementById('main-svg-container').innerHTML = `<svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:rgb(59, 130, 246);stop-opacity:1" /><stop offset="100%" style="stop-color:rgb(239, 68, 68);stop-opacity:1" /></linearGradient></defs><rect width="600" height="300" fill="#e0f2fe"/><path d="M100,250 C150,200 250,200 300,250 S450,300 500,250" stroke="#9ca3af" stroke-width="3" fill="none" /><circle cx="300" cy="150" r="80" fill="#fef08a" /><path d="M400 150 A 50 50, 0, 0, 1, 450 100" stroke="url(#grad1)" stroke-width="8" fill="none" stroke-linecap="round" /><path d="M450 100 L 440 90 M 450 100 L 460 90" stroke="url(#grad1)" stroke-width="8" fill="none" stroke-linecap="round" /><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="36" fill="#1e3a8a" font-weight="bold">Our Changing Planet</text></svg>`;
+
+                const menuButtons = lessonData.mainMenu.map(item => {
+                    const colors = { green: 'bg-green-500 border-green-700', blue: 'bg-blue-500 border-blue-700', amber: 'bg-amber-500 border-amber-700', rose: 'bg-rose-500 border-rose-700', violet: 'bg-violet-500 border-violet-700', teal: 'bg-teal-500 border-teal-700', orange: 'bg-orange-500 border-orange-700', indigo: 'bg-indigo-500 border-indigo-700' };
+                    return `<button onclick="navigateTo('${item.target}')" class="btn-animated-3d ${colors[item.color] || colors['blue']} text-white font-bold text-2xl p-6 rounded-xl">${item.text}</button>`;
+                }).join('');
+                createPageElement(lessonData.homePageId, `<div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-blue-800 mb-8">Main Menu</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-6">${menuButtons}</div></div>`);
+                
+                pageSequence = [lessonData.startPageId, lessonData.homePageId, ...lessonData.pages.map(p => p.id)];
+                const vocabStartIndex = pageSequence.indexOf('vocab-start');
+                if (vocabStartIndex !== -1) {
+                    const vocabPages = lessonData.vocabulary.map((v, i) => `vocab-${i}`);
+                    pageSequence.splice(vocabStartIndex + 1, 0, ...vocabPages);
+                }
+
+                lessonData.vocabulary.forEach((v, i) => {
+                    createPageElement(`vocab-${i}`, `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h3 class="text-2xl font-bold text-blue-600 mb-2">Vocabulary ${i + 1} / ${lessonData.vocabulary.length}</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">${v.word}</h2><p class="text-2xl text-gray-600 mb-4">${v.def}</p><p class="text-xl text-gray-500 italic">"${v.sentence}"</p></div></div></div>`);
+                });
+
+                lessonData.pages.forEach(page => {
+                    let pageHTML = '';
+                    switch (page.type) {
+                        case 'simple':
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-gray-800 mb-6">${page.content.title}</h2><p class="text-xl text-gray-600 mb-8">${page.content.text}</p></div>${page.content.buttonText ? `<button onclick="goNext()" class="action-button bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-xl hover:bg-blue-700">${page.content.buttonText}</button>` : ''}</div>`;
+                            break;
+                         case 'timer':
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 flex flex-col justify-center text-left pt-16"><div class="w-full flex justify-between items-center mb-4"><h2 class="text-2xl md:text-3xl font-bold text-blue-700">${page.content.title}</h2><div id="${page.content.timerId}" class="text-3xl md:text-4xl font-bold text-gray-700 ml-4"></div></div><div class="readable-content"><p class="text-lg md:text-xl text-gray-600 mt-8">${page.content.text}</p></div></div>`;
+                            break;
+                        case 'lecture':
+                             pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-amber-700 mb-6">${page.content.title}</h2><div class="readable-content text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg max-h-[70vh] overflow-y-auto">${page.content.text.split('\n\n').map(p => `<p>${p}</p>`).join('')}</div></div>`;
+                            break;
+                        case 'dialogue':
+                            const dialogueHTML = page.content.dialogue.split('\n\n').map(line => {
+                                const [speaker, ...rest] = line.split(':');
+                                const color = speaker.trim().toLowerCase() === 'leo' ? 'text-blue-800' : 'text-green-800';
+                                return `<p><strong class="${color}">${speaker}:</strong>${rest.join(':')}</p>`;
+                            }).join('');
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-orange-700 mb-6">${page.content.title}</h2><div class="readable-content text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg max-h-[70vh] overflow-y-auto">${dialogueHTML}</div></div>`;
+                            break;
+                        case 'html-content':
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">${page.content.title}</h2><div class="text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg max-h-[70vh] overflow-y-auto">${page.content.html}</div></div></div>`;
+                            break;
+                        case 'quiz-tfng':
+                            page.content.questions = [
+                                { statement: 'The greenhouse effect is an entirely man-made process.', correctAnswer: 'False', explanation: 'The greenhouse effect is a natural process essential for life; human activity has amplified it.' },
+                                { statement: 'According to Dr. Sharma, the main difference in today\'s climate change is the speed at which it is happening.', correctAnswer: 'True', explanation: 'Dr. Sharma emphasizes that the speed and cause (human activity) are what make current climate change different.' },
+                                { statement: 'Weather and climate are the same thing.', correctAnswer: 'False', explanation: 'Weather is short-term (a snapshot), while climate is a long-term average (e.g., over 30 years).' },
+                                { statement: 'Leo believes that a cold winter proves the planet is not warming.', correctAnswer: 'True', explanation: 'Leo questions global warming because of his experience with a cold winter.' },
+                                { statement: 'The dialogue mentions that solar flares are the primary cause of recent warming.', correctAnswer: 'Not Given', explanation: 'The dialogue discusses natural cycles and human activity, but does not mention solar flares.' }
+                            ];
+                            const tfngQuestionsHTML = page.content.questions.map((q, index) => {
+                                const buttonsHTML = ['True', 'False', 'Not Given'].map(label => `<button onclick="checkTfngAnswer(this, '${label}', '${q.correctAnswer}')" class="tfng-button bg-${label === 'True' ? 'blue' : label === 'False' ? 'red' : 'gray'}-500 text-white font-bold w-12 h-10 rounded-full">${label.charAt(0)}</button>`).join('');
+                                return `<div class="question-group flex items-center gap-4 p-4 rounded-lg bg-gray-100"><div class="button-container flex-shrink-0 flex gap-2">${buttonsHTML}</div><p>${index + 1}. ${q.statement}</p></div>`;
+                            }).join('');
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-2xl font-bold text-pink-600 mb-4 text-center">${page.content.title}</h3><div class="space-y-4">${tfngQuestionsHTML}</div></div>`;
+                            break;
+                        case 'quiz-mcq':
+                             page.content.questions = [
+                                { question: 'What is the main function of natural greenhouse gases?', options: ['To block sunlight from reaching Earth.', 'To keep the Earth at a warm, habitable temperature.', 'To create the Earth\'s magnetic field.', 'To cause ice ages.'], correctAnswer: 'To keep the Earth at a warm, habitable temperature.' },
+                                { question: 'Which human activity is mentioned as the primary cause of increased CO2?', options: ['Deforestation', 'Farming', 'Burning fossil fuels', 'Volcanic eruptions'], correctAnswer: 'Burning fossil fuels' },
+                                { question: 'What is the key difference between weather and climate?', options: ['Weather is predictable, climate is not.', 'Weather happens in the ocean, climate on land.', 'Weather is short-term, climate is a long-term pattern.', 'There is no difference.'], correctAnswer: 'Weather is short-term, climate is a long-term pattern.' },
+                                { question: 'The ethical dilemma presents a debate between personal responsibility and what?', options: ['Technological solutions', 'Corporate & governmental responsibility', 'Leaving the planet', 'Doing nothing'], correctAnswer: 'Corporate & governmental responsibility' },
+                                { question: 'Which of the following is NOT a greenhouse gas mentioned in the lecture?', options: ['Carbon Dioxide', 'Methane', 'Oxygen', 'Water Vapor'], correctAnswer: 'Oxygen' }
+                            ];
+                            const mcqQuestionsHTML = page.content.questions.map((q, index) => {
+                                const optionsHTML = q.options.map(opt => `<button onclick="checkMcqAnswer(this, ${opt === q.correctAnswer})" data-correct="${opt === q.correctAnswer}" class="quiz-option p-3 rounded-lg text-left bg-gray-100 hover:bg-gray-200 border border-gray-200">${opt}</button>`).join('');
+                                return `<div class="question-group ${index > 0 ? 'border-t pt-6' : ''}"><p class="font-semibold mb-2">${index + 1}. ${q.question}</p><div class="grid grid-cols-1 gap-2">${optionsHTML}</div></div>`;
+                            }).join('');
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-2xl font-bold text-pink-600 mb-4 text-center">${page.content.title}</h3><div class="space-y-6">${mcqQuestionsHTML}</div></div>`;
+                            break;
+                        case 'quiz-gap-fill':
+                            page.content.sentences = [
+                                { text: ['Actions taken to reduce the causes of climate change, like switching to solar power, are known as', '.'], answer: 'mitigation' },
+                                { text: ['Coal, oil, and natural gas are examples of', '.'], answer: 'fossil fuels' },
+                                { text: ['Building a sea wall to protect a city from rising sea levels is an example of climate', '.'], answer: 'adaptation' },
+                                { text: ['Human activities have disrupted the natural', ', leading to more CO2 in the atmosphere.'], answer: 'carbon cycle' },
+                                { text: ['Carbon dioxide is the most well-known', 'that traps heat in the atmosphere.'], answer: 'greenhouse gas' }
+                            ];
+                            const words = ['fossil fuels', 'mitigation', 'adaptation', 'greenhouse gas', 'carbon cycle'].sort(() => Math.random() - 0.5);
+                            const gapFillHTML = page.content.sentences.map((s, i) => `<p class="text-lg mb-4">${i + 1}. ${s.text[0]} <span class="gap" data-answer="${s.answer}"></span> ${s.text[1]}</p>`).join('');
+                            const wordBankHTML = words.map(w => `<div class="word-bank-word" draggable="true" data-word="${w}">${w}</div>`).join('');
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-2xl font-bold text-pink-600 mb-4 text-center">${page.content.title}</h3><div class="gap-fill-container">${gapFillHTML}</div><div class="word-bank-container mt-8 p-4 bg-gray-100 rounded-lg flex flex-wrap gap-4 justify-center">${wordBankHTML}</div></div>`;
+                            break;
+                        case 'writing-task':
+                            const startersHTML = page.content.starters.map(s => `<li class="text-gray-500">${s}</li>`).join('');
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-center text-indigo-700 mb-6">${page.content.title}</h2><div class="text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="font-bold text-xl text-indigo-600">Prompt:</h3><p>${page.content.prompt}</p><h3 class="font-bold text-xl text-indigo-600 mt-4">Sentence Starters:</h3><ul class="list-disc list-inside ml-4">${startersHTML}</ul></div></div><div class="text-center mt-6"><button onclick="goNext()" class="action-button bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-xl hover:bg-blue-700">Finish and View Certificate</button></div></div>`;
+                            break;
+                        case 'answer-key':
+                            let answersHTML = '';
+                            lessonData.pages.filter(p => p.type.startsWith('quiz')).forEach(p => {
+                                const title = p.content.title.replace('Quiz: ', '').replace(/\(\d\/\d\)/, '').trim();
+                                let questions;
+                                if (p.type === 'quiz-tfng' || p.type === 'quiz-mcq') questions = p.content.questions;
+                                else if (p.type === 'quiz-gap-fill') questions = p.content.sentences;
+                                
+                                if (questions) {
+                                    answersHTML += `<div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-blue-600 mb-2">${title} Answers</h3><ol class="list-decimal list-inside space-y-1">`;
+                                    if (p.type === 'quiz-tfng') answersHTML += questions.map(q => `<li><b>${q.correctAnswer}</b> – ${q.explanation}</li>`).join('');
+                                    else if (p.type === 'quiz-mcq') answersHTML += questions.map(q => `<li><b>${q.correctAnswer}</b></li>`).join('');
+                                    else if (p.type === 'quiz-gap-fill') answersHTML += questions.map(q => `<li><b>${q.answer}</b></li>`).join('');
+                                    answersHTML += `</ol></div>`;
+                                }
+                            });
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-blue-700 mb-6">${page.content.title}</h2><div class="readable-content text-lg leading-relaxed space-y-6">${answersHTML}</div></div>`;
+                            break;
+                        case 'certificate':
+                            const badgesHTML = `<div id="badge-display" class="flex justify-center gap-4 mt-4">${earnedBadges.map(b => `<div class="p-2 bg-gray-100 rounded-full" title="${lessonData.badges[b].name}">${lessonData.badges[b].icon}</div>`).join('')}</div>`;
+                            pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16 relative overflow-hidden"><canvas id="completion-canvas"></canvas><div class="relative z-10"><div class="readable-content"><h2 class="text-4xl font-bold text-amber-600 mb-4">${page.content.title}</h2><p class="text-xl text-gray-600 mb-6">${page.content.text}</p></div><div id="certificate-to-print" class="bg-blue-50 border-4 border-dashed border-blue-300 rounded-lg p-8 max-w-2xl mx-auto"><div class="flex justify-center mb-4"><span class="text-6xl">🌍</span></div><h3 class="text-3xl font-bold text-blue-800">${page.content.certificateTitle}</h3><p class="mt-4 text-lg">This certificate is awarded to</p><p id="certificate-name" class="text-2xl font-bold text-blue-600 my-2 border-b-2 border-gray-400 pb-2">[Enter Your Name Here]</p><p class="mt-4 text-lg">for successfully completing this lesson.</p><p class="mt-6 text-md"><strong>Final Score:</strong> <span id="certificate-score" class="font-bold"></span> points</p><p class="text-sm mt-1"><strong>Date of Completion:</strong> <span id="certificate-date"></span></p>${badgesHTML}</div><div id="cert-controls" class="mt-6"><div id="cert-initial-controls"><input type="text" id="name-input-cert" placeholder="Enter your name for the certificate" class="text-center p-2 border rounded-lg w-full max-w-md"><button onclick="generateCertificate()" class="action-button mt-4 bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-700">Generate Certificate</button></div><div id="cert-generated-controls" class="hidden mt-4 flex flex-wrap justify-center gap-4"><button onclick="downloadCertificateAsImage()" class="action-button bg-green-600 text-white font-bold py-2 px-4 rounded-full text-sm">Download Image</button></div></div></div></div>`;
+                            break;
+                    }
+                    if (pageHTML) {
+                        createPageElement(page.id, pageHTML);
+                        if (page.type === 'quiz-gap-fill') {
+                            initGapFill(`page-${page.id}`);
+                        }
+                    }
+                });
+                
+                updateNavButtons();
+            }
+
+            initializeLesson();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EFL Search</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            display: grid;
+            place-items: center;
+            min-height: 80vh;
+            margin: 0;
+            background-color: #f0f2f5;
+        }
+        .search-container {
+            text-align: center;
+            padding: 40px;
+            border-radius: 12px;
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1a73e8;
+            margin-bottom: 24px;
+        }
+        #searchWidgetTrigger {
+            width: 300px;
+            padding: 12px 16px;
+            font-size: 16px;
+            border: 1px solid #dfe1e5;
+            border-radius: 24px;
+            box-shadow: none;
+            transition: box-shadow 0.3s;
+        }
+        #searchWidgetTrigger:hover {
+            box-shadow: 0 1px 6px rgba(32,33,36,0.28);
+        }
+        /* New styles for the status message */
+        #status-message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 500px;
+            text-align: center;
+            font-weight: 500;
+            white-space: pre-wrap; /* Allows newlines to be displayed */
+            display: none; /* Hidden by default */
+        }
+        .status-success {
+            background-color: #e6f4ea;
+            color: #2e7d32;
+            display: block;
+        }
+        .status-error {
+            background-color: #fce8e6;
+            color: #c53929;
+            display: block;
+        }
+        .status-info {
+            background-color: #e3f2fd;
+            color: #1565c0;
+            display: block;
+        }
+    </style>
+
+    <!-- Widget JavaScript bundle from Google -->
+    <script src="https://cloud.google.com/ai/gen-app-builder/client?hl=en_US"></script>
+</head>
+<body>
+
+    <div class="search-container">
+        <h1>EFL Resource Search</h1>
+        
+        <!-- This is the input element that will open the widget when clicked -->
+        <input placeholder="Search for resources" id="searchWidgetTrigger" />
+    </div>
+
+    <!-- New element for status messages -->
+    <div id="status-message"></div>
+
+    <!-- This is the actual search widget. It's not visible until triggered. -->
+    <gen-search-widget
+      configId="693225a5-b312-4264-a36b-516326109b5f"
+      triggerId="searchWidgetTrigger">
+    </gen-search-widget>
+
+
+    <script>
+      // This function runs as soon as the webpage content is loaded
+      document.addEventListener('DOMContentLoaded', async () => {
+        
+        const statusDiv = document.getElementById('status-message');
+
+        // Function to update the status message
+        const updateStatus = (message, type) => {
+            statusDiv.textContent = message;
+            statusDiv.className = `status-${type}`;
+        };
+        
+        // --- VERY IMPORTANT ---
+        // YOU MUST REPLACE THE URL BELOW WITH YOUR REAL CLOUD RUN SERVICE URL
+        const backendUrl = "https://search-token-service-abc123def-uc.a.run.app/api/get-token";
+        
+        // Check if we are in the preview environment. If so, don't even try to fetch.
+        if (window.location.origin.includes('usercontent.goog')) {
+            const previewErrorMessage = "This preview cannot connect to the live backend due to security restrictions.\n\n" +
+                "The search widget will not be functional here.\n\n" +
+                "Please upload this HTML file to your GitHub Pages repository. It will work correctly when accessed from your 'https://teachstudents.github.io/EFL' URL.";
+            updateStatus(previewErrorMessage, "error");
+            return; // Stop execution here
+        }
+
+        updateStatus("Initializing: Connecting to authentication service...", "info");
+
+        try {
+          // Call your backend to get the secure token
+          const response = await fetch(backendUrl);
+          
+          if (!response.ok) {
+            // This will be true for network errors or HTTP errors like 4xx, 5xx
+            throw new Error(`Failed to fetch token. Status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const token = data.token;
+          
+          if (token) {
+            updateStatus("Success: Authentication token received. Widget is ready.", "success");
+            // Find the widget element on the page
+            const searchWidget = document.querySelector('gen-search-widget');
+            // Provide the token to the widget
+            searchWidget.authToken = token;
+          } else {
+            console.error("Token was not found in the backend response.", data);
+            updateStatus("Error: Authentication service responded, but did not provide a token.", "error");
+          }
+
+        } catch (error) {
+          console.error("Error initializing search widget:", error);
+          // Provide a more specific error message directly on the page.
+          const errorMessage = "Connection Error: Could not connect to the authentication service.\n\n" +
+            "Please ensure you are accessing this page from the authorized domain ('https://teachstudents.github.io/EFL') and that the backend service is running correctly.";
+          updateStatus(errorMessage, "error");
+        }
+      });
+    </script>
+
+</body>
+</html>

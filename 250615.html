@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Parts of Speech Sort - CEFR Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    
+    <style>
+        /* --- CSS STYLES ("Royal" Theme) --- */
+        :root {
+            --bg-main: #0d2148;       /* Deep Navy */
+            --bg-container: #1b3a6b;   /* Royal Blue */
+            --primary-color: #e3d095;  /* Gold */
+            --primary-dark: #c1b07e;
+            --text-light: #f0f2f5;      /* Ivory White */
+            --text-dark: #a0aec0;
+            --border-color: #334e7c;
+            --correct-color: #50fa7b;
+            --incorrect-color: #ff5555;
+            --gold-color: #e3d095;
+            --accent-cyan: #8be9fd;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; background-color: var(--bg-main); color: var(--text-light);
+            margin: 0; font-size: 16px;
+            overflow: hidden; /* Prevent scrolling during drag */
+            touch-action: none; /* Disable panning and zooming on touch devices */
+        }
+
+        #game-container {
+            width: 100%; height: 100%; max-width: 1200px; max-height: 850px;
+            border: 1px solid var(--border-color); border-radius: 15px; background-color: var(--bg-container);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3); position: relative; overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+
+        #hud {
+            display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+            padding: 0.75em 1.5em; font-size: 1em; font-weight: bold;
+            background-color: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-color); gap: 15px;
+        }
+        .hud-item { color: var(--accent-cyan); }
+        .hud-item span { color: var(--text-light); font-size: 1.1em; }
+
+        .screen {
+            flex-grow: 1; display: none; flex-direction: column; justify-content: center;
+            align-items: center; text-align: center; padding: 2em; box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .screen.active { display: flex; }
+        
+        #word-bank { 
+            background-color: rgba(0,0,0,0.2); 
+            padding: 1em; border-radius: 10px; margin-bottom: 2em; 
+            width: 100%; max-width: 500px;
+            min-height: 100px; display: flex; align-items: center; justify-content: center;
+            border: 2px dashed var(--border-color);
+            transition: background-color 0.3s;
+        }
+        .word {
+            background-color: var(--primary-color); color: var(--bg-main); padding: 0.8em 1.5em;
+            border-radius: 8px; cursor: grab; font-size: 1.8em; font-weight: bold;
+            user-select: none; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .word.dragging { 
+            opacity: 0.4; 
+            cursor: grabbing; 
+            transform: scale(1.05); /* Add lift effect */
+        }
+        
+        #feedback-display {
+            font-size: 1.8em; font-weight: bold;
+            transition: opacity 0.3s ease;
+        }
+        .feedback-correct { color: var(--correct-color); }
+        .feedback-incorrect { color: var(--incorrect-color); }
+
+        .drop-zones {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 15px; width: 100%; max-width: 700px;
+        }
+        .zone {
+            min-height: 80px; border: 2px solid var(--border-color); border-radius: 10px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.3em; font-weight: bold; transition: all 0.2s ease-in-out;
+            padding: 1em; background-color: var(--bg-main);
+            color: var(--text-dark);
+        }
+        
+        .zone.drag-over { border-color: var(--primary-color); color: var(--text-light); transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .zone.flash-correct { animation: flash-correct 0.5s ease; }
+        .zone.flash-incorrect { animation: flash-incorrect 0.5s ease; }
+
+        @keyframes flash-correct {
+            50% { background-color: var(--correct-color); border-color: #fff; transform: scale(1.02); }
+        }
+        @keyframes flash-incorrect {
+            50% { background-color: var(--incorrect-color); border-color: #fff; transform: scale(1.02); }
+        }
+
+        button {
+            background-color: var(--primary-color); color: var(--bg-main); border: none;
+            padding: 1em 2em; font-size: 1.1em; border-radius: 8px; font-weight: bold;
+            cursor: pointer; transition: all 0.2s ease; margin: 5px;
+        }
+        button:hover { background-color: var(--primary-dark); transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        button:active { transform: translateY(-1px); }
+        
+        h1 { font-size: 3em; margin-bottom: 0.2em; color: var(--text-light); }
+        h2 { font-size: 2em; }
+        #error-list { list-style-type: none; padding: 0; max-height: 200px; overflow-y: auto; width: 90%; background-color: rgba(0,0,0,0.2); border-radius: 8px; }
+        #error-list li { padding: 12px; margin: 8px; border-radius: 5px; border-left: 4px solid var(--incorrect-color); background-color: var(--bg-container); }
+        #error-list li b { color: var(--accent-cyan); }
+
+        #level-interstitial-title { animation: pulse 2s infinite; }
+        @keyframes pulse { 50% { opacity: 0.7; } }
+        #countdown-display { font-size: 6em; font-weight: bold; color: var(--primary-color); }
+
+        /* --- Particle Effects for Tokens --- */
+        #particle-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+        .token-particle {
+            position: absolute;
+            width: 15px; height: 15px;
+            background: var(--gold-color);
+            border-radius: 50%;
+            opacity: 1;
+            box-shadow: 0 0 5px var(--gold-color);
+        }
+
+        @media (min-width: 768px) {
+            .drop-zones { grid-template-columns: repeat(4, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="hud">
+            <div class="hud-item">Player: <span id="player-name-display"></span></div>
+            <div class="hud-item">Level: <span id="level-display">A1</span></div>
+            <div class="hud-item">Score: <span id="score">0</span></div>
+            <div class="hud-item">Tokens: <span id="tokens">0</span></div>
+            <div class="hud-item">Time: <span id="timer">0:00</span></div>
+        </div>
+
+        <div id="start-screen" class="screen active">
+            <h1>Parts of Speech Sort</h1>
+            <p style="color: var(--text-dark); max-width: 500px;">Drag each word to its correct grammatical category. The words will get harder as you advance through the levels (A1-B2).</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" style="background-color: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-light); border-radius: 8px; padding: 0.8em; font-size: 1em; text-align: center;">
+            <button id="start-game-btn">Start Game</button>
+        </div>
+
+        <div id="level-interstitial-screen" class="screen">
+            <h2 id="level-interstitial-title"></h2>
+            <div id="countdown-display"></div>
+            <p id="level-interstitial-message" style="color: var(--text-dark); font-size: 1.2em;"></p>
+        </div>
+
+        <div id="sorting-screen" class="screen">
+            <div id="word-bank"></div>
+            <div class="drop-zones"></div>
+        </div>
+
+        <div id="end-screen" class="screen">
+            <h1 id="end-screen-title">Game Over!</h1>
+            <h2 id="final-score-heading"></h2>
+            <h2 id="final-score"></h2>
+            <h3>Words to Review:</h3>
+            <ul id="error-list"></ul>
+            <div>
+                <button id="play-again-btn">Play Again</button>
+                <button id="view-trophies-btn">View Trophy Case</button>
+            </div>
+        </div>
+
+        <div id="trophy-case-screen" class="screen">
+            <h1>Your Trophy Case</h1>
+            <div id="rewards-container"></div>
+            <button id="back-to-score-btn">Back to Score</button>
+        </div>
+    </div>
+
+    <div id="particle-container"></div>
+    <div id="achievement-toast"></div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const wordData = {
+            'A1': [
+                {word:"apple",pos:"noun"},{word:"run",pos:"verb"},{word:"big",pos:"adjective"},{word:"happy",pos:"adjective"},
+                {word:"house",pos:"noun"},{word:"eat",pos:"verb"},{word:"small",pos:"adjective"},{word:"go",pos:"verb"},
+                {word:"book",pos:"noun"},{word:"quickly",pos:"adverb"},{word:"sad",pos:"adjective"},{word:"friend",pos:"noun"},
+                {word:"see",pos:"verb"},{word:"red",pos:"adjective"},{word:"dog",pos:"noun"},{word:"play",pos:"verb"},
+                {word:"slowly",pos:"adverb"},{word:"water",pos:"noun"},{word:"good",pos:"adjective"},{word:"write",pos:"verb"},
+                {word:"always",pos:"adverb"},{word:"car",pos:"noun"},{word:"bad",pos:"adjective"},{word:"read",pos:"verb"},
+                {word:"school",pos:"noun"}
+            ],
+            'A2': [
+                {word:"journey",pos:"noun"},{word:"decide",pos:"verb"},{word:"beautiful",pos:"adjective"},{word:"carefully",pos:"adverb"},
+                {word:"opinion",pos:"noun"},{word:"arrive",pos:"verb"},{word:"interesting",pos:"adjective"},{word:"never",pos:"adverb"},
+                {word:"language",pos:"noun"},{word:"explain",pos:"verb"},{word:"comfortable",pos:"adjective"},{word:"often",pos:"adverb"},
+                {word:"equipment",pos:"noun"},{word:"suggest",pos:"verb"},{word:"delicious",pos:"adjective"},{word:"usually",pos:"adverb"},
+                {word:"adventure",pos:"noun"},{word:"believe",pos:"verb"},{word:"expensive",pos:"adjective"},{word:"sometimes",pos:"adverb"},
+                {word:"knowledge",pos:"noun"},{word:"promise",pos:"verb"},{word:"famous",pos:"adjective"},{word:"probably",pos:"adverb"},
+                {word:"village",pos:"noun"}
+            ],
+            'B1': [
+                {word:"advantage",pos:"noun"},{word:"organize",pos:"verb"},{word:"effective",pos:"adjective"},{word:"suddenly",pos:"adverb"},
+                {word:"community",pos:"noun"},{word:"recognize",pos:"verb"},{word:"appropriate",pos:"adjective"},{word:"gradually",pos:"adverb"},
+                {word:"environment",pos:"noun"},{word:"persuade",pos:"verb"},{word:"convenient",pos:"adjective"},{word:"unfortunately",pos:"adverb"},
+                {word:"opportunity",pos:"noun"},{word:"apologize",pos:"verb"},{word:"anxious",pos:"adjective"},{word:"immediately",pos:"adverb"},
+                {word:"responsibility",pos:"noun"},{word:"recommend",pos:"verb"},{word:"reliable",pos:"adjective"},{word:"obviously",pos:"adverb"},
+                {word:"society",pos:"noun"},{word:"communicate",pos:"verb"},{word:"suitable",pos:"adjective"},{word:"eventually",pos:"adverb"},
+                {word:"variety",pos:"noun"}
+            ],
+            'B2': [
+                {word:"phenomenon",pos:"noun"},{word:"articulate",pos:"verb"},{word:"comprehensive",pos:"adjective"},{word:"subsequently",pos:"adverb"},
+                {word:"consequence",pos:"noun"},{word:"differentiate",pos:"verb"},{word:"sophisticated",pos:"adjective"},{word:"simultaneously",pos:"adverb"},
+                {word:"perspective",pos:"noun"},{word:"interpret",pos:"verb"},{word:"beneficial",pos:"adjective"},{word:"inevitably",pos:"adverb"},
+                {word:"initiative",pos:"noun"},{word:"justify",pos:"verb"},{word:"sustainable",pos:"adjective"},{word:"fundamentally",pos:"adverb"},
+                {word:"infrastructure",pos:"noun"},{word:"manipulate",pos:"verb"},{word:"controversial",pos:"adjective"},{word:"paradoxically",pos:"adverb"},
+                {word:"legislation",pos:"noun"},{word:"synthesize",pos:"verb"},{word:"ambiguous",pos:"adjective"},{word:"consequently",pos:"adverb"},
+                {word:"prejudice",pos:"noun"}
+            ]
+        };
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        const Game = {
+            partsOfSpeech: ["noun", "verb", "adjective", "adverb"],
+            gameConfig: { timePerLevel: 180 }, // 3 minutes per level
+            achievements: {
+                streak10: { title: 'Great Streak!', description: 'Get 10 correct answers in a row.', unlocked: false },
+                streak25: { title: 'Grammar Genius!', description: 'Get 25 correct answers in a row.', unlocked: false },
+                perfectLevel: { title: 'Perfect Level', description: 'Complete a level with no mistakes.', unlocked: false },
+                perfectionist: { title: 'Linguistic Legend', description: 'Complete the entire game with no mistakes.', unlocked: false },
+                firstVictory: { title: 'Word Sorter', description: 'Complete the game for the first time.', unlocked: false },
+                tokenTycoon: { title: 'Token Tycoon', description: 'Earn over 1000 tokens in a game.', unlocked: false }
+            },
+            state: {},
+            dom: {},
+            dragState: {},
+            audio: {},
+
+            init() {
+                this.cacheDom();
+                this.bindEvents();
+                this.initAudio();
+            },
+            
+            initAudio() {
+                if (typeof Tone !== 'undefined') {
+                    this.audio.synth = new Tone.Synth().toDestination();
+                    this.audio.correctSound = () => this.audio.synth.triggerAttackRelease("C5", "8n", Tone.now());
+                    this.audio.incorrectSound = () => this.audio.synth.triggerAttackRelease("C3", "8n", Tone.now());
+                    this.audio.levelUpSound = () => {
+                        const now = Tone.now();
+                        this.audio.synth.triggerAttackRelease("C4", "8n", now);
+                        this.audio.synth.triggerAttackRelease("E4", "8n", now + 0.1);
+                        this.audio.synth.triggerAttackRelease("G4", "8n", now + 0.2);
+                        this.audio.synth.triggerAttackRelease("C5", "8n", now + 0.3);
+                    };
+                }
+            },
+
+            cacheDom() {
+                this.dom.screens = document.querySelectorAll('.screen');
+                this.dom.hud = {
+                    name: document.getElementById('player-name-display'),
+                    level: document.getElementById('level-display'),
+                    score: document.getElementById('score'),
+                    tokens: document.getElementById('tokens'),
+                    timer: document.getElementById('timer'),
+                    wordBank: document.getElementById('word-bank'),
+                    dropZones: document.querySelector('.drop-zones')
+                };
+                this.dom.buttons = {
+                    start: document.getElementById('start-game-btn'),
+                    playAgain: document.getElementById('play-again-btn'),
+                    viewTrophies: document.getElementById('view-trophies-btn'),
+                    backToScore: document.getElementById('back-to-score-btn')
+                };
+                this.dom.interstitial = {
+                    title: document.getElementById('level-interstitial-title'),
+                    message: document.getElementById('level-interstitial-message'),
+                    countdown: document.getElementById('countdown-display')
+                };
+                this.dom.toast = document.getElementById('achievement-toast');
+                this.dom.trophyCaseContainer = document.getElementById('rewards-container');
+                this.dom.particleContainer = document.getElementById('particle-container');
+            },
+
+            bindEvents() {
+                this.dom.buttons.start.addEventListener('click', async () => {
+                    if (Tone.context.state !== 'running') await Tone.start();
+                    this.startGame();
+                });
+                this.dom.buttons.playAgain.addEventListener('click', () => this.startGame());
+                this.dom.buttons.viewTrophies.addEventListener('click', () => this.showScreen('trophy-case-screen'));
+                this.dom.buttons.backToScore.addEventListener('click', () => this.showScreen('end-screen'));
+            },
+
+            startGame() {
+                const levelOrder = ['A1', 'A2', 'B1', 'B2'];
+                let masterWordList = [];
+                levelOrder.forEach(level => {
+                    const wordsForLevel = wordData[level].map((word, index) => ({ ...word, id: `${level}-word-${index}`, level: level }));
+                    shuffleArray(wordsForLevel);
+                    masterWordList.push(...wordsForLevel);
+                });
+
+                this.state = {
+                    score: 0,
+                    tokens: 0,
+                    errors: [],
+                    currentWordIndex: 0,
+                    consecutiveCorrect: 0,
+                    gameTimer: null,
+                    timeLeft: 0,
+                    playerName: document.getElementById('player-name-input').value.trim() || 'Explorer',
+                    achievements: JSON.parse(JSON.stringify(this.achievements)),
+                    levelErrors: 0,
+                    masterWordList: masterWordList,
+                    isDragging: false
+                };
+
+                this.createDropZones();
+                this.startNextLevel();
+            },
+
+            startNextLevel() {
+                const currentWord = this.state.masterWordList[this.state.currentWordIndex];
+                if (!currentWord) { this.endGame(true); return; }
+                
+                const currentLevel = currentWord.level;
+                
+                if (this.state.currentWordIndex > 0 && this.state.levelErrors === 0) { this.unlockAchievement('perfectLevel'); }
+                this.state.levelErrors = 0;
+                
+                this.dom.interstitial.title.textContent = `Level ${currentLevel}`;
+                this.dom.interstitial.message.textContent = `Get ready...`;
+                this.showScreen('level-interstitial-screen');
+                if(this.audio.levelUpSound) this.audio.levelUpSound();
+
+                let countdown = 5;
+                this.dom.interstitial.countdown.textContent = countdown;
+                const countdownInterval = setInterval(() => {
+                    countdown--;
+                    this.dom.interstitial.countdown.textContent = countdown;
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        this.state.timeLeft = this.gameConfig.timePerLevel;
+                        this.updateHUD(); 
+                        this.startTimer();
+                        this.presentNextWord();
+                        this.showScreen('sorting-screen');
+                    }
+                }, 1000);
+            },
+            
+            processNextAction() {
+                if (this.state.currentWordIndex >= this.state.masterWordList.length) {
+                    this.endGame(true);
+                } else {
+                    const lastWord = this.state.masterWordList[this.state.currentWordIndex - 1];
+                    const nextWord = this.state.masterWordList[this.state.currentWordIndex];
+                    if (nextWord.level !== lastWord.level) {
+                        this.startNextLevel();
+                    } else {
+                        this.presentNextWord();
+                    }
+                }
+            },
+
+            endGame(completed) {
+                clearInterval(this.state.gameTimer);
+                const title = document.getElementById('end-screen-title');
+                const heading = document.getElementById('final-score-heading');
+
+                if (completed) {
+                    this.unlockAchievement('firstVictory');
+                    if (this.state.errors.length === 0) this.unlockAchievement('perfectionist');
+                    title.textContent = "Game Complete!";
+                    heading.textContent = `Congratulations, ${this.state.playerName}!`;
+                } else {
+                    title.textContent = "Time's Up!";
+                    heading.textContent = `Good effort, ${this.state.playerName}!`;
+                }
+
+                document.getElementById('final-score').textContent = `Final Score: ${this.state.score}`;
+                
+                const errorList = document.getElementById('error-list');
+                errorList.innerHTML = this.state.errors.length === 0
+                    ? "<li>No mistakes made. Incredible!</li>"
+                    : this.state.errors.map(err => `<li><b>${err.word}</b> (is a ${err.pos.join('/')})</li>`).join('');
+
+                this.updateTrophyCase();
+                this.showScreen('end-screen');
+            },
+            
+            presentNextWord() {
+                const wordObj = this.state.masterWordList[this.state.currentWordIndex];
+                const wordDiv = document.createElement('div');
+                wordDiv.textContent = wordObj.word;
+                wordDiv.id = wordObj.id;
+                wordDiv.className = 'word';
+                wordDiv.draggable = true;
+                
+                wordDiv.addEventListener('dragstart', this.handleDragStart.bind(this));
+                wordDiv.addEventListener('dragend', this.handleDragEnd.bind(this)); 
+                wordDiv.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+
+                this.dom.hud.wordBank.innerHTML = '';
+                this.dom.hud.wordBank.appendChild(wordDiv);
+            },
+            
+            createDropZones() {
+                this.dom.hud.dropZones.innerHTML = '';
+                this.partsOfSpeech.forEach(pos => {
+                    const zone = document.createElement('div');
+                    zone.id = `zone-${pos}`;
+                    zone.className = 'zone';
+                    zone.textContent = pos.charAt(0).toUpperCase() + pos.slice(1);
+                    zone.addEventListener('dragover', this.handleDragOver.bind(this));
+                    zone.addEventListener('dragenter', this.handleDragEnter.bind(this));
+                    zone.addEventListener('dragleave', this.handleDragLeave.bind(this));
+                    zone.addEventListener('drop', this.handleDrop.bind(this));
+                    this.dom.hud.dropZones.appendChild(zone);
+                });
+            },
+            
+            updateHUD() {
+                this.dom.hud.name.textContent = this.state.playerName;
+                this.dom.hud.score.textContent = this.state.score;
+                this.dom.hud.tokens.textContent = this.state.tokens;
+                const currentLevel = this.state.masterWordList[this.state.currentWordIndex]?.level || 'End';
+                this.dom.hud.level.textContent = currentLevel;
+                const minutes = Math.floor(this.state.timeLeft / 60) || 0;
+                const seconds = this.state.timeLeft % 60 || 0;
+                this.dom.hud.timer.textContent = `Time: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            },
+
+            handleGuess(isCorrect, wordInfo, targetZone) {
+                this.dom.hud.wordBank.innerHTML = ''; 
+                const feedback = document.createElement('div');
+                feedback.id = 'feedback-display';
+
+                if (isCorrect) {
+                    this.state.score++; 
+                    this.state.consecutiveCorrect++;
+                    this.state.tokens += 10;
+                    if (this.state.consecutiveCorrect > 0 && this.state.consecutiveCorrect % 5 === 0) this.state.tokens += 50;
+
+                    feedback.textContent = "Correct! +10 Tokens";
+                    feedback.className = "feedback-correct";
+                    
+                    if (this.audio.correctSound) this.audio.correctSound();
+                    if (targetZone) this.flashZone(targetZone, true);
+                    this.createTokenParticles(targetZone);
+
+                    if (this.state.consecutiveCorrect === 10) this.unlockAchievement('streak10');
+                    if (this.state.consecutiveCorrect === 25) this.unlockAchievement('streak25');
+                    if(this.state.tokens >= 1000) this.unlockAchievement('tokenTycoon');
+
+                } else {
+                    this.state.score--;
+                    this.state.consecutiveCorrect = 0; 
+                    this.state.levelErrors++;
+                    if (!this.state.errors.some(e => e.id === wordInfo.id)) this.state.errors.push(wordInfo);
+                    
+                    feedback.textContent = "Incorrect!";
+                    feedback.className = "feedback-incorrect";
+
+                    if(this.audio.incorrectSound) this.audio.incorrectSound();
+                    if(targetZone) this.flashZone(targetZone, false);
+                }
+
+                this.dom.hud.wordBank.appendChild(feedback);
+                this.updateHUD();
+                
+                this.state.currentWordIndex++; 
+                setTimeout(() => this.processNextAction(), 1200); 
+            },
+
+            flashZone(zone, isCorrect) {
+                const className = isCorrect ? 'flash-correct' : 'flash-incorrect';
+                zone.classList.add(className);
+                setTimeout(() => zone.classList.remove(className), 500);
+            },
+            
+            // --- Drag and Drop Logic ---
+            handleDragStart(e) { 
+                e.target.classList.add('dragging'); 
+                e.dataTransfer.setData('text/plain', e.target.id);
+            },
+            handleDragEnd(e) { e.target.classList.remove('dragging'); },
+            handleDragOver(e) { e.preventDefault(); },
+            handleDragEnter(e) { const zone = e.target.closest('.zone'); if (zone) zone.classList.add('drag-over'); },
+            handleDragLeave(e) { const zone = e.target.closest('.zone'); if (zone) zone.classList.remove('drag-over'); },
+            handleDrop(e) {
+                e.preventDefault();
+                const droppedWordUniqueID = e.dataTransfer.getData('text/plain'); 
+                const targetZone = e.target.closest('.zone');
+                if (!targetZone || !droppedWordUniqueID) return;
+                
+                targetZone.classList.remove('drag-over');
+                const wordInfo = this.state.masterWordList.find(w => w.id === droppedWordUniqueID);
+                if (!wordInfo) return;
+                
+                const droppedPos = targetZone.id.replace('zone-', '');
+                const isCorrect = wordInfo.pos.includes(droppedPos);
+                this.handleGuess(isCorrect, wordInfo, targetZone);
+            },
+
+            // --- Mobile Touch Logic ---
+            handleTouchStart(e) {
+                if (this.dragState.isDragging) return;
+                this.dragState = { isDragging: true, originalElement: e.target };
+                e.preventDefault();
+
+                const touch = e.touches[0];
+                const clone = this.dragState.originalElement.cloneNode(true);
+                clone.style.position = 'fixed';
+                clone.style.pointerEvents = 'none';
+                clone.style.zIndex = '1000';
+                clone.style.left = `${touch.clientX - clone.offsetWidth / 2}px`;
+                clone.style.top = `${touch.clientY - clone.offsetHeight / 2}px`;
+                document.body.appendChild(clone);
+                this.dragState.clone = clone;
+                
+                this.dragState.originalElement.classList.add('dragging');
+
+                this.dragState.touchMoveHandler = this.handleTouchMove.bind(this);
+                this.dragState.touchEndHandler = this.handleTouchEnd.bind(this);
+                document.addEventListener('touchmove', this.dragState.touchMoveHandler, { passive: false });
+                document.addEventListener('touchend', this.dragState.touchEndHandler);
+            },
+            
+            handleTouchMove(e) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                this.dragState.clone.style.left = `${touch.clientX - this.dragState.clone.offsetWidth / 2}px`;
+                this.dragState.clone.style.top = `${touch.clientY - this.dragState.clone.offsetHeight / 2}px`;
+                
+                document.querySelectorAll('.zone').forEach(z => z.classList.remove('drag-over'));
+                const targetZone = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.zone');
+                if (targetZone) targetZone.classList.add('drag-over');
+            },
+            
+            handleTouchEnd(e) {
+                document.removeEventListener('touchmove', this.dragState.touchMoveHandler);
+                document.removeEventListener('touchend', this.dragState.touchEndHandler);
+
+                const endTouch = e.changedTouches[0];
+                const targetZone = document.elementFromPoint(endTouch.clientX, endTouch.clientY)?.closest('.zone');
+                
+                if (targetZone) {
+                    const wordInfo = this.state.masterWordList.find(w => w.id === this.dragState.originalElement.id);
+                    const droppedPos = targetZone.id.replace('zone-', '');
+                    const isCorrect = wordInfo.pos.includes(droppedPos);
+                    this.handleGuess(isCorrect, wordInfo, targetZone);
+                } else {
+                    this.dragState.originalElement.classList.remove('dragging');
+                }
+                
+                document.querySelectorAll('.zone').forEach(z => z.classList.remove('drag-over'));
+                document.body.removeChild(this.dragState.clone);
+                this.dragState = {};
+            },
+            
+            // --- UI/UX Utilities ---
+            unlockAchievement(id) {
+                if (!this.state.achievements[id] || this.state.achievements[id].unlocked) return;
+                this.state.achievements[id].unlocked = true;
+                const toast = this.dom.toast;
+                toast.textContent = `🏆 ${this.state.achievements[id].title}`;
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 4000);
+            },
+
+            updateTrophyCase() {
+                this.dom.trophyCaseContainer.innerHTML = '';
+                for (const id in this.state.achievements) {
+                    const ach = this.state.achievements[id];
+                    const card = document.createElement('div');
+                    card.className = `reward-card ${ach.unlocked ? 'unlocked' : ''}`;
+                    card.innerHTML = `<h3>${ach.title}</h3><p>${ach.description}</p>`;
+                    this.dom.trophyCaseContainer.appendChild(card);
+                }
+            },
+            
+            startTimer() {
+                clearInterval(this.state.gameTimer);
+                this.state.gameTimer = setInterval(() => {
+                    this.state.timeLeft--; 
+                    this.updateHUD();
+                    if (this.state.timeLeft <= 0) {
+                        this.endGame(false);
+                    }
+                }, 1000);
+            },
+            
+            showScreen(screenId) {
+                this.dom.screens.forEach(s => s.classList.toggle('active', s.id === screenId));
+            },
+
+            createTokenParticles(originElement) {
+                const rect = originElement.getBoundingClientRect();
+                const startX = rect.left + rect.width / 2;
+                const startY = rect.top + rect.height / 2;
+                
+                const tokenHud = this.dom.hud.tokens.getBoundingClientRect();
+                const endX = tokenHud.left + tokenHud.width / 2;
+                const endY = tokenHud.top + tokenHud.height / 2;
+
+                for (let i = 0; i < 5; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'token-particle';
+                    this.dom.particleContainer.appendChild(particle);
+
+                    const offsetX = (Math.random() - 0.5) * 50;
+                    const offsetY = (Math.random() - 0.5) * 50;
+
+                    particle.animate([
+                        { transform: `translate(${startX + offsetX}px, ${startY + offsetY}px) scale(1)`, opacity: 1 },
+                        { opacity: 1, offset: 0.8 },
+                        { transform: `translate(${endX}px, ${endY}px) scale(0)`, opacity: 0 }
+                    ], {
+                        duration: 800 + Math.random() * 200,
+                        easing: 'ease-in-out',
+                        delay: i * 50
+                    });
+
+                    setTimeout(() => particle.remove(), 1000);
+                }
+            }
+        };
+
+        Game.init();
+    });
+    </script>
+</body>
+</html>

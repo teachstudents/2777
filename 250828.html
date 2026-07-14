@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI in the High School Classroom</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @keyframes slowColorChange {
+            0% { background-color: #1f2937; }
+            25% { background-color: #3730a3; }
+            50% { background-color: #4338ca; }
+            75% { background-color: #3730a3; }
+            100% { background-color: #1f2937; }
+        }
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            overscroll-behavior: none;
+            animation: slowColorChange 240s linear infinite;
+            padding-top: 70px; /* Add padding to prevent nav overlap */
+        }
+        #background-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+        }
+        .page { display: none; position: relative; }
+        .page.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .action-button, .nav-button, .quiz-option, .tfng-button, .word-bank-word, .btn-animated-3d {
+            transition: all 0.15s ease-out;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -2px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+            border: none;
+        }
+        .action-button:hover, .nav-button:hover, .quiz-option:hover:not(:disabled), .tfng-button:hover:not(:disabled), .word-bank-word:hover, .btn-animated-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px -3px rgba(0,0,0,0.2), 0 4px 6px -4px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+        }
+        .action-button:active, .nav-button:active, .quiz-option:active, .tfng-button:active, .btn-animated-3d:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px -1px rgba(0,0,0,0.2), 0 1px 2px -2px rgba(0,0,0,0.1), inset 0 -2px 0 0 rgba(0,0,0,0.2);
+        }
+        
+        /* Gap Fill Styles */
+        .gap-fill-container .gap {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 120px; height: 44px; padding: 0 4px;
+            border: 2px dashed #9ca3af; border-radius: 8px; margin: 0 4px;
+            vertical-align: middle; background-color: #f3f4f6;
+        }
+        .word-bank-word {
+            cursor: grab; padding: 8px 16px; border-radius: 8px;
+            background-color: white; user-select: none;
+        }
+        .word-bank-word.selected { outline: 2px solid #6366f1; transform: scale(1.05); }
+        .gap .word-bank-word { cursor: pointer; }
+        .gap.correct .word-bank-word { background-color: #dcfce7; border-color: #22c55e; color: #15803d; }
+        .gap.incorrect .word-bank-word { background-color: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+        /* Feedback Message & Badge Notification */
+        .feedback-toast, .badge-toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border-radius: 9999px; color: white;
+            font-weight: bold; z-index: 200;
+            animation: slideUpFadeIn 0.5s ease-out, slideDownFadeOut 0.5s ease-in 3.5s forwards;
+        }
+        .feedback-toast.correct { background-color: #22c55e; }
+        .feedback-toast.encouraging { background-color: #f59e0b; }
+        .badge-toast { background: linear-gradient(45deg, #fde047, #f97316); }
+        @keyframes slideUpFadeIn { from { opacity: 0; bottom: 0; } to { opacity: 1; bottom: 20px; } }
+        @keyframes slideDownFadeOut { from { opacity: 1; bottom: 20px; } to { opacity: 0; bottom: 0; } }
+
+        /* Certificate Canvas */
+        #completion-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        
+        /* Print Styles */
+        @media print {
+            body * { visibility: hidden; }
+            #certificate-to-print, #certificate-to-print * { visibility: visible; }
+            #certificate-to-print { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+    <canvas id="background-canvas"></canvas>
+
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 p-2" style="display: none;">
+        <div class="max-w-sm mx-auto p-1.5 flex justify-center items-center gap-2 bg-white/90 backdrop-blur-sm shadow-lg rounded-full">
+            <button onclick="goBack()" class="nav-button bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold p-2 rounded-full">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            </button>
+            <div class="font-bold text-base text-purple-600 px-3">Score: <span id="score-display">0</span></div>
+            <button onclick="navigateTo('main-menu')" class="nav-button bg-gray-800 text-white font-bold p-2 rounded-full hover:bg-gray-900">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+            </button>
+            <button onclick="toggleTTS(this)" class="nav-button p-2 rounded-full hover:bg-gray-200" title="Toggle Sound">
+                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"></path></svg>
+            </button>
+            <button onclick="goNext()" class="nav-button bg-purple-600 hover:bg-purple-700 text-white font-bold p-2 rounded-full">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </button>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+        <section id="page-title-screen" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 id="main-title" class="text-5xl md:text-6xl font-bold text-purple-800 mb-4"></h1>
+                <p id="main-subtitle" class="text-xl md:text-2xl text-gray-600 mb-8"></p>
+                <div id="main-svg-container" class="rounded-lg shadow-md mb-8 w-full max-w-lg mx-auto"></div>
+                <button onclick="startApp()" class="action-button bg-purple-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-purple-700">START LESSON</button>
+            </div>
+        </section>
+        <div id="dynamic-pages-container"></div>
+    </div>
+
+    <script>
+        // ===================================================================================
+        // --- LESSON CONTENT CONFIGURATION ---
+        // ===================================================================================
+        const lessonData = {
+            title: "AI in the High School Classroom",
+            subtitle: "Enhancing Instructional Design for Secondary Educators 🤖",
+            startPageId: 'title-screen',
+            homePageId: 'main-menu',
+            mainMenu: [
+                { id: 'menu-tps', text: '1. Think-Pair-Share 🧠', color: 'green', target: 'tps-start' },
+                { id: 'menu-goals', text: '2. Learning Goals 🎯', color: 'teal', target: 'learning-goals-1' },
+                { id: 'menu2', text: '3. Vocabulary 📚', color: 'purple', target: 'vocab-start' },
+                { id: 'menu3', text: '4. Core Benefits Lecture 💡', color: 'amber', target: 'lecture-1' },
+                { id: 'menu-dialogue', text: '5. A Counterpoint 🗣️', color: 'orange', target: 'dialogue-1' },
+                { id: 'menu-dilemma', text: '6. Ethical Dilemma 🤔', color: 'rose', target: 'dilemma-1' },
+                { id: 'menu4', text: '7. Knowledge Quiz ✅', color: 'violet', target: 'quiz-start' },
+                { id: 'menu5', text: '8. Final Task ✍️', color: 'violet', target: 'final-tasks' },
+            ],
+            badges: {
+                'STREAK_5': { name: 'Hot Streak', icon: '🔥', description: '5 correct answers in a row' },
+                'PERFECT_LEVEL': { name: 'Flawless', icon: '💎', description: 'Complete a level with no mistakes' },
+                'GAME_COMPLETE': { name: 'Word Wizard', icon: '🧙', description: 'Complete all challenges' },
+                'COMEBACK_KID': { name: 'Comeback Kid', icon: '💪', description: 'Pass a level after making a mistake' },
+                'PERFECTIONIST': { name: 'Perfectionist', icon: '💯', description: 'Complete the entire game with no mistakes' },
+                'SPEED_DEMON': { name: 'Speed Demon', icon: '⚡', description: 'Finish a level with more than half the time remaining' }
+            },
+            vocabulary: [
+                { word: 'Generative AI', def: 'Artificial intelligence that can create new content, like text, images, or code.', sentence: 'Teachers can use generative AI to create unique writing prompts for their students.' },
+                { word: 'Large Language Model (LLM)', def: 'A type of AI trained on vast amounts of text data to understand and generate human-like language.', sentence: 'Tools like ChatGPT are powered by a Large Language Model.' },
+                { word: 'Prompt Engineering', def: 'The skill of crafting effective inputs (prompts) to get the best possible output from an AI model.', sentence: 'Effective prompt engineering is key to using AI as a reliable teaching assistant.' },
+                { word: 'Differentiated Instruction', def: 'Tailoring instruction to meet individual student needs.', sentence: 'AI can help create materials for differentiated instruction at various reading levels.' },
+                { word: 'Adaptive Learning', def: 'An educational method that uses AI to adjust the learning path for each student in real-time.', sentence: 'Adaptive learning platforms can provide students with immediate, personalized feedback.' },
+            ],
+            pages: [
+                 { id: 'tps-start', type: 'simple', content: { title: 'Activity: Think-Pair-Share', text: 'Let\'s brainstorm how AI can assist in our daily teaching practices.' } },
+                 { id: 'tps-think', type: 'timer', content: { title: '1. Think 🤔', text: 'Think about one repetitive task in your teaching practice that takes up a lot of your time.', duration: 120, timerId: 'timer-think' } },
+                 { id: 'tps-pair', type: 'timer', content: { title: '2. Pair 👥', text: 'Pair with a colleague. Discuss how a smart AI assistant could potentially help with the tasks you each identified.', duration: 180, timerId: 'timer-pair' } },
+                 { id: 'tps-share', type: 'timer', content: { title: '3. Share 🗣️', text: 'Let\'s share some of the most promising ideas for using AI to save time and enhance our teaching.', duration: 300, timerId: 'timer-share' } },
+                 { id: 'learning-goals-1', type: 'html-content', content: { title: '📜 Learning Goals & Unit Plan', html: `<p><strong class="text-rose-600">Topic:</strong> AI Integration for Secondary Teachers</p><p><strong class="text-rose-600">Theme:</strong> Modernizing Instructional Design</p><p><strong class="text-rose-600">Essential Question:</strong> How can high school teachers effectively leverage AI tools to enhance student learning?</p><p><strong class="text-rose-600">Learning Intention:</strong> We are learning to identify the key benefits of AI in education and to design a lesson plan that thoughtfully integrates an AI tool.</p>` } },
+                 { id: 'learning-goals-2', type: 'html-content', content: { title: '📜 Success Criteria & Rubric', html: `<div class="mb-8"><h3 class="text-2xl font-bold text-rose-600 mb-3">Success Criteria</h3><ul class="list-disc list-inside space-y-2 text-xl"><li>I can explain three major benefits of using AI in instructional design.</li><li>I can define key terms like "Generative AI" and "Prompt Engineering."</li><li>I can design a lesson plan component that uses an AI tool to support a specific learning objective.</li></ul></div><div><h3 class="text-2xl font-bold text-rose-600 mb-3">Final Task Rubric</h3><div class="overflow-x-auto"><table class="w-full text-left border-collapse"><thead><tr class="bg-rose-50"><th class="border-b-2 p-2">Criterion</th><th class="border-b-2 p-2">Exemplary</th></tr></thead><tbody><tr><td class="border-b p-2 font-semibold">Clarity of Objective</td><td class="border-b p-2">The lesson objective is clear, measurable, and directly supported by the AI-powered activity.</td></tr><tr><td class="border-b p-2 font-semibold">AI Tool Integration</td><td class="border-b p-2">The chosen AI tool is thoughtfully integrated to enhance learning, not just as a gimmick. The prompt is well-crafted.</td></tr><tr><td class="border-b p-2 font-semibold">Student Engagement</td><td class="border-b p-2">The activity is designed to be engaging and promotes higher-order thinking (e.g., analysis, creation).</td></tr><tr><td class="border-b p-2 font-semibold">Ethical Consideration</td><td class="border-b p-2">The plan includes a brief, clear guideline for students on responsible AI use for the task.</td></tr></tbody></table></div></div>` } },
+                 { id: 'assessment-evidence', type: 'html-content', content: { title: 'Stage 2: Assessment Evidence', html: `<h3 class="text-2xl font-bold text-rose-600 mb-3">Primary Performance Task (GRASPS)</h3><ul class="list-disc list-inside space-y-2"><li><strong class="text-gray-700">Goal:</strong> Your goal is to design an engaging, AI-enhanced lesson activity for a high school subject of your choice.</li><li><strong class="text-gray-700">Role:</strong> You are an innovative teacher presenting a model activity to your department.</li><li><strong class="text-gray-700">Audience:</strong> Your department head and fellow teachers.</li><li><strong class="text-gray-700">Situation:</strong> Your school is encouraging teachers to explore new technologies to improve student outcomes.</li><li><strong class="text-gray-700">Product:</strong> A concise, one-page lesson plan for a single activity that specifies the learning objective, the AI tool used, a sample prompt for the AI, and how student work will be assessed.</li><li><strong class="text-gray-700">Standards:</strong> Your lesson plan will be evaluated on its clarity, creativity, pedagogical soundness, and effective integration of the AI tool.</li></ul>` } },
+                 { id: 'vocab-start', type: 'simple', content: { title: 'AI Vocabulary 📚', text: 'Let\'s learn the key terms for this unit. Click "Next" in the header to cycle through the words.' } },
+                 { id: 'lecture-1', type: 'lecture', content: { title: 'Core Benefits of AI in the Classroom 💡', text: "Hello, educators. Let's discuss three transformative benefits of integrating AI into your instructional design. First, and perhaps most importantly, is <strong>personalization at scale</strong>. AI tools can generate reading passages on the same topic at five different Lexile levels in seconds. They can create practice problems that adapt in difficulty based on a student's answers. This allows us to achieve true differentiated instruction in a way that was previously impractical for a single teacher with 30 students.\n\nSecond is the benefit of <strong>streamlining administrative tasks</strong>. We all know how much time is spent on creating materials, writing feedback, and managing paperwork. Generative AI can act as a tireless teaching assistant. It can help you draft lesson plans, create rubrics, generate exemplars, and even provide initial feedback on student writing, freeing you up to focus on high-impact activities like one-on-one conferencing and small-group instruction.\n\nFinally, AI is a powerful tool for <strong>boosting creativity and engagement</strong>. Instead of a simple worksheet, an AI can help you design a role-playing scenario where students debate historical figures. It can generate unique art prompts or help students brainstorm complex scientific hypotheses. By handling some of the cognitive load of content creation, AI empowers both teachers and students to focus on higher-order thinking and creative application of knowledge." } },
+                 { id: 'dialogue-1', type: 'dialogue', content: { title: 'A Classroom Conversation 🗣️', dialogue: "Ava: Brian, I've been looking into these AI tools, and I'm really skeptical. It feels like we're outsourcing the art of teaching to a machine. How can an algorithm understand the nuance of a student's creative writing?\n\nBrian: I see your point, Ava, but I think you're looking at it as a replacement, not an assistant. I used one to generate five different versions of a history text for my struggling readers. It saved me hours and the kids actually engaged with the material because it was at their level.\n\nAva: But what do they lose? Do they lose the opportunity to grapple with a difficult text? And what about feedback? My comments on an essay are a conversation with the student. An AI just points out grammar errors. There's no mentorship in that.\n\nBrian: I disagree. The AI handles the first pass—the grammar, the structure—which frees me up to have deeper conversations about their actual ideas. It's not about replacing mentorship; it's about focusing it. I'm not spending my energy circling comma splices anymore; I'm asking them *why* they chose a certain argument. It's a tool, like a calculator. It handles the mechanics so we can focus on the concepts." } },
+                 { id: 'dilemma-1', type: 'lecture', content: { title: 'Ethical Dilemma: The AI Grader 🤔', text: "Your school district is considering a new AI platform that can instantly grade all student essays. It provides detailed grammatical feedback, checks for plagiarism, and assigns a score based on a pre-loaded rubric. \n\n<strong>The PROMISE:</strong> This could save English and History teachers hundreds of hours per year, allowing them to focus more on lesson planning and student interaction. The feedback is instant, so students can revise immediately.\n\n<strong>The PROBLEM:</strong> Students will no longer receive personalized, handwritten or verbal feedback from their actual teacher on their writing. The AI might misinterpret nuanced arguments, and there's a risk of algorithmic bias. Does the efficiency gain outweigh the loss of the human, pedagogical connection in the feedback process?\n\nAs a department, should you vote to adopt this tool? What guidelines or limitations would you propose?" } },
+                 { id: 'quiz-start', type: 'simple', content: { title: 'Knowledge Quiz ✅', text: 'Let\'s check your understanding of the core benefits and considerations of AI.' } },
+                 { id: 'quiz-tfng', type: 'quiz-tfng', content: { title: 'Quiz: True / False / Not Given (1/3)', questions: [ /* Questions added in JS */ ] } },
+                 { id: 'quiz-mcq', type: 'quiz-mcq', content: { title: 'Quiz: Multiple Choice (2/3)', questions: [ /* Questions added in JS */ ] } },
+                 { id: 'quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Quiz: Gap Fill (3/3)', sentences: [ /* Content added in JS */ ] } },
+                 { id: 'answer-key', type: 'answer-key', content: { title: 'Quiz Answer Key 🔑' } },
+                 { id: 'final-tasks', type: 'writing-task', content: { title: 'Final Task: Design an AI-Powered Activity ✍️', prompt: 'Based on what you\'ve learned, design a specific, one-off activity for a subject you teach that uses a generative AI tool. Describe the learning objective, the AI tool you would use, the prompt you would give students, and how it enhances the lesson.', starters: ['My learning objective is to...', 'The AI tool I would use is...', 'I would instruct students to prompt the AI by asking it to...', 'This enhances the lesson by...'] } },
+                 { id: 'certificate', type: 'certificate', content: { title: 'Module Complete! 🎉', text: 'You have successfully completed the "AI in the Classroom" module.', certificateTitle: 'Certificate of Completion' } }
+            ]
+        };
+        // --- END OF LESSON CONTENT CONFIGURATION ---
+        // ===================================================================================
+
+        /**
+         * SpeechService v4.3 (Definitive, Google Voices Added)
+         * Production-grade speech synthesis with a user-defined voice quality ranking
+         * for Microsoft Edge, Google Chrome, and other modern browsers.
+         */
+        class SpeechService {
+            constructor() {
+                this.synth = window.speechSynthesis;
+                this.isInitialized = false;
+                this.isTtsEnabled = true;
+                this.voices = {};
+                this.speechRate = 0.85;
+                this.maleNameHints = ['john', 'mike', 'david', 'brian', 'tom', 'chris', 'alex', 'robert', 'mark', 'james', 'paul', 'leo', 'onyx', 'alloy'];
+                this.femaleNameHints = ['mary', 'lisa', 'susan', 'jane', 'sarah', 'emma', 'eva', 'allison', 'ava', 'samantha', 'kate', 'linda', 'mia', 'sofia', 'chen', 'fable', 'shimmer'];
+            }
+
+            _getBrowserVoicePriorities() {
+                return {
+                    edge: {
+                        female: ['Microsoft Fable Online (Natural) - English (United States)', 'Microsoft Shimmer Online (Natural) - English (United States)', 'Microsoft Ava Online (Natural) - English (United States)', 'Microsoft Aria Online (Natural) - English (United States)', 'Microsoft Ana Online (Natural) - English (United States)'],
+                        male: ['Microsoft Onyx Online (Natural) - English (United States)', 'Microsoft Alloy Online (Natural) - English (United States)', 'Microsoft Brian Online (Natural) - English (United States)', 'Microsoft Guy Online (Natural) - English (United States)', 'Microsoft Davis Online (Natural) - English (United States)']
+                    },
+                    safari: { female: ['Samantha', 'Ava (Premium)', 'Allison'], male: ['Alex', 'Evan (Premium)', 'Tom'] },
+                    chrome: { 
+                        female: ['Google US English'], // Names are often generic, keywords are key
+                        male: ['Google US English']
+                    }
+                };
+            }
+
+            _getBrowser() {
+                const ua = navigator.userAgent;
+                if (ua.includes("Edg/")) return "edge";
+                if (ua.includes("Chrome") && !ua.includes("Chromium")) return "chrome";
+                if (ua.includes("Safari") && !ua.includes("Chrome")) return "safari";
+                return "other";
+            }
+
+            async _setupVoices() {
+                const voicesPromise = new Promise(resolve => {
+                    if (this.synth.getVoices().length) return resolve(this.synth.getVoices());
+                    this.synth.onvoiceschanged = () => resolve(this.synth.getVoices());
+                });
+                const availableVoices = await voicesPromise;
+                if (!availableVoices.length) { console.warn("No voices available."); return; }
+                const browser = this._getBrowser();
+                const priorities = this._getBrowserVoicePriorities();
+                const keywordPriorities = ['onyx', 'fable', 'shimmer', 'alloy', 'chirp', 'neural2', 'wavenet', 'neural', 'natural', 'premium', 'enhanced', 'microsoft', 'google'];
+                const findBest = (voiceList, gender) => {
+                    const browserPriorityNames = priorities[browser]?.[gender] || [];
+                    for (const name of browserPriorityNames) {
+                        const found = voiceList.find(v => v.name === name);
+                        if (found) return found;
+                    }
+                    for (const tag of keywordPriorities) {
+                        const found = voiceList.find(v => v.name.toLowerCase().includes(tag));
+                        if (found) return found;
+                    }
+                    return voiceList[0] || null;
+                };
+                const usEnglish = availableVoices.filter(v => v.lang === 'en-US');
+                const maleVoices = usEnglish.filter(v => /onyx|alloy|david|guy|brian|male/i.test(v.name));
+                const femaleVoices = usEnglish.filter(v => /fable|shimmer|aria|ava|ana|female/i.test(v.name));
+                this.voices['male'] = findBest(maleVoices, 'male');
+                this.voices['female'] = findBest(femaleVoices, 'female');
+                this.voices['default'] = this.voices['female'] || this.voices['male'] || findBest(usEnglish, 'female');
+            }
+            
+            async init() {
+                if (this.isInitialized) return;
+                try {
+                    const warmUp = new SpeechSynthesisUtterance(' ');
+                    warmUp.volume = 0;
+                    this.synth.speak(warmUp);
+                    this.synth.cancel();
+                    await this._setupVoices();
+                    this.isInitialized = true;
+                } catch (e) { console.error("Speech synthesis setup failed:", e); }
+            }
+            
+            _getVoiceKeyForSpeaker(speakerName) {
+                const lower = speakerName.toLowerCase();
+                if (this.voices[lower]) return lower;
+                if (this.maleNameHints.some(h => lower.includes(h))) return 'male';
+                if (this.femaleNameHints.some(h => lower.includes(h))) return 'female';
+                return 'default';
+            }
+
+            async speak(text, { onEndCallback = null } = {}) {
+                if (!this.isInitialized || !this.isTtsEnabled || !text) {
+                    if (onEndCallback) onEndCallback();
+                    return;
+                }
+                if (this.synth.speaking) this.synth.cancel();
+                await new Promise(resolve => setTimeout(resolve, 50));
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.voice = this.voices['default'];
+                utter.rate = this.speechRate;
+                if (onEndCallback) utter.onend = onEndCallback;
+                utter.onerror = (e) => {
+                    console.error('SpeechSynthesisUtterance.onerror', e);
+                    if (onEndCallback) onEndCallback();
+                };
+                this.synth.speak(utter);
+            }
+
+            async speakDialogue(text) {
+                if (!this.isInitialized || !this.isTtsEnabled || !text) return;
+
+                const lines = text.split('\n').filter(line => line.trim() !== '');
+                const queue = lines.map(line => {
+                    const [speaker, ...parts] = line.split(':');
+                    const dialogue = parts.join(':').trim();
+                    const voiceKey = this._getVoiceKeyForSpeaker(speaker.trim());
+                    return { text: dialogue, voiceKey: voiceKey };
+                }).filter(item => item.text);
+
+                const playNext = () => {
+                    if (queue.length > 0) {
+                        const item = queue.shift();
+                        if (this.synth.speaking) this.synth.cancel();
+                        const utter = new SpeechSynthesisUtterance(item.text);
+                        utter.voice = this.voices[item.voiceKey] || this.voices['default'];
+                        utter.rate = this.speechRate;
+                        utter.onend = playNext;
+                        this.synth.speak(utter);
+                    }
+                };
+                playNext();
+            }
+            
+            cancel() { if (this.synth) this.synth.cancel(); }
+
+            toggleTTS(forceState) {
+                this.isTtsEnabled = forceState === undefined ? !this.isTtsEnabled : forceState;
+                if (!this.isTtsEnabled) {
+                    this.cancel();
+                }
+                return this.isTtsEnabled;
+            }
+        }
+
+        // --- Global App State and Functions ---
+        const speechService = new SpeechService();
+        let toneSynth;
+        let score = 0, currentPage = lessonData.startPageId, timerInterval;
+        const pageHistory = [lessonData.startPageId];
+        let pageSequence = [];
+        let earnedBadges = [];
+        let selectedWord = { element: null, text: '' };
+        let correctStreak = 0;
+        let mistakesThisLevel = 0;
+
+        window.toggleTTS = (button) => {
+            const isNowEnabled = speechService.toggleTTS();
+            const iconPath = isNowEnabled 
+                ? "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"
+                : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z M17 14l-4-4m0 4l4-4";
+            button.querySelector('svg').classList.toggle('text-gray-600', isNowEnabled);
+            button.querySelector('svg').classList.toggle('text-gray-400', !isNowEnabled);
+            button.querySelector('path').setAttribute('d', iconPath);
+
+            if (isNowEnabled) {
+                const pageData = lessonData.pages.find(p => p.id === currentPage);
+                const targetPage = document.getElementById(`page-${currentPage}`);
+                if (pageData && pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else if (targetPage) {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    if (readableContent) speechService.speak(readableContent.innerText);
+                    else if (titleElement) speechService.speak(titleElement.innerText);
+                }
+            }
+        };
+
+        window.startApp = async function() {
+            await speechService.init();
+            try { 
+                await Tone.start(); 
+                toneSynth = new Tone.PolySynth(Tone.Synth).toDestination(); 
+            } catch (e) { console.error(e); }
+            navigateTo(lessonData.homePageId);
+        }
+
+        const playSound = (correct) => {
+            if (toneSynth) toneSynth.triggerAttackRelease(correct ? ["C5", "E5", "G5"] : "A2", "8n", Tone.now());
+        }
+        
+        function startTimer(duration, display, onComplete) {
+            let timer = duration;
+            const update = () => { display.textContent = `${String(Math.floor(timer/60)).padStart(2,'0')}:${String(timer%60).padStart(2,'0')}`; };
+            update();
+            timerInterval = setInterval(() => { timer--; update(); if (timer < 0) { clearInterval(timerInterval); if (onComplete) onComplete(); } }, 1000);
+        }
+
+        window.navigateTo = (pageId) => {
+            const targetPage = document.getElementById(`page-${pageId}`);
+            if (!targetPage) {
+                if (pageId === lessonData.homePageId) {
+                     // This is the main menu, which is valid but doesn't have a `pages` entry
+                } else {
+                    return console.warn('navigateTo: no page found for id', pageId);
+                }
+            }
+            if (pageId === currentPage) return;
+            
+            clearInterval(timerInterval);
+            speechService.cancel();
+
+            document.getElementById(`page-${currentPage}`)?.classList.remove('active');
+            targetPage.classList.add('active');
+            currentPage = pageId;
+            if (pageHistory[pageHistory.length - 1] !== currentPage) pageHistory.push(currentPage);
+            
+            const pageData = lessonData.pages.find(p => p.id === pageId);
+
+            if (pageData) {
+                if (pageData.type === 'timer') {
+                    const timerEl = document.getElementById(pageData.content.timerId);
+                    if (timerEl) startTimer(pageData.content.duration, timerEl, goNext);
+                }
+                
+                if (pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else if (pageData.type === 'certificate') {
+                    runCompletionAnimation();
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    if (readableContent) speechService.speak(readableContent.innerText);
+                } else {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    if (readableContent) {
+                        speechService.speak(readableContent.innerText);
+                    } else if (titleElement) {
+                        speechService.speak(titleElement.innerText);
+                    }
+                }
+            } else if (pageId === lessonData.homePageId) {
+                 const titleElement = targetPage.querySelector('h2, h3');
+                 if (titleElement) {
+                    speechService.speak(titleElement.innerText);
+                 }
+            }
+
+            updateNavButtons();
+            window.scrollTo(0, 0);
+        }
+
+        window.goNext = () => {
+            const currentIndex = pageSequence.indexOf(currentPage);
+            if (currentIndex > -1 && currentIndex < pageSequence.length - 1) navigateTo(pageSequence[currentIndex + 1]);
+        }
+        window.goBack = () => {
+            if (pageHistory.length > 1) { pageHistory.pop(); navigateTo(pageHistory.pop()); }
+        }
+
+        function updateNavButtons() {
+            const nav = document.getElementById('nav-header');
+            if (!nav) return;
+            nav.style.display = (currentPage === lessonData.startPageId) ? 'none' : 'block';
+            const backBtn = nav.querySelector('button:first-child');
+            backBtn.disabled = pageHistory.length <= 1;
+            backBtn.classList.toggle('opacity-50', backBtn.disabled);
+            const nextBtn = nav.querySelector('button:last-child');
+            const currentIndex = pageSequence.indexOf(currentPage);
+            const isLast = currentIndex >= pageSequence.length - 1;
+            nextBtn.disabled = isLast || currentPage === lessonData.homePageId;
+            nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+        }
+        
+        function showFeedbackMessage(isCorrect) {
+            const correctFeedback = ["That's right!", "You got it!", "Excellent!", "Perfect!", "Great listening!", "You're on fire!"];
+            const incorrectFeedback = ["Not quite!", "Listen carefully to the new location!", "Keep trying!", "Don't give up!", "You'll get the next one!"];
+            const message = isCorrect ? correctFeedback[Math.floor(Math.random() * correctFeedback.length)] : incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+            
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.className = `feedback-toast ${isCorrect ? 'correct' : 'encouraging'}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function awardBadge(badgeName) {
+            if (!earnedBadges.includes(badgeName)) {
+                earnedBadges.push(badgeName);
+                const badgeInfo = lessonData.badges[badgeName];
+                const toast = document.createElement('div');
+                toast.innerHTML = `🏅 Badge Unlocked: ${badgeInfo.name} ${badgeInfo.icon}`;
+                toast.className = 'badge-toast';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 4000);
+            }
+        }
+
+        function updateScore(points) {
+            score += points;
+            document.getElementById('score-display').textContent = score;
+        }
+
+        window.checkTfngAnswer = function(clickedButton, chosenAnswer, correctAnswer) {
+            const buttonContainer = clickedButton.parentElement;
+            Array.from(buttonContainer.children).forEach(btn => btn.disabled = true);
+            const isCorrect = chosenAnswer === correctAnswer;
+            showFeedbackMessage(isCorrect);
+            
+            const feedbackIcon = document.createElement('span');
+            feedbackIcon.className = `ml-2 text-xl font-bold ${isCorrect ? 'text-green-500' : 'text-red-500'}`;
+            feedbackIcon.textContent = isCorrect ? '✓' : '✗';
+            clickedButton.closest('.question-group').appendChild(feedbackIcon);
+
+            if (isCorrect) {
+                playSound(true);
+                clickedButton.className = clickedButton.className.replace(/bg-(blue|red|gray)-500/, 'bg-green-500');
+                updateScore(10);
+            } else {
+                playSound(false);
+                clickedButton.className = clickedButton.className.replace(/bg-(blue|red|gray)-500/, 'bg-red-600');
+                const correctBtn = Array.from(buttonContainer.children).find(btn => btn.textContent === correctAnswer.charAt(0));
+                if (correctBtn) correctBtn.className = correctBtn.className.replace(/bg-(blue|red|gray)-500/, 'bg-green-500');
+            }
+        }
+        
+        window.checkMcqAnswer = function(button, isCorrect) {
+            const questionGroup = button.closest('.question-group');
+            questionGroup.querySelectorAll('.quiz-option').forEach(opt => opt.disabled = true);
+            showFeedbackMessage(isCorrect);
+
+            const feedbackIcon = document.createElement('span');
+            feedbackIcon.className = `ml-2 text-xl font-bold ${isCorrect ? 'text-green-500' : 'text-red-500'}`;
+            feedbackIcon.textContent = isCorrect ? '✓' : '✗';
+            button.appendChild(feedbackIcon);
+
+            if (isCorrect) {
+                playSound(true);
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                updateScore(10);
+            } else {
+                playSound(false);
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-red-500', 'border-red-600', 'text-white');
+                const correctButton = questionGroup.querySelector(".quiz-option[data-correct='true']");
+                if (correctButton) {
+                    correctButton.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                    correctButton.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                }
+            }
+        }
+
+        function initGapFill(pageId) {
+            const page = document.getElementById(pageId);
+            if (!page) return;
+            const gaps = page.querySelectorAll('.gap');
+            const words = page.querySelectorAll('.word-bank-word');
+            const wordBank = page.querySelector('.word-bank-container');
+
+            words.forEach(word => {
+                word.addEventListener('dragstart', e => {
+                    e.dataTransfer.setData('text/plain', word.dataset.word);
+                    setTimeout(() => word.classList.add('opacity-50'), 0);
+                });
+                word.addEventListener('dragend', () => word.classList.remove('opacity-50'));
+                word.addEventListener('click', handleWordClick);
+            });
+
+            gaps.forEach(gap => {
+                gap.addEventListener('dragover', e => e.preventDefault());
+                gap.addEventListener('drop', e => handleDrop(e, gap));
+                gap.addEventListener('click', handleGapClick);
+            });
+
+            function handleWordClick(e) {
+                const clickedWord = e.currentTarget;
+                if (clickedWord.parentElement.classList.contains('gap')) {
+                    clickedWord.parentElement.classList.remove('correct', 'incorrect');
+                    wordBank.appendChild(clickedWord);
+                    return;
+                }
+                if (selectedWord.element) selectedWord.element.classList.remove('selected');
+                if (selectedWord.element === clickedWord) {
+                    selectedWord = { element: null, text: '' };
+                } else {
+                    selectedWord = { element: clickedWord, text: clickedWord.dataset.word };
+                    clickedWord.classList.add('selected');
+                }
+            }
+
+            function handleGapClick(e) {
+                const clickedGap = e.currentTarget;
+                if (!selectedWord.element || clickedGap.children.length > 0) return;
+                const wordElement = selectedWord.element;
+                clickedGap.appendChild(wordElement);
+                wordElement.classList.remove('selected');
+                checkGap(clickedGap);
+                selectedWord = { element: null, text: '' };
+            }
+
+            function handleDrop(e, gap) {
+                e.preventDefault();
+                if (gap.children.length > 0) return;
+                const wordText = e.dataTransfer.getData('text/plain');
+                const wordElement = page.querySelector(`.word-bank-word[data-word="${wordText}"]`);
+                if (wordElement) {
+                    gap.appendChild(wordElement);
+                    checkGap(gap);
+                }
+            }
+
+            function checkGap(gap) {
+                const word = gap.querySelector('.word-bank-word');
+                const isCorrect = word && word.dataset.word === gap.dataset.answer;
+                gap.classList.remove('correct', 'incorrect');
+                gap.classList.add(isCorrect ? 'correct' : 'incorrect');
+                if (isCorrect) {
+                    playSound(true);
+                    updateScore(10);
+                    showFeedbackMessage(true);
+                    word.draggable = false;
+                } else {
+                    playSound(false);
+                    showFeedbackMessage(false);
+                }
+            }
+        }
+        
+        window.generateCertificate = function() {
+            const name = document.getElementById('name-input-cert').value || "Dedicated Learner";
+            document.getElementById('certificate-name').textContent = name;
+            document.getElementById('certificate-score').textContent = score;
+            document.getElementById('certificate-date').textContent = new Date().toLocaleDateString();
+            document.getElementById('cert-initial-controls').classList.add('hidden');
+            document.getElementById('cert-generated-controls').classList.remove('hidden');
+        }
+
+        window.saveCertificateAsPdf = function() {
+            window.print();
+        }
+
+        window.downloadCertificateAsImage = function() {
+            const certElement = document.getElementById('certificate-to-print');
+            html2canvas(certElement, { scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'certificate.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        }
+
+        window.copyCertificateDetails = function(button) {
+            const name = document.getElementById('certificate-name').textContent;
+            const scoreVal = document.getElementById('certificate-score').textContent;
+            const date = document.getElementById('certificate-date').textContent;
+            const textToCopy = `Certificate of Completion for ${name}. Final Score: ${scoreVal}. Date: ${date}`;
+            
+            const textarea = document.createElement('textarea');
+            textarea.value = textToCopy;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+
+            button.textContent = 'Copied!';
+            setTimeout(() => button.textContent = 'Copy Details', 2000);
+        }
+
+        function createPageElement(id, content) {
+            const section = document.createElement('section');
+            section.id = `page-${id}`;
+            section.className = 'page';
+            section.innerHTML = content;
+            document.getElementById('dynamic-pages-container').appendChild(section);
+        }
+
+        function runCompletionAnimation() {
+            const canvas = document.getElementById('completion-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+            let fireworks = [], confetti = [];
+
+            function Firework(sx, sy, tx, ty) { this.x = sx; this.y = sy; this.sx = sx; this.sy = sy; this.tx = tx; this.ty = ty; this.distanceToTarget = Math.sqrt(Math.pow(tx - sx, 2) + Math.pow(ty - sy, 2)); this.distanceTraveled = 0; this.angle = Math.atan2(ty - sy, tx - sx); this.speed = 2; this.acceleration = 1.05; this.brightness = Math.random() * 50 + 50; this.targetRadius = 1; this.particles = []; }
+            Firework.prototype.update = function(index) { this.speed *= this.acceleration; let vx = Math.cos(this.angle) * this.speed; let vy = Math.sin(this.angle) * this.speed; this.distanceTraveled = Math.sqrt(Math.pow(this.x - this.sx, 2) + Math.pow(this.y - this.sy, 2)); if (this.distanceTraveled >= this.distanceToTarget) { for(let i = 0; i < 30; i++) { this.particles.push(new Particle(this.tx, this.ty)); } fireworks.splice(index, 1); } else { this.x += vx; this.y += vy; } }
+            Firework.prototype.draw = function() { ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - Math.cos(this.angle) * 10, this.y - Math.sin(this.angle) * 10); ctx.strokeStyle = `hsl(${Math.random() * 360}, 100%, ${this.brightness}%)`; ctx.stroke(); }
+
+            function Particle(x, y) { this.x = x; this.y = y; this.angle = Math.random() * Math.PI * 2; this.speed = Math.random() * 10; this.friction = 0.95; this.gravity = 1; this.hue = Math.random() * 360; this.brightness = Math.random() * 50 + 50; this.alpha = 1; this.decay = Math.random() * 0.03 + 0.015; }
+            Particle.prototype.update = function(index) { this.speed *= this.friction; this.x += Math.cos(this.angle) * this.speed; this.y += Math.sin(this.angle) * this.speed + this.gravity; this.alpha -= this.decay; if (this.alpha <= this.decay) this.particles.splice(index, 1); }
+            Particle.prototype.draw = function() { ctx.beginPath(); ctx.arc(this.x, this.y, 2, 0, Math.PI * 2); ctx.fillStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, ${this.alpha})`; ctx.fill(); }
+
+            function Confetti() { this.x = Math.random() * canvas.width; this.y = -20; this.w = 10; this.h = 20; this.speed = Math.random() * 3 + 2; this.gravity = 0.5; this.angle = 0; this.rotation = Math.random() * 0.1 - 0.05; this.color = `hsl(${Math.random() * 360}, 100%, 50%)`; }
+            Confetti.prototype.update = function(index) { this.y += this.speed; this.speed += this.gravity; this.angle += this.rotation; if (this.y > canvas.height) confetti.splice(index, 1); }
+            Confetti.prototype.draw = function() { ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle); ctx.fillStyle = this.color; ctx.fillRect(-this.w / 2, -this.h / 2, this.w, this.h); ctx.restore(); }
+
+            let animationRunning = true;
+            function animate() { if (!animationRunning) return; ctx.globalCompositeOperation = 'destination-out'; ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.globalCompositeOperation = 'lighter'; fireworks.forEach((f, i) => { f.draw(); f.update(i); f.particles.forEach((p, j) => { p.draw(); p.update(j); }); }); confetti.forEach((c, i) => { c.draw(); c.update(i); }); requestAnimationFrame(animate); }
+            
+            const interval = setInterval(() => { fireworks.push(new Firework(canvas.width / 2, canvas.height, Math.random() * canvas.width, Math.random() * canvas.height / 2)); for(let i = 0; i < 10; i++) confetti.push(new Confetti()); }, 800);
+
+            setTimeout(() => { clearInterval(interval); setTimeout(() => animationRunning = false, 5000); }, 5000);
+
+            animate();
+        }
+
+        function initializeLesson() {
+            document.getElementById('main-title').textContent = lessonData.title;
+            document.getElementById('main-subtitle').textContent = lessonData.subtitle;
+            document.getElementById('main-svg-container').innerHTML = `<svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:rgb(168, 85, 247);stop-opacity:1" /><stop offset="100%" style="stop-color:rgb(29, 78, 216);stop-opacity:1" /></linearGradient></defs><rect width="600" height="300" fill="#f3e8ff"/><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="48" fill="#581c87" font-weight="bold">AI for Educators</text><path d="M200 200 Q250 150 300 200 T400 200" stroke="url(#grad1)" stroke-width="5" fill="none" stroke-linecap="round"/><circle cx="225" cy="180" r="10" fill="url(#grad1)"/><circle cx="375" cy="180" r="10" fill="url(#grad1)"/></svg>`;
+
+            const menuButtons = lessonData.mainMenu.map(item => {
+                const colors = { green: 'bg-green-500 border-green-700', purple: 'bg-purple-500 border-purple-700', amber: 'bg-amber-500 border-amber-700', rose: 'bg-rose-500 border-rose-700', violet: 'bg-violet-500 border-violet-700', teal: 'bg-teal-500 border-teal-700', orange: 'bg-orange-500 border-orange-700' };
+                return `<button onclick="navigateTo('${item.target}')" class="btn-animated-3d ${colors[item.color] || colors['purple']} text-black font-bold text-2xl p-6 rounded-xl">${item.text}</button>`;
+            }).join('');
+            createPageElement(lessonData.homePageId, `<div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-purple-800 mb-8">Main Menu</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-6">${menuButtons}</div></div>`);
+            
+            pageSequence = [lessonData.startPageId, lessonData.homePageId, ...lessonData.pages.map(p => p.id)];
+            const vocabStartIndex = pageSequence.indexOf('vocab-start');
+            if (vocabStartIndex !== -1) {
+                const vocabPages = lessonData.vocabulary.map((v, i) => `vocab-${i}`);
+                pageSequence.splice(vocabStartIndex + 1, 0, ...vocabPages);
+            }
+
+            lessonData.vocabulary.forEach((v, i) => {
+                createPageElement(`vocab-${i}`, `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h3 class="text-2xl font-bold text-purple-600 mb-2">Vocabulary ${i + 1} / ${lessonData.vocabulary.length}</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">${v.word}</h2><p class="text-2xl text-gray-600 mb-4">${v.def}</p><p class="text-xl text-gray-500 italic">"${v.sentence}"</p></div></div></div>`);
+            });
+
+            lessonData.pages.forEach(page => {
+                let pageHTML = '';
+                switch (page.type) {
+                    case 'simple':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-gray-800 mb-6">${page.content.title}</h2><p class="text-xl text-gray-600 mb-8">${page.content.text}</p></div>${page.content.buttonText ? `<button onclick="goNext()" class="action-button bg-purple-600 text-white font-bold py-3 px-8 rounded-full text-xl hover:bg-purple-700">${page.content.buttonText}</button>` : ''}</div>`;
+                        break;
+                    case 'timer':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 flex flex-col justify-center text-left pt-16"><div class="w-full flex justify-between items-center mb-4"><h2 class="text-2xl md:text-3xl font-bold text-blue-700">${page.content.title}</h2><div id="${page.content.timerId}" class="text-3xl md:text-4xl font-bold text-gray-700 ml-4"></div></div><div class="readable-content"><p class="text-lg md:text-xl text-gray-600 mt-8">${page.content.text}</p></div></div>`;
+                        break;
+                    case 'lecture':
+                         pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-amber-700 mb-6">${page.content.title}</h2><div class="readable-content text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg max-h-[70vh] overflow-y-auto">${page.content.text.split('\n\n').map(p => `<p>${p}</p>`).join('')}</div></div>`;
+                        break;
+                    case 'dialogue':
+                        const dialogueHTML = page.content.dialogue.split('\n\n').map(line => {
+                            const [speaker, ...rest] = line.split(':');
+                            const color = speaker.trim().toLowerCase() === 'brian' ? 'text-blue-800' : 'text-purple-800';
+                            return `<p><strong class="${color}">${speaker}:</strong>${rest.join(':')}</p>`;
+                        }).join('');
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-orange-700 mb-6">${page.content.title}</h2><div class="readable-content text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg max-h-[70vh] overflow-y-auto">${dialogueHTML}</div></div>`;
+                        break;
+                    case 'html-content':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-center text-rose-700 mb-6">${page.content.title}</h2><div class="text-xl leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg max-h-[70vh] overflow-y-auto">${page.content.html}</div></div></div>`;
+                        break;
+                    case 'quiz-tfng':
+                        page.content.questions = [
+                            { statement: 'Ava believes AI is a helpful teaching assistant, not a replacement.', correctAnswer: 'False', explanation: 'Ava is skeptical and sees AI as outsourcing teaching; Brian sees it as an assistant.' },
+                            { statement: 'Brian used an AI to create different versions of a text for his students.', correctAnswer: 'True', explanation: 'Brian explains he used an AI to adapt a history text for his struggling readers.' },
+                            { statement: 'The lecture states that AI can help create rubrics and lesson plans.', correctAnswer: 'True', explanation: 'The lecture lists streamlining administrative tasks, including drafting lesson plans and rubrics, as a key benefit.' },
+                            { statement: 'Ava is concerned that AI feedback lacks personal mentorship.', correctAnswer: 'True', explanation: 'Ava contrasts her conversational feedback with AI, stating "There\'s no mentorship in that."' },
+                            { statement: 'The dialogue mentions that AI calculators are the most common tool.', correctAnswer: 'Not Given', explanation: 'Brian uses a calculator as an analogy for AI, but the dialogue doesn\'t state it\'s the most common tool.' }
+                        ];
+                        const tfngQuestionsHTML = page.content.questions.map((q, index) => {
+                            const buttonsHTML = ['True', 'False', 'Not Given'].map(label => `<button onclick="checkTfngAnswer(this, '${label}', '${q.correctAnswer}')" class="tfng-button bg-${label === 'True' ? 'blue' : label === 'False' ? 'red' : 'gray'}-500 text-white font-bold w-12 h-10 rounded-full">${label.charAt(0)}</button>`).join('');
+                            return `<div class="question-group flex items-center gap-4 p-4 rounded-lg bg-gray-100"><div class="button-container flex-shrink-0 flex gap-2">${buttonsHTML}</div><p>${index + 1}. ${q.statement}</p></div>`;
+                        }).join('');
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-2xl font-bold text-pink-600 mb-4 text-center">${page.content.title}</h3><div class="space-y-4">${tfngQuestionsHTML}</div></div>`;
+                        break;
+                    case 'quiz-mcq':
+                         page.content.questions = [
+                            { question: 'According to the lecture, what is the main benefit of "personalization at scale"?', options: ['It makes all students learn at the same pace.', 'It allows teachers to create differentiated materials quickly.', 'It replaces the need for textbooks.', 'It focuses only on creative subjects.'], correctAnswer: 'It allows teachers to create differentiated materials quickly.' },
+                            { question: 'What is Ava\'s primary concern about using AI for grading essays?', options: ['It is too expensive for schools.', 'It might be too slow.', 'It lacks the human connection and mentorship of teacher feedback.', 'It makes cheating easier for students.'], correctAnswer: 'It lacks the human connection and mentorship of teacher feedback.' },
+                            { question: 'Brian uses an analogy to compare AI to what common classroom tool?', options: ['A whiteboard', 'A calculator', 'A pencil', 'A computer'], correctAnswer: 'A calculator' },
+                            { question: 'Which of the following is NOT mentioned as a task AI can help with?', options: ['Drafting lesson plans', 'Creating rubrics', 'Conducting parent-teacher conferences', 'Boosting student engagement'], correctAnswer: 'Conducting parent-teacher conferences' },
+                            { question: 'The ethical dilemma focuses on the trade-off between teacher efficiency and what?', options: ['School budgets', 'Student privacy', 'The pedagogical value of human feedback', 'Standardized test scores'], correctAnswer: 'The pedagogical value of human feedback' }
+                        ];
+                        const mcqQuestionsHTML = page.content.questions.map((q, index) => {
+                            const optionsHTML = q.options.map(opt => `<button onclick="checkMcqAnswer(this, ${opt === q.correctAnswer})" data-correct="${opt === q.correctAnswer}" class="quiz-option p-3 rounded-lg text-left bg-gray-100 hover:bg-gray-200 border border-gray-200">${opt}</button>`).join('');
+                            return `<div class="question-group ${index > 0 ? 'border-t pt-6' : ''}"><p class="font-semibold mb-2">${index + 1}. ${q.question}</p><div class="grid grid-cols-1 gap-2">${optionsHTML}</div></div>`;
+                        }).join('');
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-2xl font-bold text-pink-600 mb-4 text-center">${page.content.title}</h3><div class="space-y-6">${mcqQuestionsHTML}</div></div>`;
+                        break;
+                    case 'quiz-gap-fill':
+                        page.content.sentences = [
+                            { text: ['AI can help achieve true', 'instruction by tailoring content to individual student needs.'], answer: 'differentiated' },
+                            { text: ['The skill of crafting effective inputs for an AI is known as', '.'], answer: 'prompt engineering' },
+                            { text: ['Brian believes AI is a tool that handles the', 'so teachers can focus on concepts.'], answer: 'mechanics' },
+                            { text: ['Ava is concerned that using AI for feedback might remove the element of', 'from teaching.'], answer: 'mentorship' },
+                            { text: ['Using AI to create adaptive learning paths is a key feature of', 'platforms.'], answer: 'adaptive learning' }
+                        ];
+                        const words = ['mechanics', 'differentiated', 'mentorship', 'prompt engineering', 'adaptive learning'].sort(() => Math.random() - 0.5);
+                        const gapFillHTML = page.content.sentences.map((s, i) => `<p class="text-lg mb-4">${i + 1}. ${s.text[0]} <span class="gap" data-answer="${s.answer}"></span> ${s.text[1]}</p>`).join('');
+                        const wordBankHTML = words.map(w => `<div class="word-bank-word" draggable="true" data-word="${w}">${w}</div>`).join('');
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-2xl font-bold text-pink-600 mb-4 text-center">${page.content.title}</h3><div class="gap-fill-container">${gapFillHTML}</div><div class="word-bank-container mt-8 p-4 bg-gray-100 rounded-lg flex flex-wrap gap-4 justify-center">${wordBankHTML}</div></div>`;
+                        break;
+                    case 'writing-task':
+                        const startersHTML = page.content.starters.map(s => `<li class="text-gray-500">${s}</li>`).join('');
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-center text-pink-700 mb-6">${page.content.title}</h2><div class="text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="font-bold text-xl text-pink-600">Prompt:</h3><p>${page.content.prompt}</p><h3 class="font-bold text-xl text-pink-600 mt-4">Sentence Starters:</h3><ul class="list-disc list-inside ml-4">${startersHTML}</ul></div></div><div class="text-center mt-6"><button onclick="goNext()" class="action-button bg-purple-600 text-white font-bold py-3 px-8 rounded-full text-xl hover:bg-purple-700">Finish and View Certificate</button></div></div>`;
+                        break;
+                    case 'answer-key':
+                        let answersHTML = '';
+                        lessonData.pages.filter(p => p.type.startsWith('quiz')).forEach(p => {
+                            const title = p.content.title.replace('Quiz: ', '').replace(/\(\d\/\d\)/, '').trim();
+                            let questions;
+                            if (p.type === 'quiz-tfng' || p.type === 'quiz-mcq') questions = p.content.questions;
+                            else if (p.type === 'quiz-gap-fill') questions = p.content.sentences;
+                            
+                            if (questions) {
+                                answersHTML += `<div class="bg-gray-50 p-4 rounded-lg"><h3 class="font-bold text-xl text-blue-600 mb-2">${title} Answers</h3><ol class="list-decimal list-inside space-y-1">`;
+                                if (p.type === 'quiz-tfng') answersHTML += questions.map(q => `<li><b>${q.correctAnswer}</b> – ${q.explanation}</li>`).join('');
+                                else if (p.type === 'quiz-mcq') answersHTML += questions.map(q => `<li><b>${q.correctAnswer}</b></li>`).join('');
+                                else if (p.type === 'quiz-gap-fill') answersHTML += questions.map(q => `<li><b>${q.answer}</b></li>`).join('');
+                                answersHTML += `</ol></div>`;
+                            }
+                        });
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-blue-700 mb-6">${page.content.title}</h2><div class="readable-content text-lg leading-relaxed space-y-6">${answersHTML}</div></div>`;
+                        break;
+                    case 'certificate':
+                        const badgeSVGs = {
+                            vocab: '<svg class="w-12 h-12 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v11.494m-5.247-8.995l10.494 0M12 6.253c-1.657 0-3 2.895-3 6.497s1.343 6.497 3 6.497 3-2.895 3-6.497S13.657 6.253 12 6.253z"></path></svg>',
+                            lecture: '<svg class="w-12 h-12 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m12.728 0l-.707.707M12 21a9 9 0 110-18 9 9 0 010 18z"></path></svg>',
+                            quiz: '<svg class="w-12 h-12 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+                        };
+                        const badgesHTML = `<div id="badge-display" class="flex justify-center gap-4 mt-4">${earnedBadges.map(b => `<div class="p-2 bg-gray-100 rounded-full" title="${lessonData.badges[b].name}">${lessonData.badges[b].icon}</div>`).join('')}</div>`;
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16 relative overflow-hidden"><canvas id="completion-canvas"></canvas><div class="relative z-10"><div class="readable-content"><h2 class="text-4xl font-bold text-amber-600 mb-4">${page.content.title}</h2><p class="text-xl text-gray-600 mb-6">${page.content.text}</p></div><div id="certificate-to-print" class="bg-purple-50 border-4 border-dashed border-purple-300 rounded-lg p-8 max-w-2xl mx-auto"><div class="flex justify-center mb-4"><span class="text-6xl">🏆</span></div><h3 class="text-3xl font-bold text-purple-800">${page.content.certificateTitle}</h3><p class="mt-4 text-lg">This certificate is awarded to</p><p id="certificate-name" class="text-2xl font-bold text-purple-600 my-2 border-b-2 border-gray-400 pb-2">[Enter Your Name Here]</p><p class="mt-4 text-lg">for successfully completing this lesson.</p><p class="mt-6 text-md"><strong>Final Score:</strong> <span id="certificate-score" class="font-bold"></span> points</p><p class="text-sm mt-1"><strong>Date of Completion:</strong> <span id="certificate-date"></span></p>${badgesHTML}</div><div id="cert-controls" class="mt-6"><div id="cert-initial-controls"><input type="text" id="name-input-cert" placeholder="Enter your name for the certificate" class="text-center p-2 border rounded-lg w-full max-w-md"><button onclick="generateCertificate()" class="action-button mt-4 bg-purple-600 text-white font-bold py-2 px-6 rounded-full hover:bg-purple-700">Generate Certificate</button></div><div id="cert-generated-controls" class="hidden mt-4 flex flex-wrap justify-center gap-4"><button onclick="downloadCertificateAsImage()" class="action-button bg-green-600 text-white font-bold py-2 px-4 rounded-full text-sm">Download Image</button></div></div></div></div>`;
+                        break;
+                }
+                if (pageHTML) {
+                    createPageElement(page.id, pageHTML);
+                    if (page.type === 'quiz-gap-fill') {
+                        initGapFill(`page-${page.id}`);
+                    }
+                }
+            });
+            
+            updateNavButtons();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeLesson();
+            
+            const bgCanvas = document.getElementById('background-canvas');
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            let particles = [];
+            function animateBackground() {
+                bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+                particles.forEach((p, i) => {
+                    p.y -= p.speed;
+                    p.x += Math.sin(p.y / 50);
+                    if (p.y < -p.radius) particles.splice(i, 1);
+                    bgCtx.beginPath();
+                    bgCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    bgCtx.globalAlpha = p.opacity;
+                    bgCtx.fillStyle = p.color;
+                    bgCtx.fill();
+                });
+                if (Math.random() > 0.97 && particles.length < 100) {
+                    particles.push({ x: Math.random() * bgCanvas.width, y: bgCanvas.height + 20, radius: Math.random() * 5 + 2, speed: Math.random() * 2 + 1, color: ['#8b5cf6', '#10b981', '#f59e0b'][Math.floor(Math.random() * 3)], opacity: Math.random() * 0.5 + 0.5 });
+                }
+                requestAnimationFrame(animateBackground);
+            }
+            window.addEventListener('resize', () => { bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; });
+            animateBackground();
+        });
+    </script>
+</body>
+</html>

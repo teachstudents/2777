@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parts of Speech Sort - Rebuilt</title>
+    
+    <style>
+        /* --- CSS STYLES (New "Royal" Theme) --- */
+        :root {
+            --bg-main: #0d2148;        /* Deep Navy */
+            --bg-container: #1b3a6b;   /* Royal Blue */
+            --primary-color: #e3d095;  /* Gold */
+            --primary-dark: #c1b07e;
+            --text-light: #f0f2f5;     /* Ivory White */
+            --text-dark: #a0aec0;
+            --border-color: #334e7c;
+            --correct-color: #50fa7b;
+            --incorrect-color: #ff5555;
+            --gold-color: #e3d095;
+            --accent-cyan: #8be9fd;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; background-color: var(--bg-main); color: var(--text-light);
+            margin: 0; font-size: 16px;
+        }
+
+        #game-container {
+            width: 100%; height: 100%; max-width: 1200px; max-height: 850px;
+            border: 1px solid var(--border-color); border-radius: 15px; background-color: var(--bg-container);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3); position: relative; overflow: hidden;
+            display: flex; flex-direction: column;
+        }
+
+        #hud {
+            display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+            padding: 0.75em 1.5em; font-size: 1em; font-weight: bold;
+            background-color: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border-color); gap: 15px;
+        }
+
+        .screen {
+            flex-grow: 1; display: none; flex-direction: column; justify-content: center;
+            align-items: center; text-align: center; padding: 2em; box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .screen.active { display: flex; }
+        
+        #word-bank { 
+            background-color: rgba(0,0,0,0.2); 
+            padding: 1em; border-radius: 10px; margin-bottom: 2em; 
+            width: 100%; max-width: 500px;
+            min-height: 100px; display: flex; align-items: center; justify-content: center;
+            border: 2px dashed var(--border-color);
+            transition: background-color 0.3s;
+        }
+        .word {
+            background-color: var(--primary-color); color: var(--bg-main); padding: 0.8em 1.5em;
+            border-radius: 8px; cursor: grab; font-size: 1.8em; font-weight: bold;
+            user-select: none; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .word.dragging { opacity: 0.4; cursor: grabbing; transform: scale(0.95); }
+        
+        #feedback-display {
+            font-size: 1.8em; font-weight: bold;
+            transition: opacity 0.3s ease;
+        }
+        .feedback-correct { color: var(--correct-color); }
+        .feedback-incorrect { color: var(--incorrect-color); }
+
+        .drop-zones {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 15px; width: 100%; max-width: 700px;
+        }
+        .zone {
+            min-height: 80px; border: 2px solid var(--border-color); border-radius: 10px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.3em; font-weight: bold; transition: all 0.2s ease-in-out;
+            padding: 1em; background-color: var(--bg-main);
+            color: var(--text-dark);
+        }
+        
+        .zone.drag-over { border-color: var(--primary-color); color: var(--text-light); transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        
+        button {
+            background-color: var(--primary-color); color: var(--bg-main); border: none;
+            padding: 1em 2em; font-size: 1.1em; border-radius: 8px; font-weight: bold;
+            cursor: pointer; transition: all 0.2s ease; margin: 5px;
+        }
+        button:hover { background-color: var(--primary-dark); transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        button:active { transform: translateY(-1px); }
+        
+        h1 { font-size: 3em; margin-bottom: 0.2em; color: var(--text-light); }
+        h2 { font-size: 2em; }
+        #error-list { list-style-type: none; padding: 0; max-height: 200px; overflow-y: auto; width: 90%; background-color: rgba(0,0,0,0.2); border-radius: 8px; }
+        #error-list li { padding: 12px; margin: 8px; border-radius: 5px; border-left: 4px solid var(--incorrect-color); background-color: var(--bg-container); }
+        #error-list li b { color: var(--accent-cyan); }
+
+        #achievement-toast {
+            position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
+            background-color: var(--gold-color); color: black; padding: 15px 25px;
+            border-radius: 50px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            font-size: 1.2em; font-weight: bold; transition: top 0.5s ease-in-out;
+            z-index: 1000;
+        }
+        #achievement-toast.show { top: 20px; }
+        #rewards-container {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px; width: 100%; max-width: 900px;
+        }
+        .reward-card {
+            border: 2px solid var(--border-color); border-radius: 10px; padding: 15px; opacity: 0.5;
+            background-color: var(--bg-main);
+        }
+        .reward-card.unlocked { opacity: 1; border-color: var(--gold-color); background-color: #334e7c; }
+        .reward-card h3 { margin: 0 0 5px 0; font-size: 1.1em; color: var(--gold-color) }
+        .reward-card p { margin: 0; font-size: 0.9em; }
+
+        @media (min-width: 768px) {
+            .drop-zones { grid-template-columns: repeat(4, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="hud">
+            <div>Player: <span id="player-name-display"></span></div>
+            <div id="round-display"></div>
+            <div id="score">Score: 0</div>
+            <div id="timer">Time: 0:00</div>
+        </div>
+
+        <div id="start-screen" class="screen active">
+            <h1>Parts of Speech Sort</h1>
+            <p style="color: var(--text-dark); max-width: 500px;">Drag each word from the B2 vocabulary list to its correct grammatical category. Are you ready?</p>
+            <input type="text" id="player-name-input" placeholder="Enter your name" style="background-color: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-light); border-radius: 8px; padding: 0.8em; font-size: 1em; text-align: center;">
+            <button id="start-game-btn">Start Game</button>
+        </div>
+
+        <div id="round-interstitial-screen" class="screen">
+            <h2 id="round-interstitial-title"></h2>
+            <p id="round-interstitial-message" style="color: var(--text-dark); font-size: 1.2em;"></p>
+        </div>
+
+        <div id="sorting-screen" class="screen">
+            <div id="word-bank"></div>
+            <div class="drop-zones"></div>
+        </div>
+
+        <div id="end-screen" class="screen">
+            <h1 id="end-screen-title">Game Over!</h1>
+            <h2 id="final-score-heading"></h2>
+            <h2 id="final-score"></h2>
+            <h3>Words to Review:</h3>
+            <ul id="error-list"></ul>
+            <div>
+                <button id="play-again-btn">Play Again</button>
+                <button id="view-rewards-btn">View Rewards</button>
+            </div>
+        </div>
+
+        <div id="rewards-screen" class="screen">
+            <h1>Your Achievements</h1>
+            <div id="rewards-container"></div>
+            <button id="back-to-score-btn">Back to Score</button>
+        </div>
+    </div>
+
+    <!-- UI Templates -->
+    <div id="achievement-toast"></div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        const fullWordList = [
+            {word:"absorb",pos:["verb"]},{word:"abstract",pos:["adjective"]},{word:"accent",pos:["noun"]},
+            {word:"accidentally",pos:["adverb"]},{word:"accommodate",pos:["verb"]},{word:"accomplish",pos:["verb"]},
+            {word:"accountant",pos:["noun"]},{word:"accuracy",pos:["noun"]},{word:"accurately",pos:["adverb"]},
+            {word:"acid",pos:["noun"]},{word:"activate",pos:["verb"]},{word:"addiction",pos:["noun"]},
+            {word:"additionally",pos:["adverb"]},{word:"adequate",pos:["adjective"]},{word:"adequately",pos:["adverb"]},
+            {word:"adjust",pos:["verb"]},{word:"affordable",pos:["adjective"]},{word:"agriculture",pos:["noun"]},
+            {word:"AIDS",pos:["noun"]},{word:"alien",pos:["noun"]},{word:"alongside",pos:["preposition"]},
+            {word:"altogether",pos:["adverb"]},{word:"ambulance",pos:["noun"]},{word:"amusing",pos:["adjective"]},
+            {word:"analyst",pos:["noun"]},{word:"ancestor",pos:["noun"]},{word:"animation",pos:["noun"]},
+            {word:"annually",pos:["adverb"]},{word:"anticipate",pos:["verb"]},{word:"anxiety",pos:["noun"]},
+            {word:"apology",pos:["noun"]},{word:"applicant",pos:["noun"]},{word:"appropriately",pos:["adverb"]},
+            {word:"arrow",pos:["noun"]},{word:"artwork",pos:["noun"]},{word:"aside",pos:["adverb"]},
+            {word:"asset",pos:["noun"]},{word:"assign",pos:["verb"]},{word:"assistance",pos:["noun"]},
+            {word:"assumption",pos:["noun"]},{word:"assure",pos:["verb"]},{word:"astonishing",pos:["adjective"]},
+            {word:"attachment",pos:["noun"]},{word:"auction",pos:["noun"]},{word:"audio",pos:["adjective"]},
+            {word:"automatic",pos:["adjective"]},{word:"automatically",pos:["adverb"]},{word:"awareness",pos:["noun"]},
+            {word:"awkward",pos:["adjective"]},{word:"badge",pos:["noun"]},{word:"balanced",pos:["adjective"]},
+            {word:"ballet",pos:["noun"]},{word:"balloon",pos:["noun"]},{word:"barely",pos:["adverb"]},
+            {word:"bargain",pos:["noun"]},{word:"basement",pos:["noun"]},{word:"basket",pos:["noun"]},
+            {word:"bat",pos:["noun"]},{word:"beneficial",pos:["adjective"]},{word:"beside",pos:["preposition"]},
+            {word:"besides",pos:["preposition","adverb"]},{word:"bias",pos:["noun"]},{word:"bid",pos:["noun","verb"]},
+            {word:"biological",pos:["adjective"]},{word:"blanket",pos:["noun"]},{word:"blow",pos:["noun"]},
+            {word:"bold",pos:["adjective"]},{word:"bombing",pos:["noun"]},{word:"booking",pos:["noun"]},
+            {word:"boost",pos:["verb","noun"]},{word:"bound",pos:["adjective"]},{word:"brick",pos:["noun"]},
+            {word:"briefly",pos:["adverb"]},{word:"broadcaster",pos:["noun"]},{word:"broadly",pos:["adverb"]},
+            {word:"bug",pos:["noun"]},{word:"cabin",pos:["noun"]},{word:"canal",pos:["noun"]},
+            {word:"candle",pos:["noun"]},{word:"carbon",pos:["noun"]},{word:"casual",pos:["adjective"]},
+            {word:"cave",pos:["noun"]},{word:"certainty",pos:["noun"]},{word:"certificate",pos:["noun"]},
+            {word:"challenging",pos:["adjective"]},{word:"championship",pos:["noun"]},{word:"charming",pos:["adjective"]},
+            {word:"chase",pos:["verb","noun"]},{word:"cheek",pos:["noun"]},{word:"cheer",pos:["verb","noun"]},
+            {word:"choir",pos:["noun"]},{word:"chop",pos:["verb"]},{word:"circuit",pos:["noun"]},
+            {word:"civilization",pos:["noun"]},{word:"clarify",pos:["verb"]},{word:"classify",pos:["verb"]},
+            {word:"clerk",pos:["noun"]},{word:"cliff",pos:["noun"]},{word:"clinic",pos:["noun"]},
+            {word:"clip",pos:["noun"]},{word:"coincidence",pos:["noun"]},{word:"collector",pos:["noun"]},
+            {word:"colony",pos:["noun"]},{word:"colourful",pos:["adjective"]},{word:"comic",pos:["adjective","noun"]},
+            {word:"commander",pos:["noun"]},{word:"comparative",pos:["adjective"]},{word:"completion",pos:["noun"]},
+            {word:"compose",pos:["verb"]},{word:"composer",pos:["noun"]},{word:"compound",pos:["noun"]},
+            {word:"comprehensive",pos:["adjective"]},{word:"comprise",pos:["verb"]},{word:"compulsory",pos:["adjective"]},
+            {word:"concrete",pos:["adjective","noun"]},{word:"confess",pos:["verb"]},{word:"confusion",pos:["noun"]},
+            {word:"consequently",pos:["adverb"]},{word:"conservation",pos:["noun"]},{word:"considerable",pos:["adjective"]},
+            {word:"considerably",pos:["adverb"]},{word:"consistently",pos:["adverb"]},{word:"conspiracy",pos:["noun"]},
+            {word:"consult",pos:["verb"]},{word:"consultant",pos:["noun"]},{word:"consumption",pos:["noun"]},
+            {word:"controversial",pos:["adjective"]},{word:"controversy",pos:["noun"]},{word:"convenience",pos:["noun"]},
+            {word:"convention",pos:["noun"]},{word:"conventional",pos:["adjective"]},{word:"convey",pos:["verb"]},
+            {word:"convincing",pos:["adjective"]},{word:"cope",pos:["verb"]},{word:"corporation",pos:["noun"]},
+            {word:"corridor",pos:["noun"]},{word:"counter",pos:["noun"]},{word:"coverage",pos:["noun"]},
+            {word:"crack",pos:["verb","noun"]},{word:"craft",pos:["noun"]},{word:"creativity",pos:["noun"]},
+            {word:"critically",pos:["adverb"]},{word:"cruise",pos:["noun","verb"]},{word:"cue",pos:["noun"]},
+            {word:"curious",pos:["adjective"]},{word:"curriculum",pos:["noun"]},{word:"cute",pos:["adjective"]},
+            {word:"dairy",pos:["noun","adjective"]},{word:"dare",pos:["verb"]},{word:"darkness",pos:["noun"]},
+            {word:"database",pos:["noun"]},{word:"deadline",pos:["noun"]},{word:"deadly",pos:["adjective"]},
+            {word:"dealer",pos:["noun"]},{word:"deck",pos:["noun"]},{word:"defender",pos:["noun"]},
+            {word:"delete",pos:["verb"]},{word:"democracy",pos:["noun"]},{word:"democratic",pos:["adjective"]},
+            {word:"demonstration",pos:["noun"]},{word:"depart",pos:["verb"]},{word:"dependent",pos:["adjective"]},
+            {word:"deposit",pos:["noun"]},{word:"depression",pos:["noun"]},{word:"derive",pos:["verb"]},
+            {word:"desperately",pos:["adverb"]},{word:"destruction",pos:["noun"]},{word:"determination",pos:["noun"]},
+            {word:"devote",pos:["verb"]},{word:"differ",pos:["verb"]},{word:"disability",pos:["noun"]},
+            {word:"disabled",pos:["adjective"]},{word:"disagreement",pos:["noun"]},{word:"disappoint",pos:["verb"]},
+            {word:"disappointment",pos:["noun"]},{word:"discourage",pos:["verb"]},{word:"disorder",pos:["noun"]},
+            {word:"distant",pos:["adjective"]},{word:"distinct",pos:["adjective"]},{word:"distinguish",pos:["verb"]},
+            {word:"distract",pos:["verb"]},{word:"disturb",pos:["verb"]},{word:"dive",pos:["verb","noun"]},
+            {word:"diverse",pos:["adjective"]},{word:"diversity",pos:["noun"]},{word:"divorce",pos:["noun","verb"]},
+            {word:"dominant",pos:["adjective"]},{word:"donation",pos:["noun"]},{word:"dot",pos:["noun"]},
+            {word:"downtown",pos:["noun","adjective","adverb"]},{word:"dramatically",pos:["adverb"]},{word:"drought",pos:["noun"]},
+            {word:"dull",pos:["adjective"]},{word:"dump",pos:["verb"]},{word:"duration",pos:["noun"]},
+            {word:"dynamic",pos:["adjective"]},{word:"economics",pos:["noun"]},{word:"economist",pos:["noun"]},
+            {word:"editorial",pos:["adjective"]},{word:"efficiently",pos:["adverb"]},{word:"elbow",pos:["noun"]},
+            {word:"electronics",pos:["noun"]},{word:"elegant",pos:["adjective"]},{word:"elementary",pos:["adjective"]},
+            {word:"eliminate",pos:["verb"]},{word:"embrace",pos:["verb"]},{word:"emission",pos:["noun"]},
+            {word:"emotionally",pos:["adverb"]},{word:"empire",pos:["noun"]},{word:"enjoyable",pos:["adjective"]},
+            {word:"entertaining",pos:["adjective"]},{word:"entrepreneur",pos:["noun"]},{word:"envelope",pos:["noun"]},
+            {word:"equip",pos:["verb"]},{word:"equivalent",pos:["noun","adjective"]},{word:"era",pos:["noun"]},
+            {word:"erupt",pos:["verb"]},{word:"essentially",pos:["adverb"]},{word:"ethic",pos:["noun"]},
+            {word:"ethnic",pos:["adjective"]},{word:"evaluation",pos:["noun"]},{word:"evident",pos:["adjective"]},
+            {word:"evolution",pos:["noun"]},{word:"evolve",pos:["verb"]},{word:"exceed",pos:["verb"]},
+            {word:"exception",pos:["noun"]},{word:"excessive",pos:["adjective"]},{word:"exclude",pos:["verb"]},
+            {word:"exhibit",pos:["verb","noun"]},{word:"exit",pos:["noun"]},{word:"exotic",pos:["adjective"]},
+            {word:"expansion",pos:["noun"]},{word:"expertise",pos:["noun"]},{word:"exploit",pos:["verb"]},
+            {word:"exposure",pos:["noun"]},{word:"extension",pos:["noun"]},{word:"extensive",pos:["adjective"]},
+            {word:"extensively",pos:["adverb"]},{word:"extract",pos:["noun"]},{word:"fabric",pos:["noun"]},
+            {word:"fabulous",pos:["adjective"]},{word:"failed",pos:["adjective"]},{word:"fake",pos:["adjective"]},
+            {word:"fame",pos:["noun"]},{word:"fantasy",pos:["noun"]},{word:"fare",pos:["noun"]},
+            {word:"federal",pos:["adjective"]},{word:"fever",pos:["noun"]},{word:"firefighter",pos:["noun"]},
+            {word:"firework",pos:["noun"]},{word:"firm",pos:["adjective"]},{word:"firmly",pos:["adverb"]},
+            {word:"flavour",pos:["noun"]},{word:"fond",pos:["adjective"]},{word:"fool",pos:["noun"]},
+            {word:"forbid",pos:["verb"]},{word:"forecast",pos:["noun","verb"]},{word:"format",pos:["noun"]},
+            {word:"formation",pos:["noun"]},{word:"formerly",pos:["adverb"]},{word:"fortunate",pos:["adjective"]},
+            {word:"forum",pos:["noun"]},{word:"fossil",pos:["noun"]},{word:"foundation",pos:["noun"]},
+            {word:"founder",pos:["noun"]},{word:"fraction",pos:["noun"]},{word:"fragment",pos:["noun"]},
+            {word:"framework",pos:["noun"]},{word:"fraud",pos:["noun"]},{word:"freely",pos:["adverb"]},
+            {word:"frequent",pos:["adjective"]},{word:"fulfil",pos:["verb"]},{word:"full-time",pos:["adjective","adverb"]},
+            {word:"fundamentally",pos:["adverb"]},{word:"furious",pos:["adjective"]},{word:"gaming",pos:["noun"]},
+            {word:"gay",pos:["adjective"]},{word:"gender",pos:["noun"]},{word:"gene",pos:["noun"]},
+            {word:"genetic",pos:["adjective"]},{word:"genius",pos:["noun"]},{word:"genuine",pos:["adjective"]},
+            {word:"genuinely",pos:["adverb"]},{word:"gesture",pos:["noun"]},{word:"gig",pos:["noun"]},
+            {word:"globalization",pos:["noun"]},{word:"globe",pos:["noun"]},{word:"golden",pos:["adjective"]},
+            {word:"goodness",pos:["noun"]},{word:"gorgeous",pos:["adjective"]},{word:"governor",pos:["noun"]},
+            {word:"graphic",pos:["adjective"]},{word:"graphics",pos:["noun"]},{word:"greatly",pos:["adverb"]},
+            {word:"greenhouse",pos:["noun"]},{word:"grocery",pos:["noun"]},{word:"guideline",pos:["noun"]},
+            {word:"habitat",pos:["noun"]},{word:"harbour",pos:["noun"]},{word:"headquarters",pos:["noun"]},
+            {word:"heal",pos:["verb"]},{word:"healthcare",pos:["noun"]},{word:"helmet",pos:["noun"]},
+            {word:"hence",pos:["adverb"]},{word:"herb",pos:["noun"]},{word:"hidden",pos:["adjective"]},
+            {word:"highway",pos:["noun"]},{word:"hilarious",pos:["adjective"]},{word:"hip",pos:["noun"]},
+            {word:"historian",pos:["noun"]},{word:"homeless",pos:["adjective"]},{word:"honesty",pos:["noun"]},
+            {word:"hook",pos:["noun"]},{word:"hopefully",pos:["adverb"]},{word:"hunger",pos:["noun"]},
+            {word:"hypothesis",pos:["noun"]},{word:"icon",pos:["noun"]},{word:"ID",pos:["noun"]},
+            {word:"identical",pos:["adjective"]},{word:"illusion",pos:["noun"]},{word:"immigration",pos:["noun"]},
+            {word:"immune",pos:["adjective"]},{word:"implement",pos:["verb"]},{word:"implication",pos:["noun"]},
+            {word:"incentive",pos:["noun"]},{word:"incorporate",pos:["verb"]},{word:"incorrect",pos:["adjective"]},
+            {word:"independence",pos:["noun"]},{word:"index",pos:["noun"]},{word:"indication",pos:["noun"]},
+            {word:"inevitable",pos:["adjective"]},{word:"inevitably",pos:["adverb"]},{word:"infer",pos:["verb"]},
+            {word:"inflation",pos:["noun"]},{word:"info",pos:["noun"]},{word:"infrastructure",pos:["noun"]},
+            {word:"inhabitant",pos:["noun"]},{word:"inherit",pos:["verb"]},{word:"ink",pos:["noun"]},
+            {word:"innovation",pos:["noun"]},{word:"innovative",pos:["adjective"]},{word:"input",pos:["noun"]},
+            {word:"insert",pos:["verb"]},{word:"inspector",pos:["noun"]},{word:"installation",pos:["noun"]},
+            {word:"instant",pos:["adjective"]},{word:"instantly",pos:["adverb"]},{word:"integrate",pos:["verb"]},
+            {word:"intellectual",pos:["adjective"]},{word:"interact",pos:["verb"]},{word:"interaction",pos:["noun"]},
+            {word:"interpretation",pos:["noun"]},{word:"interval",pos:["noun"]},{word:"invade",pos:["verb"]},
+            {word:"invasion",pos:["noun"]},{word:"investor",pos:["noun"]},{word:"isolate",pos:["verb"]},
+            {word:"isolated",pos:["adjective"]},{word:"jail",pos:["noun","verb"]},{word:"jet",pos:["noun"]},
+            {word:"joint",pos:["adjective","noun"]},{word:"journalism",pos:["noun"]},{word:"jury",pos:["noun"]},
+            {word:"kit",pos:["noun"]},{word:"ladder",pos:["noun"]},{word:"landing",pos:["noun"]},
+            {word:"lane",pos:["noun"]},{word:"lately",pos:["adverb"]},{word:"leaflet",pos:["noun"]},
+            {word:"legend",pos:["noun"]},{word:"lens",pos:["noun"]},{word:"lifetime",pos:["noun"]},
+            {word:"lighting",pos:["noun"]},{word:"likewise",pos:["adverb"]},{word:"limitation",pos:["noun"]},
+            {word:"literally",pos:["adverb"]},{word:"literary",pos:["adjective"]},{word:"litre",pos:["noun"]},
+            {word:"litter",pos:["noun"]},{word:"logo",pos:["noun"]},{word:"lottery",pos:["noun"]},
+            {word:"loyal",pos:["adjective"]},{word:"lyric",pos:["noun"]},{word:"magnificent",pos:["adjective"]},
+            {word:"make-up",pos:["noun"]},{word:"making",pos:["noun"]},{word:"manufacture",pos:["verb"]},
+            {word:"manufacturing",pos:["noun"]},{word:"marathon",pos:["noun"]},{word:"margin",pos:["noun"]},
+            {word:"marker",pos:["noun"]},{word:"martial",pos:["adjective"]},{word:"mate",pos:["noun","verb"]},
+            {word:"mayor",pos:["noun"]},{word:"mechanic",pos:["noun"]},{word:"mechanical",pos:["adjective"]},
+            {word:"mechanism",pos:["noun"]},{word:"medal",pos:["noun"]},{word:"medication",pos:["noun"]},
+            {word:"membership",pos:["noun"]},{word:"memorable",pos:["adjective"]},{word:"metaphor",pos:["noun"]},
+            {word:"miner",pos:["noun"]},{word:"miserable",pos:["adjective"]},{word:"mode",pos:["noun"]},
+            {word:"modest",pos:["adjective"]},{word:"monster",pos:["noun"]},{word:"monthly",pos:["adjective"]},
+            {word:"monument",pos:["noun"]},{word:"moreover",pos:["adverb"]},{word:"mortgage",pos:["noun"]},
+            {word:"mosque",pos:["noun"]},{word:"motion",pos:["noun"]},{word:"motivate",pos:["verb"]},
+            {word:"motivation",pos:["noun"]},{word:"moving",pos:["adjective"]},{word:"myth",pos:["noun"]},
+            {word:"naked",pos:["adjective"]},{word:"nasty",pos:["adjective"]},{word:"navigation",pos:["noun"]},
+            {word:"nearby",pos:["adjective","adverb"]},{word:"necessity",pos:["noun"]},{word:"negotiate",pos:["verb"]},
+            {word:"negotiation",pos:["noun"]},{word:"neutral",pos:["adjective"]},{word:"newly",pos:["adverb"]},
+            {word:"norm",pos:["noun"]},{word:"notebook",pos:["noun"]},{word:"novelist",pos:["noun"]},
+            {word:"nowadays",pos:["adverb"]},{word:"nursing",pos:["adjective"]},{word:"nutrition",pos:["noun"]},
+            {word:"obesity",pos:["noun"]},{word:"observer",pos:["noun"]},{word:"obstacle",pos:["noun"]},
+            {word:"occupation",pos:["noun"]},{word:"occupy",pos:["verb"]},{word:"offender",pos:["noun"]},
+            {word:"ongoing",pos:["adjective"]},{word:"openly",pos:["adverb"]},{word:"opera",pos:["noun"]},
+            {word:"operator",pos:["noun"]},{word:"optimistic",pos:["adjective"]},{word:"orchestra",pos:["noun"]},
+            {word:"organic",pos:["adjective"]},{word:"outfit",pos:["noun"]},{word:"output",pos:["noun"]},
+            {word:"outstanding",pos:["adjective"]},{word:"overcome",pos:["verb"]},{word:"overnight",pos:["adverb"]},
+            {word:"overseas",pos:["adverb","adjective"]},{word:"ownership",pos:["noun"]},{word:"oxygen",pos:["noun"]},
+            {word:"packet",pos:["noun"]},{word:"palm",pos:["noun"]},{word:"panic",pos:["noun"]},
+            {word:"parade",pos:["noun"]},{word:"parallel",pos:["adjective","noun"]},{word:"participation",pos:["noun"]},
+            {word:"partnership",pos:["noun"]},{word:"part-time",pos:["adjective","adverb"]},{word:"passionate",pos:["adjective"]},
+            {word:"password",pos:["noun"]},{word:"patience",pos:["noun"]},{word:"pause",pos:["verb","noun"]},
+            {word:"peer",pos:["noun"]},{word:"penalty",pos:["noun"]},{word:"perceive",pos:["verb"]},
+            {word:"perception",pos:["noun"]},{word:"permanently",pos:["adverb"]},{word:"pill",pos:["noun"]},
+            {word:"pity",pos:["noun"]},{word:"placement",pos:["noun"]},{word:"portion",pos:["noun"]},
+            {word:"potentially",pos:["adverb"]},{word:"precede",pos:["verb"]},{word:"precious",pos:["adjective"]},
+            {word:"precise",pos:["adjective"]},{word:"precisely",pos:["adverb"]},{word:"predictable",pos:["adjective"]},
+            {word:"preference",pos:["noun"]},{word:"pride",pos:["noun"]},{word:"primarily",pos:["adverb"]},
+            {word:"principal",pos:["adjective"]},{word:"prior",pos:["adjective"]},{word:"probability",pos:["noun"]},
+            {word:"probable",pos:["adjective"]},{word:"proceed",pos:["verb"]},{word:"programming",pos:["noun"]},
+            {word:"progressive",pos:["adjective"]},{word:"prohibit",pos:["verb"]},{word:"promising",pos:["adjective"]},
+            {word:"promotion",pos:["noun"]},{word:"prompt",pos:["verb"]},{word:"proportion",pos:["noun"]},
+            {word:"protein",pos:["noun"]},{word:"protester",pos:["noun"]},{word:"psychological",pos:["adjective"]},
+            {word:"publicity",pos:["noun"]},{word:"publishing",pos:["noun"]},{word:"punk",pos:["noun"]},
+            {word:"purely",pos:["adverb"]},{word:"pursuit",pos:["noun"]},{word:"puzzle",pos:["noun"]},
+            {word:"questionnaire",pos:["noun"]},{word:"racial",pos:["adjective"]},{word:"racism",pos:["noun"]},
+            {word:"racist",pos:["adjective","noun"]},{word:"radiation",pos:["noun"]},{word:"rail",pos:["noun"]},
+            {word:"random",pos:["adjective"]},{word:"rat",pos:["noun"]},{word:"rating",pos:["noun"]},
+            {word:"reasonably",pos:["adverb"]},{word:"rebuild",pos:["verb"]},{word:"receiver",pos:["noun"]},
+            {word:"recession",pos:["noun"]},{word:"reckon",pos:["verb"]},{word:"recognition",pos:["noun"]},
+            {word:"recovery",pos:["noun"]},{word:"recruit",pos:["verb","noun"]},{word:"recruitment",pos:["noun"]},
+            {word:"referee",pos:["noun"]},{word:"refugee",pos:["noun"]},{word:"registration",pos:["noun"]},
+            {word:"regulate",pos:["verb"]},{word:"reinforce",pos:["verb"]},{word:"relieve",pos:["verb"]},
+            {word:"relieved",pos:["adjective"]},{word:"remarkable",pos:["adjective"]},{word:"remarkably",pos:["adverb"]},
+            {word:"reporting",pos:["noun"]},{word:"resign",pos:["verb"]},{word:"resolution",pos:["noun"]},
+            {word:"restore",pos:["verb"]},{word:"restrict",pos:["verb"]},{word:"restriction",pos:["noun"]},
+            {word:"retail",pos:["noun"]},{word:"retirement",pos:["noun"]},{word:"revenue",pos:["noun"]},
+            {word:"revision",pos:["noun"]},{word:"ridiculous",pos:["adjective"]},{word:"risky",pos:["adjective"]},
+            {word:"rival",pos:["noun","adjective"]},{word:"rob",pos:["verb"]},{word:"robbery",pos:["noun"]},
+            {word:"rocket",pos:["noun"]},{word:"romance",pos:["noun"]},{word:"rose",pos:["noun"]},
+            {word:"roughly",pos:["adverb"]},{word:"ruin",pos:["verb","noun"]},{word:"satisfaction",pos:["noun"]},
+            {word:"scandal",pos:["noun"]},{word:"scare",pos:["verb","noun"]},{word:"scenario",pos:["noun"]},
+            {word:"scholar",pos:["noun"]},{word:"scholarship",pos:["noun"]},{word:"scratch",pos:["verb","noun"]},
+            {word:"screening",pos:["noun"]},{word:"seeker",pos:["noun"]},{word:"seminar",pos:["noun"]},
+            {word:"settler",pos:["noun"]},{word:"severely",pos:["adverb"]},{word:"sexy",pos:["adjective"]},
+            {word:"shaped",pos:["adjective"]},{word:"shocking",pos:["adjective"]},{word:"shore",pos:["noun"]},
+            {word:"shortage",pos:["noun"]},{word:"shortly",pos:["adverb"]},{word:"short-term",pos:["adjective"]},
+            {word:"sibling",pos:["noun"]},{word:"signature",pos:["noun"]},{word:"significance",pos:["noun"]},
+            {word:"skilled",pos:["adjective"]},{word:"skull",pos:["noun"]},{word:"slogan",pos:["noun"]},
+            {word:"so-called",pos:["adjective"]},{word:"somehow",pos:["adverb"]},{word:"sometime",pos:["adverb"]},
+            {word:"sophisticated",pos:["adjective"]},{word:"spare",pos:["adjective"]},{word:"specialize",pos:["verb"]},
+            {word:"specify",pos:["verb"]},{word:"spectacular",pos:["adjective"]},{word:"spectator",pos:["noun"]},
+            {word:"speculate",pos:["verb"]},{word:"speculation",pos:["noun"]},{word:"spice",pos:["noun"]},
+            {word:"spill",pos:["verb"]},{word:"spite",pos:["noun"]},{word:"spoil",pos:["verb"]},
+            {word:"spokesman",pos:["noun"]},{word:"spokesperson",pos:["noun"]},{word:"spokeswoman",pos:["noun"]},
+            {word:"sponsorship",pos:["noun"]},{word:"sporting",pos:["adjective"]},{word:"stall",pos:["noun"]},
+            {word:"stance",pos:["noun"]},{word:"starve",pos:["verb"]},{word:"steadily",pos:["adverb"]},
+            {word:"steam",pos:["noun"]},{word:"stimulate",pos:["verb"]},{word:"strengthen",pos:["verb"]},
+            {word:"strictly",pos:["adverb"]},{word:"stroke",pos:["noun"]},{word:"stunning",pos:["adjective"]},
+            {word:"subsequent",pos:["adjective"]},{word:"subsequently",pos:["adverb"]},{word:"suburb",pos:["noun"]},
+            {word:"suffering",pos:["noun"]},{word:"sufficient",pos:["adjective"]},{word:"sufficiently",pos:["adverb"]},
+            {word:"super",pos:["adjective"]},{word:"surgeon",pos:["noun"]},{word:"survival",pos:["noun"]},
+            {word:"survivor",pos:["noun"]},{word:"suspend",pos:["verb"]},{word:"sustainable",pos:["adjective"]},
+            {word:"swallow",pos:["verb"]},{word:"sympathetic",pos:["adjective"]},{word:"tackle",pos:["verb"]},
+            {word:"tag",pos:["noun","verb"]},{word:"tap",pos:["verb","noun"]},{word:"technological",pos:["adjective"]},
+            {word:"teens",pos:["noun"]},{word:"temple",pos:["noun"]},{word:"temporarily",pos:["adverb"]},
+            {word:"tendency",pos:["noun"]},{word:"tension",pos:["noun"]},{word:"terminal",pos:["noun"]},
+            {word:"terms",pos:["noun"]},{word:"terribly",pos:["adverb"]},{word:"terrify",pos:["verb"]},
+            {word:"territory",pos:["noun"]},{word:"terror",pos:["noun"]},{word:"terrorism",pos:["noun"]},
+            {word:"terrorist",pos:["noun"]},{word:"testing",pos:["noun"]},{word:"textbook",pos:["noun"]},
+            {word:"theft",pos:["noun"]},{word:"therapist",pos:["noun"]},{word:"thesis",pos:["noun"]},
+            {word:"thorough",pos:["adjective"]},{word:"thoroughly",pos:["adverb"]},{word:"thumb",pos:["noun"]},
+            {word:"timing",pos:["noun"]},{word:"tissue",pos:["noun"]},{word:"ton",pos:["noun"]},
+            {word:"tonne",pos:["noun"]},{word:"tournament",pos:["noun"]},{word:"trace",pos:["verb"]},
+            {word:"trading",pos:["noun"]},{word:"tragedy",pos:["noun"]},{word:"tragic",pos:["adjective"]},
+            {word:"trait",pos:["noun"]},{word:"transmit",pos:["verb"]},{word:"transportation",pos:["noun"]},
+            {word:"trap",pos:["verb","noun"]},{word:"treasure",pos:["noun"]},{word:"tribe",pos:["noun"]},
+            {word:"trigger",pos:["verb"]},{word:"trillion",pos:["number"]},{word:"troop",pos:["noun"]},
+            {word:"tsunami",pos:["noun"]},{word:"ultimate",pos:["adjective"]},{word:"unacceptable",pos:["adjective"]},
+            {word:"uncertainty",pos:["noun"]},{word:"undergo",pos:["verb"]},{word:"undertake",pos:["verb"]},
+            {word:"unfold",pos:["verb"]},{word:"unfortunate",pos:["adjective"]},{word:"unite",pos:["verb"]},
+            {word:"unity",pos:["noun"]},{word:"universal",pos:["adjective"]},{word:"urgent",pos:["adjective"]},
+            {word:"usage",pos:["noun"]},{word:"useless",pos:["adjective"]},{word:"valid",pos:["adjective"]},
+            {word:"variation",pos:["noun"]},{word:"vertical",pos:["adjective"]},{word:"viewpoint",pos:["noun"]},
+            {word:"visa",pos:["noun"]},{word:"visible",pos:["adjective"]},{word:"voluntary",pos:["adjective"]},
+            {word:"voting",pos:["noun"]},{word:"wander",pos:["verb"]},{word:"warming",pos:["noun"]},
+            {word:"weekly",pos:["adjective"]},{word:"weird",pos:["adjective"]},{word:"welfare",pos:["noun"]},
+            {word:"wheat",pos:["noun"]},{word:"whoever",pos:["pronoun"]},{word:"widespread",pos:["adjective"]},
+            {word:"wisdom",pos:["noun"]},{word:"withdraw",pos:["verb"]},{word:"workforce",pos:["noun"]},
+            {word:"workplace",pos:["noun"]},{word:"workshop",pos:["noun"]}
+        ];
+
+        const Game = {
+            partsOfSpeech: ["noun", "verb", "adjective", "adverb"],
+            masterWordList: [],
+            gameConfig: { wordsPerRound: 20, timePerRound: 240 },
+            achievements: {
+                streak10: { title: 'Great Streak!', description: 'Get 10 correct answers in a row.', unlocked: false },
+                streak25: { title: 'Grammar Genius!', description: 'Get 25 correct answers in a row.', unlocked: false },
+                perfectRound: { title: 'Perfect Round', description: 'Complete a round with no mistakes.', unlocked: false },
+                perfectionist: { title: 'Linguistic Legend', description: 'Complete the entire game with no mistakes.', unlocked: false },
+                firstVictory: { title: 'Word Sorter', description: 'Complete the game for the first time.', unlocked: false }
+            },
+            state: {},
+            dom: {},
+
+            init() {
+                this.cacheDom();
+                this.bindEvents();
+                this.filterWordList();
+            },
+
+            cacheDom() {
+                this.dom.screens = document.querySelectorAll('.screen');
+                this.dom.hud = {
+                    name: document.getElementById('player-name-display'),
+                    round: document.getElementById('round-display'),
+                    score: document.getElementById('score'),
+                    timer: document.getElementById('timer'),
+                    wordBank: document.getElementById('word-bank'),
+                    dropZones: document.querySelector('.drop-zones')
+                };
+                this.dom.buttons = {
+                    start: document.getElementById('start-game-btn'),
+                    playAgain: document.getElementById('play-again-btn'),
+                    viewRewards: document.getElementById('view-rewards-btn'),
+                    backToScore: document.getElementById('back-to-score-btn')
+                };
+                this.dom.toast = document.getElementById('achievement-toast');
+                this.dom.rewardsContainer = document.getElementById('rewards-container');
+            },
+
+            bindEvents() {
+                this.dom.buttons.start.addEventListener('click', () => this.startGame());
+                this.dom.buttons.playAgain.addEventListener('click', () => this.startGame());
+                this.dom.buttons.viewRewards.addEventListener('click', () => this.showScreen('rewards-screen'));
+                this.dom.buttons.backToScore.addEventListener('click', () => this.showScreen('end-screen'));
+            },
+
+            filterWordList() {
+                this.masterWordList = fullWordList.filter(word => 
+                    word.pos.some(p => this.partsOfSpeech.includes(p))
+                );
+            },
+
+            startGame() {
+                this.state = {
+                    score: 0,
+                    errors: [],
+                    currentRound: 0,
+                    consecutiveCorrect: 0,
+                    wordIndex: 0,
+                    gameTimer: null,
+                    timeLeft: 0,
+                    playerName: document.getElementById('player-name-input').value.trim() || 'Explorer',
+                    achievements: JSON.parse(JSON.stringify(this.achievements)),
+                    wordListWithIDs: this.masterWordList.map((word, index) => ({ ...word, id: `word-${index}` })),
+                    totalRounds: Math.ceil(this.masterWordList.length / this.gameConfig.wordsPerRound)
+                };
+                this.createDropZones();
+                this.startNewRound();
+            },
+
+            startNewRound() {
+                if (this.state.currentRound > 0 && this.state.roundErrors === 0) this.unlockAchievement('perfectRound');
+                
+                this.state.currentRound++;
+                this.state.roundErrors = 0;
+                
+                const roundMessage = this.state.currentRound > 1 ? `Current Score: ${this.state.score}` : 'The first round begins now!';
+                document.getElementById('round-interstitial-title').textContent = `Round ${this.state.currentRound} of ${this.state.totalRounds}`;
+                document.getElementById('round-interstitial-message').textContent = roundMessage;
+                this.showScreen('round-interstitial-screen');
+
+                setTimeout(() => {
+                    this.state.timeLeft = this.gameConfig.timePerRound;
+                    this.updateHUD(); 
+                    this.startTimer();
+                    this.presentNextWord();
+                    this.showScreen('sorting-screen');
+                }, 2500);
+            },
+            
+            processNextAction() {
+                if (this.state.wordIndex >= this.state.wordListWithIDs.length) {
+                    this.endGame(true);
+                } else if (this.state.wordIndex % this.gameConfig.wordsPerRound === 0) {
+                    this.startNewRound();
+                } else {
+                    this.presentNextWord();
+                }
+            },
+
+            endGame(completed) {
+                clearInterval(this.state.gameTimer);
+                const title = document.getElementById('end-screen-title');
+                const heading = document.getElementById('final-score-heading');
+
+                if (completed) {
+                    this.unlockAchievement('firstVictory');
+                    if (this.state.errors.length === 0) this.unlockAchievement('perfectionist');
+                    title.textContent = "Game Complete!";
+                    heading.textContent = `Congratulations, ${this.state.playerName}!`;
+                } else {
+                    title.textContent = "Time's Up!";
+                    heading.textContent = `Good effort, ${this.state.playerName}!`;
+                }
+
+                document.getElementById('final-score').textContent = `Your Final Score: ${this.state.score}`;
+                
+                const errorList = document.getElementById('error-list');
+                errorList.innerHTML = '';
+                if (this.state.errors.length === 0) {
+                    errorList.innerHTML = "<li>No mistakes made. Incredible!</li>";
+                } else {
+                    this.state.errors.forEach(err => errorList.innerHTML += `<li><b>${err.word}</b> (is a ${err.pos.join('/')})</li>`);
+                }
+                this.updateRewardsScreen();
+                this.showScreen('end-screen');
+            },
+            
+            presentNextWord() {
+                const wordObj = this.state.wordListWithIDs[this.state.wordIndex];
+                
+                const wordDiv = document.createElement('div');
+                wordDiv.textContent = wordObj.word;
+                wordDiv.id = wordObj.id;
+                wordDiv.className = 'word';
+                wordDiv.draggable = true;
+                wordDiv.addEventListener('dragstart', this.handleDragStart.bind(this));
+                wordDiv.addEventListener('dragend', this.handleDragEnd.bind(this)); 
+                
+                this.dom.hud.wordBank.innerHTML = '';
+                this.dom.hud.wordBank.appendChild(wordDiv);
+            },
+            
+            createDropZones() {
+                this.dom.hud.dropZones.innerHTML = '';
+                this.partsOfSpeech.forEach(pos => {
+                    const zone = document.createElement('div');
+                    zone.id = `zone-${pos}`;
+                    zone.className = 'zone';
+                    zone.textContent = pos.charAt(0).toUpperCase() + pos.slice(1);
+                    zone.addEventListener('dragover', this.handleDragOver.bind(this));
+                    zone.addEventListener('dragenter', this.handleDragEnter.bind(this));
+                    zone.addEventListener('dragleave', this.handleDragLeave.bind(this));
+                    zone.addEventListener('drop', this.handleDrop.bind(this));
+                    this.dom.hud.dropZones.appendChild(zone);
+                });
+            },
+            
+            updateHUD() {
+                this.dom.hud.name.textContent = this.state.playerName;
+                this.dom.hud.score.textContent = `Score: ${this.state.score}`;
+                this.dom.hud.round.textContent = this.state.currentRound > 0 ? `Round: ${this.state.currentRound}/${this.state.totalRounds}` : '';
+                const minutes = Math.floor(this.state.timeLeft / 60) || 0;
+                const seconds = this.state.timeLeft % 60 || 0;
+                this.dom.hud.timer.textContent = `Time: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            },
+
+            showScreen(screenId) {
+                this.dom.screens.forEach(s => s.classList.toggle('active', s.id === screenId));
+            },
+
+            handleGuess(isCorrect, wordInfo) {
+                this.dom.hud.wordBank.innerHTML = ''; 
+                const feedback = document.createElement('div');
+                feedback.id = 'feedback-display';
+
+                if (isCorrect) {
+                    this.state.score++; 
+                    this.state.consecutiveCorrect++;
+                    feedback.textContent = "Correct!";
+                    feedback.className = "feedback-correct";
+                    if (this.state.consecutiveCorrect === 10) this.unlockAchievement('streak10');
+                    if (this.state.consecutiveCorrect === 25) this.unlockAchievement('streak25');
+                } else {
+                    this.state.score--;
+                    this.state.consecutiveCorrect = 0; 
+                    this.state.roundErrors++;
+                    if (!this.state.errors.some(e => e.id === wordInfo.id)) {
+                        this.state.errors.push(wordInfo);
+                    }
+                    feedback.textContent = "Incorrect!";
+                    feedback.className = "feedback-incorrect";
+                }
+                this.dom.hud.wordBank.appendChild(feedback);
+                this.updateHUD();
+                
+                // Increment word index *after* processing the guess
+                this.state.wordIndex++; 
+
+                setTimeout(() => this.processNextAction(), 800); 
+            },
+
+            handleDrop(e) {
+                e.preventDefault();
+                const droppedWordUniqueID = e.dataTransfer.getData('text/plain'); 
+                const targetZone = e.target.closest('.zone');
+
+                if (!targetZone || !droppedWordUniqueID) return;
+
+                targetZone.classList.remove('drag-over');
+                
+                const wordInfo = this.state.wordListWithIDs.find(w => w.id === droppedWordUniqueID);
+
+                if (!wordInfo) {
+                    console.error("Critical Error: Dropped word not found in list:", droppedWordUniqueID);
+                    this.processNextAction();
+                    return;
+                }
+
+                const droppedPos = targetZone.id.replace('zone-', '');
+                const isCorrect = wordInfo.pos.includes(droppedPos);
+                this.handleGuess(isCorrect, wordInfo);
+            },
+
+            handleDragStart(e) { 
+                e.target.classList.add('dragging'); 
+                e.dataTransfer.setData('text/plain', e.target.id);
+            },
+            
+            handleDragEnd(e) {
+                e.target.classList.remove('dragging');
+            },
+
+            handleDragOver(e) { e.preventDefault(); },
+            handleDragEnter(e) { if (e.target.classList.contains('zone')) e.target.classList.add('drag-over'); },
+            handleDragLeave(e) { if (e.target.classList.contains('zone')) e.target.classList.remove('drag-over'); },
+
+            unlockAchievement(id) {
+                if (!this.state.achievements[id] || this.state.achievements[id].unlocked) return;
+                this.state.achievements[id].unlocked = true;
+                this.dom.toast.textContent = `🏆 ${this.state.achievements[id].title}`;
+                this.dom.toast.classList.add('show');
+                setTimeout(() => this.dom.toast.classList.remove('show'), 4000);
+            },
+
+            updateRewardsScreen() {
+                this.dom.rewardsContainer.innerHTML = '';
+                for (const id in this.state.achievements) {
+                    const ach = this.state.achievements[id];
+                    const card = document.createElement('div');
+                    card.className = `reward-card ${ach.unlocked ? 'unlocked' : ''}`;
+                    card.innerHTML = `<h3>${ach.title}</h3><p>${ach.description}</p>`;
+                    this.dom.rewardsContainer.appendChild(card);
+                }
+            },
+            
+            startTimer() {
+                clearInterval(this.state.gameTimer);
+                this.state.gameTimer = setInterval(() => {
+                    this.state.timeLeft--; 
+                    this.updateHUD();
+                    if (this.state.timeLeft <= 0) {
+                         this.endGame(false);
+                    }
+                }, 1000);
+            }
+        };
+
+        Game.init();
+    });
+    </script>
+</body>
+</html>

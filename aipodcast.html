@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EFL/AI Podcast - Interactive Player</title>
+    <style>
+        /* This is the CSS for styling the page */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 800px;
+            text-align: center;
+            position: relative; /* Needed for the overlay */
+        }
+        audio {
+            width: 100%;
+            margin-bottom: 25px;
+        }
+        .transcript-box {
+            text-align: left;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-top: 15px;
+            line-height: 2.0; /* Reduced line height */
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .transcript-box h2 {
+            margin-top: 0;
+            font-size: 1.2em;
+            color: #555;
+            position: sticky;
+            top: -21px;
+            background-color: #ffffff;
+            padding: 10px 0;
+        }
+        .transcript-text .phrase {
+            display: inline-block; /* Allows for padding and proper spacing */
+            margin: 0 2px 5px; /* Reduced bottom margin */
+            padding: 4px 6px;
+            border-radius: 4px;
+            transition: all 0.2s ease-in-out; /* Smooth transition for highlighting */
+            cursor: pointer;
+            text-align: center;
+        }
+        .transcript-text .english-word {
+             font-size: 1.5em; /* Made text bigger */
+             display: block;
+        }
+        .transcript-text .translation-word {
+            font-size: 1.1em;
+            color: #555;
+            display: block;
+        }
+        .highlight {
+            background-color: #ffde59; /* A friendly yellow highlight */
+            color: #000;
+        }
+        .highlight .english-word {
+            font-weight: bold;
+        }
+        #play-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        #play-button {
+            font-size: 2em;
+            padding: 20px 30px;
+            border-radius: 10px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div id="play-overlay">
+            <button id="play-button">Click to Play</button>
+        </div>
+        <audio id="audio-player" controls></audio>
+        
+        <div class="transcript-box">
+            <h2>Transcript / 翻译</h2>
+            <p id="transcript-container" class="transcript-text"></p>
+        </div>
+    </div>
+
+    <script>
+        // This is the JavaScript that makes everything interactive
+
+        // =================================================================
+        // STEP 1: YOUR AUDIO FILE NAME
+        // =================================================================
+
+        const audioFileName = 'https://github.com/teachstudents/EFL/raw/main/aipod.wav'; // This should match your audio file
+
+        // =================================================================
+        // STEP 2: YOUR GENERATED TRANSCRIPT DATA
+        // =================================================================
+        const transcriptData = [
+            { startTime: 0.53, endTime: 1.06, word: "Okay,", translation: "好的，" },
+            { startTime: 1.06, endTime: 1.25, word: "so", translation: "那么" },
+            { startTime: 1.25, endTime: 1.67, word: "welcome", translation: "欢迎" },
+            { startTime: 1.67, endTime: 1.95, word: "back", translation: "回来" },
+            { startTime: 1.95, endTime: 2.51, word: "everyone,", translation: "各位，" },
+            { startTime: 2.51, endTime: 3.14, word: "Global", translation: "全球" },
+            { startTime: 3.14, endTime: 3.69, word: "Education", translation: "教育" },
+            { startTime: 3.69, endTime: 4.39, word: "Insights.", translation: "洞察。" },
+            { startTime: 5.25, endTime: 5.61, word: "And", translation: "我..." },
+            { startTime: 5.61, endTime: 5.88, word: "I'm...", translation: "我..." },
+            { startTime: 5.88, endTime: 6.18, word: "I'm", translation: "我" },
+            { startTime: 6.18, endTime: 6.57, word: "actually", translation: "其实" },
+            { startTime: 6.57, endTime: 6.81, word: "not", translation: "不是" },
+            { startTime: 6.81, endTime: 6.96, word: "in", translation: "在" },
+            { startTime: 6.96, endTime: 7.05, word: "a", translation: "一个" },
+            { startTime: 7.05, endTime: 7.41, word: "studio", translation: "录音室" },
+            { startTime: 7.41, endTime: 7.8, word: "today.", translation: "里。" },
+            { startTime: 8.36, endTime: 8.57, word: "I'm", translation: "我" },
+            { startTime: 8.57, endTime: 8.81, word: "back", translation: "回到" },
+            { startTime: 8.81, endTime: 8.99, word: "at", translation: "了" },
+            { startTime: 8.99, endTime: 9.2, word: "that", translation: "那所" },
+            { startTime: 9.2, endTime: 9.8, word: "international", translation: "国际" },
+            { startTime: 9.8, endTime: 10.18, word: "private", translation: "私立" },
+            { startTime: 10.18, endTime: 10.45, word: "high", translation: "高" },
+            { startTime: 10.45, endTime: 10.74, word: "school", translation: "中，" },
+            { startTime: 10.74, endTime: 11.03, word: "we've", translation: "我们" },
+            { startTime: 11.03, endTime: 11.21, word: "been", translation: "一直在" },
+            { startTime: 11.21, endTime: 11.77, word: "discussing.", translation: "讨论的。" },
+            { startTime: 12.54, endTime: 12.8, word: "Here", translation: "这里" },
+            { startTime: 12.8, endTime: 12.92, word: "in", translation: "是" },
+            { startTime: 12.92, endTime: 13.43, word: "Southeast", translation: "北京" },
+            { startTime: 13.43, endTime: 14.1, word: "Beijing.", translation: "的东南部。" },
+            { startTime: 15.01, endTime: 15.17, word: "It's", translation: "现在是" },
+            { startTime: 15.17, endTime: 15.53, word: "Friday", translation: "周五" },
+            { startTime: 15.53, endTime: 16.09, word: "afternoon", translation: "下午，" },
+            { startTime: 16.09, endTime: 16.33, word: "and", translation: "我" },
+            { startTime: 16.33, endTime: 16.51, word: "I'm", translation: "正" },
+            { startTime: 16.51, endTime: 16.82, word: "sitting", translation: "坐在" },
+            { startTime: 16.82, endTime: 16.94, word: "in", translation: "他们" },
+            { startTime: 16.94, endTime: 17.12, word: "the", translation: "的" },
+            { startTime: 17.12, endTime: 17.38, word: "back", translation: "一场" },
+            { startTime: 17.38, endTime: 17.53, word: "of", translation: "" },
+            { startTime: 17.53, endTime: 17.83, word: "one", translation: "" },
+            { startTime: 17.83, endTime: 17.98, word: "of", translation: "" },
+            { startTime: 17.98, endTime: 18.23, word: "their", translation: "" },
+            { startTime: 18.23, endTime: 18.89, word: "professional", translation: "专业" },
+            { startTime: 18.89, endTime: 19.52, word: "development", translation: "发展" },
+            { startTime: 19.52, endTime: 20.0, word: "training", translation: "培训" },
+            { startTime: 20.0, endTime: 20.54, word: "sessions.", translation: "的后排。" },
+            { startTime: 21.19, endTime: 21.52, word: "Which", translation: "这感觉，" },
+            { startTime: 21.52, endTime: 21.84, word: "feels,", translation: "" },
+            { startTime: 21.84, endTime: 22.1, word: "well,", translation: "" },
+            { startTime: 22.1, endTime: 22.56, word: "very", translation: "非常" },
+            { startTime: 22.56, endTime: 23.01, word: "relevant", translation: "贴合" },
+            { startTime: 23.01, endTime: 23.16, word: "to", translation: "我们" },
+            { startTime: 23.16, endTime: 23.37, word: "our", translation: "" },
+            { startTime: 23.37, endTime: 23.77, word: "topic.", translation: "的主题。" },
+            { startTime: 25.13, endTime: 25.34, word: "And", translation: "和" },
+            { startTime: 25.34, endTime: 25.66, word: "joining", translation: "我" },
+            { startTime: 25.66, endTime: 25.84, word: "me", translation: "远程" },
+            { startTime: 25.84, endTime: 26.24, word: "remotely,", translation: "连线的，" },
+            { startTime: 26.24, endTime: 26.45, word: "we", translation: "我们" },
+            { startTime: 26.45, endTime: 26.69, word: "have", translation: "请回了" },
+            { startTime: 26.69, endTime: 26.87, word: "our", translation: "两位" },
+            { startTime: 26.87, endTime: 27.11, word: "two", translation: "" },
+            { startTime: 27.11, endTime: 27.56, word: "experts", translation: "专家。" },
+            { startTime: 27.56, endTime: 27.84, word: "back", translation: "" },
+            { startTime: 27.84, endTime: 28.14, word: "with", translation: "" },
+            { startTime: 28.14, endTime: 28.32, word: "us.", translation: "" },
+            { startTime: 28.8, endTime: 29.07, word: "For", translation: "对于" },
+            { startTime: 29.07, endTime: 29.31, word: "any", translation: "任何" },
+            { startTime: 29.31, endTime: 29.46, word: "of", translation: "刚" },
+            { startTime: 29.46, endTime: 29.64, word: "our", translation: "收听" },
+            { startTime: 29.64, endTime: 30.04, word: "listeners", translation: "我们节目" },
+            { startTime: 30.04, endTime: 30.28, word: "just", translation: "的听众，" },
+            { startTime: 30.28, endTime: 30.6, word: "tuning", translation: "" },
+            { startTime: 30.6, endTime: 30.82, word: "in,", translation: "" },
+            { startTime: 30.82, endTime: 31.06, word: "I", translation: "我" },
+            { startTime: 31.06, endTime: 31.27, word: "have", translation: "介绍一下，" },
+            { startTime: 31.27, endTime: 31.63, word: "Dr.", translation: "苏菲·坎贝尔" },
+            { startTime: 31.63, endTime: 32.06, word: "Sophie", translation: "" },
+            { startTime: 32.06, endTime: 32.59, word: "Campbell", translation: "博士" },
+            { startTime: 32.59, endTime: 32.8, word: "and", translation: "和" },
+            { startTime: 32.8, endTime: 33.07, word: "Dr.", translation: "埃莉诺·万斯" },
+            { startTime: 33.07, endTime: 33.52, word: "Eleanor", translation: "" },
+            { startTime: 33.52, endTime: 33.95, word: "Vance.", translation: "博士。" },
+            { startTime: 34.54, endTime: 34.84, word: "Could", translation: "你们" },
+            { startTime: 34.84, endTime: 35.02, word: "you", translation: "两位" },
+            { startTime: 35.02, endTime: 35.29, word: "both", translation: "能" },
+            { startTime: 35.29, endTime: 35.5, word: "just", translation: "快速" },
+            { startTime: 35.5, endTime: 35.86, word: "quickly", translation: "地" },
+            { startTime: 35.86, endTime: 36.19, word: "remind", translation: "提醒" },
+            { startTime: 36.19, endTime: 36.64, word: "everyone", translation: "一下" },
+            { startTime: 36.64, endTime: 36.88, word: "who", translation: "大家" },
+            { startTime: 36.88, endTime: 37.06, word: "you", translation: "你们" },
+            { startTime: 37.06, endTime: 37.24, word: "are", translation: "是谁，" },
+            { startTime: 37.24, endTime: 37.45, word: "and", translation: "以及" },
+            { startTime: 37.45, endTime: 37.63, word: "the", translation: "你们" },
+            { startTime: 37.63, endTime: 37.9, word: "work", translation: "所做的" },
+            { startTime: 37.9, endTime: 38.08, word: "you", translation: "工作" },
+            { startTime: 38.08, endTime: 38.35, word: "do?", translation: "吗？" },
+            { startTime: 40.1, endTime: 40.54, word: "Sophie,", translation: "苏菲，" },
+            { startTime: 40.54, endTime: 40.75, word: "can", translation: "我们" },
+            { startTime: 40.75, endTime: 40.9, word: "we", translation: "可以" },
+            { startTime: 40.9, endTime: 41.17, word: "start", translation: "从你" },
+            { startTime: 41.17, endTime: 41.38, word: "with", translation: "开始" },
+            { startTime: 41.38, endTime: 41.65, word: "you?", translation: "吗？" },
+            { startTime: 41.88, endTime: 42.12, word: "Of", translation: "当然，" },
+            { startTime: 42.12, endTime: 42.41, word: "course,", translation: "" },
+            { startTime: 42.41, endTime: 42.92, word: "Michael.", translation: "迈克尔。" },
+            { startTime: 43.5, endTime: 43.67, word: "I'm", translation: "我是" },
+            { startTime: 43.67, endTime: 44.06, word: "Sophie", translation: "苏菲·" },
+            { startTime: 44.06, endTime: 44.59, word: "Campbell,", translation: "坎贝尔，" },
+            { startTime: 44.59, endTime: 44.83, word: "and", translation: "来自" },
+            { startTime: 44.83, endTime: 45.04, word: "I'm", translation: "" },
+            { startTime: 45.04, endTime: 45.25, word: "with", translation: "" },
+            { startTime: 45.25, endTime: 45.43, word: "the", translation: "苏格兰" },
+            { startTime: 45.43, endTime: 45.88, word: "University", translation: "的" },
+            { startTime: 45.88, endTime: 46.06, word: "of", translation: "" },
+            { startTime: 46.06, endTime: 46.54, word: "Edinburgh", translation: "爱丁堡" },
+            { startTime: 46.54, endTime: 46.84, word: "over", translation: "大学。" },
+            { startTime: 46.84, endTime: 46.96, word: "in", translation: "" },
+            { startTime: 46.96, endTime: 47.47, word: "Scotland.", translation: "" },
+            { startTime: 48.33, endTime: 48.51, word: "My", translation: "我的" },
+            { startTime: 48.51, endTime: 48.9, word: "work...", translation: "工作..." },
+            { startTime: 48.9, endTime: 49.2, word: "well,", translation: "嗯，" },
+            { startTime: 49.2, endTime: 49.53, word: "it", translation: "它" },
+            { startTime: 49.53, endTime: 49.8, word: "really", translation: "主要" },
+            { startTime: 49.8, endTime: 50.22, word: "focuses", translation: "关注" },
+            { startTime: 50.22, endTime: 50.37, word: "on", translation: "教育" },
+            { startTime: 50.37, endTime: 50.55, word: "the", translation: "技术" },
+            { startTime: 50.55, endTime: 50.91, word: "human", translation: "中" },
+            { startTime: 50.91, endTime: 51.18, word: "side", translation: "人性化" },
+            { startTime: 51.18, endTime: 51.36, word: "of", translation: "的" },
+            { startTime: 51.36, endTime: 51.9, word: "educational", translation: "一面，" },
+            { startTime: 51.9, endTime: 52.5, word: "technology,", translation: "" },
+            { startTime: 52.5, endTime: 52.89, word: "the", translation: "教学法" },
+            { startTime: 52.89, endTime: 53.51, word: "pedagogy", translation: "" },
+            { startTime: 56.03, endTime: 56.27, word: "and", translation: "以及" },
+            { startTime: 56.27, endTime: 56.45, word: "the", translation: "我们" },
+            { startTime: 56.45, endTime: 57.02, word: "psychology", translation: "如何" },
+            { startTime: 57.02, endTime: 57.38, word: "behind", translation: "利用" },
+            { startTime: 57.38, endTime: 57.65, word: "how", translation: "这些" },
+            { startTime: 57.65, endTime: 57.8, word: "we", translation: "新" },
+            { startTime: 57.8, endTime: 58.07, word: "learn", translation: "工具" },
+            { startTime: 58.07, endTime: 58.31, word: "with", translation: "进行" },
+            { startTime: 58.31, endTime: 58.55, word: "these", translation: "学习" },
+            { startTime: 58.55, endTime: 58.82, word: "new", translation: "背后" },
+            { startTime: 58.82, endTime: 59.27, word: "tools.", translation: "的心理学。" },
+            { startTime: 60.14, endTime: 60.32, word: "The", translation: "人性化" },
+            { startTime: 60.32, endTime: 60.68, word: "human", translation: "" },
+            { startTime: 60.68, endTime: 61.02, word: "side.", translation: "的一面。" },
+            { startTime: 61.41, endTime: 61.74, word: "That's", translation: "这" },
+            { startTime: 61.74, endTime: 62.1, word: "definitely", translation: "绝对" },
+            { startTime: 62.1, endTime: 62.37, word: "what", translation: "是" },
+            { startTime: 62.37, endTime: 62.52, word: "we", translation: "我们" },
+            { startTime: 62.52, endTime: 62.73, word: "need", translation: "今天" },
+            { startTime: 62.73, endTime: 63.18, word: "today.", translation: "所需要的。" },
+            { startTime: 64.08, endTime: 64.32, word: "And", translation: "那么" },
+            { startTime: 64.32, endTime: 64.83, word: "Eleanor?", translation: "埃莉诺呢？" },
+            { startTime: 65.41, endTime: 65.74, word: "Right.", translation: "是的。" },
+            { startTime: 65.74, endTime: 66.25, word: "Eleanor", translation: "我是埃莉诺·" },
+            { startTime: 66.25, endTime: 66.61, word: "Vance", translation: "万斯。" },
+            { startTime: 66.61, endTime: 66.91, word: "here.", translation: "" },
+            { startTime: 66.91, endTime: 67.24, word: "I'm", translation: "我在" },
+            { startTime: 67.24, endTime: 67.42, word: "at", translation: "" },
+            { startTime: 67.42, endTime: 67.57, word: "the", translation: "" },
+            { startTime: 68.1, endTime: 68.58, word: "University", translation: "英国" },
+            { startTime: 68.58, endTime: 68.76, word: "of", translation: "" },
+            { startTime: 68.76, endTime: 69.15, word: "Oxford", translation: "牛津" },
+            { startTime: 69.15, endTime: 69.33, word: "in", translation: "大学，" },
+            { startTime: 69.33, endTime: 69.51, word: "the", translation: "" },
+            { startTime: 69.51, endTime: 69.75, word: "UK,", translation: "" },
+            { startTime: 69.75, endTime: 70.02, word: "and", translation: "我" },
+            { startTime: 70.02, endTime: 70.29, word: "I'm", translation: "更" },
+            { startTime: 70.29, endTime: 70.47, word: "a", translation: "偏向" },
+            { startTime: 70.47, endTime: 70.71, word: "bit", translation: "" },
+            { startTime: 70.71, endTime: 70.95, word: "more", translation: "" },
+            { startTime: 70.95, endTime: 71.1, word: "on", translation: "" },
+            { startTime: 71.1, endTime: 71.28, word: "the", translation: "" },
+            { startTime: 71.28, endTime: 71.79, word: "practical", translation: "实践" },
+            { startTime: 71.79, endTime: 72.06, word: "side", translation: "方面。" },
+            { startTime: 72.06, endTime: 72.24, word: "of", translation: "" },
+            { startTime: 72.24, endTime: 72.6, word: "things.", translation: "" },
+            { startTime: 72.6, endTime: 72.84, word: "The", translation: "也就是" },
+            { startTime: 72.84, endTime: 73.14, word: "nuts", translation: "让" },
+            { startTime: 73.14, endTime: 73.35, word: "and", translation: "这项" },
+            { startTime: 73.35, endTime: 73.7, word: "bolts", translation: "技术" },
+            { startTime: 76.1, endTime: 76.4, word: "of", translation: "在" },
+            { startTime: 76.4, endTime: 76.76, word: "actually", translation: "真实的" },
+            { startTime: 76.76, endTime: 77.09, word: "getting", translation: "课堂" },
+            { startTime: 77.09, endTime: 77.27, word: "this", translation: "上，" },
+            { startTime: 77.27, endTime: 77.72, word: "technology", translation: "与" },
+            { startTime: 77.72, endTime: 77.87, word: "to", translation: "真实的" },
+            { startTime: 77.87, endTime: 78.11, word: "work", translation: "老师" },
+            { startTime: 78.11, endTime: 78.41, word: "inside", translation: "一起" },
+            { startTime: 78.41, endTime: 78.53, word: "a", translation: "实际" },
+            { startTime: 78.53, endTime: 78.77, word: "real", translation: "运作" },
+            { startTime: 78.77, endTime: 79.25, word: "classroom", translation: "的" },
+            { startTime: 79.25, endTime: 79.52, word: "with", translation: "具体" },
+            { startTime: 79.52, endTime: 79.76, word: "real", translation: "细节。" },
+            { startTime: 79.76, endTime: 80.24, word: "teachers,", translation: "" },
+            { startTime: 80.24, endTime: 80.6, word: "eh?", translation: "嗯？" },
+            { startTime: 80.6, endTime: 81.29, word: "Perfect.", translation: "完美。" },
+            { startTime: 82.26, endTime: 82.47, word: "The", translation: "心理学" },
+            { startTime: 82.47, endTime: 82.98, word: "psychology", translation: "和" },
+            { startTime: 82.98, endTime: 83.19, word: "and", translation: "实践。" },
+            { startTime: 83.19, endTime: 83.37, word: "the", translation: "" },
+            { startTime: 83.37, endTime: 83.9, word: "practical.", translation: "" },
+            { startTime: 83.9, endTime: 84.26, word: "So,", translation: "所以，" },
+            { startTime: 84.26, endTime: 84.47, word: "I'm", translation: "我" },
+            { startTime: 84.47, endTime: 84.77, word: "sitting", translation: "坐" },
+            { startTime: 84.77, endTime: 84.98, word: "here", translation: "在" },
+            { startTime: 84.98, endTime: 85.31, word: "watching", translation: "这里" },
+            { startTime: 85.31, endTime: 85.73, word: "teachers", translation: "看老师们" },
+            { startTime: 88.08, endTime: 88.47, word: "learn", translation: "学习" },
+            { startTime: 88.47, endTime: 88.71, word: "about", translation: "一个" },
+            { startTime: 88.71, endTime: 88.83, word: "a", translation: "" },
+            { startTime: 88.83, endTime: 89.07, word: "new", translation: "新的" },
+            { startTime: 89.07, endTime: 89.28, word: "AI", translation: "人工智能" },
+            { startTime: 89.28, endTime: 89.7, word: "platform", translation: "平台，" },
+            { startTime: 89.7, endTime: 89.94, word: "and,", translation: "而且，" },
+            { startTime: 89.94, endTime: 90.3, word: "honestly,", translation: "老实说，" },
+            { startTime: 90.3, endTime: 90.57, word: "I", translation: "我" },
+            { startTime: 90.57, endTime: 90.75, word: "just", translation: "只想" },
+            { startTime: 90.75, endTime: 90.96, word: "want", translation: "直接" },
+            { startTime: 90.96, endTime: 91.11, word: "to", translation: "回到" },
+            { startTime: 91.11, endTime: 91.38, word: "dive", translation: "我们" },
+            { startTime: 91.38, endTime: 91.62, word: "right", translation: "上次" },
+            { startTime: 91.62, endTime: 91.83, word: "back", translation: "中断" },
+            { startTime: 91.83, endTime: 91.98, word: "in", translation: "的地方。" },
+            { startTime: 91.98, endTime: 92.22, word: "where", translation: "" },
+            { startTime: 92.22, endTime: 92.37, word: "we", translation: "" },
+            { startTime: 92.37, endTime: 92.58, word: "left", translation: "" },
+            { startTime: 92.58, endTime: 92.91, word: "off.", translation: "" },
+            { startTime: 95.0, endTime: 95.14, word: "I", translation: "我" },
+            { startTime: 95.14, endTime: 95.41, word: "keep", translation: "一直" },
+            { startTime: 95.41, endTime: 95.71, word: "coming", translation: "在" },
+            { startTime: 95.71, endTime: 95.95, word: "back", translation: "思考" },
+            { startTime: 95.95, endTime: 96.1, word: "to", translation: "......" },
+            { startTime: 96.1, endTime: 96.34, word: "the...", translation: "人。" },
+            { startTime: 96.34, endTime: 96.67, word: "the", translation: "" },
+            { startTime: 96.67, endTime: 97.12, word: "people.", translation: "" },
+            { startTime: 97.12, endTime: 97.42, word: "The", translation: "老师们。" },
+            { startTime: 97.42, endTime: 97.87, word: "teachers.", translation: "" },
+            { startTime: 97.87, endTime: 98.17, word: "I", translation: "我的意思是，" },
+            { startTime: 98.17, endTime: 98.44, word: "mean,", translation: "" },
+            { startTime: 98.44, endTime: 98.77, word: "what's", translation: "他们" },
+            { startTime: 98.77, endTime: 99.07, word: "really", translation: "脑子里" },
+            { startTime: 99.07, endTime: 99.34, word: "going", translation: "到底" },
+            { startTime: 99.34, endTime: 99.52, word: "on", translation: "在想" },
+            { startTime: 99.52, endTime: 99.67, word: "in", translation: "什么，" },
+            { startTime: 99.67, endTime: 99.88, word: "their", translation: "" },
+            { startTime: 99.88, endTime: 100.21, word: "heads,", translation: "" },
+            { startTime: 100.21, endTime: 100.75, word: "Sophie?", translation: "苏菲？" },
+            { startTime: 108.13, endTime: 108.43, word: "What's", translation: "大家" },
+            { startTime: 108.43, endTime: 108.58, word: "the", translation: "普遍" },
+            { startTime: 108.58, endTime: 108.85, word: "word", translation: "的" },
+            { startTime: 108.85, endTime: 109.0, word: "on", translation: "说法" },
+            { startTime: 109.0, endTime: 109.15, word: "the", translation: "是" },
+            { startTime: 109.15, endTime: 109.57, word: "ground?", translation: "什么？" },
+            { startTime: 115.3, endTime: 115.54, word: "The", translation: "普遍" },
+            { startTime: 115.54, endTime: 115.81, word: "word", translation: "的说法" },
+            { startTime: 115.81, endTime: 116.05, word: "is,", translation: "是，" },
+            { startTime: 116.05, endTime: 116.32, word: "um,", translation: "嗯，" },
+            { startTime: 116.32, endTime: 116.74, word: "fear.", translation: "恐惧。" },
+            { startTime: 119.06, endTime: 119.27, word: "I", translation: "我的意思是，" },
+            { startTime: 119.27, endTime: 119.54, word: "mean,", translation: "" },
+            { startTime: 119.54, endTime: 119.72, word: "to", translation: "坦率" },
+            { startTime: 119.72, endTime: 119.87, word: "be", translation: "地说，" },
+            { startTime: 119.87, endTime: 120.2, word: "blunt,", translation: "" },
+            { startTime: 120.2, endTime: 120.47, word: "that's", translation: "这是" },
+            { startTime: 120.47, endTime: 120.62, word: "the", translation: "总是" },
+            { startTime: 120.62, endTime: 120.89, word: "first", translation: "出现" },
+            { startTime: 120.89, endTime: 121.16, word: "thing", translation: "的" },
+            { startTime: 121.16, endTime: 121.34, word: "that", translation: "第一" },
+            { startTime: 121.34, endTime: 121.61, word: "always", translation: "件" },
+            { startTime: 121.61, endTime: 121.88, word: "comes", translation: "事。" },
+            { startTime: 121.88, endTime: 122.15, word: "up.", translation: "" },
+            { startTime: 126.04, endTime: 126.22, word: "It's", translation: "这是" },
+            { startTime: 126.22, endTime: 126.43, word: "this", translation: "一种" },
+            { startTime: 126.43, endTime: 126.7, word: "very,", translation: "非常..." },
+            { startTime: 126.7, endTime: 126.97, word: "um,", translation: "" },
+            { startTime: 126.97, endTime: 127.24, word: "this", translation: "" },
+            { startTime: 127.24, endTime: 127.51, word: "very", translation: "" },
+            { startTime: 127.51, endTime: 127.81, word: "human", translation: "人性的" },
+            { startTime: 127.81, endTime: 128.08, word: "fear", translation: "恐惧，" },
+            { startTime: 128.08, endTime: 128.29, word: "of...", translation: "关于..." },
+            { startTime: 128.29, endTime: 128.53, word: "Am", translation: "我" },
+            { startTime: 128.53, endTime: 128.62, word: "I", translation: "会" },
+            { startTime: 128.62, endTime: 128.86, word: "going", translation: "被" },
+            { startTime: 128.86, endTime: 129.01, word: "to", translation: "取代" },
+            { startTime: 129.01, endTime: 129.16, word: "be", translation: "吗？" },
+            { startTime: 129.16, endTime: 129.67, word: "replaced?", translation: "" },
+            { startTime: 128.43, endTime: 128.9, word: "Exactly.", translation: "没错。" },
+            { startTime: 129.58, endTime: 129.82, word: "Is", translation: "这..." },
+            { startTime: 129.82, endTime: 130.2, word: "this...", translation: "" },
+            { startTime: 130.65, endTime: 130.86, word: "This", translation: "这台" },
+            { startTime: 130.86, endTime: 131.28, word: "machine", translation: "机器" },
+            { startTime: 131.28, endTime: 131.55, word: "going", translation: "会" },
+            { startTime: 131.55, endTime: 131.7, word: "to", translation: "让" },
+            { startTime: 131.7, endTime: 131.94, word: "make", translation: "我的" },
+            { startTime: 131.94, endTime: 132.12, word: "my", translation: "工作" },
+            { startTime: 132.12, endTime: 132.39, word: "job", translation: "变得" },
+            { startTime: 132.39, endTime: 132.93, word: "obsolete?", translation: "过时吗？" },
+            { startTime: 134.12, endTime: 134.39, word: "It's", translation: "这是一种..." },
+            { startTime: 134.39, endTime: 134.6, word: "a...", translation: "" },
+            { startTime: 135.2, endTime: 135.41, word: "It's", translation: "这是一种" },
+            { startTime: 135.41, endTime: 135.53, word: "a", translation: "对" },
+            { startTime: 135.53, endTime: 136.1, word: "deep-seated", translation: "他们" },
+            { startTime: 136.1, endTime: 136.61, word: "anxiety", translation: "未来" },
+            { startTime: 136.61, endTime: 136.88, word: "about", translation: "的" },
+            { startTime: 136.88, endTime: 137.12, word: "their", translation: "根深蒂固" },
+            { startTime: 137.12, endTime: 137.54, word: "future,", translation: "的焦虑，" },
+            { startTime: 137.54, endTime: 137.78, word: "you", translation: "你知道吗？" },
+            { startTime: 137.78, endTime: 138.11, word: "know?", translation: "" },
+            { startTime: 139.11, endTime: 139.35, word: "And", translation: "是的。" },
+            { startTime: 139.35, endTime: 139.62, word: "it", translation: "" },
+            { startTime: 139.62, endTime: 139.86, word: "is.", translation: "" },
+            { startTime: 140.22, endTime: 140.43, word: "It's", translation: "这是一个" },
+            { startTime: 140.43, endTime: 140.55, word: "a", translation: "" },
+            { startTime: 140.55, endTime: 140.85, word: "huge", translation: "巨大的" },
+            { startTime: 140.85, endTime: 141.21, word: "one.", translation: "问题。" },
+            { startTime: 142.17, endTime: 142.41, word: "But", translation: "但" },
+            { startTime: 142.41, endTime: 142.56, word: "I", translation: "我" },
+            { startTime: 142.56, endTime: 142.8, word: "also", translation: "也" },
+            { startTime: 142.8, endTime: 143.1, word: "think...", translation: "认为..." },
+            { startTime: 143.43, endTime: 143.73, word: "Sorry", translation: "抱歉" },
+            { startTime: 143.73, endTime: 143.88, word: "to", translation: "打断" },
+            { startTime: 143.88, endTime: 144.12, word: "jump", translation: "一下，" },
+            { startTime: 144.12, endTime: 144.3, word: "in,", translation: "" },
+            { startTime: 144.3, endTime: 144.54, word: "but", translation: "但我" },
+            { startTime: 144.54, endTime: 144.69, word: "I", translation: "认为" },
+            { startTime: 144.69, endTime: 144.93, word: "think", translation: "还有" },
+            { startTime: 144.93, endTime: 145.2, word: "there's", translation: "另" },
+            { startTime: 145.2, endTime: 145.53, word: "another", translation: "一种" },
+            { startTime: 145.53, endTime: 145.8, word: "fear", translation: "恐惧" },
+            { startTime: 145.8, endTime: 146.07, word: "right", translation: "与" },
+            { startTime: 146.07, endTime: 146.46, word: "alongside", translation: "之" },
+            { startTime: 146.46, endTime: 146.73, word: "it.", translation: "并存。" },
+            { startTime: 148.05, endTime: 148.26, word: "It's,", translation: "那就是，" },
+            { startTime: 148.26, endTime: 148.62, word: "what", translation: "这" },
+            { startTime: 148.62, endTime: 148.77, word: "is", translation: "对" },
+            { startTime: 148.77, endTime: 148.98, word: "this", translation: "我们的" },
+            { startTime: 148.98, endTime: 149.28, word: "doing", translation: "学生" },
+            { startTime: 149.28, endTime: 149.43, word: "to", translation: "有什么" },
+            { startTime: 149.43, endTime: 149.61, word: "our", translation: "影响？" },
+            { startTime: 149.61, endTime: 150.15, word: "students?", translation: "" },
+            { startTime: 151.05, endTime: 151.38, word: "That's", translation: "这是" },
+            { startTime: 151.38, endTime: 151.62, word: "what", translation: "我" },
+            { startTime: 151.62, endTime: 151.71, word: "I", translation: "从" },
+            { startTime: 151.71, endTime: 151.95, word: "hear", translation: "老师" },
+            { startTime: 151.95, endTime: 152.16, word: "from", translation: "那里" },
+            { startTime: 152.16, endTime: 152.61, word: "teachers.", translation: "听到的。" },
+            { startTime: 153.3, endTime: 153.6, word: "They're", translation: "他们" },
+            { startTime: 153.6, endTime: 153.96, word: "worried", translation: "担心" },
+            { startTime: 153.96, endTime: 154.17, word: "the", translation: "孩子们" },
+            { startTime: 154.17, endTime: 154.44, word: "kids", translation: "会" },
+            { startTime: 154.44, endTime: 154.65, word: "will", translation: "停止" },
+            { startTime: 154.65, endTime: 154.89, word: "just,", translation: "尝试。" },
+            { startTime: 154.89, endTime: 155.13, word: "you", translation: "" },
+            { startTime: 155.13, endTime: 155.43, word: "know,", translation: "" },
+            { startTime: 155.43, endTime: 155.73, word: "stop", translation: "" },
+            { startTime: 155.73, endTime: 156.24, word: "trying.", translation: "" },
+            { startTime: 157.02, endTime: 157.29, word: "They'll", translation: "他们" },
+            { startTime: 157.29, endTime: 157.5, word: "just", translation: "会" },
+            { startTime: 157.5, endTime: 157.8, word: "rely", translation: "只" },
+            { startTime: 157.8, endTime: 158.07, word: "on-", translation: "依赖..." },
+            { startTime: 159.03, endTime: 159.21, word: "The", translation: "简单的" },
+            { startTime: 159.21, endTime: 159.54, word: "easy", translation: "" },
+            { startTime: 159.54, endTime: 160.05, word: "answer.", translation: "答案。" },
+            { startTime: 161.01, endTime: 161.22, word: "The", translation: "拐杖。" },
+            { startTime: 161.22, endTime: 161.64, word: "crutch.", translation: "" },
+            { startTime: 162.06, endTime: 162.27, word: "The", translation: "拐杖。" },
+            { startTime: 162.27, endTime: 162.66, word: "crutch.", translation: "" },
+            { startTime: 163.26, endTime: 163.5, word: "Yes,", translation: "是的，" },
+            { startTime: 163.5, endTime: 163.92, word: "exactly.", translation: "没错。" },
+            { startTime: 165.0, endTime: 165.15, word: "If", translation: "如果" },
+            { startTime: 165.15, endTime: 165.3, word: "the", translation: "机器" },
+            { startTime: 165.3, endTime: 165.66, word: "machine", translation: "能" },
+            { startTime: 165.66, endTime: 165.84, word: "can", translation: "直接" },
+            { startTime: 165.84, endTime: 166.05, word: "just", translation: "给你" },
+            { startTime: 166.05, endTime: 166.29, word: "give", translation: "答案，" },
+            { startTime: 166.29, endTime: 166.44, word: "you", translation: "" },
+            { startTime: 166.44, endTime: 166.59, word: "the", translation: "" },
+            { startTime: 166.59, endTime: 167.01, word: "answer,", translation: "" },
+            { startTime: 167.55, endTime: 167.85, word: "where's", translation: "那..." },
+            { startTime: 167.85, endTime: 168.09, word: "the...", translation: "" },
+            { startTime: 168.51, endTime: 168.72, word: "the", translation: "奋斗、" },
+            { startTime: 168.72, endTime: 169.2, word: "struggle,", translation: "" },
+            { startTime: 169.2, endTime: 169.44, word: "the", translation: "批判性" },
+            { startTime: 169.44, endTime: 169.83, word: "critical", translation: "" },
+            { startTime: 169.83, endTime: 170.37, word: "thinking,", translation: "思维，" },
+            { startTime: 171.0, endTime: 171.21, word: "all", translation: "我们" },
+            { startTime: 171.21, endTime: 171.39, word: "the", translation: "所" },
+            { startTime: 171.39, endTime: 171.69, word: "stuff", translation: "谓" },
+            { startTime: 171.69, endTime: 171.87, word: "we...", translation: "的..." },
+            { startTime: 173.04, endTime: 173.28, word: "you", translation: "你知道的，" },
+            { startTime: 173.28, endTime: 173.58, word: "know,", translation: "" },
+            { startTime: 173.58, endTime: 173.82, word: "the", translation: "那些" },
+            { startTime: 173.82, endTime: 174.12, word: "stuff", translation: "真正" },
+            { startTime: 174.12, endTime: 174.36, word: "that's", translation: "算得上" },
+            { startTime: 174.36, endTime: 174.72, word: "actually", translation: "学习" },
+            { startTime: 174.72, endTime: 175.26, word: "learning,", translation: "的" },
+            { startTime: 175.26, endTime: 175.62, word: "eh?", translation: "东西，" },
+            { startTime: 176.13, endTime: 176.4, word: "Right.", translation: "对。" },
+            { startTime: 176.7, endTime: 176.91, word: "It's", translation: "就像，" },
+            { startTime: 176.91, endTime: 177.15, word: "like,", translation: "" },
+            { startTime: 177.15, endTime: 177.39, word: "why", translation: "如果" },
+            { startTime: 177.39, endTime: 177.63, word: "learn", translation: "一个" },
+            { startTime: 177.63, endTime: 177.78, word: "to", translation: "按钮" },
+            { startTime: 177.78, endTime: 178.05, word: "solve", translation: "就能" },
+            { startTime: 178.05, endTime: 178.2, word: "a", translation: "解决" },
+            { startTime: 178.2, endTime: 178.62, word: "puzzle", translation: "难题，" },
+            { startTime: 179.25, endTime: 179.4, word: "if", translation: "为什么" },
+            { startTime: 179.4, endTime: 179.52, word: "a", translation: "还要" },
+            { startTime: 179.52, endTime: 179.82, word: "button", translation: "去学" },
+            { startTime: 179.82, endTime: 180.03, word: "just", translation: "怎么" },
+            { startTime: 180.03, endTime: 180.33, word: "solves", translation: "解决" },
+            { startTime: 180.33, endTime: 180.51, word: "it", translation: "它呢？" },
+            { startTime: 180.84, endTime: 181.11, word: "for", translation: "" },
+            { startTime: 181.11, endTime: 181.44, word: "you.", translation: "" },
+            { startTime: 181.44, endTime: 181.98, word: "Precisely.", translation: "没错。" },
+            { startTime: 181.98, endTime: 182.34, word: "Okay,", translation: "好吧，" },
+            { startTime: 182.34, endTime: 182.55, word: "so", translation: "哇，" },
+            { startTime: 182.55, endTime: 182.85, word: "wow,", translation: "那" },
+            { startTime: 182.85, endTime: 183.15, word: "that's", translation: "真是" },
+            { startTime: 183.15, endTime: 183.27, word: "a", translation: "一幅" },
+            { startTime: 183.27, endTime: 183.57, word: "pretty", translation: "相当" },
+            { startTime: 183.57, endTime: 183.87, word: "bleak", translation: "惨淡" },
+            { startTime: 183.87, endTime: 184.32, word: "picture.", translation: "的画面。" },
+            { startTime: 184.32, endTime: 184.53, word: "The", translation: "老师们" },
+            { startTime: 184.53, endTime: 184.92, word: "teachers", translation: "为" },
+            { startTime: 184.92, endTime: 185.07, word: "are", translation: "自己的" },
+            { startTime: 185.07, endTime: 185.37, word: "scared", translation: "工作" },
+            { startTime: 185.37, endTime: 185.55, word: "for", translation: "感到" },
+            { startTime: 185.55, endTime: 185.79, word: "their", translation: "害怕，" },
+            { startTime: 190.0, endTime: 190.27, word: "jobs,", translation: "" },
+            { startTime: 190.27, endTime: 190.51, word: "and", translation: "也" },
+            { startTime: 190.51, endTime: 190.72, word: "they're", translation: "为" },
+            { startTime: 190.72, endTime: 191.02, word: "scared", translation: "学生的" },
+            { startTime: 191.02, endTime: 191.17, word: "for", translation: "思想" },
+            { startTime: 191.17, endTime: 191.35, word: "the", translation: "感到" },
+            { startTime: 191.35, endTime: 191.71, word: "students'", translation: "担忧。" },
+            { startTime: 191.71, endTime: 192.1, word: "minds.", translation: "" },
+            { startTime: 192.1, endTime: 192.34, word: "So", translation: "所以我" },
+            { startTime: 192.34, endTime: 192.46, word: "I", translation: "不得不" },
+            { startTime: 192.46, endTime: 192.67, word: "have", translation: "问，" },
+            { startTime: 192.67, endTime: 192.82, word: "to", translation: "" },
+            { startTime: 192.82, endTime: 193.09, word: "ask,", translation: "" },
+            { startTime: 193.09, endTime: 193.42, word: "what's", translation: "答案" },
+            { startTime: 193.42, endTime: 193.57, word: "the", translation: "是什么？" },
+            { startTime: 193.57, endTime: 194.02, word: "answer?", translation: "" },
+            { startTime: 194.02, endTime: 194.26, word: "Is", translation: "有" },
+            { startTime: 194.26, endTime: 194.5, word: "there", translation: "答案" },
+            { startTime: 194.5, endTime: 194.8, word: "one?", translation: "吗？" },
+            { startTime: 199.04, endTime: 199.43, word: "Sophie,", translation: "苏菲，" },
+            { startTime: 199.43, endTime: 199.64, word: "how", translation: "我们" },
+            { startTime: 199.64, endTime: 199.79, word: "do", translation: "甚至" },
+            { startTime: 199.79, endTime: 199.94, word: "we", translation: "该" },
+            { startTime: 199.94, endTime: 200.15, word: "even", translation: "如何" },
+            { startTime: 200.15, endTime: 200.42, word: "start", translation: "开始" },
+            { startTime: 200.42, endTime: 200.57, word: "to", translation: "解决" },
+            { startTime: 200.57, endTime: 200.81, word: "fix", translation: "这个" },
+            { startTime: 200.81, endTime: 201.14, word: "this?", translation: "问题呢？" },
+            { startTime: 201.14, endTime: 201.53, word: "Well,", translation: "嗯，" },
+            { startTime: 201.53, endTime: 201.68, word: "I", translation: "我" },
+            { startTime: 201.68, endTime: 201.92, word: "don't", translation: "不" },
+            { startTime: 201.92, endTime: 202.16, word: "think", translation: "认为" },
+            { startTime: 202.16, endTime: 202.34, word: "you", translation: "你" },
+            { startTime: 202.34, endTime: 202.55, word: "fix", translation: "能用" },
+            { startTime: 202.55, endTime: 202.73, word: "it", translation: "另一个" },
+            { startTime: 202.73, endTime: 202.94, word: "with,", translation: "" },
+            { startTime: 202.94, endTime: 203.18, word: "you", translation: "软件" },
+            { startTime: 203.18, endTime: 203.45, word: "know,", translation: "" },
+            { startTime: 203.45, endTime: 203.78, word: "another", translation: "来" },
+            { startTime: 203.78, endTime: 204.08, word: "piece", translation: "解决" },
+            { startTime: 204.08, endTime: 204.26, word: "of", translation: "它。" },
+            { startTime: 204.26, endTime: 204.77, word: "software.", translation: "" },
+            { startTime: 210.03, endTime: 210.21, word: "It", translation: "它" },
+            { startTime: 210.21, endTime: 210.42, word: "has", translation: "必须" },
+            { startTime: 210.42, endTime: 210.57, word: "to", translation: "是" },
+            { startTime: 210.57, endTime: 210.72, word: "be", translation: "一种" },
+            { startTime: 210.72, endTime: 210.84, word: "a", translation: "重塑，" },
+            { startTime: 210.84, endTime: 211.45, word: "reframing,", translation: "" },
+            { startTime: 211.45, endTime: 211.6, word: "a", translation: "一种" },
+            { startTime: 211.6, endTime: 211.89, word: "total", translation: "彻底" },
+            { startTime: 211.89, endTime: 212.22, word: "shift", translation: "的" },
+            { startTime: 212.22, endTime: 212.37, word: "in", translation: "转变，" },
+            { startTime: 212.37, endTime: 212.61, word: "what", translation: "关于" },
+            { startTime: 212.61, endTime: 212.73, word: "it", translation: "作为" },
+            { startTime: 212.73, endTime: 212.97, word: "means", translation: "一名" },
+            { startTime: 212.97, endTime: 213.12, word: "to", translation: "老师" },
+            { startTime: 213.12, endTime: 213.27, word: "be", translation: "的" },
+            { startTime: 213.27, endTime: 213.42, word: "a", translation: "意义。" },
+            { startTime: 213.42, endTime: 213.84, word: "teacher.", translation: "" },
+            { startTime: 215.1, endTime: 215.28, word: "We", translation: "我们" },
+            { startTime: 215.28, endTime: 215.52, word: "have", translation: "必须" },
+            { startTime: 215.52, endTime: 215.67, word: "to", translation: "把" },
+            { startTime: 215.67, endTime: 215.88, word: "see", translation: "这个" },
+            { startTime: 215.88, endTime: 216.06, word: "the", translation: "角色" },
+            { startTime: 216.06, endTime: 216.33, word: "role", translation: "看作" },
+            { startTime: 216.33, endTime: 216.51, word: "as", translation: "是" },
+            { startTime: 216.51, endTime: 217.02, word: "different.", translation: "不同的。" },
+            { startTime: 218.1, endTime: 218.52, word: "Different", translation: "有何" },
+            { startTime: 218.52, endTime: 218.88, word: "how?", translation: "不同？" },
+            { startTime: 219.24, endTime: 219.54, word: "Less,", translation: "更少..." },
+            { startTime: 219.54, endTime: 219.81, word: "less", translation: "" },
+            { startTime: 219.81, endTime: 220.2, word: "lecture", translation: "在" },
+            { startTime: 220.2, endTime: 220.35, word: "at", translation: "教室" },
+            { startTime: 220.35, endTime: 220.5, word: "the", translation: "前面" },
+            { startTime: 220.5, endTime: 220.77, word: "front", translation: "讲课？" },
+            { startTime: 220.77, endTime: 220.92, word: "of", translation: "" },
+            { startTime: 220.92, endTime: 221.07, word: "the", translation: "" },
+            { startTime: 221.07, endTime: 221.46, word: "room?", translation: "" },
+            { startTime: 222.3, endTime: 222.54, word: "Oh,", translation: "哦，" },
+            { startTime: 222.54, endTime: 222.84, word: "much", translation: "少得" },
+            { startTime: 222.84, endTime: 223.2, word: "less.", translation: "多。" },
+            { startTime: 223.65, endTime: 223.8, word: "I", translation: "我的意思是，" },
+            { startTime: 223.8, endTime: 224.07, word: "mean,", translation: "" },
+            { startTime: 224.07, endTime: 224.34, word: "that", translation: "那种" },
+            { startTime: 224.34, endTime: 224.58, word: "role", translation: "角色" },
+            { startTime: 224.58, endTime: 224.73, word: "is", translation: "有点" },
+            { startTime: 224.73, endTime: 225.0, word: "kind", translation: "过时了，" },
+            { startTime: 225.0, endTime: 225.15, word: "of", translation: "" },
+            { startTime: 225.15, endTime: 225.42, word: "gone,", translation: "" },
+            { startTime: 225.42, endTime: 225.69, word: "isn't", translation: "不是" },
+            { startTime: 225.69, endTime: 225.96, word: "it?", translation: "吗？" },
+            { startTime: 227.19, endTime: 227.76, word: "Information", translation: "信息" },
+            { startTime: 227.76, endTime: 227.91, word: "is", translation: "无处" },
+            { startTime: 227.91, endTime: 228.45, word: "everywhere.", translation: "不在。" },
+            { startTime: 229.41, endTime: 229.65, word: "No,", translation: "不，" },
+            { startTime: 229.65, endTime: 229.83, word: "the", translation: "现在的" },
+            { startTime: 229.83, endTime: 230.1, word: "role", translation: "角色" },
+            { startTime: 230.1, endTime: 230.34, word: "now", translation: "是，" },
+            { startTime: 230.34, endTime: 230.55, word: "is,", translation: "" },
+            { startTime: 230.55, endTime: 230.76, word: "it's", translation: "更" },
+            { startTime: 230.76, endTime: 231.0, word: "more", translation: "人性化。" },
+            { startTime: 231.0, endTime: 231.54, word: "human.", translation: "" },
+            { startTime: 233.1, endTime: 233.31, word: "It's", translation: "是" },
+            { startTime: 233.31, endTime: 233.58, word: "being", translation: "成为" },
+            { startTime: 233.58, endTime: 233.7, word: "a", translation: "一名" },
+            { startTime: 233.7, endTime: 234.09, word: "guide,", translation: "向导，" },
+            { startTime: 234.09, endTime: 234.24, word: "a", translation: "一位" },
+            { startTime: 234.24, endTime: 234.72, word: "mentor.", translation: "导师。" },
+            { startTime: 237.0, endTime: 237.42, word: "Someone", translation: "一个" },
+            { startTime: 237.42, endTime: 237.6, word: "who", translation: "帮助" },
+            { startTime: 237.6, endTime: 237.87, word: "helps", translation: "学生" },
+            { startTime: 237.87, endTime: 238.26, word: "students", translation: "提出" },
+            { startTime: 238.26, endTime: 238.5, word: "ask", translation: "正确" },
+            { startTime: 238.5, endTime: 238.65, word: "the", translation: "问题" },
+            { startTime: 238.65, endTime: 238.92, word: "right", translation: "的人，" },
+            { startTime: 238.92, endTime: 239.4, word: "questions,", translation: "" },
+            { startTime: 239.4, endTime: 239.64, word: "you", translation: "你知道吗？" },
+            { startTime: 239.64, endTime: 239.97, word: "know?", translation: "" },
+            { startTime: 243.0, endTime: 243.27, word: "Helps", translation: "帮助" },
+            { startTime: 243.27, endTime: 243.51, word: "them", translation: "他们" },
+            { startTime: 243.51, endTime: 243.78, word: "make", translation: "理解" },
+            { startTime: 243.78, endTime: 244.08, word: "sense", translation: "所有" },
+            { startTime: 244.08, endTime: 244.23, word: "of", translation: "那些" },
+            { startTime: 244.23, endTime: 244.41, word: "all", translation: "无处" },
+            { startTime: 244.41, endTime: 244.62, word: "that", translation: "不在" },
+            { startTime: 244.62, endTime: 245.07, word: "information", translation: "的" },
+            { startTime: 245.07, endTime: 245.34, word: "that's", translation: "信息。" },
+            { startTime: 245.34, endTime: 245.82, word: "everywhere.", translation: "" },
+            { startTime: 247.05, endTime: 247.47, word: "Exactly.", translation: "没错。" },
+            { startTime: 247.47, endTime: 247.68, word: "And", translation: "而且" },
+            { startTime: 247.68, endTime: 247.86, word: "it's", translation: "也" },
+            { startTime: 247.86, endTime: 248.1, word: "about", translation: "在于" },
+            { startTime: 248.1, endTime: 248.43, word: "setting", translation: "设定" },
+            { startTime: 248.43, endTime: 248.61, word: "the", translation: "挑战。" },
+            { startTime: 248.61, endTime: 249.12, word: "challenges", translation: "" },
+            { startTime: 249.12, endTime: 249.42, word: "too.", translation: "" },
+            { startTime: 249.42, endTime: 249.81, word: "Design", translation: "设计" },
+            { startTime: 249.81, endTime: 250.08, word: "in.", translation: "活动，" },
+            { startTime: 250.08, endTime: 250.53, word: "Activities", translation: "" },
+            { startTime: 250.53, endTime: 250.8, word: "where", translation: "在这些" },
+            { startTime: 250.8, endTime: 250.98, word: "the", translation: "活动中，" },
+            { startTime: 250.98, endTime: 251.19, word: "AI", translation: "人工智能" },
+            { startTime: 251.19, endTime: 251.34, word: "is", translation: "是" },
+            { startTime: 251.34, endTime: 251.46, word: "a", translation: "一个" },
+            { startTime: 251.46, endTime: 251.76, word: "tool", translation: "工具，" },
+            { startTime: 251.76, endTime: 251.91, word: "to", translation: "用来" },
+            { startTime: 251.91, endTime: 252.12, word: "get", translation: "得出" },
+            { startTime: 255.0, endTime: 255.24, word: "to", translation: "答案，" },
+            { startTime: 255.24, endTime: 255.42, word: "the", translation: "" },
+            { startTime: 255.42, endTime: 255.81, word: "answer,", translation: "" },
+            { startTime: 255.81, endTime: 256.02, word: "not", translation: "而不是" },
+            { startTime: 256.02, endTime: 256.17, word: "the", translation: "答案" },
+            { startTime: 256.17, endTime: 256.5, word: "answer", translation: "本身。" },
+            { startTime: 256.5, endTime: 256.92, word: "itself.", translation: "" },
+            { startTime: 256.92, endTime: 257.22, word: "It's", translation: "它是" },
+            { startTime: 257.22, endTime: 257.49, word: "part", translation: "过程" },
+            { startTime: 257.49, endTime: 257.64, word: "of", translation: "的" },
+            { startTime: 257.64, endTime: 257.82, word: "the", translation: "一部分，" },
+            { startTime: 257.82, endTime: 258.27, word: "process,", translation: "" },
+            { startTime: 258.27, endTime: 258.51, word: "not", translation: "而不是" },
+            { startTime: 258.51, endTime: 258.66, word: "the", translation: "终点。" },
+            { startTime: 258.66, endTime: 258.9, word: "end", translation: "" },
+            { startTime: 258.9, endTime: 259.29, word: "point.", translation: "" },
+            { startTime: 259.29, endTime: 259.62, word: "Like,", translation: "比如，" },
+            { startTime: 259.62, endTime: 259.86, word: "use", translation: "使用" },
+            { startTime: 259.86, endTime: 260.04, word: "this", translation: "这个" },
+            { startTime: 260.04, endTime: 260.25, word: "AI", translation: "人工智能" },
+            { startTime: 263.07, endTime: 263.28, word: "to", translation: "来" },
+            { startTime: 263.28, endTime: 263.52, word: "find", translation: "找到" },
+            { startTime: 263.52, endTime: 263.79, word: "three", translation: "关于" },
+            { startTime: 263.79, endTime: 264.15, word: "different", translation: "X" },
+            { startTime: 264.15, endTime: 264.6, word: "historical", translation: "的" },
+            { startTime: 264.6, endTime: 265.23, word: "perspectives", translation: "三种" },
+            { startTime: 265.23, endTime: 265.41, word: "on", translation: "不同" },
+            { startTime: 265.41, endTime: 265.65, word: "X,", translation: "的" },
+            { startTime: 265.65, endTime: 265.86, word: "and", translation: "历史" },
+            { startTime: 265.86, endTime: 266.1, word: "then", translation: "观点，" },
+            { startTime: 266.1, endTime: 266.37, word: "write", translation: "然后" },
+            { startTime: 266.37, endTime: 266.52, word: "an", translation: "写" },
+            { startTime: 268.08, endTime: 268.41, word: "essay", translation: "一篇" },
+            { startTime: 268.41, endTime: 268.77, word: "arguing", translation: "文章" },
+            { startTime: 268.77, endTime: 268.95, word: "for", translation: "来" },
+            { startTime: 268.95, endTime: 269.1, word: "the", translation: "论证" },
+            { startTime: 269.1, endTime: 269.4, word: "most", translation: "最" },
+            { startTime: 269.4, endTime: 270.0, word: "compelling.", translation: "有说服力" },
+            { startTime: 270.0, endTime: 270.27, word: "The", translation: "的" },
+            { startTime: 270.27, endTime: 270.48, word: "AI", translation: "观点。" },
+            { startTime: 270.48, endTime: 270.78, word: "helps", translation: "" },
+            { startTime: 270.78, endTime: 271.02, word: "them", translation: "" },
+            { startTime: 271.02, endTime: 271.29, word: "find,", translation: "" },
+            { startTime: 271.29, endTime: 271.53, word: "but", translation: "" },
+            { startTime: 271.53, endTime: 271.68, word: "the", translation: "" },
+            { startTime: 271.68, endTime: 272.16, word: "think-in", translation: "" },
+            { startTime: 272.16, endTime: 272.37, word: "and", translation: "" },
+            { startTime: 272.37, endTime: 272.55, word: "the", translation: "" },
+            { startTime: 272.55, endTime: 273.06, word: "write-in,", translation: "" },
+            { startTime: 274.05, endTime: 274.32, word: "that's", translation: "那" },
+            { startTime: 274.32, endTime: 274.53, word: "all", translation: "都" },
+            { startTime: 274.53, endTime: 274.8, word: "them,", translation: "是" },
+            { startTime: 274.8, endTime: 275.1, word: "eh?", translation: "他们自己" },
+            { startTime: 275.1, endTime: 275.43, word: "Yes,", translation: "是的，" },
+            { startTime: 275.43, endTime: 275.64, word: "and", translation: "那" },
+            { startTime: 275.64, endTime: 275.88, word: "that,", translation: "就" },
+            { startTime: 275.88, endTime: 276.15, word: "that", translation: "引出了" },
+            { startTime: 276.15, endTime: 276.42, word: "leads", translation: "第三" },
+            { startTime: 276.42, endTime: 276.57, word: "to", translation: "件" },
+            { startTime: 276.57, endTime: 276.72, word: "the", translation: "大事，" },
+            { startTime: 276.72, endTime: 277.02, word: "third", translation: "" },
+            { startTime: 277.02, endTime: 277.26, word: "big", translation: "" },
+            { startTime: 277.26, endTime: 277.59, word: "thing,", translation: "" },
+            { startTime: 277.59, endTime: 277.74, word: "I", translation: "" },
+            { startTime: 277.74, endTime: 278.04, word: "think.", translation: "" },
+            { startTime: 278.04, endTime: 278.28, word: "It's", translation: "" },
+            { startTime: 278.28, endTime: 278.43, word: "the", translation: "" },
+            { startTime: 278.43, endTime: 278.88, word: "practical", translation: "" },
+            { startTime: 281.0, endTime: 281.27, word: "side.", translation: "方面。" },
+            { startTime: 281.27, endTime: 281.54, word: "The", translation: "老师们，" },
+            { startTime: 281.54, endTime: 282.02, word: "teachers,", translation: "" },
+            { startTime: 282.02, endTime: 282.26, word: "they", translation: "他们" },
+            { startTime: 282.26, endTime: 282.5, word: "feel", translation: "感到" },
+            { startTime: 282.5, endTime: 282.71, word: "this", translation: "一种" },
+            { startTime: 282.71, endTime: 283.1, word: "immense", translation: "巨大" },
+            { startTime: 283.1, endTime: 283.55, word: "pressure", translation: "的" },
+            { startTime: 283.55, endTime: 283.7, word: "to", translation: "压力，" },
+            { startTime: 283.7, endTime: 283.97, word: "become,", translation: "" },
+            { startTime: 283.97, endTime: 284.24, word: "well,", translation: "" },
+            { startTime: 284.24, endTime: 284.6, word: "almost", translation: "" },
+            { startTime: 284.6, endTime: 284.81, word: "AI", translation: "" },
+            { startTime: 284.81, endTime: 285.44, word: "programmers", translation: "" },
+            { startTime: 285.44, endTime: 285.95, word: "overnight.", translation: "" },
+            { startTime: 291.14, endTime: 291.44, word: "Right.", translation: "是的。" },
+            { startTime: 292.1, endTime: 292.34, word: "They", translation: "他们" },
+            { startTime: 292.34, endTime: 292.58, word: "need", translation: "需要" },
+            { startTime: 292.58, endTime: 292.73, word: "to", translation: "能够" },
+            { startTime: 292.73, endTime: 292.88, word: "be", translation: "有效" },
+            { startTime: 292.88, endTime: 293.15, word: "able", translation: "地" },
+            { startTime: 293.15, endTime: 293.3, word: "to", translation: "使用" },
+            { startTime: 293.3, endTime: 293.54, word: "use", translation: "这些" },
+            { startTime: 293.54, endTime: 293.72, word: "the", translation: "工具。" },
+            { startTime: 293.72, endTime: 294.05, word: "tools", translation: "" },
+            { startTime: 294.05, endTime: 294.62, word: "effectively.", translation: "" },
+            { startTime: 295.37, endTime: 295.88, word: "Absolutely.", translation: "当然。" },
+            { startTime: 296.24, endTime: 296.45, word: "And", translation: "他们" },
+            { startTime: 296.45, endTime: 296.63, word: "they", translation: "需要" },
+            { startTime: 296.63, endTime: 296.84, word: "need", translation: "时间" },
+            { startTime: 296.84, endTime: 297.08, word: "time", translation: "来" },
+            { startTime: 297.08, endTime: 297.23, word: "to", translation: "学习。" },
+            { startTime: 297.23, endTime: 297.62, word: "learn.", translation: "" },
+            { startTime: 298.25, endTime: 298.67, word: "Proper,", translation: "适当的，" },
+            { startTime: 298.67, endTime: 299.12, word: "ongoing", translation: "持续的" },
+            { startTime: 299.12, endTime: 299.72, word: "professional", translation: "专业" },
+            { startTime: 299.72, endTime: 300.41, word: "development.", translation: "发展。" },
+            { startTime: 301.07, endTime: 301.31, word: "Not", translation: "不仅仅" },
+            { startTime: 301.31, endTime: 301.52, word: "just,", translation: "是，" },
+            { startTime: 301.52, endTime: 301.76, word: "you", translation: "你知道的，" },
+            { startTime: 301.76, endTime: 302.0, word: "know,", translation: "" },
+            { startTime: 302.0, endTime: 302.21, word: "a", translation: "周五" },
+            { startTime: 302.21, endTime: 302.48, word: "quick", translation: "下午" },
+            { startTime: 302.48, endTime: 302.78, word: "hour", translation: "的" },
+            { startTime: 302.78, endTime: 302.93, word: "on", translation: "一个" },
+            { startTime: 302.93, endTime: 303.05, word: "a", translation: "小时" },
+            { startTime: 303.05, endTime: 303.38, word: "Friday", translation: "的" },
+            { startTime: 303.38, endTime: 303.92, word: "afternoon.", translation: "快速" },
+            { startTime: 305.15, endTime: 305.33, word: "It", translation: "这" },
+            { startTime: 305.33, endTime: 305.57, word: "needs", translation: "需要" },
+            { startTime: 305.57, endTime: 305.72, word: "to", translation: "是" },
+            { startTime: 305.72, endTime: 305.87, word: "be", translation: "一项" },
+            { startTime: 305.87, endTime: 306.02, word: "a", translation: "对" },
+            { startTime: 306.02, endTime: 306.5, word: "sustained", translation: "他们" },
+            { startTime: 307.28, endTime: 307.82, word: "investment", translation: "的" },
+            { startTime: 307.82, endTime: 307.97, word: "in", translation: "持续" },
+            { startTime: 307.97, endTime: 308.27, word: "them.", translation: "投资。" },
+            { startTime: 308.27, endTime: 308.57, word: "It", translation: "确实" },
+            { startTime: 308.57, endTime: 308.87, word: "really", translation: "如此。" },
+            { startTime: 308.87, endTime: 309.2, word: "does.", translation: "" },
+            { startTime: 309.2, endTime: 309.44, word: "And", translation: "那" },
+            { startTime: 309.44, endTime: 309.65, word: "that", translation: "也" },
+            { startTime: 309.65, endTime: 309.95, word: "builds", translation: "能" },
+            { startTime: 309.95, endTime: 310.22, word: "their", translation: "建立" },
+            { startTime: 310.22, endTime: 310.76, word: "confidence", translation: "他们的" },
+            { startTime: 310.76, endTime: 311.06, word: "too.", translation: "信心。" },
+            { startTime: 311.06, endTime: 311.27, word: "If", translation: "如果" },
+            { startTime: 311.27, endTime: 311.48, word: "they", translation: "他们" },
+            { startTime: 311.48, endTime: 311.72, word: "feel", translation: "觉得" },
+            { startTime: 311.72, endTime: 312.11, word: "capable", translation: "自己" },
+            { startTime: 312.11, endTime: 312.32, word: "with", translation: "能够" },
+            { startTime: 314.0, endTime: 314.24, word: "the", translation: "驾驭" },
+            { startTime: 314.24, endTime: 314.54, word: "tech,", translation: "这项" },
+            { startTime: 314.54, endTime: 314.78, word: "that", translation: "技术，" },
+            { startTime: 314.78, endTime: 315.05, word: "fear", translation: "那种" },
+            { startTime: 315.05, endTime: 315.2, word: "of", translation: "被" },
+            { startTime: 315.2, endTime: 315.68, word: "replacement,", translation: "取代" },
+            { startTime: 315.68, endTime: 315.89, word: "it", translation: "的" },
+            { startTime: 315.89, endTime: 316.16, word: "starts", translation: "恐惧" },
+            { startTime: 316.16, endTime: 316.31, word: "to", translation: "就会" },
+            { startTime: 316.31, endTime: 316.58, word: "fade", translation: "开始" },
+            { startTime: 316.58, endTime: 316.76, word: "a", translation: "有点" },
+            { startTime: 316.76, endTime: 317.0, word: "bit,", translation: "消退，" },
+            { startTime: 317.0, endTime: 317.24, word: "you", translation: "你知道吗？" },
+            { startTime: 317.24, endTime: 317.57, word: "know?", translation: "" },
+            { startTime: 317.57, endTime: 317.81, word: "They", translation: "他们" },
+            { startTime: 317.81, endTime: 318.05, word: "see", translation: "会" },
+            { startTime: 318.05, endTime: 318.26, word: "how", translation: "看到" },
+            { startTime: 318.26, endTime: 318.47, word: "they", translation: "如何" },
+            { startTime: 318.47, endTime: 318.68, word: "can", translation: "利用" },
+            { startTime: 318.68, endTime: 318.92, word: "use", translation: "它" },
+            { startTime: 318.92, endTime: 319.1, word: "it", translation: "来" },
+            { startTime: 321.0, endTime: 321.21, word: "to", translation: "让" },
+            { startTime: 321.21, endTime: 321.45, word: "make", translation: "自己的" },
+            { startTime: 321.45, endTime: 321.69, word: "their", translation: "工作" },
+            { startTime: 321.69, endTime: 321.93, word: "job", translation: "甚至" },
+            { startTime: 321.93, endTime: 322.2, word: "maybe", translation: "变得" },
+            { startTime: 322.2, endTime: 322.47, word: "even", translation: "更好。" },
+            { startTime: 322.47, endTime: 322.83, word: "better.", translation: "" },
+            { startTime: 322.83, endTime: 323.16, word: "So", translation: "所以" },
+            { startTime: 323.16, endTime: 323.31, word: "it", translation: "听起来" },
+            { startTime: 323.31, endTime: 323.58, word: "sounds", translation: "像是，" },
+            { startTime: 323.58, endTime: 323.85, word: "like,", translation: "" },
+            { startTime: 323.85, endTime: 324.03, word: "to", translation: "要" },
+            { startTime: 324.03, endTime: 324.27, word: "really", translation: "真正" },
+            { startTime: 324.27, endTime: 324.51, word: "get", translation: "做好" },
+            { startTime: 324.51, endTime: 324.72, word: "this", translation: "这件事，" },
+            { startTime: 324.72, endTime: 325.02, word: "right,", translation: "" },
+            { startTime: 325.02, endTime: 325.2, word: "the", translation: "重点" },
+            { startTime: 325.2, endTime: 325.5, word: "focus", translation: "必须" },
+            { startTime: 325.5, endTime: 325.74, word: "has", translation: "放" },
+            { startTime: 325.74, endTime: 325.89, word: "to", translation: "在" },
+            { startTime: 325.89, endTime: 326.04, word: "be", translation: "人" },
+            { startTime: 326.04, endTime: 326.19, word: "on", translation: "身上。" },
+            { startTime: 326.19, endTime: 326.37, word: "the", translation: "" },
+            { startTime: 326.37, endTime: 326.82, word: "people.", translation: "" },
+            { startTime: 330.04, endTime: 330.43, word: "Address", translation: "正面" },
+            { startTime: 330.43, endTime: 330.61, word: "the", translation: "解决" },
+            { startTime: 330.61, endTime: 330.88, word: "fear", translation: "恐惧，" },
+            { startTime: 330.88, endTime: 331.24, word: "head-on,", translation: "" },
+            { startTime: 331.24, endTime: 331.66, word: "redefine", translation: "重新" },
+            { startTime: 331.66, endTime: 331.84, word: "the", translation: "定义" },
+            { startTime: 331.84, endTime: 332.26, word: "teacher's", translation: "教师" },
+            { startTime: 332.26, endTime: 332.59, word: "role,", translation: "的角色，" },
+            { startTime: 332.59, endTime: 332.8, word: "and", translation: "并" },
+            { startTime: 332.8, endTime: 333.1, word: "provide", translation: "提供" },
+            { startTime: 333.1, endTime: 333.28, word: "the", translation: "他们" },
+            { startTime: 333.28, endTime: 333.7, word: "practical", translation: "适应" },
+            { startTime: 333.7, endTime: 334.09, word: "support", translation: "所" },
+            { startTime: 334.09, endTime: 334.3, word: "they", translation: "需" },
+            { startTime: 336.0, endTime: 336.27, word: "need", translation: "的" },
+            { startTime: 336.27, endTime: 336.42, word: "to", translation: "实际" },
+            { startTime: 336.42, endTime: 336.81, word: "adapt.", translation: "支持。" },
+            { startTime: 338.07, endTime: 338.28, word: "It's", translation: "这" },
+            { startTime: 338.28, endTime: 338.52, word: "not", translation: "不是" },
+            { startTime: 338.52, endTime: 338.79, word: "about", translation: "关于" },
+            { startTime: 338.79, endTime: 338.97, word: "the", translation: "技术" },
+            { startTime: 338.97, endTime: 339.24, word: "tech", translation: "取代" },
+            { startTime: 339.24, endTime: 339.75, word: "replacing", translation: "他们，" },
+            { startTime: 339.75, endTime: 340.05, word: "them,", translation: "" },
+            { startTime: 340.05, endTime: 340.26, word: "but", translation: "而是" },
+            { startTime: 340.26, endTime: 340.44, word: "the", translation: "技术" },
+            { startTime: 340.44, endTime: 340.71, word: "tech", translation: "赋能" },
+            { startTime: 340.71, endTime: 341.28, word: "empowering", translation: "他们。" },
+            { startTime: 341.28, endTime: 341.67, word: "them.", translation: "" },
+            { startTime: 343.14, endTime: 343.71, word: "Precisely.", translation: "没错。" },
+            { startTime: 344.25, endTime: 344.55, word: "Yeah,", translation: "是的，" },
+            { startTime: 344.55, endTime: 344.82, word: "that's", translation: "这是" },
+            { startTime: 344.82, endTime: 344.94, word: "a", translation: "一个" },
+            { startTime: 344.94, endTime: 345.18, word: "good", translation: "很好的" },
+            { startTime: 345.18, endTime: 345.42, word: "way", translation: "说法，" },
+            { startTime: 345.42, endTime: 345.57, word: "to", translation: "" },
+            { startTime: 345.57, endTime: 345.78, word: "put", translation: "" },
+            { startTime: 345.78, endTime: 345.96, word: "it,", translation: "" },
+            { startTime: 345.96, endTime: 346.41, word: "Michael.", translation: "迈克尔。" },
+            { startTime: 347.16, endTime: 347.31, word: "A", translation: "有很多" },
+            { startTime: 347.31, endTime: 347.49, word: "lot", translation: "值得" },
+            { startTime: 347.49, endTime: 347.64, word: "to", translation: "思考" },
+            { startTime: 347.64, endTime: 347.91, word: "think", translation: "的地方。" },
+            { startTime: 347.91, endTime: 348.18, word: "about", translation: "" },
+            { startTime: 348.18, endTime: 348.51, word: "there.", translation: "" },
+            { startTime: 349.02, endTime: 349.17, word: "A", translation: "确实" },
+            { startTime: 349.17, endTime: 349.35, word: "lot", translation: "有很多" },
+            { startTime: 349.35, endTime: 349.5, word: "to", translation: "值得" },
+            { startTime: 349.5, endTime: 349.77, word: "think", translation: "思考" },
+            { startTime: 349.77, endTime: 350.04, word: "about", translation: "的地方。" },
+            { startTime: 350.04, endTime: 350.4, word: "indeed.", translation: "" },
+            { startTime: 350.7, endTime: 351.0, word: "Dr.", translation: "苏菲·坎贝尔" },
+            { startTime: 351.0, endTime: 351.42, word: "Sophie", translation: "" },
+            { startTime: 351.42, endTime: 351.96, word: "Campbell,", translation: "博士，" },
+            { startTime: 351.96, endTime: 352.23, word: "Dr.", translation: "大卫·米勒" },
+            { startTime: 352.23, endTime: 352.62, word: "David", translation: "" },
+            { startTime: 352.62, endTime: 353.07, word: "Miller,", translation: "博士，" },
+            { startTime: 353.49, endTime: 353.82, word: "thank", translation: "非常" },
+            { startTime: 353.82, endTime: 353.97, word: "you", translation: "感谢" },
+            { startTime: 353.97, endTime: 354.21, word: "both", translation: "你们" },
+            { startTime: 354.21, endTime: 354.42, word: "so", translation: "两位" },
+            { startTime: 354.42, endTime: 354.63, word: "much", translation: "今天" },
+            { startTime: 354.63, endTime: 354.81, word: "for", translation: "的" },
+            { startTime: 354.81, endTime: 355.02, word: "your", translation: "精辟" },
+            { startTime: 355.02, endTime: 355.44, word: "insights", translation: "见解。" },
+            { startTime: 355.44, endTime: 355.8, word: "today.", translation: "" },
+            { startTime: 355.98, endTime: 356.28, word: "Thank", translation: "谢谢你，" },
+            { startTime: 356.28, endTime: 356.52, word: "you,", translation: "" },
+            { startTime: 356.52, endTime: 357.0, word: "Michael.", translation: "迈克尔。" },
+            { startTime: 357.57, endTime: 358.05, word: "Cheers.", translation: "干杯。" },
+            { startTime: 358.41, endTime: 358.62, word: "And", translation: "也" },
+            { startTime: 358.62, endTime: 358.89, word: "thank", translation: "感谢" },
+            { startTime: 358.89, endTime: 359.07, word: "you", translation: "听众们" },
+            { startTime: 359.07, endTime: 359.22, word: "to", translation: "收听" },
+            { startTime: 359.22, endTime: 359.4, word: "our", translation: "我们的" },
+            { startTime: 359.4, endTime: 359.76, word: "listeners", translation: "" },
+            { startTime: 359.76, endTime: 359.94, word: "for", translation: "" },
+            { startTime: 359.94, endTime: 360.21, word: "joining", translation: "" },
+            { startTime: 360.21, endTime: 360.42, word: "us", translation: "" },
+            { startTime: 360.42, endTime: 360.57, word: "on", translation: "" },
+            { startTime: 360.81, endTime: 361.32, word: "global", translation: "全球" },
+            { startTime: 361.32, endTime: 361.86, word: "education", translation: "教育" },
+            { startTime: 361.86, endTime: 362.49, word: "insights.", translation: "洞察。" },
+            { startTime: 363.3, endTime: 363.54, word: "We'll", translation: "我们" },
+            { startTime: 363.54, endTime: 363.72, word: "be", translation: "下期" },
+            { startTime: 363.72, endTime: 363.93, word: "back", translation: "再见，" },
+            { startTime: 363.93, endTime: 364.2, word: "next", translation: "届时" },
+            { startTime: 364.2, endTime: 364.44, word: "time", translation: "我们将" },
+            { startTime: 364.44, endTime: 364.68, word: "with", translation: "带来" },
+            { startTime: 364.68, endTime: 364.95, word: "another", translation: "对" },
+            { startTime: 364.95, endTime: 365.22, word: "look", translation: "全球" },
+            { startTime: 365.22, endTime: 365.37, word: "at", translation: "教育" },
+            { startTime: 365.37, endTime: 365.76, word: "innovative", translation: "创新" },
+            { startTime: 365.76, endTime: 366.3, word: "approaches", translation: "方法的" },
+            { startTime: 366.3, endTime: 366.45, word: "in", translation: "另" },
+            { startTime: 366.45, endTime: 366.84, word: "education", translation: "一次" },
+            { startTime: 366.84, endTime: 367.14, word: "around", translation: "审视。" },
+            { startTime: 367.14, endTime: 367.32, word: "the", translation: "" },
+            { startTime: 367.68, endTime: 368.04, word: "world.", translation: "" }
+        ];
+
+        // =================================================================
+        //  You shouldn't need to edit anything below this line!
+        // =================================================================
+
+        const audioPlayer = document.getElementById('audio-player');
+        const transcriptContainer = document.getElementById('transcript-container');
+        const playOverlay = document.getElementById('play-overlay');
+        const playButton = document.getElementById('play-button');
+        
+        // Set the audio source
+        audioPlayer.src = audioFileName;
+
+        // --- PLAY BUTTON LOGIC ---
+        playButton.addEventListener('click', () => {
+            audioPlayer.play();
+            playOverlay.style.display = 'none';
+        });
+
+        // Create the text content on the page
+        transcriptData.forEach((item, index) => {
+            // Create a container span for the phrase (English and translation)
+            const phraseSpan = document.createElement('span');
+            phraseSpan.classList.add('phrase');
+            phraseSpan.id = 'phrase-' + index;
+            phraseSpan.dataset.startTime = item.startTime;
+
+            // Create span for English word
+            const wordSpan = document.createElement('span');
+            wordSpan.classList.add('english-word');
+            wordSpan.textContent = item.word;
+            
+            // Create span for Chinese translation
+            const translationSpan = document.createElement('span');
+            translationSpan.classList.add('translation-word');
+            translationSpan.textContent = item.translation;
+
+            // Add a line break between them
+            phraseSpan.appendChild(wordSpan);
+            phraseSpan.appendChild(document.createElement('br'));
+            phraseSpan.appendChild(translationSpan);
+
+            transcriptContainer.appendChild(phraseSpan);
+            
+            // Add a space after the phrase
+            transcriptContainer.appendChild(document.createTextNode(' '));
+
+            // Add click event to seek audio
+            phraseSpan.addEventListener('click', () => {
+                audioPlayer.currentTime = item.startTime;
+                audioPlayer.play();
+            });
+        });
+
+        let currentlyHighlightedWordIndex = -1;
+
+        // Listen for time updates on the audio player
+        audioPlayer.addEventListener('timeupdate', () => {
+            const currentTime = audioPlayer.currentTime;
+            let foundWordIndex = -1;
+
+            // Find which word should be highlighted at the current time
+            for (let i = 0; i < transcriptData.length; i++) {
+                if (currentTime >= transcriptData[i].startTime && currentTime < transcriptData[i].endTime) {
+                    foundWordIndex = i;
+                    break;
+                }
+            }
+            
+            // If the time is past the last word, keep the last word highlighted
+            if (foundWordIndex === -1 && currentTime > 0) {
+                 if (currentTime >= transcriptData[transcriptData.length - 1].startTime) {
+                    foundWordIndex = transcriptData.length - 1;
+                 }
+            }
+
+
+            // If the highlighted word has changed, update the styling and speak the translation
+            if (foundWordIndex !== -1 && foundWordIndex !== currentlyHighlightedWordIndex) {
+                // Remove highlight from the previously highlighted word
+                if (currentlyHighlightedWordIndex !== -1) {
+                    const prevPhrase = document.getElementById('phrase-' + currentlyHighlightedWordIndex);
+                    if(prevPhrase) prevPhrase.classList.remove('highlight');
+                }
+
+                // Add highlight to the new current word
+                const currentPhrase = document.getElementById('phrase-' + foundWordIndex);
+                if(currentPhrase) {
+                    currentPhrase.classList.add('highlight');
+                    currentPhrase.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // --- AUTOMATIC TTS LOGIC ---
+                    // Cancel any ongoing speech to prevent overlap
+                    window.speechSynthesis.cancel();
+                    
+                    // Speak the new translation if it's not empty
+                    const translationText = transcriptData[foundWordIndex].translation.trim();
+                    if (translationText) {
+                        const utterance = new SpeechSynthesisUtterance(translationText);
+                        utterance.lang = 'zh-CN';
+                        utterance.rate = 0.85; // Slow down the speech for clarity
+                        window.speechSynthesis.speak(utterance);
+                    }
+                }
+                
+                currentlyHighlightedWordIndex = foundWordIndex;
+            }
+        });
+    </script>
+</body>
+</html>

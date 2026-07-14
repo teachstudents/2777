@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beach Safety Interactive Concept Map</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        h1 { font-size: 60pt; }
+        h2 { font-size: 44pt; }
+        h3 { font-size: 36pt; }
+        p, li { font-size: 28pt; }
+        .timer { font-size: 48pt; font-weight: bold; }
+        
+        .draggable {
+            cursor: grab;
+            transition: all 0.3s ease;
+            user-select: none;
+            touch-action: none;
+        }
+        
+        .draggable:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+            z-index: 1000;
+        }
+        
+        .dragging {
+            opacity: 0.8;
+            transform: rotate(5deg) scale(1.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            z-index: 1000;
+        }
+        
+        .drop-zone {
+            transition: all 0.3s ease;
+            border: 3px dashed transparent;
+        }
+        
+        .drop-zone.drag-over {
+            border-color: #3b82f6;
+            background-color: rgba(59, 130, 246, 0.1);
+            transform: scale(1.02);
+        }
+        
+        .drop-zone.correct {
+            border-color: #10b981;
+            background-color: rgba(16, 185, 129, 0.1);
+            animation: correctPulse 0.6s ease-in-out;
+        }
+        
+        .drop-zone.incorrect {
+            border-color: #ef4444;
+            background-color: rgba(239, 68, 68, 0.1);
+            animation: shake 0.5s ease-in-out;
+        }
+        
+        @keyframes correctPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .concept-node {
+            position: relative;
+            animation: bounce 3s ease-in-out infinite;
+        }
+        
+        .concept-node:nth-child(2) { animation-delay: 0.5s; }
+        .concept-node:nth-child(3) { animation-delay: 1s; }
+        .concept-node:nth-child(4) { animation-delay: 1.5s; }
+        
+        .connection-line {
+            position: absolute;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #06b6d4);
+            border-radius: 2px;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+        
+        .connection-line.active {
+            opacity: 1;
+            animation: lineGlow 2s ease-in-out infinite;
+        }
+        
+        @keyframes lineGlow {
+            0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
+        }
+        
+        .progress-bar {
+            transition: width 0.5s ease;
+        }
+        
+        .celebration {
+            animation: celebrate 1s ease-in-out;
+        }
+        
+        @keyframes celebrate {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            25% { transform: scale(1.1) rotate(-5deg); }
+            75% { transform: scale(1.1) rotate(5deg); }
+        }
+        
+        .mind-map-container {
+            background: radial-gradient(circle at center, #f0f9ff 0%, #e0f2fe 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .central-node {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        
+        .branch-node {
+            position: absolute;
+            z-index: 5;
+        }
+        
+        .floating-emoji {
+            position: absolute;
+            font-size: 2rem;
+            animation: float 4s ease-in-out infinite;
+            pointer-events: none;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(180deg); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-cyan-100 min-h-screen">
+    <!-- Compact Header -->
+    <div class="bg-gradient-to-r from-blue-600 to-cyan-600 text-white py-3">
+        <div class="container mx-auto px-4 flex justify-between items-center">
+            <div class="flex items-center">
+                <h1 class="text-2xl font-bold">🧠 Beach Safety Concept Map 🏖️</h1>
+            </div>
+            <!-- Inline Progress Bar -->
+            <div class="flex items-center space-x-4">
+                <span class="text-sm font-semibold" id="progressText">0/12 Complete</span>
+                <div class="w-32 bg-blue-800 rounded-full h-3">
+                    <div class="progress-bar bg-gradient-to-r from-yellow-400 to-green-400 h-3 rounded-full" id="progressBar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-2 h-screen flex">
+        <!-- Left Sidebar - Instructions & Items -->
+        <div class="w-80 pr-4 flex flex-col">
+            <!-- Compact Instructions -->
+            <div class="bg-white rounded-lg shadow-md p-3 mb-3">
+                <h2 class="text-lg font-bold text-gray-800 mb-2 text-center">📋 How to Play</h2>
+                <div class="space-y-2 text-sm">
+                    <div class="flex items-center">
+                        <span class="text-2xl mr-2">👆</span>
+                        <span><strong>Drag</strong> items to matching colored zones</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="text-2xl mr-2">🎯</span>
+                        <span><strong>Drop</strong> in correct categories</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="text-2xl mr-2">🏆</span>
+                        <span><strong>Complete</strong> all connections</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Draggable Items Pool -->
+            <div class="bg-white rounded-lg shadow-md p-3 flex-1 overflow-y-auto">
+                <h2 class="text-lg font-bold text-gray-800 mb-3 text-center">🎯 Drag Items</h2>
+                <div class="space-y-2" id="itemsPool">
+                    <!-- Items will be shuffled and inserted here by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Concept Map Area -->
+        <div class="flex-1 pl-4">
+            <div class="mind-map-container bg-white rounded-lg shadow-md h-full relative overflow-hidden">
+                <!-- Central Node -->
+                <div class="central-node">
+                    <div class="concept-node bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full p-4 text-center shadow-xl">
+                        <div class="text-3xl mb-1">🏖️</div>
+                        <h2 class="text-lg font-bold">Beach Safety</h2>
+                        <p class="text-xs opacity-90">Core Concept</p>
+                    </div>
+                </div>
+
+                <!-- Branch Nodes (Drop Zones) -->
+                <div class="branch-node drop-zone" id="sunSafety" data-category="sun" style="top: 8%; left: 8%;">
+                    <div class="concept-node bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg p-3 text-center shadow-lg w-44">
+                        <div class="text-2xl mb-1">☀️</div>
+                        <h3 class="text-sm font-bold">Sun Safety</h3>
+                        <div class="mt-2 min-h-20 border-2 border-dashed border-yellow-300 rounded-lg p-1" id="sunItems">
+                            <p class="text-xs opacity-75">Drop here</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch-node drop-zone" id="waterSafety" data-category="water" style="top: 8%; right: 8%;">
+                    <div class="concept-node bg-gradient-to-r from-blue-400 to-cyan-500 text-white rounded-lg p-3 text-center shadow-lg w-44">
+                        <div class="text-2xl mb-1">🌊</div>
+                        <h3 class="text-sm font-bold">Water Safety</h3>
+                        <div class="mt-2 min-h-20 border-2 border-dashed border-blue-300 rounded-lg p-1" id="waterItems">
+                            <p class="text-xs opacity-75">Drop here</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch-node drop-zone" id="emergencyPrep" data-category="emergency" style="bottom: 8%; left: 8%;">
+                    <div class="concept-node bg-gradient-to-r from-red-400 to-pink-500 text-white rounded-lg p-3 text-center shadow-lg w-44">
+                        <div class="text-2xl mb-1">🚨</div>
+                        <h3 class="text-sm font-bold">Emergency Prep</h3>
+                        <div class="mt-2 min-h-20 border-2 border-dashed border-red-300 rounded-lg p-1" id="emergencyItems">
+                            <p class="text-xs opacity-75">Drop here</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="branch-node drop-zone" id="beachEssentials" data-category="essentials" style="bottom: 8%; right: 8%;">
+                    <div class="concept-node bg-gradient-to-r from-green-400 to-teal-500 text-white rounded-lg p-3 text-center shadow-lg w-44">
+                        <div class="text-2xl mb-1">🎒</div>
+                        <h3 class="text-sm font-bold">Beach Essentials</h3>
+                        <div class="mt-2 min-h-20 border-2 border-dashed border-green-300 rounded-lg p-1" id="essentialItems">
+                            <p class="text-xs opacity-75">Drop here</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connection Lines -->
+                <div class="connection-line" id="line1" style="top: 30%; left: 30%; width: 20%; transform: rotate(-25deg);"></div>
+                <div class="connection-line" id="line2" style="top: 30%; right: 30%; width: 20%; transform: rotate(25deg);"></div>
+                <div class="connection-line" id="line3" style="bottom: 30%; left: 30%; width: 20%; transform: rotate(25deg);"></div>
+                <div class="connection-line" id="line4" style="bottom: 30%; right: 30%; width: 20%; transform: rotate(-25deg);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Completion Message -->
+    <div id="completionMessage" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-gradient-to-r from-green-400 to-blue-500 text-white rounded-xl shadow-2xl p-6 text-center max-w-md mx-4">
+            <div class="text-4xl mb-3 celebration">🎉</div>
+            <h2 class="text-xl font-bold mb-3">Congratulations! 🏆</h2>
+            <p class="text-sm mb-4">You've completed the Beach Safety Concept Map!</p>
+            <div class="flex justify-center space-x-3">
+                <button onclick="resetMap()" class="bg-white text-blue-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-all text-sm">
+                    🔄 Try Again
+                </button>
+                <button onclick="showSummary()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-all text-sm">
+                    📋 Summary
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Modal -->
+    <div id="summaryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-xl shadow-2xl p-8 max-w-4xl w-full max-h-screen overflow-y-auto">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 text-center">🏖️ Beach Safety Summary</h2>
+            
+            <!-- Main Content Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <!-- Sun Safety -->
+                <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-6 border-2 border-yellow-200">
+                    <div class="flex items-center mb-4">
+                        <div class="text-4xl mr-3">☀️</div>
+                        <h3 class="text-xl font-bold text-yellow-700">Sun Safety</h3>
+                    </div>
+                    <ul class="text-gray-700 space-y-2 text-base">
+                        <li class="flex items-start">
+                            <span class="text-yellow-500 mr-2 font-bold">•</span>
+                            <span>Apply SPF 30+ sunscreen every 2 hours and after swimming</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-yellow-500 mr-2 font-bold">•</span>
+                            <span>Wear UV-protective sunglasses to protect your eyes</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-yellow-500 mr-2 font-bold">•</span>
+                            <span>Use wide-brimmed hats for face and neck protection</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-yellow-500 mr-2 font-bold">•</span>
+                            <span>Seek shade during peak sun hours (10am-4pm)</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Water Safety -->
+                <div class="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-6 border-2 border-blue-200">
+                    <div class="flex items-center mb-4">
+                        <div class="text-4xl mr-3">🌊</div>
+                        <h3 class="text-xl font-bold text-blue-700">Water Safety</h3>
+                    </div>
+                    <ul class="text-gray-700 space-y-2 text-base">
+                        <li class="flex items-start">
+                            <span class="text-blue-500 mr-2 font-bold">•</span>
+                            <span>Never swim alone - always use the buddy system</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-blue-500 mr-2 font-bold">•</span>
+                            <span>Stay within designated swimming areas near lifeguards</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-blue-500 mr-2 font-bold">•</span>
+                            <span>Check beach warning flags before entering water</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-blue-500 mr-2 font-bold">•</span>
+                            <span>Be aware of rip currents and how to escape them</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Emergency Preparedness -->
+                <div class="bg-gradient-to-br from-red-50 to-pink-50 rounded-lg p-6 border-2 border-red-200">
+                    <div class="flex items-center mb-4">
+                        <div class="text-4xl mr-3">🚨</div>
+                        <h3 class="text-xl font-bold text-red-700">Emergency Preparedness</h3>
+                    </div>
+                    <ul class="text-gray-700 space-y-2 text-base">
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2 font-bold">•</span>
+                            <span>Pack a waterproof first aid kit with basic supplies</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2 font-bold">•</span>
+                            <span>Keep emergency contacts accessible and phone charged</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2 font-bold">•</span>
+                            <span>Carry a safety whistle for attracting attention</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-red-500 mr-2 font-bold">•</span>
+                            <span>Know the location of nearest lifeguard station</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Beach Essentials -->
+                <div class="bg-gradient-to-br from-green-50 to-teal-50 rounded-lg p-6 border-2 border-green-200">
+                    <div class="flex items-center mb-4">
+                        <div class="text-4xl mr-3">🎒</div>
+                        <h3 class="text-xl font-bold text-green-700">Beach Essentials</h3>
+                    </div>
+                    <ul class="text-gray-700 space-y-2 text-base">
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2 font-bold">•</span>
+                            <span>Bring plenty of fresh water to stay hydrated</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2 font-bold">•</span>
+                            <span>Use beach umbrellas or pop-up tents for shade</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2 font-bold">•</span>
+                            <span>Pack extra towels and dry clothes</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="text-green-500 mr-2 font-bold">•</span>
+                            <span>Bring healthy snacks to maintain energy levels</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Key Reminders Section -->
+            <div class="bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg p-6 mb-6 border-2 border-purple-200">
+                <h3 class="text-xl font-bold text-purple-700 mb-4 text-center">🎯 Key Safety Reminders</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                    <div class="bg-white rounded-lg p-4 shadow-sm">
+                        <div class="text-2xl mb-2">⏰</div>
+                        <p class="text-sm font-semibold text-gray-700">Check weather and tide conditions before going</p>
+                    </div>
+                    <div class="bg-white rounded-lg p-4 shadow-sm">
+                        <div class="text-2xl mb-2">👨‍👩‍👧‍👦</div>
+                        <p class="text-sm font-semibold text-gray-700">Always tell someone your beach plans</p>
+                    </div>
+                    <div class="bg-white rounded-lg p-4 shadow-sm">
+                        <div class="text-2xl mb-2">🏃‍♂️</div>
+                        <p class="text-sm font-semibold text-gray-700">Know your swimming abilities and limits</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Close Button -->
+            <div class="text-center">
+                <button onclick="closeSummary()" class="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-3 rounded-lg font-semibold hover:from-blue-600 hover:to-purple-700 transition-all text-lg shadow-lg">
+                    ✅ Got It! Close Summary
+                </button>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script>
+        let draggedElement = null;
+        let completedItems = 0;
+        let totalItems = 12;
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        // Initialize drag and drop functionality
+        function initializeDragAndDrop() {
+            const draggables = document.querySelectorAll('.draggable');
+            const dropZones = document.querySelectorAll('.drop-zone');
+
+            draggables.forEach(draggable => {
+                // Mouse events
+                draggable.addEventListener('mousedown', handleMouseDown);
+                draggable.addEventListener('dragstart', handleDragStart);
+                draggable.addEventListener('dragend', handleDragEnd);
+
+                // Touch events
+                draggable.addEventListener('touchstart', handleTouchStart, { passive: false });
+                draggable.addEventListener('touchmove', handleTouchMove, { passive: false });
+                draggable.addEventListener('touchend', handleTouchEnd, { passive: false });
+            });
+
+            dropZones.forEach(zone => {
+                zone.addEventListener('dragover', handleDragOver);
+                zone.addEventListener('drop', handleDrop);
+                zone.addEventListener('dragenter', handleDragEnter);
+                zone.addEventListener('dragleave', handleDragLeave);
+            });
+        }
+
+        // Mouse event handlers
+        function handleMouseDown(e) {
+            this.draggable = true;
+        }
+
+        function handleDragStart(e) {
+            draggedElement = this;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/html', this.outerHTML);
+        }
+
+        function handleDragEnd(e) {
+            this.classList.remove('dragging');
+            draggedElement = null;
+        }
+
+        // Touch event handlers
+        function handleTouchStart(e) {
+            e.preventDefault();
+            draggedElement = this;
+            this.classList.add('dragging');
+            
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+            
+            // Create a visual feedback
+            this.style.position = 'fixed';
+            this.style.zIndex = '1000';
+            this.style.pointerEvents = 'none';
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (!draggedElement) return;
+
+            const touch = e.touches[0];
+            const deltaX = touch.clientX - touchStartX;
+            const deltaY = touch.clientY - touchStartY;
+            
+            draggedElement.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.1)`;
+        }
+
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            if (!draggedElement) return;
+
+            const touch = e.changedTouches[0];
+            const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+            const dropZone = elementBelow?.closest('.drop-zone');
+
+            if (dropZone) {
+                handleItemDrop(draggedElement, dropZone);
+            } else {
+                // Return to original position
+                resetDraggedElement();
+            }
+
+            draggedElement.classList.remove('dragging');
+            draggedElement = null;
+        }
+
+        // Drag over handlers
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+
+        function handleDragEnter(e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            this.classList.remove('drag-over');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            
+            if (draggedElement) {
+                handleItemDrop(draggedElement, this);
+            }
+        }
+
+        // Handle item drop logic
+        function handleItemDrop(item, dropZone) {
+            const itemCategory = item.dataset.category;
+            const zoneCategory = dropZone.dataset.category;
+
+            if (itemCategory === zoneCategory) {
+                // Correct drop
+                dropZone.classList.add('correct');
+                setTimeout(() => dropZone.classList.remove('correct'), 600);
+                
+                // Move item to drop zone
+                const targetContainer = dropZone.querySelector('[id$="Items"]');
+                const clonedItem = item.cloneNode(true);
+                clonedItem.classList.remove('draggable', 'dragging');
+                clonedItem.classList.add('dropped-item', 'bg-white', 'border', 'border-gray-300', 'rounded', 'p-1', 'mb-1', 'text-center');
+                clonedItem.style.transform = '';
+                clonedItem.style.position = '';
+                clonedItem.style.zIndex = '';
+                clonedItem.style.pointerEvents = '';
+                
+                // Make dropped items smaller
+                const emoji = clonedItem.querySelector('div');
+                const text = clonedItem.querySelector('p');
+                if (emoji) emoji.className = 'text-lg mb-0';
+                if (text) text.className = 'font-semibold text-xs';
+                
+                targetContainer.appendChild(clonedItem);
+                
+                // Remove original item
+                item.remove();
+                
+                // Update progress
+                completedItems++;
+                updateProgress();
+                
+                // Show connection line
+                showConnectionLine(zoneCategory);
+                
+                // Check if completed
+                if (completedItems === totalItems) {
+                    setTimeout(showCompletion, 1000);
+                }
+                
+                // Play success sound (visual feedback)
+                createSuccessEffect(dropZone);
+                
+            } else {
+                // Incorrect drop
+                dropZone.classList.add('incorrect');
+                setTimeout(() => dropZone.classList.remove('incorrect'), 500);
+                resetDraggedElement();
+                
+                // Show hint
+                showHint(itemCategory);
+            }
+        }
+
+        function resetDraggedElement() {
+            if (draggedElement) {
+                draggedElement.style.transform = '';
+                draggedElement.style.position = '';
+                draggedElement.style.zIndex = '';
+                draggedElement.style.pointerEvents = '';
+            }
+        }
+
+        function updateProgress() {
+            const percentage = (completedItems / totalItems) * 100;
+            document.getElementById('progressBar').style.width = percentage + '%';
+            document.getElementById('progressText').textContent = `${completedItems}/${totalItems} Complete`;
+        }
+
+        function showConnectionLine(category) {
+            const lineMap = {
+                'sun': 'line1',
+                'water': 'line2',
+                'emergency': 'line3',
+                'essentials': 'line4'
+            };
+            
+            const lineId = lineMap[category];
+            if (lineId) {
+                document.getElementById(lineId).classList.add('active');
+            }
+        }
+
+        function createSuccessEffect(element) {
+            const effect = document.createElement('div');
+            effect.innerHTML = '✨';
+            effect.style.position = 'absolute';
+            effect.style.fontSize = '2rem';
+            effect.style.top = '50%';
+            effect.style.left = '50%';
+            effect.style.transform = 'translate(-50%, -50%)';
+            effect.style.animation = 'bounce 0.6s ease-in-out';
+            effect.style.pointerEvents = 'none';
+            
+            element.appendChild(effect);
+            setTimeout(() => effect.remove(), 600);
+        }
+
+        function showHint(category) {
+            const hints = {
+                'sun': 'Try the yellow Sun Safety section! ☀️',
+                'water': 'Try the blue Water Safety section! 🌊',
+                'emergency': 'Try the red Emergency Prep section! 🚨',
+                'essentials': 'Try the green Beach Essentials section! 🎒'
+            };
+            
+            const hint = document.createElement('div');
+            hint.className = 'fixed top-4 right-4 bg-yellow-100 border-2 border-yellow-400 text-yellow-800 px-4 py-2 rounded-lg shadow-lg z-50';
+            hint.innerHTML = `💡 ${hints[category]}`;
+            
+            document.body.appendChild(hint);
+            setTimeout(() => hint.remove(), 3000);
+        }
+
+        function showCompletion() {
+            document.getElementById('completionMessage').classList.remove('hidden');
+            
+            // Add celebration effects
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => {
+                    createFloatingEmoji();
+                }, i * 200);
+            }
+        }
+
+        function createFloatingEmoji() {
+            const emojis = ['🎉', '🏆', '⭐', '🌟', '✨', '🎊'];
+            const emoji = document.createElement('div');
+            emoji.innerHTML = emojis[Math.floor(Math.random() * emojis.length)];
+            emoji.style.position = 'fixed';
+            emoji.style.fontSize = '2rem';
+            emoji.style.left = Math.random() * window.innerWidth + 'px';
+            emoji.style.top = '-50px';
+            emoji.style.animation = 'float 3s ease-in-out forwards';
+            emoji.style.pointerEvents = 'none';
+            emoji.style.zIndex = '1000';
+            
+            document.body.appendChild(emoji);
+            setTimeout(() => emoji.remove(), 3000);
+        }
+
+        function resetMap() {
+            // Reset all variables
+            completedItems = 0;
+            updateProgress();
+            
+            // Hide completion message
+            document.getElementById('completionMessage').classList.add('hidden');
+            
+            // Remove all dropped items
+            document.querySelectorAll('.dropped-item').forEach(item => item.remove());
+            
+            // Reset drop zone content
+            document.querySelectorAll('[id$="Items"]').forEach(container => {
+                container.innerHTML = '<p class="text-xs opacity-75">Drop here</p>';
+            });
+            
+            // Hide connection lines
+            document.querySelectorAll('.connection-line').forEach(line => {
+                line.classList.remove('active');
+            });
+            
+            // Recreate and shuffle draggable items
+            createDraggableItems();
+            initializeDragAndDrop();
+        }
+
+        function showSummary() {
+            document.getElementById('summaryModal').classList.remove('hidden');
+        }
+
+        function closeSummary() {
+            document.getElementById('summaryModal').classList.add('hidden');
+        }
+
+        // Create and shuffle draggable items
+        function createDraggableItems() {
+            const items = [
+                // Sun Safety Items
+                { category: 'sun', item: 'sunscreen', emoji: '🧴', text: 'Sunscreen SPF 30+' },
+                { category: 'sun', item: 'sunglasses', emoji: '🕶️', text: 'UV Sunglasses' },
+                { category: 'sun', item: 'hat', emoji: '👒', text: 'Wide-brimmed Hat' },
+                
+                // Water Safety Items
+                { category: 'water', item: 'buddy', emoji: '👥', text: 'Buddy System' },
+                { category: 'water', item: 'lifeguard', emoji: '🏊‍♂️', text: 'Stay Near Lifeguards' },
+                { category: 'water', item: 'flags', emoji: '🚩', text: 'Check Beach Flags' },
+                
+                // Emergency Prep Items
+                { category: 'emergency', item: 'firstaid', emoji: '🩹', text: 'First Aid Kit' },
+                { category: 'emergency', item: 'phone', emoji: '📱', text: 'Emergency Contacts' },
+                { category: 'emergency', item: 'whistle', emoji: '📯', text: 'Safety Whistle' },
+                
+                // Beach Essentials Items
+                { category: 'essentials', item: 'water', emoji: '💧', text: 'Plenty of Water' },
+                { category: 'essentials', item: 'umbrella', emoji: '☂️', text: 'Beach Umbrella' },
+                { category: 'essentials', item: 'towels', emoji: '🏖️', text: 'Towels & Clothes' }
+            ];
+
+            // Shuffle the items array
+            for (let i = items.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [items[i], items[j]] = [items[j], items[i]];
+            }
+
+            // Create HTML elements for shuffled items
+            const itemsPool = document.getElementById('itemsPool');
+            itemsPool.innerHTML = '';
+
+            items.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'draggable bg-gray-100 border-2 border-gray-300 rounded-lg p-2 text-center hover:shadow-lg cursor-grab hover:bg-gray-200 transition-all';
+                itemElement.setAttribute('data-category', item.category);
+                itemElement.setAttribute('data-item', item.item);
+                
+                itemElement.innerHTML = `
+                    <div class="text-2xl mb-1">${item.emoji}</div>
+                    <p class="font-semibold text-gray-800 text-xs">${item.text}</p>
+                `;
+                
+                itemsPool.appendChild(itemElement);
+            });
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            createDraggableItems();
+            initializeDragAndDrop();
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'975823861586aaac',t:'MTc1NjI2MTc0MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

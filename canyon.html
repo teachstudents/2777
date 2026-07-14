@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grand Canyon Listening Game (Educational)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a202c; color: white; overflow: hidden; }
+        
+        /* Layout Utilities */
+        .game-layout { display: grid; grid-template-rows: 20vh 40vh 30vh 10vh; height: 100vh; width: 100vw; }
+        
+        /* Header / Question Area */
+        .question-header { 
+            background: #2f855a; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            font-size: 2.5rem; 
+            font-weight: bold; 
+            text-align: center;
+            padding: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            text-shadow: 1px 1px 2px black;
+            border-bottom: 4px solid #276749;
+        }
+        .gap-word { text-decoration: underline; color: #fbd38d; margin: 0 0.5rem; }
+
+        /* Button Areas */
+        .buttons-area { display: grid; grid-template-columns: 1fr 200px 1fr; gap: 2rem; padding: 1rem; align-items: center; }
+        
+        .player-buttons { display: flex; flex-direction: column; gap: 1rem; }
+        .choice-btn { 
+            background: white; 
+            color: #2d3748; 
+            border: 4px solid #cbd5e0; 
+            border-radius: 12px; 
+            padding: 1.5rem; 
+            font-size: 1.5rem; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: transform 0.1s;
+        }
+        .choice-btn:active { transform: scale(0.95); }
+        .choice-btn.correct { background: #48bb78; color: white; border-color: #2f855a; }
+        .choice-btn.wrong { background: #f56565; color: white; border-color: #c53030; }
+        .choice-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        /* Center Info */
+        .center-info { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .round-card-label { font-size: 1.2rem; color: #a0aec0; letter-spacing: 2px; text-transform: uppercase; }
+        .round-card-val { font-size: 3rem; font-weight: 900; color: #fbd38d; }
+
+        /* Score Area */
+        .score-area { display: grid; grid-template-columns: 1fr 1fr; padding: 0 4rem; align-items: start; }
+        .player-card { text-align: center; background: rgba(255,255,255,0.1); padding: 1rem; rounded-xl; }
+        .p-name { font-size: 1.5rem; color: #e2e8f0; margin-bottom: 0.5rem; }
+        .p-score { font-size: 4rem; font-weight: bold; line-height: 1; }
+        .p1-color { color: #63b3ed; }
+        .p2-color { color: #fc8181; }
+
+        /* Timer */
+        .timer-area { padding: 1rem 4rem; display: flex; align-items: center; }
+        .progress-bg { width: 100%; height: 20px; background: #4a5568; border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #ecc94b; width: 100%; transition: width 0.1s linear; }
+
+        /* Teaching Phase Styling */
+        .teaching-overlay { position: absolute; inset: 0; background: #2d3748; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: start; padding: 4rem 2rem; text-align: center; }
+        .teach-header-text { font-size: 2.5rem; color: #48bb78; font-weight: bold; margin-bottom: 3rem; text-transform: uppercase; letter-spacing: 2px; line-height: 1.1; max-width: 90%; }
+        .teach-text { font-size: 3.5rem; color: white; line-height: 1.3; animation: fadeIn 0.5s; max-width: 90%; font-weight: 600; margin-top: 2rem; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Setup/Roster Screens */
+        .setup-screen { position: absolute; inset: 0; background: #f0fdf4; color: #1a202c; z-index: 100; padding: 2rem; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+    <!-- SETUP: Grade Select -->
+    <div id="view-setup" class="setup-screen flex flex-col items-center justify-center space-y-8">
+        <h1 class="text-4xl font-bold text-green-800">Canyon Conflict Listening Game</h1>
+        <h2 class="text-2xl text-gray-600">Select Grade Level</h2>
+        <div class="flex space-x-6">
+            <button onclick="game.loadGrade(10)" class="bg-white border-2 border-green-600 text-green-800 px-8 py-4 rounded-xl text-2xl font-bold hover:bg-green-50 shadow-lg">Grade 10</button>
+            <button onclick="game.loadGrade(11)" class="bg-white border-2 border-green-600 text-green-800 px-8 py-4 rounded-xl text-2xl font-bold hover:bg-green-50 shadow-lg">Grade 11</button>
+            <button onclick="game.loadGrade(12)" class="bg-white border-2 border-green-600 text-green-800 px-8 py-4 rounded-xl text-2xl font-bold hover:bg-green-50 shadow-lg">Grade 12</button>
+        </div>
+    </div>
+
+    <!-- SETUP: Roster -->
+    <div id="view-roster" class="setup-screen hidden">
+        <div class="max-w-6xl mx-auto">
+            <h2 class="text-3xl font-bold text-center mb-6">Attendance Check: Grade <span id="grade-label"></span></h2>
+            <p class="text-center text-gray-500 mb-6">Click to deselect absent students.</p>
+            <div id="student-grid" class="grid grid-cols-4 gap-4 mb-8"></div>
+            <button onclick="game.startFullSequence()" class="w-full bg-green-600 text-white py-6 rounded-xl text-3xl font-bold hover:bg-green-700 shadow-xl transition-transform hover:scale-105">
+                START GAME
+            </button>
+        </div>
+    </div>
+
+    <!-- GAMEPLAY: Teaching View -->
+    <div id="view-teaching" class="teaching-overlay hidden">
+        <!-- Topic in Header area logic -->
+        <div id="teach-header" class="teach-header-text"></div>
+        <div id="teach-sentence" class="teach-text"></div>
+        <div class="mt-auto text-gray-400 text-xl" id="teach-counter"></div>
+    </div>
+
+    <!-- GAMEPLAY: Selection View -->
+    <div id="view-selection" class="teaching-overlay hidden bg-indigo-900 justify-center">
+        <h2 class="text-4xl font-bold mb-12">Next Matchup</h2>
+        <div class="flex items-center space-x-12 text-5xl font-bold">
+            <div class="text-blue-400" id="sel-p1">Player 1</div>
+            <div class="text-yellow-400 text-6xl">VS</div>
+            <div class="text-red-400" id="sel-p2">Player 2</div>
+        </div>
+        <div class="mt-12 text-yellow-300 text-6xl font-mono" id="sel-timer">6</div>
+        <p class="text-xl text-gray-300 mt-4">Get to the board!</p>
+    </div>
+
+    <!-- GAMEPLAY: Main Game Board -->
+    <div id="view-game" class="game-layout hidden">
+        <!-- Top Header: Gap Fill Question -->
+        <div id="q-header" class="question-header">
+            <!-- Text injected here -->
+        </div>
+
+        <!-- Middle: Buttons & Info -->
+        <div class="buttons-area">
+            <!-- P1 Buttons -->
+            <div id="p1-btns" class="player-buttons"></div>
+            
+            <!-- Center Info -->
+            <div class="center-info">
+                <div class="round-card-label">Round</div>
+                <div id="disp-round" class="round-card-val text-white">1</div>
+                <div class="round-card-label mt-4">Card</div>
+                <div id="disp-card" class="round-card-val">1/7</div>
+            </div>
+
+            <!-- P2 Buttons -->
+            <div id="p2-btns" class="player-buttons"></div>
+        </div>
+
+        <!-- Lower: Scores -->
+        <div class="score-area">
+            <div class="player-card">
+                <div id="game-p1-name" class="p-name p1-color">Player 1</div>
+                <div id="game-p1-score" class="p-score text-white">0</div>
+            </div>
+            <div class="player-card">
+                <div id="game-p2-name" class="p-name p2-color">Player 2</div>
+                <div id="game-p2-score" class="p-score text-white">0</div>
+            </div>
+        </div>
+
+        <!-- Bottom: Timer -->
+        <div class="timer-area">
+            <div class="progress-bg">
+                <div id="timer-bar" class="progress-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- END: Championship -->
+    <div id="view-end" class="setup-screen hidden flex flex-col items-center justify-center">
+        <h1 class="text-5xl font-bold text-yellow-600 mb-8"><i class="fas fa-trophy"></i> Championship</h1>
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl">
+            <ul id="leaderboard" class="space-y-4 text-2xl"></ul>
+        </div>
+        <button onclick="location.reload()" class="mt-8 bg-blue-600 text-white px-8 py-4 rounded-lg text-xl">Play Again</button>
+    </div>
+
+<script>
+/* --- SOUNDS (Persistent Context) --- */
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function playTone(freq, type, duration) {
+    if (!audioCtx) initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+    osc.stop(audioCtx.currentTime + duration);
+}
+
+function sfxCorrect() { 
+    playTone(600, 'sine', 0.1); 
+    setTimeout(() => playTone(800, 'sine', 0.2), 100);
+    
+    // Confetti effect
+    confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+    });
+}
+
+function sfxWrong() { playTone(200, 'sawtooth', 0.3); }
+
+/* --- DATA --- */
+const CONFIG = {
+    rounds: 8,
+    cardsPerRound: 7,
+    speechRate: 0.85,
+    teachSpeed: 3000, 
+    selectTime: 6,
+    qTime: 15,
+    resultPause: 2000 
+};
+
+// Updated ROSTERS with provided names
+const ROSTERS = {
+    10: ["Dino", "Tracy", "Andrew", "Billie", "Von Tony", "Jim", "Apollo", "Mark", "Leo", "Mike", "Lion", "Tony", "Howlin", "Steven", "Billie"],
+    11: ["Iris", "Max", "Cathy", "Sandy", "Vicky", "Jim", "Jackie", "Jay", "Grace", "Emily", "Rhea"],
+    12: ["Anna", "Mia", "Kenn", "Max", "Sky", "SHENG", "KEYING", "ZIFAN", "SIFEI", "JIAQI", "Zack", "Azure", "Joe Joe"]
+};
+
+// 56 Question Set (Educational Focus: Stakeholders)
+const ALL_QUESTIONS = [
+    // Round 1: The Havasupai Tribe (The Protectors)
+    { q: "The tribe lives at the [bottom] of the Canyon.", d: ["top", "edge"] },
+    { q: "Havasupai means People of the [Blue-Green] Water.", d: ["Red-Rock", "Deep-Blue"] },
+    { q: "They have lived there for [800] years.", d: ["100", "50"] },
+    { q: "The tribe is small, only [776] members.", d: ["5000", "200"] },
+    { q: "Red [Butte] Mountain is sacred to them.", d: ["Rock", "River"] },
+    { q: "They fear becoming an [endangered] species.", d: ["invasive", "unknown"] },
+    { q: "They call contamination a [death] sentence.", d: ["life", "prison"] },
+
+    // Round 2: Energy Fuels Inc. (The Company)
+    { q: "The company is called [Energy] Fuels.", d: ["Arizona", "Canyon"] },
+    { q: "They want to mine [Uranium] ore.", d: ["Gold", "Coal"] },
+    { q: "They say uranium provides [clean] energy.", d: ["dirty", "cheap"] },
+    { q: "The mine is the [Pinyon] Plain Mine.", d: ["Navajo", "Kaibab"] },
+    { q: "They say the mine is [safe].", d: ["risky", "old"] },
+    { q: "They operate on [private] land.", d: ["public", "tribal"] },
+    { q: "They promise to protect the [groundwater].", d: ["air", "view"] },
+
+    // Round 3: The Government (The Lawmakers)
+    { q: "The mining law is from the year [1872].", d: ["1980", "2023"] },
+    { q: "President Biden created a National [Monument].", d: ["Park", "Forest"] },
+    { q: "The mine has [valid] existing rights.", d: ["fake", "no"] },
+    { q: "The mine is in the [Kaibab] National Forest.", d: ["Tonto", "Puerco"] },
+    { q: "The [USGS] monitors the water wells.", d: ["NASA", "FBI"] },
+    { q: "Courts say the mine is [legal].", d: ["wrong", "closed"] },
+    { q: "The government must follow the [law].", d: ["tribe", "company"] },
+
+    // Round 4: The Water (The Science)
+    { q: "The tribe's water comes from an [aquifer].", d: ["river", "lake"] },
+    { q: "The aquifer is called Redwall-[Muav].", d: ["Blue", "Green"] },
+    { q: "They get [96] percent of water there.", d: ["50", "10"] },
+    { q: "Water moves through [cracks] in the rock.", d: ["pipes", "sand"] },
+    { q: "Faults act like fluid [superhighways].", d: ["streets", "paths"] },
+    { q: "The Colorado River helps [40] million people.", d: ["10", "100"] },
+    { q: "Uranium dissolves easily in [water].", d: ["oil", "air"] },
+
+    // Round 5: Wildlife (The Victims)
+    { q: "Animals drink from the [retention] pond.", d: ["swimming", "fish"] },
+    { q: "The water has [3] times the safe radiation.", d: ["10", "2"] },
+    { q: "Pollution causes a [chain] reaction.", d: ["fast", "slow"] },
+    { q: "The California [Condor] is a rare bird.", d: ["Eagle", "Hawk"] },
+    { q: "Mining hurts [fragile] ecosystems.", d: ["strong", "big"] },
+    { q: "Sheep and [deer] drink the water.", d: ["fish", "bears"] },
+    { q: "We must protect [biodiversity].", d: ["buildings", "money"] },
+
+    // Round 6: Key Vocabulary 1 (Verbs & Nouns)
+    { q: "Making water dirty is [contamination].", d: ["cleaning", "drinking"] },
+    { q: "To keep safe means to [preserve].", d: ["destroy", "sell"] },
+    { q: "Something holy is called [sacred].", d: ["scary", "secret"] },
+    { q: "To eat or drink means to [consume].", d: ["play", "watch"] },
+    { q: "Waste rocks are called [tailings].", d: ["trash", "dust"] },
+    { q: "A mix of rock and metal is [ore].", d: ["gold", "stone"] },
+    { q: "To organize a protest is to [mobilize].", d: ["run", "sleep"] },
+
+    // Round 7: Key Vocabulary 2 (Adjectives)
+    { q: "Perfectly clean land is [pristine].", d: ["dirty", "old"] },
+    { q: "At risk of dying out means [endangered].", d: ["safe", "common"] },
+    { q: "Connected together means [interconnected].", d: ["separated", "broken"] },
+    { q: "Cannot be passed through means [impermeable].", d: ["open", "soft"] },
+    { q: "Very important means [pivotal].", d: ["small", "boring"] },
+    { q: "Related to family history is [ancestral].", d: ["future", "modern"] },
+    { q: "Able to move quickly means [nimble].", d: ["slow", "heavy"] },
+
+    // Round 8: The Data (Metric Facts)
+    { q: "The mine is [10] kilometers away.", d: ["50", "100"] },
+    { q: "The shaft is [450] meters deep.", d: ["100", "1000"] },
+    { q: "They removed [32] million liters of water.", d: ["5", "100"] },
+    { q: "The spill was in [1979].", d: ["2020", "1800"] },
+    { q: "There are [500] abandoned mines.", d: ["50", "10"] },
+    { q: "The ore weighs [84] million tons.", d: ["10", "5"] },
+    { q: "The canyon is [1600] meters deep.", d: ["100", "500"] }
+];
+
+// Round Names mapping
+const ROUND_TITLES = [
+    "The Havasupai Tribe (The Protectors)",
+    "Energy Fuels Inc. (The Company)",
+    "The Government (The Lawmakers)",
+    "The Water (The Science)",
+    "Wildlife (The Victims)",
+    "Key Vocabulary 1 (Verbs & Nouns)",
+    "Key Vocabulary 2 (Adjectives)",
+    "The Data (Metric Facts)"
+];
+
+/* --- ENGINE --- */
+const game = {
+    students: [],
+    activeStudents: [],
+    availableQueue: [], // For fair rotation
+    round: 1,
+    cardIndex: 0,
+    p1: null,
+    p2: null,
+    voices: [],
+    questionStartTime: 0,
+    currentTimer: null,
+    currentUtterance: null,
+    
+    init: function() {
+        window.speechSynthesis.onvoiceschanged = () => this.loadVoices();
+        this.loadVoices();
+    },
+
+    loadVoices: function() {
+        // Force specific Microsoft natural voices if available
+        const all = window.speechSynthesis.getVoices();
+        
+        // Helper to find voice or fallback
+        const findVoice = (name) => {
+            return all.find(v => v.name.includes(name) && v.name.includes("Multilingual")) || 
+                   all.find(v => v.name.includes(name)) ||
+                   all.find(v => v.lang.startsWith('en'));
+        };
+
+        const vBrian = findVoice("Brian");
+        const vAndrew = findVoice("Andrew");
+        const vAva = findVoice("Ava");
+        
+        // Sequence: Brian, Andrew, Ava, Andrew
+        // Fallback to whatever English voices are found if exact names missing
+        if (vBrian && vAndrew && vAva) {
+            this.voices = [vBrian, vAndrew, vAva, vAndrew];
+        } else {
+            // Robust fallback
+            const enVoices = all.filter(v => v.lang.startsWith('en'));
+            this.voices = [
+                enVoices[0] || null, 
+                enVoices[1] || enVoices[0] || null, 
+                enVoices[2] || enVoices[0] || null, 
+                enVoices[1] || enVoices[0] || null
+            ];
+        }
+    },
+
+    loadGrade: function(grade) {
+        this.students = ROSTERS[grade].map(n => ({ name: n, active: true, score: 0 }));
+        document.getElementById('grade-label').textContent = grade;
+        this.renderRoster();
+        this.switchView('view-setup', 'view-roster');
+    },
+
+    renderRoster: function() {
+        const grid = document.getElementById('student-grid');
+        grid.innerHTML = '';
+        this.students.forEach(s => {
+            const btn = document.createElement('div');
+            btn.className = `p-4 border-2 rounded-lg cursor-pointer text-center font-bold text-xl ${s.active ? 'bg-green-100 border-green-500 text-green-900' : 'bg-gray-200 border-gray-400 text-gray-400'}`;
+            btn.textContent = s.name;
+            btn.onclick = () => { s.active = !s.active; this.renderRoster(); };
+            grid.appendChild(btn);
+        });
+    },
+
+    switchView: function(from, to) {
+        document.getElementById(from).classList.add('hidden');
+        document.getElementById(to).classList.remove('hidden');
+    },
+
+    startFullSequence: function() {
+        initAudio(); // Activate Audio Context on user gesture
+        this.activeStudents = this.students.filter(s => s.active);
+        
+        if (this.activeStudents.length < 2) return alert("Select at least 2 students.");
+        
+        // Initialize Fair Rotation Queue
+        this.refillQueue();
+        
+        this.round = 1;
+        this.switchView('view-roster', 'view-teaching');
+        this.runTeachingPhase();
+    },
+
+    refillQueue: function() {
+        // Create a copy and shuffle using Fisher-Yates
+        let pool = [...this.activeStudents];
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        this.availableQueue = pool;
+    },
+
+    /* --- TEACHING PHASE --- */
+    runTeachingPhase: function() {
+        this.switchView('view-game', 'view-teaching');
+        document.getElementById('view-teaching').classList.remove('hidden');
+        
+        // Update header with round topic
+        document.getElementById('teach-header').textContent = ROUND_TITLES[this.round - 1];
+        
+        let tIndex = 0;
+        const startQ = (this.round - 1) * CONFIG.cardsPerRound;
+        const endQ = startQ + CONFIG.cardsPerRound;
+        const roundQs = ALL_QUESTIONS.slice(startQ, endQ);
+
+        // Recursive function with safety checks
+        const showNext = () => {
+            if (tIndex >= roundQs.length) {
+                this.currentUtterance = null;
+                setTimeout(() => this.runSelectionPhase(), 500);
+                return;
+            }
+            const q = roundQs[tIndex];
+            const cleanText = q.q.replace('[', '').replace(']', '');
+            
+            // Add spaces around gapfill for better visibility
+            const spacedHtml = q.q.replace('[', ' <span class="text-green-400">').replace(']', '</span> ');
+            document.getElementById('teach-sentence').innerHTML = spacedHtml;
+            document.getElementById('teach-counter').textContent = `Fact ${tIndex + 1} of ${CONFIG.cardsPerRound}`;
+            
+            // TTS with explicit error handling and persistent variable
+            window.speechSynthesis.cancel(); // Clear any stuck speech
+            
+            const u = new SpeechSynthesisUtterance(cleanText);
+            this.currentUtterance = u; // Prevent GC
+            u.rate = CONFIG.speechRate;
+            
+            // Assign specific voices from our pre-loaded array
+            if(this.voices[tIndex % 4]) {
+                u.voice = this.voices[tIndex % 4];
+            }
+
+            u.onend = () => {
+                this.currentUtterance = null;
+                setTimeout(() => { 
+                    tIndex++; 
+                    showNext(); 
+                }, 1500);
+            };
+            
+            u.onerror = (e) => {
+                console.error("TTS Error:", e);
+                // Fallback to proceed if TTS fails
+                setTimeout(() => { 
+                    tIndex++; 
+                    showNext(); 
+                }, 3000);
+            };
+
+            window.speechSynthesis.speak(u);
+        };
+        
+        // Start the loop
+        showNext();
+    },
+
+    /* --- SELECTION PHASE --- */
+    runSelectionPhase: function() {
+        this.switchView('view-teaching', 'view-selection');
+        
+        // Fair Rotation Logic
+        if (this.availableQueue.length === 0) {
+            this.refillQueue();
+        }
+        
+        if (this.availableQueue.length < 2) {
+            const straggler = this.availableQueue.pop();
+            this.refillQueue();
+            this.p1 = straggler;
+            const idx = this.availableQueue.findIndex(s => s.name !== this.p1.name);
+            if (idx > -1) {
+                this.p2 = this.availableQueue.splice(idx, 1)[0];
+            } else {
+                this.p2 = this.activeStudents.find(s => s.name !== this.p1.name);
+            }
+        } else {
+            this.p1 = this.availableQueue.pop();
+            this.p2 = this.availableQueue.pop();
+        }
+        
+        let shuffleCount = 0;
+        const shuffleInterval = setInterval(() => {
+            const r1 = this.activeStudents[Math.floor(Math.random() * this.activeStudents.length)];
+            const r2 = this.activeStudents[Math.floor(Math.random() * this.activeStudents.length)];
+            document.getElementById('sel-p1').textContent = r1.name;
+            document.getElementById('sel-p2').textContent = r2.name;
+            shuffleCount++;
+            if(shuffleCount > 15) {
+                clearInterval(shuffleInterval);
+                document.getElementById('sel-p1').textContent = this.p1.name;
+                document.getElementById('sel-p2').textContent = this.p2.name;
+                this.startSelectionTimer();
+            }
+        }, 100);
+    },
+
+    startSelectionTimer: function() {
+        let time = CONFIG.selectTime;
+        document.getElementById('sel-timer').textContent = time;
+        const int = setInterval(() => {
+            time--;
+            document.getElementById('sel-timer').textContent = time;
+            if(time <= 0) {
+                clearInterval(int);
+                this.runRoundLoop();
+            }
+        }, 1000);
+    },
+
+    /* --- GAME LOOP --- */
+    runRoundLoop: function() {
+        this.switchView('view-selection', 'view-game');
+        document.getElementById('game-p1-name').textContent = this.p1.name;
+        document.getElementById('game-p2-name').textContent = this.p2.name;
+        document.getElementById('game-p1-score').textContent = this.p1.score;
+        document.getElementById('game-p2-score').textContent = this.p2.score;
+        document.getElementById('disp-round').textContent = this.round;
+        
+        this.cardIndex = 0;
+        this.playCard();
+    },
+
+    playCard: function() {
+        if (this.cardIndex >= CONFIG.cardsPerRound) {
+            this.round++;
+            if (this.round > CONFIG.rounds) this.endGame();
+            else this.runTeachingPhase();
+            return;
+        }
+
+        const globalIdx = ((this.round - 1) * CONFIG.cardsPerRound) + this.cardIndex;
+        const qData = ALL_QUESTIONS[globalIdx];
+        const correctAns = qData.q.match(/\[(.*?)\]/)[1];
+        
+        // TTS with silence for the answer
+        const audioText = qData.q.replace(/\[.*?\]/, ' ... '); 
+        const gapText = qData.q.replace(/\[.*?\]/, ' <span class="gap-word">_______</span> ');
+
+        document.getElementById('q-header').innerHTML = gapText;
+        document.getElementById('disp-card').textContent = `${this.cardIndex + 1}/${CONFIG.cardsPerRound}`;
+        
+        // Generate Buttons (Independent Shuffles)
+        const optsP1 = [correctAns, ...qData.d].sort(() => Math.random() - 0.5);
+        const optsP2 = [correctAns, ...qData.d].sort(() => Math.random() - 0.5);
+        
+        const makeBtn = (txt, isP1) => {
+            const b = document.createElement('button');
+            b.className = 'choice-btn';
+            b.textContent = txt;
+            b.onclick = () => this.handleAnswer(b, txt === correctAns, isP1);
+            return b;
+        };
+
+        const p1Div = document.getElementById('p1-btns');
+        const p2Div = document.getElementById('p2-btns');
+        p1Div.innerHTML = ''; p2Div.innerHTML = '';
+
+        optsP1.forEach(opt => {
+            p1Div.appendChild(makeBtn(opt, true));
+        });
+        optsP2.forEach(opt => {
+            p2Div.appendChild(makeBtn(opt, false));
+        });
+
+        // Speech handling
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(audioText);
+        this.currentUtterance = u;
+        u.rate = CONFIG.speechRate;
+        if(this.voices[this.cardIndex % 4]) {
+            u.voice = this.voices[this.cardIndex % 4];
+        }
+        window.speechSynthesis.speak(u);
+
+        this.startTimer();
+    },
+
+    startTimer: function() {
+        this.questionStartTime = Date.now();
+        const bar = document.getElementById('timer-bar');
+        bar.style.transition = 'none';
+        bar.style.width = '100%';
+        
+        setTimeout(() => {
+            bar.style.transition = `width ${CONFIG.qTime}s linear`;
+            bar.style.width = '0%';
+        }, 50);
+
+        if (this.currentTimer) clearTimeout(this.currentTimer);
+        
+        this.currentTimer = setTimeout(() => {
+            this.handleTimeOut();
+        }, CONFIG.qTime * 1000);
+    },
+
+    handleTimeOut: function() {
+        document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
+        sfxWrong();
+        this.revealAnswer();
+        setTimeout(() => this.finishCard(), CONFIG.resultPause);
+    },
+
+    handleAnswer: function(btn, isCorrect, isP1) {
+        clearTimeout(this.currentTimer);
+        document.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
+
+        if (isCorrect) {
+            btn.classList.add('correct');
+            sfxCorrect();
+            if(isP1) this.p1.score += 2; else this.p2.score += 2;
+        } else {
+            btn.classList.add('wrong');
+            sfxWrong();
+            if(isP1) this.p2.score += 2; else this.p1.score += 2;
+        }
+
+        this.updateScores();
+        this.revealAnswer();
+
+        const elapsed = Date.now() - this.questionStartTime;
+        const totalDuration = CONFIG.qTime * 1000;
+        const remaining = Math.max(0, totalDuration - elapsed);
+
+        setTimeout(() => {
+            this.finishCard();
+        }, remaining + CONFIG.resultPause);
+    },
+
+    revealAnswer: function() {
+        const globalIdx = ((this.round - 1) * CONFIG.cardsPerRound) + this.cardIndex;
+        const qData = ALL_QUESTIONS[globalIdx];
+        document.getElementById('q-header').innerHTML = qData.q.replace('[', ' <span class="text-yellow-300">').replace(']', '</span> ');
+    },
+
+    updateScores: function() {
+        document.getElementById('game-p1-score').textContent = this.p1.score;
+        document.getElementById('game-p2-score').textContent = this.p2.score;
+    },
+
+    finishCard: function() {
+        this.cardIndex++;
+        this.playCard();
+    },
+
+    endGame: function() {
+        this.switchView('view-game', 'view-end');
+        const list = document.getElementById('leaderboard');
+        const sorted = [...this.activeStudents].sort((a,b) => b.score - a.score);
+        list.innerHTML = sorted.slice(0,5).map((s,i) => `<li>#${i+1} <b>${s.name}</b>: ${s.score}</li>`).join('');
+    }
+};
+
+game.init();
+</script>
+</body>
+</html>

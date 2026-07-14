@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Northern Lights: A Celestial Spectacle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        @keyframes aurora-bg {
+            0% { background-color: #0c1445; }
+            25% { background-color: #111827; }
+            50% { background-color: #042f2e; }
+            75% { background-color: #111827; }
+            100% { background-color: #0c1445; }
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+            animation: aurora-bg 240s linear infinite;
+            padding-top: 85px; /* Adjusted padding for progress bar */
+        }
+        #background-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+        }
+        .page { display: none; position: relative; }
+        .page.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .action-button, .nav-button, .quiz-option, .tfng-button, .word-bank-word, .btn-animated-3d {
+            transition: all 0.15s ease-out;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -2px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+            border: none;
+        }
+        .action-button:hover, .nav-button:hover, .quiz-option:hover:not(:disabled), .tfng-button:hover:not(:disabled), .word-bank-word:hover, .btn-animated-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px -3px rgba(0,0,0,0.2), 0 4px 6px -4px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+        }
+        .action-button:active, .nav-button:active, .quiz-option:active, .tfng-button:active, .btn-animated-3d:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px -1px rgba(0,0,0,0.2), 0 1px 2px -2px rgba(0,0,0,0.1), inset 0 -2px 0 0 rgba(0,0,0,0.2);
+        }
+        
+        /* Gap Fill Styles */
+        .gap-fill-container .gap {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 120px; height: 44px; padding: 0 4px;
+            border: 2px dashed #9ca3af; border-radius: 8px; margin: 0 4px;
+            vertical-align: middle; background-color: #f3f4f6;
+        }
+        .word-bank-word {
+            cursor: grab; padding: 8px 16px; border-radius: 8px;
+            background-color: white; user-select: none;
+        }
+        .word-bank-word.selected { outline: 2px solid #6366f1; transform: scale(1.05); }
+        .gap .word-bank-word { cursor: pointer; }
+        .gap.correct .word-bank-word { background-color: #dcfce7; border-color: #22c55e; color: #15803d; }
+        .gap.incorrect .word-bank-word { background-color: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+        /* Feedback Message & Badge Notification */
+        .feedback-toast, .badge-toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border-radius: 9999px; color: white;
+            font-weight: bold; z-index: 200;
+            animation: slideUpFadeIn 0.5s ease-out, slideDownFadeOut 0.5s ease-in 3.5s forwards;
+        }
+        .feedback-toast.correct { background-color: #22c55e; }
+        .feedback-toast.encouraging { background-color: #f59e0b; }
+        .badge-toast { background: linear-gradient(45deg, #fde047, #f97316); }
+        @keyframes slideUpFadeIn { from { opacity: 0; bottom: 0; } to { opacity: 1; bottom: 20px; } }
+        @keyframes slideDownFadeOut { from { opacity: 1; bottom: 20px; } to { opacity: 0; bottom: 0; } }
+
+        /* Certificate Canvas */
+        #completion-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        
+        /* Progress Bar */
+        #progress-container { background-color: #e5e7eb; border-radius: 9999px; overflow: hidden; height: 8px; width: 100%; margin-top: 8px; }
+        #progress-bar { height: 100%; width: 0%; background-color: #38bdf8; transition: width 0.5s ease-out; }
+        
+        /* Vocab Game Timer */
+        #vocab-game-timer-bar { height: 6px; background-color: #38bdf8; transition: width 0.1s linear; }
+        
+        /* Shake Animation for incorrect answers */
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .shake { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .explanation-text {
+            margin-top: 12px;
+            padding: 10px;
+            background-color: #f3f4f6;
+            border-left: 4px solid #f59e0b;
+            font-size: 0.9em;
+            color: #4b5563;
+            border-radius: 4px;
+        }
+
+        /* Print Styles */
+        @media print {
+            body * { visibility: hidden; }
+            #certificate-to-print, #certificate-to-print * { visibility: visible; }
+            #certificate-to-print { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+    <canvas id="background-canvas"></canvas>
+    <div id="reward-animation-container" class="fixed top-0 left-0 w-full h-full pointer-events-none z-[60]"></div>
+
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 p-2" style="display: none;">
+        <div class="max-w-md mx-auto bg-white/90 backdrop-blur-sm shadow-lg rounded-full p-2">
+            <div class="flex justify-center items-center gap-2">
+                <button onclick="goBack()" class="nav-button bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <div class="font-bold text-base text-amber-500 px-3 whitespace-nowrap">Points ✨: <span id="score-display">0</span></div>
+                <button onclick="navigateTo('main-menu')" class="nav-button bg-gray-800 text-white font-bold p-2 rounded-full hover:bg-gray-900">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                </button>
+                <button onclick="toggleTTS(this)" class="nav-button p-2 rounded-full hover:bg-gray-200" title="Toggle Sound">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"></path></svg>
+                </button>
+                <button onclick="goNext()" class="nav-button bg-blue-600 hover:bg-blue-700 text-white font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+        <section id="page-title-screen" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 id="main-title" class="text-5xl md:text-6xl font-bold text-slate-800 mb-4"></h1>
+                <p id="main-subtitle" class="text-xl md:text-2xl text-gray-600 mb-8"></p>
+                <div id="main-svg-container" class="rounded-lg mb-8 w-full max-w-lg mx-auto"></div>
+                <button onclick="startApp()" class="action-button bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-blue-700">START LESSON</button>
+            </div>
+        </section>
+        <div id="dynamic-pages-container"></div>
+    </div>
+    
+    <script>
+        // ===================================================================================
+        // --- LESSON CONTENT CONFIGURATION (NORTHERN LIGHTS) ---
+        // ===================================================================================
+        const lessonData = {
+            title: "The Northern Lights",
+            subtitle: "Earth's Celestial Light Show <span aria-hidden='true'>🌌</span>",
+            startPageId: 'title-screen',
+            homePageId: 'main-menu',
+            mainMenu: [
+                { id: 'menu-tps', text: '0. Think-Pair-Share <span aria-hidden="true">🧠</span>', color: 'green', target: 'tps-start' },
+                { id: 'menu-goals', text: '1. Learning Goals <span aria-hidden="true">🎯</span>', color: 'teal', target: 'learning-goals' },
+                { id: 'menu-warmup', text: '2. Warm-Up & Vocab <span aria-hidden="true">📚</span>', color: 'sky', target: 'warm-up' },
+                { id: 'menu-vocab-game', text: 'Vocab Game <span aria-hidden="true">🎮</span>', color: 'sky', target: 'vocab-game'},
+                { id: 'menu-reading1', text: '3. Reading: The Science <span aria-hidden="true">🛰️</span>', color: 'blue', target: 'reading-science' },
+                { id: 'menu-reading2', text: '4. Reading: The Colors <span aria-hidden="true">🎨</span>', color: 'indigo', target: 'reading-colors' },
+                { id: 'menu-podcast1', text: '5. Listening: Planning a Trip <span aria-hidden="true">🎧</span>', color: 'lime', target: 'podcast-planning' },
+                { id: 'menu-listening-folklore', text: '6. Listening: Myths & Legends <span aria-hidden="true">📜</span>', color: 'orange', target: 'listening-folklore' },
+                { id: 'menu-debate', text: '7. Discussion: Tourism Debate <span aria-hidden="true">🤔</span>', color: 'rose', target: 'debate-tourism' },
+                { id: 'menu-final', text: '8. Final Project <span aria-hidden="true">✍️</span>', color: 'violet', target: 'final-project-hub' },
+            ],
+            vocabulary: [
+                { word: 'Solar Wind', def: 'A continuous stream of charged particles released from the sun.', sentence: 'The solar wind travels through space and can cause the Northern Lights.' },
+                { word: 'Magnetosphere', def: 'The magnetic field surrounding a planet that protects it from solar particles.', sentence: "Earth's magnetosphere acts like a giant, invisible shield." },
+                { word: 'Collision', def: 'The event of one object or particle crashing into another.', sentence: 'The aurora is caused by the collision of solar particles with atmospheric gases.' },
+                { word: 'Altitude', def: 'The height of an object above sea level or the ground.', sentence: 'The color of the aurora depends on the altitude where the collisions occur.' },
+                { word: 'Geomagnetic', def: 'Relating to the magnetic field of the Earth.', sentence: 'A geomagnetic storm can create very strong and widespread auroras.' },
+                { word: 'Kp-index', def: 'A scale from 0 to 9 used to measure the intensity of a geomagnetic storm.', sentence: 'A high Kp-index means you have a better chance of seeing the lights.' },
+                { word: 'Auroral Zone', def: 'The ring-shaped region around the magnetic poles where auroras are most common.', sentence: 'To see the Northern Lights, you must travel to the auroral zone.' },
+                { word: 'Solar Maximum', def: 'The period of greatest activity in the sun\'s 11-year cycle.', sentence: 'During a solar maximum, auroras are more frequent and intense.' },
+                { word: 'Folklore', def: 'The traditional beliefs, customs, and stories of a community, passed through generations.', sentence: 'The folklore of the north often includes stories about the spirits in the sky.' },
+                { word: 'Plasma', def: 'A state of matter where gas is energized and consists of free-moving ions and electrons.', sentence: 'The sun is a giant ball of hot plasma.' },
+                { word: 'Photon', def: 'A tiny particle of light.', sentence: 'When gas atoms release energy, they emit photons, which we see as light.' }
+            ],
+            pages: [
+                // 0. Think Pair Share
+                { id: 'tps-start', type: 'simple', content: { title: 'Activity: Think-Pair-Share <span aria-hidden="true">🧠</span>', text: 'Let\'s use our imagination to explore the wonder of the aurora.' } },
+                { id: 'tps-think', type: 'timer', content: { title: '1. Think <span aria-hidden="true">🤔</span>', text: 'Imagine you lived 1,000 years ago, before modern science. How would you explain the mysterious, dancing lights in the night sky? What kind of story would you tell your children about them?', duration: 120, timerId: 'timer-think' } },
+                { id: 'tps-pair', type: 'timer', content: { title: '2. Pair <span aria-hidden="true">👥</span>', text: 'With a partner, share your stories. Do your explanations have anything in common? Discuss whether you think people would have seen the lights as a good sign or a bad sign, and why.', duration: 180, timerId: 'timer-pair' } },
+                { id: 'tps-share', type: 'timer', content: { title: '3. Share <span aria-hidden="true">🗣️</span>', text: 'As a class, let\'s share some of the most creative or common ideas. What do these stories tell us about how ancient people viewed the world and the sky?', duration: 300, timerId: 'timer-share' } },
+
+                // 1. Learning Goals
+                { id: 'learning-goals', type: 'html-content', content: { title: 'Learning Goals <span aria-hidden="true">🎯</span>', html: `
+                                        <div class="text-left space-y-4">
+                                            <p><strong class="text-teal-600">Learning Intention:</strong> We are learning to explain the science behind the Northern Lights and evaluate the factors needed to see them and the impacts of aurora tourism.</p>
+                                            <hr class="my-4">
+                                            <h3 class="text-2xl font-bold text-teal-600 mb-3">Success Criteria</h3>
+                                            <ul class="list-disc list-inside space-y-2 text-xl">
+                                                <li>I can explain how the <strong>solar wind</strong> and <strong>magnetosphere</strong> create the aurora.</li>
+                                                <li>I can identify the different gases that produce the main colors of the aurora.</li>
+                                                <li>I can analyze the key factors for a successful aurora viewing trip, such as location and the <strong>Kp-index</strong>.</li>
+                                                <li>I can discuss the positive and negative impacts of tourism on communities in the <strong>auroral zone</strong>.</li>
+                                            </ul>
+                                        </div>` } },
+                
+                // 2. Warm-Up & Vocab
+                { id: 'warm-up', type: 'html-content', content: { title: 'Pre-Reading & Pre-Listening <span aria-hidden="true">📚</span>', html: `
+                                        <ol class="list-decimal list-inside space-y-6 text-xl text-left">
+                                            <li>Have you ever seen the Northern Lights, in person or in photos/videos? Describe what they looked like and what you felt.</li>
+                                            <li>The scientific name is "Aurora Borealis." What do you think this name means? The word "Borealis" relates to the north. What might "Aurora" mean?</li>
+                                            <li>The lesson mentions a "solar wind". Based on the name, what do you predict it is? How could wind from the sun possibly affect our planet Earth?</li>
+                                            <li>If you were planning a trip to a very cold, remote place to see the Northern Lights, what are three things you would absolutely need to pack? Why are they essential?</li>
+                                            <li>When many tourists visit a remote, natural place, what are some potential negative effects on the environment and the local people who live there?</li>
+                                        </ol>` } },
+                { id: 'vocab-start', type: 'simple', content: { title: 'Unit Vocabulary <span aria-hidden="true">📚</span>', text: 'Let\'s learn the key terms for this unit. Click the "Next" arrow to cycle through the words.' } },
+                { id: 'vocab-game', type: 'vocab-game', content: { title: 'Vocabulary Review Game <span aria-hidden="true">🎮</span>'} },
+                
+                // 3. Reading: The Science
+                { id: 'reading-science', type: 'html-content', content: { title: 'Reading: The Science of the Aurora <span aria-hidden="true">🛰️</span>', html: `
+                                        <div class="space-y-6 text-left">
+                                            <div class="bg-blue-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-blue-800">Part 1: A Cosmic Collision</h4>
+                                                <p>The Northern Lights are caused by a cosmic event that begins 93 million miles away on the sun. The sun constantly releases a stream of charged particles called the <strong>solar wind</strong>. This wind travels through space at over a million miles per hour. When the sun is very active, it can release huge clouds of particles in an event called a Coronal Mass Ejection (CME).</p>
+                                            </div>
+                                            <div class="bg-sky-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-sky-800">Part 2: Earth's Invisible Shield</h4>
+                                                <p>Thankfully, Earth has a protective magnetic field called the <strong>magnetosphere</strong>. It acts like an invisible shield, deflecting most of the harmful solar wind. However, this shield is weakest at the North and South Poles. At these points, the magnetic field lines curve down towards the Earth, creating funnels that guide some of the solar wind particles into our atmosphere.</p>
+                                            </div>
+                                            <div class="bg-indigo-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-indigo-800">Part 3: A Natural Neon Sign</h4>
+                                                <p>As the charged particles are funneled towards the poles, they accelerate and enter our upper atmosphere. Here, they have a high-speed <strong>collision</strong> with gas atoms, mainly oxygen and nitrogen. This collision transfers energy to the gas atoms, exciting them. To return to their normal state, the atoms must release this extra energy as tiny particles of light called <strong>photons</strong>. When billions of these collisions happen at once, we see the collective glow as the beautiful, dancing lights of the aurora.</p>
+                                            </div>
+                                        </div>` } },
+                { id: 'reading-science-quiz-mcq', type: 'quiz-mcq', content: { title: 'Comprehension: Multiple Choice', questions: [] } },
+                { id: 'reading-science-quiz-tfng', type: 'quiz-tfng', content: { title: 'Comprehension: True/False/Not Given', questions: [] } },
+                { id: 'reading-science-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Comprehension: Gap Fill', sentences: [] } },
+
+                // 4. Reading: The Colors
+                { id: 'reading-colors', type: 'html-content', content: { title: 'Reading: The Colors of the Sky <span aria-hidden="true">🎨</span>', html: `
+                                        <div class="space-y-6 text-left">
+                                            <p class="text-xl">The beautiful colors of the aurora are like a chemical fingerprint of our atmosphere. The color we see depends on two main things: the <strong>type of gas</strong> the solar particles hit, and the <strong>altitude</strong> at which the collision happens.</p>
+                                            <div class="bg-green-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-green-800">Green: The Most Common Color</h4>
+                                                <p>The bright, vibrant green that is most often seen in the Northern Lights is produced by a <strong>collision</strong> with oxygen molecules. This happens at a medium <strong>altitude</strong> of about 60 to 150 miles (100-240 km) up. Our eyes are very sensitive to this shade of green, which is why it's the color we associate most with the aurora.</p>
+                                            </div>
+                                            <div class="bg-red-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-red-800">Red: A Rare Sight</h4>
+                                                <p>A rarer, deep red color can sometimes be seen glowing high above the green. This is also caused by oxygen, but at a much higher <strong>altitude</strong> (above 150 miles). Because the oxygen is less concentrated up there, it creates a different color. You usually only see these reds during very intense <strong>geomagnetic</strong> storms.</p>
+                                            </div>
+                                            <div class="bg-purple-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-purple-800">Blue and Purple/Pink: The Edges of the Show</h4>
+                                                <p>Sometimes, you can see a fringe of pink or dark red at the lower edge of the aurora curtains. These colors, along with blues and purples, are caused by collisions with nitrogen molecules at lower altitudes (around 60 miles). These colors are often fainter and can be easier to capture with a camera than to see with the naked eye.</p>
+                                            </div>
+                                        </div>` } },
+                { id: 'reading-colors-quiz-mcq', type: 'quiz-mcq', content: { title: 'Comprehension: Multiple Choice', questions: [] } },
+                { id: 'reading-colors-quiz-tfng', type: 'quiz-tfng', content: { title: 'Comprehension: True/False/Not Given', questions: [] } },
+                { id: 'reading-colors-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Comprehension: Gap Fill', sentences: [] } },
+
+                // 5. Listening: Planning a Trip
+                { id: 'podcast-planning', type: 'dialogue', content: { title: 'Listening: Planning an Aurora Trip <span aria-hidden="true">🎧</span>', dialogue: "Alex: Hey Ben, check out this aurora forecast app! It says the Kp-index is predicted to be 5 tomorrow night. That's a pretty strong geomagnetic storm!\n\nBen: Wow, a Kp-index of 5 is great! The skies are supposed to be clear, too. We should definitely go out. Did you check which time is best?\n\nAlex: The forecast says the highest activity will be between 11 PM and 2 AM. We should find a spot far away from the city lights. I was thinking of driving out to that lake north of town. There's no light pollution there.\n\nBen: Good idea. I'll pack my camera and tripod. And lots of warm clothes. It's going to be freezing just standing around waiting.\n\nAlex: For sure. I'll bring extra batteries for my camera, too. The cold drains them so fast. And a thermos of hot chocolate is a must.\n\nBen: Definitely! It's amazing how much planning goes into this. You need clear skies, high solar activity, a dark location, and a lot of patience.\n\nAlex: It's worth it, though. There's nothing like watching the sky dance. It's an experience you never forget." } },
+                { id: 'podcast-planning-quiz-mcq', type: 'quiz-mcq', content: { title: 'Podcast Quiz (MCQ)', questions: [] } },
+                { id: 'podcast-planning-quiz-tfng', type: 'quiz-tfng', content: { title: 'Podcast Quiz (TFNG)', questions: [] } },
+                { id: 'podcast-planning-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Podcast Quiz (Gap Fill)', sentences: [] } },
+
+                // 6. Listening: Myths & Legends
+                { id: 'listening-folklore', type: 'dialogue', content: { title: 'Listening: Myths & Legends <span aria-hidden="true">📜</span>', dialogue: "Narrator: Before science explained the aurora, ancient cultures created powerful stories to make sense of the dancing lights. This rich folklore saw the lights as everything from joyful spirits to terrifying omens.\n\nNarrator: In Norse mythology, the aurora was believed to be the 'Bifrost Bridge,' a glowing, pulsating archway that connected Earth to the realm of the gods in Asgard. It was also thought to be the reflection from the shields of the Valkyries, female figures who decided who would live and die in battle.\n\nNarrator: For many Inuit communities in North America and Greenland, the lights were the spirits of their ancestors playing a game in the sky with a walrus skull. It was a joyful, spiritual connection to those who had passed on. They would sometimes whistle at the lights, believing they could make them dance closer.\n\nNarrator: However, not all beliefs were positive. In some parts of Scandinavia, the lights were seen as a bad omen, predicting war or disaster. It was considered dangerous to wave or whistle at them, as it could draw the attention of the spirits, who might snatch you away. This mix of wonder, spirituality, and fear shows how deeply the Northern Lights have captivated the human imagination for thousands of years." } },
+                { id: 'listening-folklore-quiz-mcq', type: 'quiz-mcq', content: { title: 'Myths & Legends Quiz (MCQ)', questions: [] } },
+                { id: 'listening-folklore-quiz-tfng', type: 'quiz-tfng', content: { title: 'Myths & Legends Quiz (TFNG)', questions: [] } },
+                { id: 'listening-folklore-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Myths & Legends Quiz (Gap Fill)', sentences: [] } },
+
+                // 7. Discussion: Tourism Debate
+                { id: 'debate-tourism', type: 'dialogue', content: { title: 'Discussion: Aurora Tourism Debate <span aria-hidden="true">🤔</span>', dialogue: "Moderator: Welcome. Today's topic: To protect fragile Arctic communities and environments, should there be a limit on the number of tourists allowed to visit popular aurora-viewing locations?\n\nSofia: Absolutely. I live in a small northern town, and in the winter, our population almost doubles. This puts a huge strain on our local infrastructure – our roads, our small grocery store, our emergency services. Plus, the environmental damage from so many tour buses and people trampling the delicate landscape is undeniable. We need to limit the numbers to ensure our community and environment can survive.\n\nDavid: I understand Sofia's concerns, but limiting tourism would be devastating for our economy. Many local people, myself included, depend on tourism for their livelihood. We run hotels, restaurants, and guided tours. These tourists bring in the money that supports our families through the long winter. Instead of limits, we need better management: designated viewing areas, stricter rules for tour operators, and a tourist tax that goes directly back into the community and conservation.\n\nSofia: But 'better management' hasn't been enough. We still see tourists trespassing on private land for a better photo, leaving trash behind, and creating light pollution with their cars and headlamps. The sheer volume is the problem. A high-value, low-volume model is the only sustainable path forward.\n\nDavid: And who gets to decide who the 'high-value' tourists are? That feels unfair. It would make aurora viewing something only the rich can afford. The wonder of the Northern Lights should be accessible to everyone who is respectful. Education is the key, not exclusion." } },
+                { id: 'debate-tourism-quiz-mcq', type: 'quiz-mcq', content: { title: 'Debate Quiz (MCQ)', questions: [] } },
+                { id: 'debate-tourism-quiz-tfng', type: 'quiz-tfng', content: { title: 'Debate Quiz (TFNG)', questions: [] } },
+                { id: 'debate-tourism-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Debate Quiz (Gap Fill)', sentences: [] } },
+
+                // 8. Final Project
+                { id: 'final-project-hub', type: 'html-content', content: { title: 'Final Project Hub <span aria-hidden="true">✍️</span>', html: `
+                                        <div class="bg-white rounded-2xl shadow-xl p-8 text-left">
+                                        <h2 class="text-3xl font-bold text-violet-600 mb-4">GRASPS Task: The Responsible Aurora Chaser's Guide</h2>
+                                        <div class="space-y-3 text-lg">
+                                            <p><strong class="font-semibold text-violet-700">Goal:</strong> To create a public awareness campaign that promotes responsible and sustainable aurora tourism.</p>
+                                            <p><strong class="font-semibold text-violet-700">Role:</strong> You are a conservation officer working in a popular aurora tourism destination (like Tromsø, Norway or Fairbanks, Alaska).</p>
+                                            <p><strong class="font-semibold text-violet-700">Audience:</strong> First-time tourists who are excited to see the Northern Lights but may be unaware of the environmental and community impacts.</p>
+                                            <p><strong class="font-semibold text-violet-700">Situation:</strong> Your remote town is struggling with the negative effects of overcrowding and disrespectful tourist behavior during the aurora season. You need to educate visitors before they arrive.</p>
+                                            <p><strong class="font-semibold text-violet-700">Product:</strong> A digital, one-page guide or poster. It must include: 1) A catchy slogan, 2) At least three key rules for responsible viewing, and 3) A brief, persuasive explanation of why these rules are important.</p>
+                                            <p><strong class="font-semibold text-violet-700">Standards:</strong> Your guide will be judged on its clarity, creativity, and its potential to positively influence tourist behavior.</p>
+                                        </div>
+                                        <div class="mt-8">
+                                            <h3 class="text-2xl font-bold text-violet-600 mb-3">My Field Notes <span aria-hidden="true">📓</span></h3>
+                                            <textarea id="field-notes" class="w-full h-48 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Jot down your ideas, key vocabulary, and campaign slogan here..."></textarea>
+                                        </div>
+                                        </div>` } },
+                { id: 'certificate', type: 'certificate', content: { title: 'Module Complete! <span aria-hidden="true">🎉</span>', text: 'You have successfully completed the "Northern Lights" module.', certificateTitle: 'Certificate of Achievement' } }
+            ]
+        };
+        // --- END OF LESSON CONTENT CONFIGURATION ---
+        // ===================================================================================
+
+     class SpeechService {
+             constructor() { this.synth = window.speechSynthesis; this.isInitialized = false; this.isTtsEnabled = true; this.voices = {}; this.speechRate = 0.85; this.isDialoguePlaying = false; }
+             async _setupVoices() {
+                 const voicesPromise = new Promise(resolve => { if (this.synth.getVoices().length) return resolve(this.synth.getVoices()); this.synth.onvoiceschanged = () => resolve(this.synth.getVoices()); });
+                 const availableVoices = await voicesPromise;
+                 if (!availableVoices.length) { console.warn("No speech synthesis voices available."); return; }
+                 const speakerToVoiceMap = {
+                     'alex': ['Microsoft Emma Online (Natural) - English (United States)', 'Microsoft Ava Online (Natural) - English (United States)'],
+                     'ben': ['Microsoft Brian Online (Natural) - English (United States)', 'Microsoft Andrew Online (Natural) - English (United States)'],
+                     'moderator': ['Microsoft Brian Online (Natural) - English (United States)'],
+                     'sofia': ['Microsoft Ava Online (Natural) - English (United States)'],
+                     'david': ['Microsoft Andrew Online (Natural) - English (United States)'],
+                     'narrator': ['Microsoft Brian Online (Natural) - English (United States)'],
+                 };
+                 for (const speaker in speakerToVoiceMap) {
+                     const voicePriorityList = speakerToVoiceMap[speaker];
+                     let chosenVoice = null;
+                     for (const voiceName of voicePriorityList) {
+                         const foundVoice = availableVoices.find(v => v.name === voiceName);
+                         if (foundVoice) { chosenVoice = foundVoice; break; }
+                     }
+                     if (chosenVoice) { this.voices[speaker] = chosenVoice; } else { console.warn(`Could not find specified voices for speaker: "${speaker}"`); }
+                 }
+                 this.voices['default'] = availableVoices.find(v => v.name === 'Microsoft Ava Online (Natural) - English (United States)') || availableVoices.find(v => v.lang === 'en-US');
+             }
+             async init() { if (this.isInitialized) return; try { const warmUp = new SpeechSynthesisUtterance(' '); warmUp.volume = 0; this.synth.speak(warmUp); this.synth.cancel(); await this._setupVoices(); this.isInitialized = true; } catch (e) { console.error("Speech synthesis setup failed:", e); } }
+             _cleanTextForSpeech(text) { const tempDiv = document.createElement('div'); const textWithoutSpans = text.replace(/<span aria-hidden="true">.*?<\/span>/g, ' '); tempDiv.innerHTML = textWithoutSpans; let cleanText = tempDiv.textContent || tempDiv.innerText || ''; cleanText = cleanText.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, ''); return cleanText; }
+             async speak(text, { onEndCallback = null } = {}) { if (!this.isInitialized || !this.isTtsEnabled || !text) { if (onEndCallback) onEndCallback(); return; } if (this.synth.speaking) { this.synth.cancel(); await new Promise(resolve => setTimeout(resolve, 100)); } const cleanText = this._cleanTextForSpeech(text); if (!cleanText.trim()) { if (onEndCallback) onEndCallback(); return; } const utter = new SpeechSynthesisUtterance(cleanText); utter.voice = this.voices['default']; utter.rate = this.speechRate; if (onEndCallback) utter.onend = onEndCallback; utter.onerror = (e) => { console.error('SpeechSynthesisUtterance.onerror', e); if (onEndCallback) onEndCallback(); }; try { this.synth.speak(utter); } catch (e) { console.error("Error calling synth.speak:", e); if (onEndCallback) onEndCallback(); } }
+             async speakDialogue(text) { if (!this.isInitialized || !this.isTtsEnabled || !text || this.isDialoguePlaying) return; this.cancel(); this.isDialoguePlaying = true; const lines = text.split('\n').filter(line => line.trim() !== '' && line.includes(':')); const queue = lines.map(line => { const [speaker, ...parts] = line.split(':'); const dialogue = parts.join(':').trim(); const cleanDialogue = this._cleanTextForSpeech(dialogue); const voiceKey = speaker.toLowerCase().replace(/dr\. |professor /g, '').trim(); return { text: cleanDialogue, voiceKey: voiceKey }; }).filter(item => item.text); if (queue.length === 0) { this.isDialoguePlaying = false; return; } const playNext = () => { if (queue.length > 0 && this.isTtsEnabled) { const item = queue.shift(); const utter = new SpeechSynthesisUtterance(item.text); utter.voice = this.voices[item.voiceKey] || this.voices['default']; utter.rate = this.speechRate; utter.onend = playNext; utter.onerror = (e) => { console.warn('A speech synthesis error occurred, attempting to recover.', e.error); try { this.synth.cancel(); } catch (cancelError) { console.error("Error while cancelling synth:", cancelError); } setTimeout(playNext, 250); }; try { this.synth.speak(utter); } catch(e) { console.error("Error in synth.speak:", e); setTimeout(playNext, 250); } } else { this.isDialoguePlaying = false; } }; playNext(); }
+             cancel() { if (this.synth) { this.isDialoguePlaying = false; this.synth.cancel(); } }
+             toggleTTS(forceState) { this.isTtsEnabled = forceState === undefined ? !this.isTtsEnabled : forceState; if (!this.isTtsEnabled) { this.cancel(); } return this.isTtsEnabled; }
+        }
+
+        // --- Global App State and Functions ---
+        const speechService = new SpeechService();
+        let score = 0, currentPage = lessonData.startPageId, timerInterval;
+        const pageHistory = [lessonData.startPageId];
+        let pageSequence = [];
+        let completedSections = new Set();
+        let vocabGameTimer;
+        let selectedWord = { element: null, text: '' };
+
+
+        // --- Progress and Completion Logic ---
+        const pageToMenuMap = {};
+        function buildPageToMenuMap() {
+            lessonData.mainMenu.forEach(menuItem => {
+                let queue = [menuItem.target];
+                let visited = new Set(queue);
+                while (queue.length > 0) {
+                    const pageId = queue.shift();
+                    pageToMenuMap[pageId] = menuItem.id;
+                    const pageDef = lessonData.pages.find(p => p.id === pageId);
+                    if (pageDef && pageDef.type.startsWith('quiz')) {
+                        const nextQuizPage = getNextQuizPage(pageId);
+                        if (nextQuizPage && !visited.has(nextQuizPage)) {
+                            queue.push(nextQuizPage);
+                            visited.add(nextQuizPage);
+                        }
+                    }
+                }
+            });
+            // Manual mapping for vocab game
+            pageToMenuMap['vocab-game'] = 'menu-vocab-game';
+        }
+
+        function getNextQuizPage(pageId) {
+            const sequence = ['mcq', 'tfng', 'gap-fill'];
+            const parts = pageId.split('-quiz-');
+            if (parts.length < 2) return null;
+            const prefix = parts[0];
+            const type = parts[1];
+            const currentIndex = sequence.indexOf(type);
+            if (currentIndex > -1 && currentIndex < sequence.length - 1) {
+                const nextPageId = `${prefix}-quiz-${sequence[currentIndex + 1]}`;
+                if (lessonData.pages.some(p => p.id === nextPageId)) {
+                    return nextPageId;
+                }
+            }
+            return null;
+        }
+
+        function updateProgressBar() {
+            const progress = (completedSections.size / lessonData.mainMenu.length) * 100;
+            const bar = document.getElementById('progress-bar');
+            if (bar) bar.style.width = `${progress}%`;
+        }
+
+        function updateMenuCompletionState() {
+            const menuContainer = document.getElementById('page-main-menu');
+            if (!menuContainer) return;
+            lessonData.mainMenu.forEach(item => {
+                const button = menuContainer.querySelector(`#menu-btn-${item.id}`);
+                if (button && completedSections.has(item.id)) {
+                    if (!button.innerHTML.includes('✓')) {
+                        button.innerHTML += ' <span class="text-green-300">✓</span>';
+                    }
+                }
+            });
+        }
+
+        function markSectionAsComplete(pageId) {
+            const menuId = pageToMenuMap[pageId];
+            if (menuId && !completedSections.has(menuId)) {
+                completedSections.add(menuId);
+                updateProgressBar();
+            }
+        }
+        
+        function checkQuizPageCompletion(pageId) {
+            const pageElement = document.getElementById(`page-${pageId}`);
+            if (!pageElement) return false;
+
+            if (pageId.includes('gap-fill')) {
+                const gaps = pageElement.querySelectorAll('.gap');
+                return gaps.length > 0 && Array.from(gaps).every(g => g.classList.contains('correct'));
+            } else {
+                const questions = pageElement.querySelectorAll('.question-group');
+                return questions.length > 0 && Array.from(questions).every(q => q.querySelector('button:disabled'));
+            }
+        }
+
+
+        // --- App Navigation ---
+        window.toggleTTS = (button) => {
+            const isNowEnabled = speechService.toggleTTS();
+            const iconPath = isNowEnabled 
+                ? "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"
+                : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z M17 14l-4-4m0 4l4-4";
+            button.querySelector('svg').classList.toggle('text-gray-600', isNowEnabled);
+            button.querySelector('svg').classList.toggle('text-gray-400', !isNowEnabled);
+            button.querySelector('path').setAttribute('d', iconPath);
+
+            if (isNowEnabled) {
+                const pageData = lessonData.pages.find(p => p.id === currentPage);
+                const targetPage = document.getElementById(`page-${currentPage}`);
+                if (pageData && pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else if (targetPage) {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    if (readableContent) speechService.speak(readableContent.innerText);
+                    else if (titleElement) speechService.speak(titleElement.innerText);
+                }
+            }
+        };
+
+        window.startApp = async function() {
+            await speechService.init(); 
+            try { await Tone.start(); } catch (e) { console.error(e); }
+            navigateTo(lessonData.homePageId);
+        }
+        
+        function startTimer(duration, display, onComplete) {
+            let timer = duration;
+            const update = () => { display.textContent = `${String(Math.floor(timer/60)).padStart(2,'0')}:${String(timer%60).padStart(2,'0')}`; };
+            update();
+            timerInterval = setInterval(() => { timer--; update(); if (timer < 0) { clearInterval(timerInterval); if (onComplete) onComplete(); } }, 1000);
+        }
+
+        window.navigateTo = (pageId) => {
+            const previousPageId = currentPage;
+            
+            // Mark completion if leaving a quiz page and it's fully answered
+            if (previousPageId.includes('-quiz-')) {
+                if (checkQuizPageCompletion(previousPageId)) {
+                    const nextQuizPage = getNextQuizPage(previousPageId);
+                    if (!nextQuizPage) { // This was the last quiz in the sequence
+                       markSectionAsComplete(previousPageId);
+                    }
+                }
+            }
+            
+            const targetPage = document.getElementById(`page-${pageId}`);
+            if (!targetPage) return console.warn('navigateTo: no page found for id', pageId);
+            if (pageId === currentPage) return;
+            
+            clearInterval(timerInterval);
+            clearTimeout(vocabGameTimer);
+            speechService.cancel();
+
+            // Mark simple pages as complete on navigation
+            const previousPageDef = lessonData.pages.find(p => p.id === previousPageId);
+            if (previousPageDef && !previousPageDef.type.startsWith('quiz') && previousPageId !== 'vocab-game') {
+                 markSectionAsComplete(previousPageId);
+            }
+
+            document.getElementById(`page-${currentPage}`)?.classList.remove('active');
+            targetPage.classList.add('active');
+            currentPage = pageId;
+            if (pageHistory[pageHistory.length - 1] !== currentPage) pageHistory.push(currentPage);
+            
+            const pageData = lessonData.pages.find(p => p.id === pageId);
+            if (pageData) {
+                if (pageData.type === 'timer') {
+                    const timerEl = document.getElementById(pageData.content.timerId);
+                    if (timerEl) startTimer(pageData.content.duration, timerEl, goNext);
+                } else if (pageData.type === 'vocab-game') {
+                    startVocabGame();
+                }
+                
+                if (pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    const contentToSpeak = readableContent ? readableContent.innerText : (titleElement ? titleElement.innerText : '');
+                    speechService.speak(contentToSpeak);
+                }
+            } else if (pageId === lessonData.homePageId) {
+                speechService.speak(targetPage.querySelector('h2').innerText);
+                updateMenuCompletionState();
+            }
+            updateNavButtons();
+            window.scrollTo(0, 0);
+        }
+
+        window.goNext = () => { const currentIndex = pageSequence.indexOf(currentPage); if (currentIndex > -1 && currentIndex < pageSequence.length - 1) navigateTo(pageSequence[currentIndex + 1]); }
+        window.goBack = () => { if (pageHistory.length > 1) { pageHistory.pop(); navigateTo(pageHistory.pop()); } }
+
+        function updateNavButtons() {
+            const nav = document.getElementById('nav-header');
+            if (!nav) return;
+            nav.style.display = (currentPage === lessonData.startPageId) ? 'none' : 'block';
+            const backBtn = nav.querySelector('button:first-child');
+            backBtn.disabled = pageHistory.length <= 1;
+            backBtn.classList.toggle('opacity-50', backBtn.disabled);
+            const nextBtn = nav.querySelector('button:last-child');
+            const currentIndex = pageSequence.indexOf(currentPage);
+            const isLast = currentIndex >= pageSequence.length - 1;
+            nextBtn.disabled = isLast || currentPage === lessonData.homePageId;
+            nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+        }
+        
+        function showFeedbackMessage(isCorrect) {
+            const correctFeedback = ["That's right!", "Excellent!", "Perfect!", "Great job!"];
+            const incorrectFeedback = ["Not quite.", "Keep trying!", "Almost there."];
+            const message = isCorrect ? correctFeedback[Math.floor(Math.random() * correctFeedback.length)] : incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.className = `feedback-toast ${isCorrect ? 'correct' : 'encouraging'}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function updateScore(points) { score += points; document.getElementById('score-display').textContent = score; }
+
+        function checkCompletionAndMark() {
+            const nextQuizPage = getNextQuizPage(currentPage);
+             if (!nextQuizPage && checkQuizPageCompletion(currentPage)) {
+                markSectionAsComplete(currentPage);
+             }
+        }
+
+        window.checkTfngAnswer = function(clickedButton, chosenAnswer, correctAnswer) {
+            const buttonContainer = clickedButton.parentElement;
+            Array.from(buttonContainer.children).forEach(btn => btn.disabled = true);
+            const isCorrect = chosenAnswer === correctAnswer;
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                updateScore(10);
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-green-500');
+            } else {
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-red-600');
+                const correctBtn = Array.from(buttonContainer.children).find(btn => btn.textContent === correctAnswer.charAt(0));
+                if (correctBtn) correctBtn.className = correctBtn.className.replace(/bg-\w+-500/, 'bg-green-500');
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+        
+        window.checkMcqAnswer = function(button, isCorrect) {
+            const questionGroup = button.closest('.question-group');
+            questionGroup.querySelectorAll('.quiz-option').forEach(opt => opt.disabled = true);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                updateScore(10);
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+            } else {
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-red-500', 'border-red-600', 'text-white', 'shake');
+                const correctButton = questionGroup.querySelector(".quiz-option[data-correct='true']");
+                if (correctButton) {
+                    correctButton.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                    correctButton.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                }
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+
+        function initGapFill(pageId) {
+            const page = document.getElementById(pageId);
+            if (!page) return;
+            const gaps = page.querySelectorAll('.gap');
+            const words = page.querySelectorAll('.word-bank-word');
+            const wordBank = page.querySelector('.word-bank-container');
+
+            words.forEach(word => {
+                word.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', word.dataset.word); });
+                word.addEventListener('click', handleWordClick);
+            });
+            gaps.forEach(gap => {
+                gap.addEventListener('dragover', e => e.preventDefault());
+                gap.addEventListener('drop', e => handleDrop(e, gap));
+                gap.addEventListener('click', handleGapClick);
+            });
+
+            function handleWordClick(e) {
+                const clickedWord = e.currentTarget;
+                if (clickedWord.parentElement.classList.contains('gap')) { 
+                    clickedWord.parentElement.classList.remove('correct', 'incorrect');
+                    wordBank.appendChild(clickedWord); 
+                    return; 
+                }
+                if (selectedWord.element) selectedWord.element.classList.remove('selected');
+                if (selectedWord.element === clickedWord) { selectedWord = { element: null, text: '' }; } 
+                else { selectedWord = { element: clickedWord, text: clickedWord.dataset.word }; clickedWord.classList.add('selected'); }
+            }
+            function handleGapClick(e) {
+                const clickedGap = e.currentTarget;
+                if (clickedGap.children.length > 0 && selectedWord.element) { // Swap words
+                    const wordInGap = clickedGap.children[0];
+                    const originalParent = selectedWord.element.parentElement;
+                    originalParent.appendChild(wordInGap);
+                    clickedGap.appendChild(selectedWord.element);
+                    checkGap(clickedGap);
+                } else if (selectedWord.element) { // Place word in empty gap
+                    clickedGap.appendChild(selectedWord.element);
+                    checkGap(clickedGap);
+                } else if (clickedGap.children.length > 0) { // Return word to bank
+                    wordBank.appendChild(clickedGap.children[0]);
+                    clickedGap.classList.remove('correct', 'incorrect');
+                }
+
+                if(selectedWord.element) selectedWord.element.classList.remove('selected');
+                selectedWord = { element: null, text: '' };
+            }
+            function handleDrop(e, gap) {
+                e.preventDefault();
+                const wordText = e.dataTransfer.getData('text/plain');
+                const wordElement = page.querySelector(`.word-bank-word[data-word="${wordText}"]`);
+                if (wordElement) { 
+                    if (gap.children.length > 0) {
+                        wordBank.appendChild(gap.children[0]);
+                        gap.classList.remove('correct', 'incorrect');
+                    }
+                    gap.appendChild(wordElement); 
+                    checkGap(gap); 
+                }
+            }
+            function checkGap(gap) {
+                const word = gap.querySelector('.word-bank-word');
+                const isCorrect = word && word.dataset.word.toLowerCase() === gap.dataset.answer.toLowerCase();
+                gap.classList.toggle('correct', isCorrect);
+                gap.classList.toggle('incorrect', !isCorrect);
+                if (isCorrect) { updateScore(10); showFeedbackMessage(true); } else { showFeedbackMessage(false); }
+                setTimeout(checkCompletionAndMark, 100);
+            }
+        }
+
+        // --- Vocab Game Logic ---
+        let vocabGameQuestions = [];
+        let vocabGameCurrentIndex = 0;
+        let vocabGameScore = 0;
+        const ROUND_TIME = 10000; // 10 seconds
+
+        function startVocabGame() {
+            vocabGameQuestions = [...lessonData.vocabulary].sort(() => 0.5 - Math.random());
+            vocabGameCurrentIndex = 0;
+            vocabGameScore = 0;
+            document.getElementById('vocab-game-score').textContent = '0';
+            nextVocabGameRound();
+        }
+
+        function nextVocabGameRound() {
+            if (vocabGameCurrentIndex >= vocabGameQuestions.length) {
+                endVocabGame();
+                return;
+            }
+            
+            const question = vocabGameQuestions[vocabGameCurrentIndex];
+            document.getElementById('vocab-game-definition').textContent = question.def;
+            
+            const options = [question.word];
+            const wrongAnswers = lessonData.vocabulary.filter(v => v.word !== question.word);
+            while (options.length < 4 && wrongAnswers.length > 0) {
+                const randomWrong = wrongAnswers.splice(Math.floor(Math.random() * wrongAnswers.length), 1)[0];
+                options.push(randomWrong.word);
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.innerHTML = '';
+            options.sort(() => 0.5 - Math.random()).forEach(opt => {
+                const button = document.createElement('button');
+                button.className = 'quiz-option p-3 rounded-lg text-left bg-gray-100 hover:bg-gray-200 border border-gray-200';
+                button.textContent = opt;
+                button.onclick = () => checkVocabGameAnswer(button, opt === question.word);
+                optionsContainer.appendChild(button);
+            });
+
+            startRoundTimer();
+        }
+        
+        function startRoundTimer() {
+            clearTimeout(vocabGameTimer);
+            const timerBar = document.getElementById('vocab-game-timer-bar');
+            timerBar.style.transition = 'none';
+            timerBar.style.width = '100%';
+            
+            setTimeout(() => {
+                timerBar.style.transition = `width ${ROUND_TIME / 1000}s linear`;
+                timerBar.style.width = '0%';
+            }, 100);
+
+            vocabGameTimer = setTimeout(() => {
+                showFeedbackMessage(false);
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, ROUND_TIME);
+        }
+
+        function checkVocabGameAnswer(button, isCorrect) {
+            clearTimeout(vocabGameTimer);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                vocabGameScore++;
+                updateScore(5);
+                document.getElementById('vocab-game-score').textContent = vocabGameScore;
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-green-500', 'text-white');
+            } else {
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-red-500', 'text-white', 'shake');
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.querySelectorAll('button').forEach(btn => btn.disabled = true);
+
+            setTimeout(() => {
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, 1500);
+        }
+
+        function endVocabGame() {
+            document.getElementById('vocab-game-definition').textContent = `Game Over! You scored ${vocabGameScore} out of ${vocabGameQuestions.length}.`;
+            document.getElementById('vocab-game-options').innerHTML = `<button onclick="startVocabGame()" class="action-button bg-blue-500 text-white font-bold p-3 rounded-lg">Play Again</button>`;
+            markSectionAsComplete('vocab-game');
+        }
+
+
+        function createPageElement(id, content) {
+            const section = document.createElement('section');
+            section.id = `page-${id}`;
+            section.className = 'page';
+            section.innerHTML = content;
+            document.getElementById('dynamic-pages-container').appendChild(section);
+        }
+        
+        function populateAllQuizzes() {
+            // Reading: Science Quizzes
+            const readingScienceMcq = lessonData.pages.find(p => p.id === 'reading-science-quiz-mcq');
+            if (readingScienceMcq) readingScienceMcq.content.questions = [ { question: 'What is the "solar wind"?', options: ['A type of weather on Earth', 'A stream of charged particles from the sun', 'The light from the sun', 'A magnetic field'], correctAnswer: 'A stream of charged particles from the sun' }, { question: "What is the name of Earth's protective magnetic field?", options: ['The atmosphere', 'The ionosphere', 'The magnetosphere', 'The solar shield'], correctAnswer: 'The magnetosphere' }, { question: 'Where is the magnetosphere weakest?', options: ['Over the oceans', 'At the equator', 'At the North and South Poles', 'Over large continents'], correctAnswer: 'At the North and South Poles' }, { question: 'What do the solar particles collide with in our atmosphere?', options: ['Water vapor and clouds', 'Satellites and space debris', 'Oxygen and nitrogen atoms', 'Other solar particles'], correctAnswer: 'Oxygen and nitrogen atoms' }, { question: 'What is a photon?', options: ['A charged particle from the sun', 'A type of gas atom', 'A tiny particle of light', 'A magnetic field line'], correctAnswer: 'A tiny particle of light' } ];
+            const readingScienceTfng = lessonData.pages.find(p => p.id === 'reading-science-quiz-tfng');
+            if(readingScienceTfng) readingScienceTfng.content.questions = [ { statement: 'The Northern Lights start because of activity on the moon.', correctAnswer: 'False' }, { statement: "The Earth's magnetosphere is equally strong everywhere.", correctAnswer: 'False' }, { statement: 'The text describes the aurora as a kind of natural neon sign.', correctAnswer: 'True' }, { statement: 'Coronal Mass Ejections (CMEs) make the aurora weaker.', correctAnswer: 'False' }, { statement: 'The reading mentions that the solar wind is harmless to Earth.', correctAnswer: 'Not Given' } ];
+            const readingScienceGapFill = lessonData.pages.find(p => p.id === 'reading-science-quiz-gap-fill');
+            if (readingScienceGapFill) readingScienceGapFill.content.sentences = [ { text: ['The sun constantly releases a stream of charged particles called the', '.'], answer: 'solar wind' }, { text: ["Earth's magnetic shield is called the", '.'], answer: 'magnetosphere' }, { text: ['The aurora happens when solar particles have a high-speed', 'with gas atoms.'], answer: 'collision' }, { text: ['Excited gas atoms release energy in the form of light particles called', '.'], answer: 'photons' }, { text: ['The magnetosphere is weakest at the North and South', '.'], answer: 'Poles' } ];
+
+            // Reading: Colors Quizzes
+            const readingColorsMcq = lessonData.pages.find(p => p.id === 'reading-colors-quiz-mcq');
+            if(readingColorsMcq) readingColorsMcq.content.questions = [ { question: 'What gas collision causes the most common green color?', options: ['Nitrogen', 'Oxygen', 'Hydrogen', 'Helium'], correctAnswer: 'Oxygen' }, { question: 'What color is produced by oxygen at a very high altitude (above 150 miles)?', options: ['Green', 'Blue', 'Red', 'Pink'], correctAnswer: 'Red' }, { question: 'What gas causes the blue, purple, and pink colors?', options: ['Oxygen', 'Argon', 'Neon', 'Nitrogen'], correctAnswer: 'Nitrogen' }, { question: 'Why is green the most common aurora color we see?', options: ["It's the only color produced.", "It happens at the lowest altitude.", "Our eyes are most sensitive to it.", "It is the brightest color."], correctAnswer: "Our eyes are most sensitive to it." }, { question: "Where do the pink/purple colors usually appear?", options: ['High above the green lights', 'Mixed in with the green lights', 'At the lower edges of the aurora', 'Only in the Southern Hemisphere'], correctAnswer: 'At the lower edges of the aurora' } ];
+            const readingColorsTfng = lessonData.pages.find(p => p.id === 'reading-colors-quiz-tfng');
+            if(readingColorsTfng) readingColorsTfng.content.questions = [ { statement: 'The color of the aurora depends on the time of night.', correctAnswer: 'False' }, { statement: 'Both green and red auroras are caused by collisions with oxygen.', correctAnswer: 'True' }, { statement: 'The text states that red auroras are very common.', correctAnswer: 'False' }, { statement: 'Nitrogen produces the green color.', correctAnswer: 'False' }, { statement: 'A camera can sometimes see aurora colors better than the human eye.', correctAnswer: 'True' } ];
+            const readingColorsGapFill = lessonData.pages.find(p => p.id === 'reading-colors-quiz-gap-fill');
+            if(readingColorsGapFill) readingColorsGapFill.content.sentences = [ { text: ['The color depends on the type of gas and the', 'of the collision.'], answer: 'altitude' }, { text: ['The most common color, green, is caused by', 'molecules.'], answer: 'oxygen' }, { text: ['Blue and purple colors are caused by', 'molecules.'], answer: 'nitrogen' }, { text: ['Red auroras usually only appear during intense', 'storms.'], answer: 'geomagnetic' }, { text: ['Our eyes are very', 'to the green shade of the aurora.'], answer: 'sensitive' } ];
+            
+            // Podcast: Planning Quizzes
+            const podcastPlanningMcq = lessonData.pages.find(p => p.id === 'podcast-planning-quiz-mcq');
+            if(podcastPlanningMcq) podcastPlanningMcq.content.questions = [ { question: "What Kp-index did the forecast predict?", options: ['3', '4', '5', '6'], correctAnswer: '5' }, { question: "Why did Alex suggest driving to the lake?", options: ['It has a better view.', 'It is warmer there.', 'There is no light pollution.', 'It is closer to their house.'], correctAnswer: 'There is no light pollution.' }, { question: "Why is it important to bring extra batteries?", options: ['The cold drains them quickly.', 'The camera uses a lot of power.', 'They might get lost.', 'They might want to share.'], correctAnswer: 'The cold drains them quickly.' }, { question: "Besides technology and warm clothes, what else did Alex say was a 'must'?", options: ['A map', 'Snacks', 'A thermos of hot chocolate', 'A book to read'], correctAnswer: 'A thermos of hot chocolate' }, { question: "Which of these is NOT a factor mentioned for a successful trip?", options: ['Clear skies', 'A full moon', 'High solar activity', 'A dark location'], correctAnswer: 'A full moon' } ];
+            const podcastPlanningTfng = lessonData.pages.find(p => p.id === 'podcast-planning-quiz-tfng');
+            if(podcastPlanningTfng) podcastPlanningTfng.content.questions = [ { statement: "Alex and Ben are experienced aurora watchers.", correctAnswer: 'Not Given' }, { statement: "A Kp-index of 5 is considered weak.", correctAnswer: 'False' }, { statement: 'They decided to stay in the city to watch the lights.', correctAnswer: 'False' }, { statement: 'Ben plans to take photos of the aurora.', correctAnswer: 'True' }, { statement: 'Alex believes watching the aurora is a forgettable experience.', correctAnswer: 'False' } ];
+            const podcastPlanningGapFill = lessonData.pages.find(p => p.id === 'podcast-planning-quiz-gap-fill');
+            if(podcastPlanningGapFill) podcastPlanningGapFill.content.sentences = [ { text: ['The app predicted a', 'of 5.'], answer: 'Kp-index' }, { text: ['They need to find a spot far away from city', '.'], answer: 'lights' }, { text: ['The cold weather', 'batteries very quickly.'], answer: 'drains' }, { text: ['To see the aurora, you need clear skies, solar activity, a dark location, and a lot of', '.'], answer: 'patience' }, { text: ["Alex describes the experience as watching the sky", '.'], answer: 'dance' } ];
+
+            // Folklore Listening Quizzes
+            const folkloreMcq = lessonData.pages.find(p => p.id === 'listening-folklore-quiz-mcq');
+            if(folkloreMcq) folkloreMcq.content.questions = [ { question: "In Norse mythology, what was the aurora believed to be?", options: ['The spirits of ancestors', 'A bridge to the realm of the gods', 'A dangerous omen of winter', 'A giant celestial animal'], correctAnswer: 'A bridge to the realm of the gods' }, { question: "What did many Inuit communities believe the lights were?", options: ['A warning of bad weather', 'Reflections from shields', 'Spirits of their ancestors playing a game', 'A sign of good fishing'], correctAnswer: 'Spirits of their ancestors playing a game' }, { question: "In some cultures, what was considered dangerous to do?", options: ['Look at the lights for too long', 'Talk about the lights during the day', 'Whistle or wave at the lights', 'Sleep under the lights'], correctAnswer: 'Whistle or wave at the lights' }, { question: "The Norse also believed the lights were reflections from the shields of what figures?", options: ['Gods', 'Giants', 'Valkyries', 'Kings'], correctAnswer: 'Valkyries' }, { question: "What does the variety of folklore about the aurora show?", options: ['That ancient people did not travel much', 'How deeply the lights have captivated the human imagination', 'That the lights looked different in different parts of the world', 'That all ancient cultures were afraid of the lights'], correctAnswer: 'How deeply the lights have captivated the human imagination' } ];
+            const folkloreTfng = lessonData.pages.find(p => p.id === 'listening-folklore-quiz-tfng');
+            if(folkloreTfng) folkloreTfng.content.questions = [ { statement: 'All ancient cultures believed the Northern Lights were a positive, joyful sign.', correctAnswer: 'False' }, { statement: 'The Bifrost Bridge connected Earth to the underworld.', correctAnswer: 'False' }, { statement: 'Some Inuit believed they could interact with the lights by whistling.', correctAnswer: 'True' }, { statement: 'The lecture states that the aurora is a new phenomenon that started recently.', correctAnswer: 'False' }, { statement: 'The stories about the lights are a type of folklore.', correctAnswer: 'True' } ];
+            const folkloreGapFill = lessonData.pages.find(p => p.id === 'listening-folklore-quiz-gap-fill');
+            if(folkloreGapFill) folkloreGapFill.content.sentences = [ { text: ["Before science, ancient cultures created", 'to explain the lights.'], answer: 'stories' }, { text: ['The Norse believed the lights were a bridge to the', 'of the gods.'], answer: 'realm' }, { text: ['Inuit communities saw the lights as the spirits of their', '.'], answer: 'ancestors' }, { text: ['In some places, the lights were seen as a bad', ', predicting war.'], answer: 'omen' }, { text: ['The stories show how the lights', 'the human imagination.'], answer: 'captivated' } ];
+            
+            // Debate: Tourism Quizzes
+            const debateTourismMcq = lessonData.pages.find(p => p.id === 'debate-tourism-quiz-mcq');
+            if(debateTourismMcq) debateTourismMcq.content.questions = [ { question: "What is Sofia's main argument for limiting tourism?", options: ['Tourists are too loud.', 'It puts a strain on local infrastructure and the environment.', 'The townspeople dont like visitors.', 'It makes hotel prices too high.'], correctAnswer: 'It puts a strain on local infrastructure and the environment.' }, { question: "What is David's main argument against limiting tourism?", options: ['The town needs more people.', 'The local economy depends on tourist money.', 'The tourists help protect the environment.', 'The government requires it.'], correctAnswer: 'The local economy depends on tourist money.' }, { question: "What solution does David propose instead of limits?", options: ['Stopping all tourism completely.', 'Better management and a tourist tax.', 'Building a larger airport.', 'Asking tourists to stay for a shorter time.'], correctAnswer: 'Better management and a tourist tax.' }, { question: "What negative behavior does Sofia mention?", options: ['Tourists littering and trespassing.', 'Tourists not spending enough money.', 'Tourists driving too fast.', 'Tourists complaining about the cold.'], correctAnswer: 'Tourists littering and trespassing.' }, { question: "What is David's concern about a 'high-value' tourism model?", options: ['It would not generate enough money.', 'It would be too difficult to manage.', 'It would make aurora viewing only for the rich.', 'It would attract the wrong kind of tourists.'], correctAnswer: 'It would make aurora viewing only for the rich.' } ];
+            const debateTourismTfng = lessonData.pages.find(p => p.id === 'debate-tourism-quiz-tfng');
+            if(debateTourismTfng) debateTourismTfng.content.questions = [ { statement: 'Sofia works as a tour guide.', correctAnswer: 'Not Given' }, { statement: 'David believes the current system of tourism management is perfect.', correctAnswer: 'False' }, { statement: 'Both speakers agree that tourism has some negative impacts.', correctAnswer: 'True' }, { statement: 'Sofia suggests that the volume of tourists is the main issue.', correctAnswer: 'True' }, { statement: 'David believes education is a better tool than exclusion.', correctAnswer: 'True' } ];
+            const debateTourismGapFill = lessonData.pages.find(p => p.id === 'debate-tourism-quiz-gap-fill');
+            if(debateTourismGapFill) debateTourismGapFill.content.sentences = [ { text: ['An influx of tourists puts a huge', 'on local infrastructure.'], answer: 'strain' }, { text: ['David believes limiting tourism would be', 'for the local economy.'], answer: 'devastating' }, { text: ['David suggests a', 'that would fund community projects.'], answer: 'tourist tax' }, { text: ["Sofia argues that a high-value, low-", 'model is the most sustainable.'], answer: 'volume' }, { text: ["David believes the key is", ', not exclusion.'], answer: 'education' } ];
+        }
+
+        function initializeLesson() {
+            document.getElementById('main-title').innerHTML = lessonData.title;
+            document.getElementById('main-subtitle').innerHTML = lessonData.subtitle;
+            document.getElementById('main-svg-container').innerHTML = `<svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="auroraGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#34d399" /><stop offset="50%" stop-color="#60a5fa" /><stop offset="100%" stop-color="#a78bfa" /></linearGradient></defs><rect width="600" height="300" fill="#0c1445"/><path d="M0 200 Q 150 100, 300 200 T 600 200 V 300 H 0 Z" fill="#1f2937" /><path d="M-50 150 C 150 50, 450 250, 650 150" stroke="url(#auroraGrad)" stroke-width="15" fill="none" stroke-linecap="round" opacity="0.7"><animate attributeName="d" values="M-50 150 C 150 50, 450 250, 650 150; M-50 160 C 180 80, 420 220, 650 140; M-50 150 C 150 50, 450 250, 650 150;" dur="8s" repeatCount="indefinite" /></path><path d="M-50 180 C 120 100, 480 280, 650 180" stroke="url(#auroraGrad)" stroke-width="10" fill="none" stroke-linecap="round" opacity="0.5"><animate attributeName="d" values="M-50 180 C 120 100, 480 280, 650 180; M-50 170 C 150 120, 450 260, 650 190; M-50 180 C 120 100, 480 280, 650 180;" dur="6s" repeatCount="indefinite" /></path><circle cx="500" cy="60" r="3" fill="white" /><circle cx="120" cy="80" r="2" fill="white" /><circle cx="250" cy="40" r="4" fill="white" /><circle cx="380" cy="90" r="2" fill="white" /></svg>`;
+
+            populateAllQuizzes();
+            buildPageToMenuMap();
+
+            const menuButtons = lessonData.mainMenu.map(item => {
+                const colors = { green: 'bg-green-500 border-green-700', blue: 'bg-blue-500 border-blue-700', sky: 'bg-sky-500 border-sky-700', amber: 'bg-amber-500 border-amber-700', rose: 'bg-rose-500 border-rose-700', violet: 'bg-violet-500 border-violet-700', teal: 'bg-teal-500 border-teal-700', orange: 'bg-orange-500 border-orange-700', indigo: 'bg-indigo-500 border-indigo-700', lime: 'bg-lime-500 border-lime-700', emerald: 'bg-emerald-500 border-emerald-700', red: 'bg-red-500 border-red-700', purple: 'bg-purple-500 border-purple-700' };
+                return `<button id="menu-btn-${item.id}" onclick="navigateTo('${item.target}')" class="btn-animated-3d ${colors[item.color] || colors['green']} text-white font-bold text-xl p-4 rounded-xl">${item.text}</button>`;
+            }).join('');
+            createPageElement(lessonData.homePageId, `<div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-slate-800 mb-8">Main Menu</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-4">${menuButtons}</div></div>`);
+            
+            const pageOrderMap = { 
+                'tps-start': ['tps-think', 'tps-pair', 'tps-share'],
+                'warm-up': ['vocab-start'], 
+                'vocab-start': lessonData.vocabulary.map((v, i) => `vocab-${i}`),
+                'reading-science': ['reading-science-quiz-mcq', 'reading-science-quiz-tfng', 'reading-science-quiz-gap-fill'],
+                'reading-colors': ['reading-colors-quiz-mcq', 'reading-colors-quiz-tfng', 'reading-colors-quiz-gap-fill'],
+                'podcast-planning': ['podcast-planning-quiz-mcq', 'podcast-planning-quiz-tfng', 'podcast-planning-quiz-gap-fill'],
+                'listening-folklore': ['listening-folklore-quiz-mcq', 'listening-folklore-quiz-tfng', 'listening-folklore-quiz-gap-fill'],
+                'debate-tourism': ['debate-tourism-quiz-mcq', 'debate-tourism-quiz-tfng', 'debate-tourism-quiz-gap-fill'],
+                'final-project-hub': ['certificate'] 
+            };
+            let flatPageList = [lessonData.startPageId, lessonData.homePageId];
+            lessonData.mainMenu.forEach(item => {
+                let queue = [item.target];
+                let visited = new Set();
+                while(queue.length > 0) {
+                    let current = queue.shift();
+                    if (visited.has(current)) continue;
+                    visited.add(current);
+                    flatPageList.push(current);
+                    // Add vocab words after vocab-start
+                    if (current === 'vocab-start') {
+                         flatPageList.push(...lessonData.vocabulary.map((v, i) => `vocab-${i}`));
+                    }
+                    if (pageOrderMap[current]) {
+                        queue.push(...pageOrderMap[current]);
+                    }
+                }
+            });
+            pageSequence = [...new Set(flatPageList)];
+
+            lessonData.vocabulary.forEach((v, i) => {
+                createPageElement(`vocab-${i}`, `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h3 class="text-2xl font-bold text-sky-600 mb-2">Vocabulary ${i + 1} / ${lessonData.vocabulary.length}</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">${v.word}</h2><p class="text-2xl text-gray-600 mb-4">${v.def}</p><p class="text-xl text-gray-500 italic">"${v.sentence}"</p></div></div></div>`);
+            });
+
+            lessonData.pages.forEach(page => {
+                let pageHTML = '';
+                switch (page.type) {
+                    case 'simple': pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-gray-800 mb-6">${page.content.title}</h2><p class="text-xl text-gray-600 mb-8">${page.content.text}</p></div></div>`; break;
+                    case 'timer': pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-left pt-16"><div class="w-full flex justify-between items-center mb-4"><h2 class="text-2xl md:text-3xl font-bold text-blue-700">${page.content.title}</h2><div id="${page.content.timerId}" class="text-3xl md:text-4xl font-bold text-gray-700 ml-4"></div></div><div class="readable-content"><p class="text-lg md:text-xl text-gray-600 mt-8">${page.content.text}</p></div></div>`; break;
+                    case 'dialogue':
+                    case 'html-content':
+                        const contentHTML = page.type === 'html-content' ? page.content.html : (page.content.dialogue || '').split('\n\n').map(line => `<p>${line.replace(/([^:]+):/, '<strong class="font-semibold text-blue-700">$1:</strong>')}</p>`).join('');
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-slate-800 mb-6">${page.content.title}</h2><div class="readable-content text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg max-h-[70vh] overflow-y-auto">${contentHTML}</div></div>`;
+                        break;
+                    case 'vocab-game':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-sky-600 mb-4">${page.content.title}</h2><div class="text-center mb-4 text-lg">Score: <span id="vocab-game-score" class="font-bold">0</span></div><div class="w-full bg-gray-200 rounded-full h-2.5 mb-4"><div id="vocab-game-timer-bar" class="bg-blue-600 h-2.5 rounded-full"></div></div><div id="vocab-game-definition" class="text-center text-2xl font-semibold my-6 min-h-[6rem]"></div><div id="vocab-game-options" class="grid grid-cols-2 gap-4"></div></div>`;
+                        break;
+                    case 'certificate':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16 relative overflow-hidden"><canvas id="completion-canvas"></canvas><div class="relative z-10"><div class="readable-content"><h2 class="text-4xl font-bold text-amber-600 mb-4">${page.content.title}</h2><p class="text-xl text-gray-600 mb-6">${page.content.text}</p></div><div id="certificate-to-print" class="bg-sky-50 border-4 border-dashed border-sky-300 rounded-lg p-8 max-w-2xl mx-auto"><div class="flex justify-center mb-4"><span class="text-6xl"><span aria-hidden="true">🌌</span></span></div><h3 class="text-3xl font-bold text-slate-800">${page.content.certificateTitle}</h3><p class="mt-4 text-lg">This certificate is awarded to</p><p id="certificate-name" class="text-2xl font-bold text-blue-600 my-2 border-b-2 border-gray-400 pb-2">[Enter Your Name Here]</p><p class="mt-4 text-lg">for successfully completing this lesson.</p><p class="mt-6 text-md"><strong>Final Score:</strong> <span id="certificate-score" class="font-bold"></span> points</p><p class="text-sm mt-1"><strong>Date of Completion:</strong> <span id="certificate-date"></span></p></div><div id="cert-controls" class="mt-6"><div id="cert-initial-controls"><input type="text" id="name-input-cert" placeholder="Enter your name for the certificate" class="text-center p-2 border rounded-lg w-full max-w-md"><button onclick="generateCertificate()" class="action-button mt-4 bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-700">Generate Certificate</button></div><div id="cert-generated-controls" class="hidden mt-4 flex flex-wrap justify-center gap-4"><button onclick="downloadCertificateAsImage()" class="action-button bg-sky-600 text-white font-bold py-2 px-4 rounded-full text-sm">Download Image</button></div></div></div></div>`;
+                        break;
+                    case 'quiz-tfng':
+                    case 'quiz-mcq':
+                    case 'quiz-gap-fill':
+                        let questionsHTML = '';
+                        if (page.type === 'quiz-tfng' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group flex items-center gap-4 p-4 rounded-lg bg-gray-100"><div class="flex-shrink-0 flex gap-2">${['True', 'False', 'Not Given'].map(l => `<button onclick="checkTfngAnswer(this, '${l}', '${q.correctAnswer}')" class="tfng-button bg-${l==='True'?'blue':l==='False'?'red':'gray'}-500 text-white font-bold w-12 h-10 rounded-full">${l.charAt(0)}</button>`).join('')}</div><p>${i + 1}. ${q.statement}</p></div>`).join('');
+                        } else if (page.type === 'quiz-mcq' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group ${i > 0 ? 'border-t pt-6 mt-6' : ''}"><p class="font-semibold mb-2">${i + 1}. ${q.question}</p><div class="grid grid-cols-1 md:grid-cols-2 gap-2">${q.options.map(o => `<button onclick="checkMcqAnswer(this, '${o.replace(/'/g, "\\'")}' === '${q.correctAnswer.replace(/'/g, "\\'")}')" data-correct="${o === q.correctAnswer}" class="quiz-option p-3 rounded-lg text-left bg-gray-100 hover:bg-gray-200 border border-gray-200">${o}</button>`).join('')}</div></div>`).join('');
+                        } else if (page.type === 'quiz-gap-fill' && page.content.sentences) {
+                            const words = page.content.sentences.map(s => s.answer).sort(() => Math.random() - 0.5);
+                            questionsHTML = `<div class="gap-fill-container">${page.content.sentences.map((s, i) => `<p class="text-lg mb-4">${i + 1}. ${s.text[0]} <span class="gap" data-answer="${s.answer}"></span> ${s.text[1] || ''}</p>`).join('')}</div><div class="word-bank-container mt-8 p-4 bg-gray-100 rounded-lg flex flex-wrap gap-4 justify-center">${words.map(w => `<div class="word-bank-word" draggable="true" data-word="${w}">${w}</div>`).join('')}</div>`;
+                        }
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-3xl font-bold text-rose-600 mb-6 text-center">${page.content.title}</h3><div class="space-y-6">${questionsHTML}</div></div>`;
+                        break;
+                }
+                if (pageHTML) {
+                    createPageElement(page.id, pageHTML);
+                    if (page.type === 'quiz-gap-fill') initGapFill(`page-${page.id}`);
+                }
+            });
+            updateNavButtons();
+        }
+
+        function generateCertificate() {
+            const name = document.getElementById('name-input-cert').value || 'An Anonymous Learner';
+            document.getElementById('certificate-name').textContent = name;
+            document.getElementById('certificate-score').textContent = score;
+            document.getElementById('certificate-date').textContent = new Date().toLocaleDateString();
+            document.getElementById('cert-initial-controls').classList.add('hidden');
+            document.getElementById('cert-generated-controls').classList.remove('hidden');
+
+            const canvas = document.getElementById('completion-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth * 2;
+            canvas.height = canvas.offsetHeight * 2;
+            let particles = [];
+            for(let i=0; i<50; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 5 + 1,
+                    color: ['#fde047', '#f97316', '#38bdf8'][Math.floor(Math.random() * 3)],
+                    speed: Math.random() * 2 + 1
+                });
+            }
+            function animateCert() {
+                ctx.clearRect(0,0,canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.y -= p.speed;
+                    if(p.y < 0) { p.y = canvas.height; p.x = Math.random() * canvas.width; }
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                });
+                requestAnimationFrame(animateCert);
+            }
+            animateCert();
+        }
+
+        function downloadCertificateAsImage() {
+            const certElement = document.getElementById('certificate-to-print');
+            html2canvas(certElement, { scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'Northern_Lights_Certificate.png';
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            });
+        }
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeLesson();
+            const bgCanvas = document.getElementById('background-canvas');
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            let particles = [];
+            const shootingStarColors = ['#a78bfa', '#60a5fa', '#fde047', '#34d399'];
+
+            function animateBackground() {
+                bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+                
+                particles.forEach((p, i) => {
+                    if (p.isShootingStar) {
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.alpha -= 0.02;
+
+                        if (p.alpha <= 0) {
+                            particles.splice(i, 1);
+                        } else {
+                            bgCtx.beginPath();
+                            bgCtx.moveTo(p.x, p.y);
+                            bgCtx.lineTo(p.x - p.vx * p.len, p.y - p.vy * p.len);
+                            bgCtx.strokeStyle = `rgba(${p.color}, ${p.alpha})`;
+                            bgCtx.lineWidth = p.width;
+                            bgCtx.stroke();
+                        }
+                    } else {
+                        p.y -= p.speed;
+                        if (p.y < -p.radius) particles.splice(i, 1);
+                        bgCtx.beginPath();
+                        bgCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                        bgCtx.fillStyle = p.color;
+                        bgCtx.fill();
+                    }
+                });
+
+                if (Math.random() > 0.95 && particles.length < 50) {
+                    particles.push({ 
+                        isShootingStar: false,
+                        x: Math.random() * bgCanvas.width, 
+                        y: bgCanvas.height + 20, 
+                        radius: Math.random() * 2 + 1, 
+                        speed: Math.random() * 0.5 + 0.2, 
+                        color: `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.1})`
+                    });
+                }
+                
+                if (Math.random() > 0.995 && particles.filter(p => p.isShootingStar).length < 3) {
+                    const color = shootingStarColors[Math.floor(Math.random() * shootingStarColors.length)];
+                    const angle = (Math.random() * (140 - 40) + 40) * Math.PI / 180; // Angle between 40 and 140 degrees
+                    const speed = Math.random() * 5 + 5;
+                    particles.push({
+                        isShootingStar: true,
+                        x: Math.random() * bgCanvas.width,
+                        y: Math.random() * bgCanvas.height * 0.2,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        len: Math.random() * 30 + 20,
+                        width: Math.random() * 2 + 1,
+                        color: parseInt(color.slice(1,3), 16) + ',' + parseInt(color.slice(3,5), 16) + ',' + parseInt(color.slice(5,7), 16),
+                        alpha: 1
+                    });
+                }
+
+                requestAnimationFrame(animateBackground);
+            }
+            window.addEventListener('resize', () => { bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; });
+            animateBackground();
+        });
+    </script>
+</body>
+</html>

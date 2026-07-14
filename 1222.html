@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Past Perfect Passive Game</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    slate: { 850: '#151e2e', 900: '#0f172a' },
+                    emerald: { 450: '#10b981' }
+                },
+                animation: {
+                    'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    'bounce-short': 'bounce 0.5s infinite',
+                    'slide-up': 'slideUp 0.3s ease-out forwards',
+                },
+                keyframes: {
+                    slideUp: {
+                        '0%': { transform: 'translateY(10px)', opacity: '0' },
+                        '100%': { transform: 'translateY(0)', opacity: '1' },
+                    }
+                }
+            }
+        }
+    }
+</script>
+<style>
+    body { 
+        font-family: 'Segoe UI', system-ui, sans-serif; 
+        user-select: none; 
+        overflow: hidden; /* Prevent scrolling */
+        touch-action: none; /* Prevent browser zooming/panning gestures */
+    }
+    
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1f2937; }
+    ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+
+    .token {
+        touch-action: none;
+        transition: transform 0.1s, box-shadow 0.1s, background-color 0.2s;
+        cursor: grab;
+    }
+    .token:active { transform: scale(0.95); cursor: grabbing; }
+    .token.is-dragging { opacity: 0.5; }
+    
+    /* Zones */
+    .drop-zone {
+        transition: background-color 0.2s, border-color 0.2s;
+    }
+    .drop-zone.drag-over {
+        background-color: rgba(16, 185, 129, 0.1);
+        border-color: #34d399;
+    }
+
+    /* Reading Card Styles */
+    .reading-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        backface-visibility: hidden;
+    }
+    .reading-card.correct-order {
+        background-color: #0f172a; 
+        border-color: #10b981;
+    }
+
+    /* Confetti (Simple CSS implementation for effects) */
+    .confetti {
+        position: absolute;
+        width: 10px; height: 10px;
+        background-color: #f00;
+        animation: fall linear forwards;
+    }
+    @keyframes fall {
+        to { transform: translateY(100vh) rotate(720deg); }
+    }
+</style>
+</head>
+<body class="bg-slate-900 text-slate-100 h-screen w-screen flex flex-col">
+
+    <!-- ATTENDANCE SCREEN -->
+    <div id="attendanceScreen" class="absolute inset-0 z-50 bg-slate-900 flex flex-col p-6">
+        <header class="mb-4 text-center shrink-0">
+            <h1 class="text-3xl font-bold text-emerald-400 mb-2">Class Attendance</h1>
+            
+            <!-- Roster Switcher -->
+            <div class="flex justify-center gap-2 mb-4">
+                <button onclick="game.loadRoster('classA')" id="btnRosterA" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-700 hover:bg-slate-600 border border-slate-500 transition-all">
+                    Grade 10
+                </button>
+                <button onclick="game.loadRoster('grade12')" id="btnRoster12" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 transition-all">
+                    Grade 12
+                </button>
+            </div>
+
+            <p class="text-slate-400 text-sm">Tap names to mark <span class="text-red-400 font-bold">Absent</span>.</p>
+        </header>
+
+        <div id="rosterGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 overflow-y-auto p-2 flex-grow mb-4 bg-slate-800/50 rounded-xl border border-slate-700">
+            <!-- Player buttons injected here -->
+        </div>
+
+        <div class="shrink-0 flex flex-col gap-4 items-center justify-center pb-4">
+            <div class="flex gap-4 w-full justify-center">
+                <button onclick="startGame(1)" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl text-lg shadow-lg transform transition hover:-translate-y-1 w-48 border-b-4 border-blue-800">
+                    Game 1<br><span class="text-xs font-normal opacity-75">Rearrange (1P)</span>
+                </button>
+                <button onclick="startGame(2)" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-6 rounded-xl text-lg shadow-lg transform transition hover:-translate-y-1 w-48 border-b-4 border-purple-800">
+                    Game 1<br><span class="text-xs font-normal opacity-75">Rearrange (2P)</span>
+                </button>
+            </div>
+            <div class="w-full border-t border-slate-800"></div>
+            <button onclick="startGame(3)" class="bg-orange-600 hover:bg-orange-500 text-white font-bold py-3 px-6 rounded-xl text-lg shadow-lg transform transition hover:-translate-y-1 w-64 border-b-4 border-orange-800 flex items-center justify-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                Game 2<br><span class="text-xs font-normal opacity-75 ml-2">Reading Order (2P)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- GAME UI LAYER -->
+    <div id="gameScreen" class="hidden flex-col h-full w-full relative">
+        
+        <!-- Top Bar: Sentence Prompt (Game 1 Only) -->
+        <div id="game1Header" class="bg-slate-800 border-b border-slate-700 p-3 shadow-md z-10 shrink-0 text-center hidden relative">
+            <button onclick="game.exitGame()" class="absolute left-2 top-1/2 -translate-y-1/2 bg-slate-700 hover:bg-slate-600 text-xs px-3 py-1.5 rounded border border-slate-600">
+                ⌂ Home
+            </button>
+            <div class="flex justify-between items-center text-xs text-slate-400 uppercase tracking-widest mb-1 px-4">
+                <span>Active Voice</span>
+                <span>Round <span id="roundCurrent" class="text-white">1</span> / <span id="roundTotal">30</span></span>
+            </div>
+            <p id="activeSentence" class="text-xl md:text-2xl font-semibold text-white leading-tight px-2">Loading...</p>
+        </div>
+
+        <!-- Game 2 Header -->
+        <div id="game2Header" class="bg-slate-800 border-b border-slate-700 p-2 shadow-md z-10 shrink-0 hidden relative">
+             <div class="flex justify-between items-center px-4 pt-1">
+                <!-- P1 Left -->
+                <div class="flex items-center gap-2 w-1/4">
+                    <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm shrink-0">L</div>
+                    <div id="g2_p1_name" class="font-bold text-yellow-400 text-lg truncate">Player 1</div>
+                </div>
+                
+                <!-- Center: Controls & Info -->
+                <div class="flex flex-col items-center justify-center w-2/4">
+                    <div class="flex gap-2 mb-1">
+                        <!-- Home Button Moved Here -->
+                        <button onclick="game.exitGame()" class="bg-slate-700 hover:bg-slate-600 text-white text-xs px-3 py-1.5 rounded-lg border border-slate-600 shadow-sm flex items-center gap-1 active:translate-y-[1px] transition-all" title="Exit to Home">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                            Home
+                        </button>
+
+                        <button id="g2_revealBtn" onclick="game.revealGame2Order()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-6 rounded-lg text-sm shadow-md border-b-2 border-emerald-800 active:border-b-0 active:translate-y-[1px] transition-all">
+                            Show Order
+                        </button>
+                        <button id="g2_nextBtn" onclick="game.nextRound()" class="hidden bg-blue-600 hover:bg-blue-500 text-white font-bold py-1.5 px-6 rounded-lg text-sm shadow-md border-b-2 border-blue-800 active:border-b-0 active:translate-y-[1px] transition-all animate-pulse">
+                            Next Round ➜
+                        </button>
+                    </div>
+                    <div class="text-[10px] text-slate-400 uppercase tracking-widest">Round <span id="g2_roundCurrent" class="text-white">1</span> / 30</div>
+                </div>
+
+                <!-- P2 Right -->
+                <div class="flex items-center gap-2 w-1/4 justify-end">
+                    <div id="g2_p2_name" class="font-bold text-pink-400 text-lg text-right truncate">Player 2</div>
+                    <div class="w-8 h-8 rounded-full bg-pink-600 flex items-center justify-center font-bold text-sm shrink-0">R</div>
+                </div>
+             </div>
+        </div>
+
+        <!-- 1 PLAYER MODE CONTAINER (Game 1) -->
+        <div id="mode1Container" class="hidden flex-col flex-grow p-4 gap-4 overflow-hidden relative">
+            <!-- Pool -->
+            <div class="bg-slate-800/50 rounded-xl border border-slate-700 p-2 flex-grow basis-1/3 flex flex-col relative">
+                <div class="text-slate-500 text-[10px] uppercase tracking-widest absolute top-2 left-2">Word Bank</div>
+                <div id="p1_pool" class="flex flex-wrap content-center justify-center gap-3 h-full overflow-y-auto p-4"></div>
+            </div>
+            <!-- Arrow -->
+            <div class="flex justify-center -my-2 z-10">
+                <div class="bg-slate-700 rounded-full p-1 border border-slate-600">
+                    <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                </div>
+            </div>
+            <!-- Answer -->
+            <div id="p1_dropZone" class="drop-zone bg-slate-850 rounded-xl border-2 border-dashed border-slate-600 flex-grow basis-1/3 flex flex-col relative">
+                 <div class="text-slate-600 text-[10px] uppercase tracking-widest absolute top-2 left-2">Answer Area</div>
+                 <div id="p1_answer" class="flex flex-wrap content-center justify-center gap-2 h-full p-4"></div>
+            </div>
+            <!-- Controls -->
+            <div class="bg-slate-800 rounded-xl border border-slate-700 p-3 shrink-0 flex items-center justify-between shadow-lg">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-lg">P1</div>
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase">Player</div>
+                        <div id="p1_name" class="text-xl font-bold text-yellow-400 leading-none">Name</div>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="game.resetRound()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-semibold border-b-2 border-slate-900 active:border-b-0 active:translate-y-[2px]">Reset</button>
+                    <button id="p1_checkBtn" onclick="game.checkAnswer(1)" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg text-lg font-bold border-b-4 border-emerald-800 active:border-b-0 active:translate-y-[4px] shadow-lg">Check ✓</button>
+                    <button id="nextBtn" onclick="game.nextRound()" class="hidden bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-lg font-bold border-b-4 border-blue-800 active:border-b-0 active:translate-y-[4px] shadow-lg animate-pulse">Next ➜</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2 PLAYER MODE CONTAINER (Game 1 Split) -->
+        <div id="mode2Container" class="hidden flex-row flex-grow overflow-hidden divide-x divide-slate-700">
+            <!-- Player 1 (Left) -->
+            <div class="flex-1 flex flex-col relative bg-slate-900/50">
+                <div class="p-2 bg-slate-800/80 border-b border-slate-700 flex justify-between items-center">
+                    <div class="font-bold text-yellow-400 text-lg" id="vs_p1_name">Player 1</div>
+                    <div id="vs_p1_score" class="bg-slate-900 px-2 py-0.5 rounded text-emerald-400 font-mono">0 pts</div>
+                </div>
+                <div id="vs_p1_dropZone" class="drop-zone flex-1 bg-slate-850 m-2 rounded-lg border-2 border-dashed border-slate-600 relative">
+                     <div class="text-slate-600 text-[9px] uppercase absolute top-1 left-1">Answer</div>
+                     <div id="vs_p1_answer" class="flex flex-wrap content-center justify-center gap-1.5 h-full p-2"></div>
+                </div>
+                <div class="h-1/3 border-t border-slate-700 bg-slate-800 p-2 overflow-y-auto">
+                    <div id="vs_p1_pool" class="flex flex-wrap justify-center gap-2"></div>
+                </div>
+                <div class="p-2 flex gap-2 justify-center border-t border-slate-700">
+                    <button onclick="game.resetRound(1)" class="bg-slate-700 text-xs px-3 py-2 rounded">Reset</button>
+                    <button id="vs_p1_check" onclick="game.checkAnswer(1)" class="bg-emerald-600 text-white font-bold text-sm px-6 py-2 rounded border-b-2 border-emerald-800 active:translate-y-[2px] active:border-b-0">Check</button>
+                </div>
+            </div>
+            <!-- Player 2 (Right) -->
+            <div class="flex-1 flex flex-col relative bg-slate-900/50">
+                 <div class="p-2 bg-slate-800/80 border-b border-slate-700 flex justify-between items-center">
+                    <div class="font-bold text-pink-400 text-lg" id="vs_p2_name">Player 2</div>
+                    <div id="vs_p2_score" class="bg-slate-900 px-2 py-0.5 rounded text-emerald-400 font-mono">0 pts</div>
+                </div>
+                <div id="vs_p2_dropZone" class="drop-zone flex-1 bg-slate-850 m-2 rounded-lg border-2 border-dashed border-slate-600 relative">
+                    <div class="text-slate-600 text-[9px] uppercase absolute top-1 left-1">Answer</div>
+                    <div id="vs_p2_answer" class="flex flex-wrap content-center justify-center gap-1.5 h-full p-2"></div>
+                </div>
+                <div class="h-1/3 border-t border-slate-700 bg-slate-800 p-2 overflow-y-auto">
+                    <div id="vs_p2_pool" class="flex flex-wrap justify-center gap-2"></div>
+                </div>
+                <div class="p-2 flex gap-2 justify-center border-t border-slate-700">
+                    <button onclick="game.resetRound(2)" class="bg-slate-700 text-xs px-3 py-2 rounded">Reset</button>
+                    <button id="vs_p2_check" onclick="game.checkAnswer(2)" class="bg-emerald-600 text-white font-bold text-sm px-6 py-2 rounded border-b-2 border-emerald-800 active:translate-y-[2px] active:border-b-0">Check</button>
+                </div>
+            </div>
+            <!-- Shared Next Button Overlay for 2P -->
+            <div id="vs_nextOverlay" class="hidden absolute inset-0 bg-black/60 z-20 flex items-center justify-center">
+                <button onclick="game.nextRound()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-12 rounded-xl text-2xl shadow-2xl border-4 border-blue-400 animate-bounce">
+                    Next Round ➜
+                </button>
+            </div>
+        </div>
+
+        <!-- GAME 2 CONTAINER (Reading) -->
+        <div id="game2Container" class="hidden flex-col flex-grow p-6 items-center justify-center relative bg-gradient-to-br from-slate-900 to-slate-800">
+            <div class="w-full max-w-5xl space-y-6" id="readingCardContainer">
+                <!-- Cards injected here -->
+            </div>
+            
+            <!-- Instructions and bottom buttons removed as requested -->
+        </div>
+
+        <!-- Timer Footer -->
+        <div class="shrink-0 bg-slate-900 border-t border-slate-800 p-2 relative">
+            <div id="timerBar" class="absolute top-0 left-0 h-1 bg-emerald-500 transition-all duration-1000 w-full shadow-[0_0_10px_#10b981]"></div>
+            <div class="flex justify-center items-end h-12">
+                <div id="timerDisplay" class="text-4xl font-mono font-bold text-white leading-none">90</div>
+                <div class="text-xs text-slate-500 mb-1 ml-1">SEC</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const Sound = {
+        playTone: (freq, type, duration, vol=0.1) => {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        },
+        correct: () => { Sound.playTone(600, 'sine', 0.1, 0.1); setTimeout(() => Sound.playTone(1200, 'sine', 0.3, 0.1), 100); },
+        wrong: () => { Sound.playTone(150, 'sawtooth', 0.4, 0.15); },
+        click: () => { Sound.playTone(800, 'triangle', 0.05, 0.05); },
+        tick: () => { Sound.playTone(1000, 'square', 0.03, 0.02); },
+        timeUp: () => { Sound.playTone(200, 'sawtooth', 1.0, 0.2); setTimeout(() => Sound.playTone(150, 'sawtooth', 1.0, 0.2), 300); }
+    };
+
+    // --- Roster Data ---
+    const rosterData = {
+        classA: ["Dino", "Tracy", "Billie", "Jessie", "Von Tony", "Jim", "Andrew", "Mark", "Leo", "Apollo", "Lion", "Tony", "Alex", "Jenny", "Steven", "Mike", "Haolin"],
+        grade12: ["Anna", "Mia", "Kenn", "Max", "Sky", "Sheng", "Keying", "Cen", "Xifei", "Jiaqi", "Zack", "Azure", "Joe"]
+    };
+
+    // Game 1 Data (Rearrange)
+    const rounds = [
+        {active:"Tourists visit the Grand Canyon to learn about geology.", target:"The Grand Canyon had been visited by tourists to learn about geology."},
+        {active:"Scientists measure radiation near the extraction site.", target:"Radiation near the extraction site had been measured by scientists."},
+        {active:"Heavy trucks cause contamination near the mining road.", target:"Contamination near the mining road had been caused by heavy trucks."},
+        {active:"Indigenous leaders oppose unsafe mining practices.", target:"Unsafe mining practices had been opposed by Indigenous leaders."},
+        {active:"The government manages a reservation for Indigenous communities.", target:"A reservation for Indigenous communities had been managed by the government."},
+        {active:"Mining activities damage the ecosystem around the canyon.", target:"The ecosystem around the canyon had been damaged by mining activities."},
+        {active:"Pollutants threaten groundwater near the ore trucks.", target:"Groundwater near the ore trucks had been threatened by pollutants."},
+        {active:"Engineers promote sustainability in resource extraction.", target:"Sustainability in resource extraction had been promoted by engineers."},
+        {active:"Workers perform extraction to remove ore from the ground.", target:"Extraction to remove ore from the ground had been performed by workers."},
+        {active:"Miners crush ore before processing it.", target:"Ore had been crushed by miners before being processed."},
+        {active:"Factories release toxic chemicals during refining.", target:"Toxic chemicals had been released during refining by factories."},
+        {active:"The agency enforces regulation on hazardous materials.", target:"Regulation on hazardous materials had been enforced by the agency."},
+        {active:"German laboratories measure radiation levels during safety inspections.", target:"Radiation levels had been measured during safety inspections by German laboratories."},
+        {active:"Engineers monitor contamination risks near industrial areas in Germany.", target:"Contamination risks near industrial areas in Germany had been monitored by engineers."},
+        {active:"Inspectors label certain waste barrels as hazardous.", target:"Certain waste barrels had been labeled as hazardous by inspectors."},
+        {active:"Companies store tailings in lined pits.", target:"Tailings had been stored in lined pits by companies."},
+        {active:"Officials issue a permit for the new extraction zone.", target:"A permit for the new extraction zone had been issued by officials."},
+        {active:"Every stakeholder reviews the environmental plan.", target:"The environmental plan had been reviewed by every stakeholder."},
+        {active:"Researchers study the impact of uranium extraction.", target:"The impact of uranium extraction had been studied by researchers."},
+        {active:"The project creates controversy among local residents.", target:"Controversy among local residents had been created by the project."},
+        {active:"The company uses the land as a resource for production.", target:"The land had been used as a resource for production by the company."},
+        {active:"Teams inspect the extraction site for safety risks.", target:"The extraction site had been inspected for safety risks by teams."},
+        {active:"Biologists measure biodiversity in the canyon ecosystem.", target:"Biodiversity in the canyon ecosystem had been measured by biologists."},
+        {active:"Technicians detect radioactive particles near the ore piles.", target:"Radioactive particles near the ore piles had been detected by technicians."},
+        {active:"Historians study the ancient tribes considered indigenous to early German territories.", target:"The ancient tribes considered indigenous to early German territories had been studied by historians."},
+        {active:"Germany protects the ecosystem of the Bavarian Alps through strict regulations.", target:"The ecosystem of the Bavarian Alps had been protected through strict regulations by Germany."},
+        {active:"Scientists test groundwater in rural Germany for quality and safety.", target:"Groundwater in rural Germany had been tested for quality and safety by scientists."},
+        {active:"Germany promotes sustainability through renewable energy programs.", target:"Sustainability had been promoted through renewable energy programs by Germany."},
+        {active:"The German government enforces strict regulation on environmental practices.", target:"Strict regulation on environmental practices had been enforced by the German government."},
+        {active:"Germany invests in conservation programs to protect forests and rivers.", target:"Conservation programs to protect forests and rivers had been invested in by Germany."}
+    ];
+
+    // Game 2 Data (Reading)
+    const game2Rounds = [
+        ["At 9:00 a.m., the geology talk started.", "The Grand Canyon had been visited by tourists to learn about geology.", "At 9:30 a.m., the guide gave a map."],
+        ["At 10:00 a.m., the safety meeting began.", "Radiation near the extraction site had been measured by scientists.", "At 10:20 a.m., the team shared the results."],
+        ["At 8:00 a.m., the road check finished.", "Contamination near the mining road had been caused by heavy trucks.", "At 8:15 a.m., the company cleaned the area."],
+        ["On Monday morning, the public hearing opened.", "Unsafe mining practices had been opposed by Indigenous leaders.", "On Monday afternoon, the board noted the comments."],
+        ["In January, the annual report was written.", "A reservation for Indigenous communities had been managed by the government.", "In February, officials planned new services."],
+        ["Last week, the park survey ended.", "The ecosystem around the canyon had been damaged by mining activities.", "Later that week, rangers marked weak zones."],
+        ["At 11:00 a.m., the water test started.", "Groundwater near the ore trucks had been threatened by pollutants.", "At 11:30 a.m., workers set up barriers."],
+        ["On Tuesday morning, the workshop began.", "Sustainability in resource extraction had been promoted by engineers.", "Later on Tuesday, the team showed simple tools."],
+        ["At 6:00 p.m., the shift ended.", "Extraction to remove ore from the ground had been performed by workers.", "At 6:15 p.m., the foreman checked the list."],
+        ["At 7:00 a.m., the mill opened.", "Ore had been crushed by miners before being processed.", "Soon after, the ore moved to the tanks."],
+        ["This morning, the alarm review began.", "Toxic chemicals had been released during refining by factories.", "This morning, inspectors took samples."],
+        ["Last month, the rule book was updated.", "Regulation on hazardous materials had been enforced by the agency.", "Last month, staff trained new workers."],
+        ["On Wednesday, the inspection started.", "Radiation levels had been measured during safety inspections by German laboratories.", "On Wednesday evening, the lab sent a report."],
+        ["On Friday, the city meeting began.", "Contamination risks near industrial areas in Germany had been monitored by engineers.", "On Friday, signs were put up."],
+        ["Yesterday morning, the storehouse check finished.", "Certain waste barrels had been labeled as hazardous by inspectors.", "Yesterday afternoon, guards locked the room."],
+        ["That morning, a storm warning came.", "Tailings had been stored in lined pits by companies.", "That morning, the site closed the gates."],
+        ["Last Tuesday, the hearing ended.", "A permit for the new extraction zone had been issued by officials.", "Last Tuesday, the office posted the notice."],
+        ["On Monday, the workshop closed.", "The environmental plan had been reviewed by every stakeholder.", "On Monday, the team made changes."],
+        ["Last weekend, the field trip ended.", "The impact of uranium extraction had been studied by researchers.", "Last weekend, they wrote a summary."],
+        ["That evening, the town hall opened.", "Controversy among local residents had been created by the project.", "That evening, leaders asked for feedback."],
+        ["In May, the contract was signed.", "The land had been used as a resource for production by the company.", "In May, workers built a small road."],
+        ["At noon, the drill ended.", "The extraction site had been inspected for safety risks by teams.", "At 12:30 p.m., the manager set new rules."],
+        ["At 4:00 p.m., the walk finished.", "Biodiversity in the canyon ecosystem had been measured by biologists.", "At 4:15 p.m., the group tagged plants."],
+        ["At 2:00 p.m., the monitor beeped.", "Radioactive particles near the ore piles had been detected by technicians.", "At 2:05 p.m., the area was closed."],
+        ["On Saturday morning, the museum opened.", "The ancient tribes considered indigenous to early German territories had been studied by historians.", "On Saturday afternoon, the guide gave a short talk."],
+        ["On 1 July, the policy took effect.", "The ecosystem of the Bavarian Alps had been protected through strict regulations by Germany.", "On 1 July, rangers patrolled the trails."],
+        ["On Thursday morning, the village meeting began.", "Groundwater in rural Germany had been tested for quality and safety by scientists.", "On Thursday afternoon, the mayor shared the results."],
+        ["On Sunday, the energy fair opened.", "Sustainability had been promoted through renewable energy programs by Germany.", "On Sunday, people signed up for a course."],
+        ["On 3 March, the new law started.", "Strict regulation on environmental practices had been enforced by the German government.", "On 3 March, factories changed their plans."],
+        ["In September, the budget passed.", "Conservation programs to protect forests and rivers had been invested in by Germany.", "In September, crews planted young trees."]
+    ];
+
+    class Game {
+        constructor() {
+            this.currentRosterKey = 'classA';
+            this.players = rosterData.classA.map(name => ({ name, present: true }));
+            this.mode = 1; // 1=Solo, 2=Vs, 3=Reading
+            this.roundIndex = 0;
+            this.timer = null;
+            this.timeLeft = 90;
+            this.activePlayers = [];
+            this.isRoundActive = false;
+        }
+
+        loadRoster(key) {
+            this.currentRosterKey = key;
+            const names = rosterData[key];
+            this.players = names.map(name => ({ name, present: true }));
+            this.initAttendance();
+            
+            // Visual feedback for buttons
+            const btnA = document.getElementById('btnRosterA');
+            const btn12 = document.getElementById('btnRoster12');
+            
+            if(key === 'classA') {
+                btnA.className = "px-4 py-2 rounded-lg text-sm font-bold bg-slate-700 hover:bg-slate-600 border border-emerald-500 text-white shadow-lg transition-all";
+                btn12.className = "px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-500 border border-slate-700 hover:bg-slate-700 transition-all opacity-75";
+            } else {
+                btn12.className = "px-4 py-2 rounded-lg text-sm font-bold bg-slate-700 hover:bg-slate-600 border border-emerald-500 text-white shadow-lg transition-all";
+                btnA.className = "px-4 py-2 rounded-lg text-sm font-bold bg-slate-800 text-slate-500 border border-slate-700 hover:bg-slate-700 transition-all opacity-75";
+            }
+            Sound.click();
+        }
+
+        initAttendance() {
+            const grid = document.getElementById('rosterGrid');
+            grid.innerHTML = '';
+            this.players.forEach((p, i) => {
+                const btn = document.createElement('button');
+                btn.className = `p-3 rounded-lg font-bold text-sm md:text-base transition-all border ${p.present ? 'bg-slate-700 border-emerald-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-600 grayscale'}`;
+                btn.innerHTML = `<span>${p.name}</span> <span class="${p.present?'text-emerald-400':'text-red-900'}">${p.present?'✓':'✕'}</span>`;
+                btn.onclick = () => {
+                    Sound.click();
+                    this.players[i].present = !this.players[i].present;
+                    this.initAttendance();
+                };
+                grid.appendChild(btn);
+            });
+            
+            // Ensure button state is correct on init
+            if(this.currentRosterKey === 'classA') {
+                 document.getElementById('btnRosterA').classList.add('border-emerald-500');
+            }
+        }
+
+        start(mode) {
+            const required = (mode === 1) ? 1 : 2;
+            const present = this.players.filter(p => p.present);
+            if (present.length < required) {
+                alert(`Need at least ${required} present players!`);
+                return;
+            }
+            this.mode = mode;
+            Sound.correct();
+            document.getElementById('attendanceScreen').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('hidden');
+            document.getElementById('gameScreen').classList.add('flex');
+            
+            // Hide all containers first
+            document.getElementById('mode1Container').classList.remove('flex');
+            document.getElementById('mode1Container').classList.add('hidden');
+            document.getElementById('mode2Container').classList.remove('flex');
+            document.getElementById('mode2Container').classList.add('hidden');
+            document.getElementById('game2Container').classList.remove('flex');
+            document.getElementById('game2Container').classList.add('hidden');
+            document.getElementById('game1Header').classList.add('hidden');
+            document.getElementById('game2Header').classList.add('hidden');
+
+            if(mode === 1) {
+                document.getElementById('mode1Container').classList.remove('hidden');
+                document.getElementById('mode1Container').classList.add('flex');
+                document.getElementById('game1Header').classList.remove('hidden');
+            } else if (mode === 2) {
+                document.getElementById('mode2Container').classList.remove('hidden');
+                document.getElementById('mode2Container').classList.add('flex');
+                document.getElementById('game1Header').classList.remove('hidden');
+            } else if (mode === 3) {
+                document.getElementById('game2Container').classList.remove('hidden');
+                document.getElementById('game2Container').classList.add('flex');
+                document.getElementById('game2Header').classList.remove('hidden');
+            }
+            
+            this.roundIndex = 0;
+            this.loadRound();
+        }
+
+        exitGame() {
+            clearInterval(this.timer);
+            this.isRoundActive = false;
+            
+            // Hide Game, Show Attendance
+            document.getElementById('gameScreen').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('flex');
+            document.getElementById('attendanceScreen').classList.remove('hidden');
+            
+            Sound.click();
+        }
+
+        loadRound() {
+            clearInterval(this.timer);
+            this.timeLeft = 90;
+            this.isRoundActive = true;
+            this.activePlayers = this.pickRandomPlayers(this.mode === 1 ? 1 : 2);
+            
+            this.updateTimerUI();
+            document.getElementById('timerBar').className = "absolute top-0 left-0 h-1 bg-emerald-500 transition-all duration-1000 w-full";
+
+            if (this.mode === 3) {
+                // GAME 2 LOGIC
+                document.getElementById('g2_roundCurrent').innerText = this.roundIndex + 1;
+                document.getElementById('g2_p1_name').innerText = this.activePlayers[0].name;
+                document.getElementById('g2_p2_name').innerText = this.activePlayers[1].name;
+                
+                // Hide/Show correct buttons
+                document.getElementById('g2_revealBtn').classList.remove('hidden');
+                document.getElementById('g2_nextBtn').classList.add('hidden');
+                
+                this.setupGame2Board();
+            } else {
+                // GAME 1 LOGIC
+                document.getElementById('roundCurrent').innerText = this.roundIndex + 1;
+                document.getElementById('roundTotal').innerText = rounds.length;
+                document.getElementById('activeSentence').innerText = rounds[this.roundIndex].active;
+                
+                const targetTokens = rounds[this.roundIndex].target.replace(/\.$/, '').split(' ');
+                
+                if (this.mode === 1) {
+                    document.getElementById('p1_name').innerText = this.activePlayers[0].name;
+                    document.getElementById('p1_checkBtn').classList.remove('hidden');
+                    document.getElementById('nextBtn').classList.add('hidden');
+                    this.setupBoard('p1', targetTokens);
+                } else {
+                    document.getElementById('vs_p1_name').innerText = this.activePlayers[0].name;
+                    document.getElementById('vs_p2_name').innerText = this.activePlayers[1].name;
+                    document.getElementById('vs_nextOverlay').classList.add('hidden');
+                    document.getElementById('vs_p1_check').disabled = false;
+                    document.getElementById('vs_p1_check').classList.remove('opacity-50');
+                    document.getElementById('vs_p2_check').disabled = false;
+                    document.getElementById('vs_p2_check').classList.remove('opacity-50');
+                    this.setupBoard('vs_p1', targetTokens);
+                    this.setupBoard('vs_p2', targetTokens);
+                }
+            }
+            this.startTimer();
+        }
+
+        setupGame2Board() {
+            const container = document.getElementById('readingCardContainer');
+            container.innerHTML = '';
+            
+            const currentSentences = game2Rounds[this.roundIndex];
+            // Create object with text and original index (0=Before, 1=PPP, 2=After)
+            const cards = currentSentences.map((text, idx) => ({ text, order: idx }));
+            
+            // Shuffle
+            const shuffled = [...cards].sort(() => Math.random() - 0.5);
+            
+            shuffled.forEach(item => {
+                const card = document.createElement('div');
+                // Increased font size classes: text-2xl md:text-4xl (was text-xl md:text-2xl)
+                card.className = "reading-card bg-slate-800 border border-slate-600 rounded-xl p-8 text-2xl md:text-4xl leading-relaxed font-medium text-center shadow-lg animate-slide-up hover:bg-slate-750 transition-colors cursor-default";
+                card.innerText = item.text;
+                card.dataset.order = item.order; // Store correct order
+                container.appendChild(card);
+            });
+        }
+
+        revealGame2Order() {
+            if(!this.isRoundActive) return;
+            this.isRoundActive = false;
+            clearInterval(this.timer);
+            Sound.correct();
+            
+            const container = document.getElementById('readingCardContainer');
+            const cards = Array.from(container.children);
+            
+            // Sort visually
+            const sorted = cards.sort((a, b) => a.dataset.order - b.dataset.order);
+            
+            container.innerHTML = '';
+            sorted.forEach((card, i) => {
+                container.appendChild(card);
+                card.classList.add('correct-order');
+                card.innerHTML = `<span class="text-emerald-400 font-bold mr-2">${i+1}.</span> ${card.innerText}`;
+                if(i===1) card.classList.add('text-emerald-300'); // Highlight PPP
+            });
+
+            document.getElementById('g2_revealBtn').classList.add('hidden');
+            document.getElementById('g2_nextBtn').classList.remove('hidden');
+        }
+
+        setupBoard(prefix, tokens) {
+            const pool = document.getElementById(`${prefix}_pool`);
+            const answer = document.getElementById(`${prefix}_answer`);
+            pool.innerHTML = '';
+            answer.innerHTML = '';
+            
+            const shuffled = [...tokens].sort(() => Math.random() - 0.5);
+            shuffled.forEach((word, idx) => {
+                const t = document.createElement('div');
+                t.innerText = word;
+                t.id = `${prefix}_tok_${idx}`;
+                t.className = `token bg-slate-700 text-slate-100 border border-slate-600 rounded px-3 py-2 text-sm md:text-lg font-medium shadow-sm select-none`;
+                t.draggable = true;
+                
+                t.ondragstart = (e) => {
+                    e.dataTransfer.setData("text/plain", e.target.id);
+                    e.dataTransfer.effectAllowed = "move";
+                    t.classList.add('is-dragging');
+                    Sound.click();
+                };
+                t.ondragend = () => t.classList.remove('is-dragging');
+                t.onclick = () => {
+                    if(!this.isRoundActive) return;
+                    Sound.click();
+                    if(t.parentNode === pool) answer.appendChild(t);
+                    else pool.appendChild(t);
+                };
+                pool.appendChild(t);
+            });
+
+            [pool, answer].forEach(zone => {
+                zone.ondragover = (e) => { e.preventDefault(); zone.classList.add('drag-over'); };
+                zone.ondragleave = () => zone.classList.remove('drag-over');
+                zone.ondrop = (e) => {
+                    e.preventDefault();
+                    zone.classList.remove('drag-over');
+                    const id = e.dataTransfer.getData("text/plain");
+                    const el = document.getElementById(id);
+                    if(el) { zone.appendChild(el); Sound.click(); }
+                };
+            });
+        }
+
+        pickRandomPlayers(count) {
+            const present = this.players.filter(p => p.present);
+            const picked = [];
+            // If not enough players, reuse
+            const pool = [...present];
+            for(let i=0; i<count; i++) {
+                if(pool.length === 0) pool.push(...present); // refill if needed
+                const r = Math.floor(Math.random() * pool.length);
+                picked.push(pool[r]);
+                pool.splice(r, 1);
+            }
+            return picked;
+        }
+
+        startTimer() {
+            this.timer = setInterval(() => {
+                this.timeLeft--;
+                this.updateTimerUI();
+                if(this.timeLeft <= 10) Sound.tick();
+                if(this.timeLeft <= 0) {
+                    clearInterval(this.timer);
+                    this.timeUp();
+                }
+            }, 1000);
+        }
+
+        updateTimerUI() {
+            const display = document.getElementById('timerDisplay');
+            const bar = document.getElementById('timerBar');
+            display.innerText = this.timeLeft;
+            bar.style.width = `${(this.timeLeft/90)*100}%`;
+            
+            if(this.timeLeft < 10) {
+                bar.className = "absolute top-0 left-0 h-1 bg-red-500 w-full animate-pulse";
+                display.className = "text-4xl font-mono font-bold text-red-500 leading-none";
+            }
+        }
+
+        timeUp() {
+            this.isRoundActive = false;
+            Sound.timeUp();
+            if(this.mode === 2) document.getElementById('vs_nextOverlay').classList.remove('hidden');
+            else if (this.mode === 1) {
+                document.getElementById('p1_checkBtn').classList.add('hidden');
+                document.getElementById('nextBtn').classList.remove('hidden');
+            } else if (this.mode === 3) {
+                 document.getElementById('g2_revealBtn').innerText = "Time's Up - Show Order";
+                 document.getElementById('g2_revealBtn').classList.add('bg-red-600', 'border-red-800');
+            }
+        }
+
+        checkAnswer(playerNum) {
+            if(!this.isRoundActive) return;
+            // (Game 1 check logic is unchanged)
+            const prefix = this.mode === 1 ? 'p1' : (playerNum === 1 ? 'vs_p1' : 'vs_p2');
+            const answerContainer = document.getElementById(`${prefix}_answer`);
+            const userSent = Array.from(answerContainer.children).map(c => c.innerText).join(' ');
+            const targetSent = rounds[this.roundIndex].target.replace(/\.$/, '');
+
+            if(userSent === targetSent) {
+                Sound.correct();
+                this.triggerConfetti(answerContainer);
+                Array.from(answerContainer.children).forEach(c => {
+                    c.className = "token bg-emerald-500 text-white border border-emerald-400 rounded px-3 py-2 text-sm md:text-lg font-bold shadow-md select-none transform scale-110 transition-transform";
+                });
+
+                if(this.mode === 1) {
+                    this.isRoundActive = false;
+                    clearInterval(this.timer);
+                    document.getElementById('p1_checkBtn').classList.add('hidden');
+                    document.getElementById('nextBtn').classList.remove('hidden');
+                } else {
+                    this.isRoundActive = false;
+                    clearInterval(this.timer);
+                    document.getElementById('vs_nextOverlay').classList.remove('hidden');
+                }
+            } else {
+                Sound.wrong();
+                answerContainer.parentElement.classList.add('animate-bounce-short');
+                setTimeout(() => answerContainer.parentElement.classList.remove('animate-bounce-short'), 500);
+            }
+        }
+
+        resetRound(playerNum) {
+            if(!this.isRoundActive) return;
+            const prefix = this.mode === 1 ? 'p1' : (playerNum === 1 ? 'vs_p1' : 'vs_p2');
+            const pool = document.getElementById(`${prefix}_pool`);
+            const answer = document.getElementById(`${prefix}_answer`);
+            const tokens = Array.from(answer.children);
+            tokens.forEach(t => pool.appendChild(t));
+            Sound.click();
+        }
+
+        nextRound() {
+            this.roundIndex++;
+            // Check limits for each game type
+            const maxRounds = (this.mode === 3) ? game2Rounds.length : rounds.length;
+            
+            if(this.roundIndex >= maxRounds) {
+                alert("Game Over! All rounds complete.");
+                location.reload();
+            } else {
+                this.loadRound();
+            }
+        }
+
+        triggerConfetti(element) {
+            const rect = element.getBoundingClientRect();
+            for(let i=0; i<30; i++) {
+                const c = document.createElement('div');
+                c.className = 'confetti';
+                c.style.left = (rect.left + Math.random() * rect.width) + 'px';
+                c.style.top = rect.top + 'px';
+                c.style.backgroundColor = ['#f00', '#0f0', '#00f', '#ff0', '#0ff'][Math.floor(Math.random()*5)];
+                c.style.animationDuration = (1 + Math.random()) + 's';
+                document.body.appendChild(c);
+                setTimeout(() => c.remove(), 2000);
+            }
+        }
+    }
+
+    const game = new Game();
+    game.loadRoster('classA'); // Initialize with Class A but button is visible to switch
+    window.startGame = (m) => game.start(m);
+</script>
+</body>
+</html>
