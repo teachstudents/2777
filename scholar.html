@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Tri-Finder 2.2 · Highly-Cited Mode</title>
+<style>
+:root{font-family:system-ui,sans-serif;color-scheme:light dark;
+ --clr-arxiv:#e4572e;--clr-crossref:#4f6df5;--clr-openalex:#2faa5a;--gap:1rem;}
+body{margin:2rem auto;max-width:960px;line-height:1.55; padding: 0 1rem;}
+h1{text-align:center;margin-bottom:1.2rem;}
+#bar{display:flex;flex-wrap:wrap;gap:var(--gap);align-items:center;}
+#q{flex:1 1 280px;padding:.6rem .8rem;font-size:1.1rem; box-sizing: border-box;}
+label,select,input[type=range]{cursor:pointer;font-size:.88rem;}
+button { padding: 0.6rem 0.9rem; font-size: 1rem; }
+section{margin-top:2rem;}
+.src{margin-bottom:2rem;}
+.src h2{margin:.6rem 0;}
+.item{margin:.35rem 0;padding:.4rem .65rem;border-left:4px solid var(--clr,#888);}
+.item a{font-weight:600;text-decoration:none; color: inherit;}
+.item a:hover { text-decoration: underline; }
+.meta{font-size:.85rem;opacity:.75;}
+.spinner{display:inline-block;width:1rem;height:1rem;border:3px solid currentColor;
+           border-right-color:transparent;border-radius:50%;animation:spin 1s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hist-tag{display: inline-block; background:#7773;padding:.25rem .55rem;border-radius:.4rem;margin:.2rem .3rem;
+           cursor:pointer;font-size:.85em;}
+#history { margin-top: 1.4rem; }
+#more { margin:2.5rem auto;display:block;padding:.6rem 1.2rem;font-size:1rem; }
+#foot{margin-top:3.5rem;font-size:.75rem;text-align:center;opacity:.7;}
+
+@media (prefers-color-scheme: dark) {
+    body { background-color: #1a1a1a; color: #f0f0f0; }
+    #q, button, input, select { background-color: #2a2a2a; border-color: #444; color: #f0f0f0; }
+    .hist-tag { background: #555; }
+    .item { background: #333; }
+}
+</style>
+</head>
+<body>
+<h1>Tri-Finder 2.2 — Find the Most-Cited Papers Fast</h1>
+
+<div id="bar">
+  <input id="q" placeholder="Search term…" autofocus>
+  <label>Hits (<span id="hitsShow">10</span>)
+    <input id="hits" type="range" min="5" max="30" step="5" value="10">
+  </label>
+  <label>Min Citations (<span id="citesShow">0</span>)
+    <input id="cMin" type="range" min="0" max="500" step="10" value="0">
+  </label>
+  <label>Sort by
+    <select id="sort">
+      <option value="relevance">Relevance</option>
+      <option value="year">Year ↓</option>
+      <option value="cit">Citations ↓</option>
+    </select>
+  </label>
+  <button id="go">Search</button>
+</div>
+
+<div id="history"></div>
+
+<section id="results"></section>
+<button id="more" style="display:none">Load more</button>
+
+<footer id="foot">All client-side · no keys required · arXiv + Crossref + OpenAlex · v2.2</footer>
+
+<!-- ------- Main script ------- -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    /* ===== tiny DOM helpers ===== */
+    const $  = (sel, el=document) => el.querySelector(sel);
+    const tag = (k, p={}) => Object.assign(document.createElement(k), p);
+
+    /* ===== search-history ===== */
+    const HKEY = 'tri_finder_hist_2.2';
+    function saveHist(t){
+      try {
+          let h = JSON.parse(localStorage.getItem(HKEY) || '[]');
+          h = [t, ...h.filter(x=>x!==t)].slice(0,8);
+          localStorage.setItem(HKEY, JSON.stringify(h));
+          renderHist();
+      } catch (e) { console.error("Could not save history", e); }
+    }
+    function renderHist(){
+      const box = $('#history'); 
+      if (!box) return;
+      box.innerHTML='';
+      try {
+        JSON.parse(localStorage.getItem(HKEY)||'[]')
+            .forEach(t => box.appendChild(
+              tag('span',{className:'hist-tag',textContent:t,
+                          onclick:()=>{ $('#q').value=t; runSearch(); }})));
+      } catch (e) { console.error("Could not render history", e); }
+    }
+    renderHist();
+
+    /* ===== API fetchers ===== */
+    async function fetchArxiv(q,start,rows){
+      const url = `https://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(q)}&start=${start}&max_results=${rows}`;
+      const xml = new DOMParser().parseFromString(await (await fetch(url)).text(),'application/xml');
+      return [...xml.getElementsByTagName('entry')].map(e=>({
+        src:'arXiv',
+        title:e.querySelector('title')?.textContent.trim(),
+        link:e.querySelector('id')?.textContent.trim(),
+        year:e.querySelector('published')?.textContent.slice(0,4),
+        authors:[...e.getElementsByTagName('author')].slice(0,3).map(a=>a.textContent.trim()).join(', '),
+        cites:null 
+      }));
+    }
+    async function fetchCross(q, offset, rows, sort){
+      const order = sort==='cit' ? 'is-referenced-by-count' :
+                    sort==='year'? 'published' : undefined;
+      let url = `https://api.crossref.org/works?query=${encodeURIComponent(q)}&rows=${rows}&offset=${offset}&mailto=guest@example.com`;
+      if (order) {
+        url += `&sort=${order}&order=desc`;
+      }
+      const js = await (await fetch(url)).json();
+      return js.message.items.map(it=>({
+        src:'Crossref',
+        title: it.title?.[0],
+        link : it.URL,
+        year : it['published-print']?.['date-parts']?.[0]?.[0] ||
+               it['published-online']?.['date-parts']?.[0]?.[0],
+        authors:(it.author||[]).slice(0,3).map(a=>a.family).join(', '),
+        cites : it['is-referenced-by-count'] ?? 0
+      }));
+    }
+    async function fetchOA(q, page, rows, sort, minCit){
+      let url = `https://api.openalex.org/works?search=${encodeURIComponent(q)}&per_page=${rows}&page=${page}`;
+      if(sort==='cit')  url += `&sort=cited_by_count:desc`;
+      if(sort==='year') url += `&sort=publication_year:desc`;
+      if(minCit>0)      url += `&filter=cited_by_count:>${minCit}`;
+      const js = await (await fetch(url)).json();
+      return js.results.map(it=>({
+        src:'OpenAlex',
+        title: it.display_name,
+        link : it.doi ? `https://doi.org/${it.doi.replace('https://doi.org/','')}` : it.id,
+        year : it.publication_year,
+        authors:(it.authorships||[]).slice(0,3).map(a=>a.author.display_name).join(', '),
+        cites : it.cited_by_count ?? 0
+      }));
+    }
+
+    /* ===== UI plumbing ===== */
+    function spinner(){ return tag('span',{className:'spinner'}); }
+    function panel(name,color){
+      const wrap = tag('div',{className:'src','data-src':name});
+      wrap.style.setProperty('--clr',color);
+      wrap.append(tag('h2',{textContent:name}));
+      $('#results').appendChild(wrap);
+      return wrap;
+    }
+    function meta(d){
+      return `${d.authors||''}${d.year?` · ${d.year}`:''}${d.cites!=null?` · Citations: ${d.cites}`:''}`;
+    }
+
+    /* ===== state & run ===== */
+    let state = {arxiv:0,cross:0,oa:0,q:'',rows:10,min:0,sort:'relevance'};
+
+    async function runSearch(loadMore=false){
+      const q = $('#q').value.trim();
+      if(!q) return;
+
+      const hits = +$('#hits').value;
+      const minCites = +$('#cMin').value;
+      const sortOrder = $('#sort').value;
+      
+      const resultsEl = $('#results');
+      
+      if(!loadMore){
+        resultsEl.innerHTML='';
+        state = {arxiv:0,cross:0,oa:0, q, rows: hits, min: minCites, sort: sortOrder};
+        saveHist(q);
+      } else {
+        state.rows = hits;
+        state.min = minCites;
+        state.sort = sortOrder;
+      }
+      
+      let panA = $('.src[data-src="arXiv"]');
+      let panC = $('.src[data-src="Crossref"]');
+      let panO = $('.src[data-src="OpenAlex"]');
+
+      if (!loadMore) {
+        panA = panel('arXiv', 'var(--clr-arxiv)');
+        panC = panel('Crossref', 'var(--clr-crossref)');
+        panO = panel('OpenAlex', 'var(--clr-openalex)');
+      }
+
+      if(panA) panA.append(spinner());
+      if(panC) panC.append(spinner());
+      if(panO) panO.append(spinner());
+      
+      /* 3 parallel fetches */
+      const [ra, rc, ro] = await Promise.allSettled([
+          fetchArxiv(q, state.arxiv,  state.rows),
+          fetchCross(q, state.cross,  state.rows, state.sort),
+          fetchOA(q, Math.floor(state.oa/state.rows)+1, state.rows, state.sort, state.min)
+      ]);
+
+      const fill = (panel, arr) => {
+        if (!panel) return;
+        panel.querySelector('.spinner')?.remove();
+        arr = arr.filter(x=>x.cites==null || x.cites>=state.min);
+        if(!arr.length){
+          panel.append(tag('p',{textContent: (panel.querySelectorAll('.item').length > 0 ? '— no more hits —' : '— no hits —')}));
+          return;
+        }
+        if(state.sort==='cit')  arr.sort((a,b)=>(b.cites||0)-(a.cites||0));
+        if(state.sort==='year') arr.sort((a,b)=>(b.year||0)-(a.year||0));
+
+        arr.forEach(d=>{
+          const it = tag('div',{className:'item'});
+          it.innerHTML = `<a href="${d.link}" target="_blank" rel="noopener noreferrer">${d.title||'(untitled)'}</a>
+                          <div class="meta">${meta(d)}</div>`;
+          panel.append(it);
+        });
+      };
+
+      if(ra.status==='fulfilled'){ fill(panA, ra.value); state.arxiv += ra.value.length; }
+      else { if(panA) { panA.querySelector('.spinner')?.remove(); panA.append(tag('p',{textContent:'Error loading'})); } console.error("arXiv Error", ra.reason); }
+      if(rc.status==='fulfilled'){ fill(panC, rc.value); state.cross += rc.value.length; }
+      else { if(panC) { panC.querySelector('.spinner')?.remove(); panC.append(tag('p',{textContent:'Error loading'})); } console.error("Crossref Error", rc.reason); }
+      if(ro.status==='fulfilled'){ fill(panO, ro.value); state.oa    += ro.value.length; }
+      else { if(panO) { panO.querySelector('.spinner')?.remove(); panO.append(tag('p',{textContent:'Error loading'})); } console.error("OpenAlex Error", ro.reason); }
+
+      let moreButton = $('#more');
+      if (!moreButton) {
+        moreButton = tag('button', {id: 'more', textContent: 'Load more'});
+        $('body').appendChild(moreButton);
+        moreButton.addEventListener('click', () => runSearch(true));
+      }
+      moreButton.style.display = (state.arxiv+state.cross+state.oa)>0 ? 'block' : 'none';
+    }
+
+    /* ===== wiring ===== */
+    $('#go')   .addEventListener('click', ()=>runSearch(false));
+    $('#q')    .addEventListener('keydown', e=>e.key==='Enter' && runSearch(false));
+    $('#hits') .addEventListener('input', e=>$('#hitsShow').textContent=e.target.value);
+    $('#cMin') .addEventListener('input', e=>$('#citesShow').textContent =e.target.value);
+    
+});
+</script>
+</body>
+</html>

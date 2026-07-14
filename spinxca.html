@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Name Picker Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #0b021a, #200d49, #4a1a7c, #2c0b59);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .picker-container {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+            z-index: 100;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1001;
+        }
+        
+        .picker-body {
+            min-height: 100vh;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        /* --- New Main Menu Styles --- */
+        .grade-card {
+            background: rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            animation: float 6s ease-in-out infinite;
+        }
+        .grade-card:hover {
+            border-color: rgba(192, 132, 252, 0.8);
+            transform: translateY(-10px);
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .menu-button {
+            background: linear-gradient(145deg, #5f38a8, #8c52ff);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: bold;
+            padding: 12px 16px;
+            transition: all 0.15s ease-out;
+            box-shadow: 0 5px 0 #3c1f70, 0 8px 15px rgba(0,0,0,0.3);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+        }
+        .menu-button:hover {
+            background: linear-gradient(145deg, #6e43c2, #9d6cff);
+            transform: translateY(-2px);
+            box-shadow: 0 7px 0 #3c1f70, 0 10px 20px rgba(0,0,0,0.25);
+        }
+        .menu-button:active {
+            transform: translateY(5px);
+            box-shadow: 0 0px 0 #3c1f70, 0 5px 10px rgba(0,0,0,0.3);
+        }
+
+
+        /* Shared styles for student lists */
+        .student-list-container {
+            background: rgba(0,0,0,0.2);
+            border-radius: 15px;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-width: 90%;
+            width: 600px;
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .student-list-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 0.5rem;
+            color: white;
+            text-align: center;
+        }
+        .student-list-item {
+            background: rgba(255,255,255,0.1);
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 1rem;
+            word-break: keep-all;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+        }
+        .student-list-item.highlight {
+            background: linear-gradient(45deg, #feca57, #ff9f43);
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            font-weight: bold;
+        }
+        .student-list-item.picked {
+            opacity: 0.4;
+            background: rgba(0,0,0,0.3);
+            text-decoration: line-through;
+        }
+
+
+        /* Celebration Styles */
+        .celebration-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; }
+        .winner-display { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8); background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1); color: white; padding: 2rem 3rem; border-radius: 20px; font-size: 2.5rem; font-weight: bold; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.4); z-index: 10000; display: none; animation: winnerPulse 0.5s ease-in-out forwards, winnerFlash 1s ease-in-out infinite alternate; }
+        @keyframes winnerPulse { 0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+        @keyframes winnerFlash { from { box-shadow: 0 0 60px 20px rgba(255, 255, 255, 0.7); } to { box-shadow: 0 0 30px 10px rgba(255, 255, 255, 0.4); } }
+        .firework { position: absolute; width: 6px; height: 6px; border-radius: 50%; pointer-events: none; }
+        @keyframes fireworkExplode { 0% { transform: scale(0); opacity: 1; } 100% { transform: scale(25); opacity: 0; } }
+        .confetti { position: absolute; width: 10px; height: 10px; pointer-events: none; font-size: 24px; }
+        @keyframes confettiFall { 0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+        .badge { position: absolute; font-size: 3rem; pointer-events: none; animation: badgeBounce 2s ease-in-out infinite; }
+        @keyframes badgeBounce { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-20px) scale(1.2); } }
+        .trophy { position: absolute; font-size: 4rem; pointer-events: none; animation: trophySpin 3s linear infinite; }
+        @keyframes trophySpin { 0% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(1.3); } 100% { transform: rotate(360deg) scale(1); } }
+
+        /* Styles from new Random Picker */
+        @keyframes r-containerGlow { 0%, 100% { border-color: rgba(255,255,255,0.3); box-shadow: 0 20px 40px rgba(0,0,0,0.2), 0 0 30px rgba(255,255,255,0.1); } 50% { border-color: rgba(255,255,255,0.6); box-shadow: 0 20px 40px rgba(0,0,0,0.3), 0 0 50px rgba(255,255,255,0.3); } }
+        @keyframes r-shuffle { 0% { transform: translateY(0) scale(1); } 50% { transform: translateY(-10px) scale(1.05); } 100% { transform: translateY(0) scale(1); } }
+        @keyframes r-gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes r-winnerPulse { 0%, 100% { transform: scale(1.1); box-shadow: 0 10px 30px rgba(0,0,0,0.3), 0 0 50px rgba(255,255,255,0.5); } 50% { transform: scale(1.2); box-shadow: 0 15px 40px rgba(0,0,0,0.4), 0 0 80px rgba(255,255,255,0.8); } }
+        @keyframes r-buttonColorShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes r-timerUrgent { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+
+        /* Fishing Game Specific Styles */
+        @keyframes waterShimmer { 0%, 100% { transform: translateX(-100%); } 50% { transform: translateX(100%); } }
+        @keyframes waveMotion { 0% { transform: translateX(0); } 100% { transform: translateX(-20px); } }
+        @keyframes rodCast { 0%, 100% { transform: rotate(45deg); } 50% { transform: rotate(60deg); } }
+        @keyframes lineSwing { 0%, 100% { transform: rotate(5deg); } 50% { transform: rotate(-5deg); } }
+        @keyframes boatFloat { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-8px) rotate(1deg); } }
+        @keyframes sailFlutter { 0%, 100% { transform: skewX(0deg); } 50% { transform: skewX(5deg); } }
+        @keyframes seagullFly1 { 0%, 100% { transform: translateX(0) translateY(0); } 25% { transform: translateX(100px) translateY(-20px); } 50% { transform: translateX(200px) translateY(10px); } 75% { transform: translateX(50px) translateY(-10px); } }
+        @keyframes seagullFly2 { 0%, 100% { transform: translateX(0) translateY(0); } 33% { transform: translateX(-80px) translateY(15px); } 66% { transform: translateX(-150px) translateY(-25px); } }
+        @keyframes excitementPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        @keyframes fishCaught { 0% { transform: translateY(0) scale(1); } 50% { transform: translateY(-100px) scale(1.2) rotate(10deg); } 100% { transform: translateY(-200px) scale(1.5) rotate(0deg); } }
+        @keyframes bubbleRise { 0% { transform: translateY(0) scale(0); opacity: 0.7; } 50% { opacity: 1; } 100% { transform: translateY(-200px) scale(1); opacity: 0; } }
+        @keyframes fish-bob { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-5px); } }
+
+    </style>
+</head>
+<body class="text-white">
+
+    <!-- Main Menu -->
+    <div id="main-menu" class="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div class="text-center w-full max-w-md mx-auto">
+            <h1 class="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-10 text-shadow-lg">Joel's Selection</h1>
+
+            <div class="grade-card rounded-2xl p-6 shadow-2xl">
+                <h2 class="text-3xl font-bold mb-6 text-center">XiCheng Faculty</h2>
+                <div class="flex flex-col space-y-4">
+                    <button onclick="showPicker('random', 'faculty')" class="menu-button">🎲 Random Picker</button>
+                    <button onclick="showPicker('fishing', 'faculty')" class="menu-button">🎣 Fishing Game</button>
+                    <button onclick="showPicker('timer', 'faculty')" class="menu-button">⏱️ Speaking Timer</button>
+                    <button onclick="showPicker('teams', 'faculty')" class="menu-button">🧑‍🤝‍🧑 Team Up!</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Picker Containers -->
+    <div id="random-picker" class="picker-container"></div>
+    <div id="fishing-picker" class="picker-container"></div>
+    <div id="timer-picker" class="picker-container"></div>
+    <div id="teams-picker" class="picker-container"></div>
+    <div id="celebration-container"></div>
+
+    <script>
+        const nameData = {
+            faculty: ['冯翠红', '唐琪', '刘博实', 'Tommy', '于筱', '赵壁茹', '刘莹', '王宇菲', '王继敏', '米高扬', '李一', '杨蓓', '李霞玉', '张东昕', '龚哲浩', '王继璇', '王维', '田一凡', '陈彦泽', '任遵诺', '赵桂芳', '张庆', '樊青', '高鹏虎', '王刚', '徐子茜', '王天一', '曾伶俐', '杨颖娜', '金亦晴', '闫向军', '郭丽', '杜云燕']
+        };
+
+        const mainMenu = document.getElementById('main-menu');
+        const pickerContainers = document.querySelectorAll('.picker-container');
+        let currentActivity = { type: null, group: null, cleanup: null };
+        let pickedNamesHistory = {};
+
+        // --- UTILITIES ---
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+        function createTickSound() {
+            if (audioContext.state === 'suspended') audioContext.resume();
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.frequency.setValueAtTime(800, audioContext.currentTime);
+            osc.type = 'square';
+            gain.gain.setValueAtTime(0.05, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.05);
+            osc.start(audioContext.currentTime);
+            osc.stop(audioContext.currentTime + 0.05);
+        }
+        function createBubbleSound() {
+            if (audioContext.state === 'suspended') audioContext.resume();
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.frequency.setValueAtTime(200 + Math.random() * 300, audioContext.currentTime);
+            osc.type = 'sine';
+            gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            osc.start(audioContext.currentTime);
+            osc.stop(audioContext.currentTime + 0.3);
+        }
+        function createSplashSound() {
+            if (audioContext.state === 'suspended') audioContext.resume();
+            const osc = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(audioContext.destination);
+            osc.frequency.setValueAtTime(150, audioContext.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + 0.5);
+            osc.type = 'sawtooth';
+            gain.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            osc.start(audioContext.currentTime);
+            osc.stop(audioContext.currentTime + 0.5);
+        }
+
+        // --- NAVIGATION ---
+        function showMenu() {
+            if (currentActivity.cleanup) {
+                currentActivity.cleanup();
+            }
+            mainMenu.style.display = 'flex';
+            pickerContainers.forEach(container => container.style.display = 'none');
+            currentActivity = { type: null, group: null, cleanup: null };
+            pickedNamesHistory = {}; // Reset history on returning to menu
+        }
+
+        function showPicker(type, group) {
+            mainMenu.style.display = 'none';
+            const containerId = `${type}-picker`;
+            const container = document.getElementById(containerId);
+            
+            pickerContainers.forEach(c => c.style.display = 'none');
+            container.style.display = 'block';
+
+            if (!pickedNamesHistory[group]) {
+                pickedNamesHistory[group] = [];
+            }
+
+            const names = nameData[group];
+            currentActivity.type = type;
+            currentActivity.group = group;
+
+            switch (type) {
+                case 'random':
+                    container.innerHTML = getRandomPickerTemplate(group);
+                    currentActivity.cleanup = initRandomPicker(container, names, group);
+                    break;
+                case 'fishing':
+                    container.innerHTML = getFishingGameTemplate(group);
+                    currentActivity.cleanup = initFishingGame(container, names, group);
+                    break;
+                case 'timer':
+                    container.innerHTML = getSpeakingTimerTemplate(group);
+                    currentActivity.cleanup = initSpeakingTimer(container, names);
+                    break;
+                case 'teams':
+                    container.innerHTML = getTeamPickerTemplate(group);
+                    currentActivity.cleanup = initTeamPicker(container, names, group);
+                    break;
+            }
+        }
+
+        // --- TEMPLATE GENERATORS ---
+        function getBackButton() {
+            return `<button onclick="showMenu()" class="back-button bg-gray-800 text-white font-bold py-2 px-4 rounded-lg transition duration-300 hover:bg-gray-700 shadow-lg">&larr; Back to Menu</button>`;
+        }
+
+        function getStudentListHTML(names, idPrefix = 'name-item') {
+            const listItems = names.map((name, index) => `<div class="student-list-item" id="${idPrefix}-${name.replace(/\s/g, '')}">${name}</div>`).join('');
+            return `<div class="student-list-container"><h3 class="text-lg font-bold mb-2 text-center">Faculty Members</h3><div class="student-list-grid">${listItems}</div></div>`;
+        }
+        
+        function getRandomPickerTemplate(group) {
+            return `
+                ${getBackButton()}
+                <div class="picker-body" style="background: linear-gradient(135deg, #667eea, #764ba2, #ff6b6b); background-size: 400% 400%; animation: r-grad 4s ease infinite;">
+                    <style> 
+                        @keyframes r-grad { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } } 
+                        .r-picker-container { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 30px; padding: 1.5rem; box-shadow: 0 20px 40px rgba(0,0,0,0.2); text-align: center; width: 450px; max-width: 90%; border: 2px solid rgba(255,255,255,0.3); animation: r-containerGlow 3s ease-in-out infinite; }
+                        .r-name-display { background: linear-gradient(45deg, #ff6b6b, #4ecdc4); color: white; font-size: 2.5rem; font-weight: bold; padding: 2rem; border-radius: 20px; margin-bottom: 1rem; min-height: 120px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); transition: all 0.3s ease; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+                        .r-name-display.shuffling { animation: r-shuffle 0.1s infinite, r-gradientShift 0.2s infinite; background-size: 400% 400%; background-image: linear-gradient(45deg, #feca57, #ff9ff3, #54a0ff, #5f27cd); }
+                        .r-name-display.winner { animation: r-winnerPulse 0.5s ease-in-out infinite; background: linear-gradient(45deg, #00d2d3, #ff9f43, #10ac84); transform: scale(1.1); }
+                        .r-start-button { background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4); background-size: 400% 400%; animation: r-buttonColorShift 2s ease infinite; color: white; border: none; padding: 15px 40px; font-size: 1.3rem; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 8px 25px rgba(0,0,0,0.2); transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; }
+                        .r-timer { font-size: 1.5rem; font-weight: bold; margin-top: 1rem; padding: 10px 20px; background: rgba(255,255,255,0.1); border-radius: 15px; min-width: 120px; }
+                        .r-timer.urgent { animation: r-timerUrgent 0.5s ease-in-out infinite; background: rgba(255,100,100,0.3); }
+                    </style>
+                    <div class="r-picker-container">
+                        <div id="random-name-display" class="r-name-display">Click "Start Picking"</div>
+                        <div class="flex gap-4 justify-center">
+                            <button id="random-start-button" class="r-start-button">🚀 Start Picking</button>
+                            <button id="random-reset-button" class="bg-gray-500 text-white font-bold py-3 px-6 rounded-full">🔄 Reset</button>
+                        </div>
+                        <div id="random-timer" class="r-timer">Ready!</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function getFishingGameTemplate(group) {
+            return `
+                ${getBackButton()}
+                <div class="picker-body" style="background: linear-gradient(to bottom, #87CEEB 0%, #98D8E8 50%, #4682B4 100%);">
+                    <div id="fishing-controls" class="relative z-50 text-center mb-4 flex flex-col items-center gap-4">
+                         <div class="flex gap-4">
+                            <button id="fishing-start-button" class="bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold py-4 px-8 rounded-full shadow-lg text-xl transition transform hover:scale-105">🎣 Start Fishing</button>
+                            <button id="fishing-reset-button" class="bg-gray-500 text-white font-bold py-4 px-8 rounded-full shadow-lg text-xl">🔄 Reset</button>
+                         </div>
+                         <div id="fishing-timer" class="text-xl font-bold text-gray-800 bg-white/70 rounded-full px-4 py-2">Ready to fish!</div>
+                    </div>
+                    <div id="lake" class="relative w-[90vw] max-w-[800px] h-[500px] bg-gradient-to-b from-blue-400 to-blue-800 rounded-[50px] overflow-hidden shadow-2xl border-8 border-yellow-700">
+                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[waterShimmer_3s_ease-in-out_infinite]"></div>
+                        <div class="absolute top-0 left-0 w-full h-[30px] bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.1)_0px,rgba(255,255,255,0.2)_10px,rgba(255,255,255,0.1)_20px)] animate-[waveMotion_2s_linear_infinite]"></div>
+                        <div id="fisherman" class="absolute top-[-80px] right-[50px] w-[100px] h-[120px] z-20">
+                            <div class="absolute bottom-[85px] left-[32px] w-[35px] h-[15px] bg-red-500 rounded-full"></div>
+                            <div class="absolute bottom-[75px] left-[35px] w-[30px] h-[30px] bg-yellow-200 rounded-full"></div>
+                            <div class="absolute bottom-[20px] left-[30px] w-[40px] h-[60px] bg-yellow-800 rounded-2xl"></div>
+                            <div class="absolute bottom-[40px] left-[60px] w-[4px] h-[80px] bg-gradient-to-t from-yellow-900 to-yellow-700 rounded-sm shadow-md origin-bottom animate-[rodCast_4s_ease-in-out_infinite]"></div>
+                        </div>
+                        <div id="fishing-line" class="absolute w-[2px] h-[200px] bg-white/80 top-[30px] right-[95px] origin-top animate-[lineSwing_4s_ease-in-out_infinite] z-10">
+                           <div class="absolute bottom-[-10px] left-[-3px] w-[8px] h-[12px] bg-gray-400 rounded-b-full border border-gray-500"></div>
+                        </div>
+                        <div id="boat" class="absolute top-[-30px] left-[100px] w-[120px] h-[80px] animate-[boatFloat_4s_ease-in-out_infinite]">
+                            <div class="absolute bottom-0 left-[10px] w-[100px] h-[25px] bg-yellow-800 rounded-b-full shadow-lg"></div>
+                            <div class="absolute bottom-[25px] left-[55px] w-[4px] h-[40px] bg-yellow-800 rounded-sm"></div>
+                            <div class="absolute bottom-[35px] left-[25px] w-[35px] h-[25px] bg-gray-100 rounded-l-md shadow-md animate-[sailFlutter_3s_ease-in-out_infinite]"></div>
+                        </div>
+                        <div id="seagulls" class="absolute inset-0 pointer-events-none">
+                            <div class="absolute top-[20px] left-[200px] text-2xl text-white animate-[seagullFly1_8s_ease-in-out_infinite]">🕊️</div>
+                            <div class="absolute top-[40px] right-[150px] text-2xl text-white animate-[seagullFly2_10s_ease-in-out_infinite]">🕊️</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getSpeakingTimerTemplate(group) {
+             return `
+                ${getBackButton()}
+                <div class="picker-body" style="background: linear-gradient(135deg, #2C3E50, #34495E);">
+                    <div class="text-center w-[600px] max-w-[90%]">
+                        <div class="bg-white/10 rounded-2xl p-8 mb-6">
+                            <div class="text-2xl mb-2">Now Speaking</div>
+                            <div id="timer-speaker-name" class="text-5xl font-bold mb-4 min-h-[64px]">Ready...</div>
+                            <div id="timer-display" class="text-7xl font-bold text-teal-300">45</div>
+                        </div>
+                        <div class="flex justify-center gap-4">
+                            <button id="timer-start-btn" class="bg-teal-500 text-white font-bold py-3 px-6 rounded-full text-lg">▶️ Start</button>
+                            <button id="timer-skip-btn" class="bg-purple-500 text-white font-bold py-3 px-6 rounded-full text-lg">⏭️ Next</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getTeamPickerTemplate(group) {
+            return `
+                ${getBackButton()}
+                <div class="picker-body" style="background: linear-gradient(135deg, #1d2b64, #f8cdda); background-size: 200% 200%; animation: r-grad 10s ease infinite;">
+                    <h1 class="text-4xl font-bold mb-8 text-shadow-lg">Team Generator - Faculty</h1>
+                    <div class="flex gap-4 mb-8 flex-wrap justify-center">
+                        <button class="menu-button" data-size="2">Pairs</button>
+                        <button class="menu-button" data-size="3">Trios</button>
+                        <button class="menu-button" data-size="4">Quads</button>
+                        <button class="menu-button" data-size="5">Groups of 5</button>
+                        <button class="menu-button" data-size="6">Groups of 6</button>
+                        <button class="menu-button" data-size="half">Split in Half</button>
+                    </div>
+                    <div id="teams-display" class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                </div>
+            `;
+        }
+        
+        // --- INITIALIZATION LOGIC ---
+
+        function initRandomPicker(container, names, group) {
+            const nameDisplay = container.querySelector("#random-name-display");
+            const startButton = container.querySelector("#random-start-button");
+            const resetButton = container.querySelector("#random-reset-button");
+            const timerDisplay = container.querySelector("#random-timer");
+            let isPicking = false, pickingInterval, timerInterval;
+            
+            const listHTML = getStudentListHTML(names, 'random-name');
+            container.querySelector('.picker-body').insertAdjacentHTML('beforeend', listHTML);
+            const nameElements = container.querySelectorAll('.student-list-item');
+
+            function updateNameListView() {
+                nameElements.forEach(el => {
+                    if (pickedNamesHistory[group].includes(el.textContent)) {
+                        el.classList.add('picked');
+                    } else {
+                        el.classList.remove('picked');
+                    }
+                });
+            }
+
+            function startPicking() {
+                if (isPicking) return;
+                const availableNames = names.filter(s => !pickedNamesHistory[group].includes(s));
+                if (availableNames.length === 0) {
+                    nameDisplay.textContent = "All Done!";
+                    return;
+                }
+
+                isPicking = true;
+                startButton.disabled = true;
+                resetButton.disabled = true;
+                startButton.textContent = 'Picking...';
+                nameDisplay.classList.add('shuffling');
+                nameDisplay.classList.remove('winner');
+                
+                let timeLeft = 8;
+                timerDisplay.textContent = `⏱️ ${timeLeft}s`;
+                timerDisplay.classList.remove('urgent');
+
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    timerDisplay.textContent = `⏱️ ${timeLeft}s`;
+                    if (timeLeft <= 3) timerDisplay.classList.add('urgent');
+                }, 1000);
+
+                const shuffledAvailable = shuffleArray(availableNames);
+                let highlightIndex = 0;
+
+                pickingInterval = setInterval(() => {
+                    const currentName = shuffledAvailable[highlightIndex % shuffledAvailable.length];
+                    nameDisplay.textContent = currentName;
+                    
+                    nameElements.forEach(el => el.classList.remove('highlight'));
+                    const nameToHighlight = Array.from(nameElements).find(el => el.textContent === currentName);
+                    if(nameToHighlight) nameToHighlight.classList.add('highlight');
+                    
+                    createTickSound();
+                    highlightIndex++;
+                }, 150);
+
+                setTimeout(() => {
+                    clearInterval(pickingInterval);
+                    clearInterval(timerInterval);
+                    isPicking = false;
+                    startButton.disabled = false;
+                    resetButton.disabled = false;
+                    startButton.textContent = '🚀 Start Again';
+                    nameDisplay.classList.remove('shuffling');
+                    nameDisplay.classList.add('winner');
+                    
+                    const winner = shuffledAvailable[Math.floor(Math.random() * shuffledAvailable.length)];
+                    nameDisplay.textContent = winner;
+                    pickedNamesHistory[group].push(winner);
+                    updateNameListView();
+                    
+                    nameElements.forEach(el => el.classList.remove('highlight'));
+                    const winnerElement = Array.from(nameElements).find(el => el.textContent === winner);
+                    if(winnerElement) winnerElement.classList.add('highlight');
+
+                    triggerHugeCelebration(winner);
+                    timerDisplay.textContent = 'Winner!';
+                    setTimeout(() => { 
+                        nameDisplay.classList.remove('winner');
+                        timerDisplay.textContent = 'Ready!';
+                        timerDisplay.classList.remove('urgent');
+                        if(winnerElement) winnerElement.classList.remove('highlight');
+                    }, 5000);
+                }, 8000);
+            }
+            
+            startButton.onclick = startPicking;
+            resetButton.onclick = () => {
+                pickedNamesHistory[group] = [];
+                updateNameListView();
+                nameDisplay.textContent = 'Ready to Pick!';
+            };
+            updateNameListView();
+            return () => { clearInterval(pickingInterval); clearInterval(timerInterval); };
+        }
+
+        function initFishingGame(container, names, group) {
+            const lake = container.querySelector("#lake");
+            const startButton = container.querySelector("#fishing-start-button");
+            const resetButton = container.querySelector("#fishing-reset-button");
+            const timerDisplay = container.querySelector("#fishing-timer");
+            let fishElements = [], animationFrameId, timerInterval, bubbleInterval, isFishing = false;
+
+            function updateFishView() {
+                fishElements.forEach(fish => {
+                    const fishName = fish.element.querySelector('span:last-child').textContent;
+                    if (pickedNamesHistory[group].includes(fishName)) {
+                        fish.element.style.opacity = '0.4';
+                        fish.element.style.pointerEvents = 'none';
+                    } else {
+                        fish.element.style.opacity = '1';
+                        fish.element.style.pointerEvents = 'auto';
+                    }
+                });
+            }
+
+            function createFish() {
+                lake.querySelectorAll('.fish').forEach(f => f.remove());
+                fishElements = [];
+                names.forEach(name => {
+                    const fish = document.createElement('div');
+                    fish.className = 'fish';
+                    fish.style.cssText = `position: absolute; display: flex; align-items: center; font-size: 2.5rem; cursor: pointer; transition: all 0.3s ease; left: ${Math.random() * (lake.offsetWidth - 120)}px; top: ${80 + Math.random() * (lake.offsetHeight - 120)}px; animation: fish-bob ${2 + Math.random() * 2}s ease-in-out infinite;`;
+                    fish.innerHTML = `<span>🐟</span><span style="font-size: 14px; font-weight: bold; color: white; background: rgba(0,0,0,0.5); padding: 2px 8px; border-radius: 8px; margin-left: 5px;">${name}</span>`;
+                    lake.appendChild(fish);
+                    fishElements.push({ element: fish, x: parseFloat(fish.style.left), y: parseFloat(fish.style.top), speedX: (Math.random() - 0.5) * 2, speedY: (Math.random() - 0.5) });
+                });
+                updateFishView();
+            }
+
+            function animateFish() {
+                fishElements.forEach(f => {
+                    f.x += f.speedX; f.y += f.speedY;
+                    if (f.x <= 0 || f.x >= lake.offsetWidth - f.element.offsetWidth) f.speedX *= -1;
+                    if (f.y <= 60 || f.y >= lake.offsetHeight - 40) f.speedY *= -1;
+                    f.element.style.left = `${f.x}px`; f.element.style.top = `${f.y}px`;
+                    f.element.firstElementChild.style.transform = f.speedX < 0 ? 'scaleX(-1)' : 'scaleX(1)';
+                });
+                animationFrameId = requestAnimationFrame(animateFish);
+            }
+            
+            function startFishing() {
+                if (isFishing) return;
+                const availableNames = names.filter(s => !pickedNamesHistory[group].includes(s));
+                if (availableNames.length === 0) {
+                    timerDisplay.textContent = "All fish caught!";
+                    return;
+                }
+                isFishing = true;
+                startButton.disabled = true;
+                resetButton.disabled = true;
+                startButton.textContent = 'Fishing...';
+                let timeLeft = 15;
+
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft > 10) timerDisplay.textContent = `Casting... ${timeLeft}s`;
+                    else if (timeLeft > 5) timerDisplay.textContent = `Something's biting... ${timeLeft}s`;
+                    else if (timeLeft > 0) timerDisplay.textContent = `Reeling it in! ${timeLeft}s`;
+                    if (timeLeft <= 0) catchFish(availableNames);
+                }, 1000);
+
+                bubbleInterval = setInterval(() => {
+                    createBubbles(lake);
+                    createBubbleSound();
+                }, 800);
+            }
+
+            function catchFish(availableNames) {
+                clearInterval(timerInterval);
+                clearInterval(bubbleInterval);
+                const winner = availableNames[Math.floor(Math.random() * availableNames.length)];
+                const caughtFish = fishElements.find(f => f.element.textContent.includes(winner));
+                if(caughtFish) caughtFish.element.style.animation = 'fishCaught 2s ease-out forwards';
+                
+                createSplashSound();
+                pickedNamesHistory[group].push(winner);
+                updateFishView();
+                triggerHugeCelebration(winner);
+                
+                setTimeout(() => {
+                    isFishing = false;
+                    startButton.disabled = false;
+                    resetButton.disabled = false;
+                    startButton.textContent = '🎣 Start Fishing';
+                    timerDisplay.textContent = 'Ready to fish!';
+                    if(caughtFish) caughtFish.element.style.animation = `fish-bob ${2 + Math.random() * 2}s ease-in-out infinite`;
+                }, 5000);
+            }
+
+            startButton.onclick = startFishing;
+            resetButton.onclick = () => {
+                pickedNamesHistory[group] = [];
+                updateFishView();
+                timerDisplay.textContent = "Pool restocked!";
+            };
+            
+            const resizeObserver = new ResizeObserver(() => {
+                cancelAnimationFrame(animationFrameId);
+                createFish();
+                animateFish();
+            });
+            resizeObserver.observe(lake);
+            
+            return () => {
+                cancelAnimationFrame(animationFrameId);
+                clearInterval(timerInterval);
+                clearInterval(bubbleInterval);
+                resizeObserver.disconnect();
+            };
+        }
+
+        function initSpeakingTimer(container, names) {
+            let shuffledNames = shuffleArray(names);
+            let currentIndex = 0, timeLeft = 45, timerInterval = null;
+            const speakerName = container.querySelector("#timer-speaker-name");
+            const timerDisplay = container.querySelector("#timer-display");
+            const startBtn = container.querySelector("#timer-start-btn");
+            const skipBtn = container.querySelector("#timer-skip-btn");
+            const body = container.querySelector('.picker-body');
+
+            function updateNamesDisplay() {
+                const existingList = container.querySelector('#speaking-timer-list');
+                if(existingList) existingList.remove();
+                
+                const items = shuffledNames.map((name, index) => `<div class="student-list-item ${index === currentIndex ? 'bg-teal-500 font-bold' : ''}">${name}</div>`).join('');
+                const listHTML = getStudentListHTML(shuffledNames).replace('<div class="student-list-grid">', `<div class="student-list-grid">${items}`);
+                body.insertAdjacentHTML('beforeend', `<div id="speaking-timer-list">${listHTML}</div>`);
+            }
+
+            function startTimer() {
+                if (timerInterval || shuffledNames.length === 0) return;
+                speakerName.textContent = shuffledNames[currentIndex];
+                updateNamesDisplay();
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    timerDisplay.textContent = timeLeft;
+                    if (timeLeft <= 0) nextName(true);
+                }, 1000);
+            }
+            
+            function nextName(finished) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+                if (finished) {
+                    triggerHugeCelebration(shuffledNames[currentIndex], true);
+                }
+                timeLeft = 45;
+                timerDisplay.textContent = timeLeft;
+                currentIndex++;
+                if (currentIndex >= shuffledNames.length) {
+                    currentIndex = 0; // Loop back to the start
+                }
+                startTimer();
+            }
+
+            startBtn.onclick = startTimer;
+            skipBtn.onclick = () => nextName(false);
+            
+            updateNamesDisplay();
+
+            return () => { clearInterval(timerInterval); };
+        }
+
+        function initTeamPicker(container, names, group) {
+            const teamsDisplay = container.querySelector('#teams-display');
+            const buttons = container.querySelectorAll('.menu-button');
+
+            function generateTeams(size) {
+                const shuffled = shuffleArray(names);
+                teamsDisplay.innerHTML = '';
+                if (size === 'half') {
+                    const midPoint = Math.ceil(shuffled.length / 2);
+                    const team1 = shuffled.slice(0, midPoint);
+                    const team2 = shuffled.slice(midPoint);
+                    const teams = [team1, team2];
+                    teams.forEach((team, index) => {
+                        const teamCard = document.createElement('div');
+                        teamCard.className = 'grade-card rounded-lg p-4';
+                        const teamMembers = team.map(name => `<div class="student-list-item !bg-purple-400/30 my-1">${name}</div>`).join('');
+                        teamCard.innerHTML = `<h3 class="text-xl font-bold mb-2 text-center">Team ${index + 1}</h3>${teamMembers}`;
+                        teamsDisplay.appendChild(teamCard);
+                    });
+                } else {
+                    const groupSize = parseInt(size);
+                    let teamNumber = 1;
+                    for (let i = 0; i < shuffled.length; i += groupSize) {
+                        const team = shuffled.slice(i, i + groupSize);
+                        const teamCard = document.createElement('div');
+                        teamCard.className = 'grade-card rounded-lg p-4';
+                        const teamMembers = team.map(name => `<div class="student-list-item !bg-purple-400/30 my-1">${name}</div>`).join('');
+                        teamCard.innerHTML = `<h3 class="text-xl font-bold mb-2 text-center">Team ${teamNumber}</h3>${teamMembers}`;
+                        teamsDisplay.appendChild(teamCard);
+                        teamNumber++;
+                    }
+                }
+            }
+            
+            buttons.forEach(button => {
+                button.onclick = () => {
+                    generateTeams(button.dataset.size);
+                };
+            });
+            
+            container.querySelector('.picker-body').insertAdjacentHTML('beforeend', getStudentListHTML(names));
+            return () => {};
+        }
+
+        // --- CELEBRATION LOGIC ---
+        function triggerHugeCelebration(winnerName, isTimer = false) {
+            const celebrationContainer = document.getElementById('celebration-container');
+            const winnerText = isTimer ? `🎉 ${winnerName}'s<br>Time is Up! 🎉` : `🎉 WINNER! 🎉<br>${winnerName}`;
+            celebrationContainer.innerHTML = `<div class="celebration-overlay"></div><div class="winner-display">${winnerText}</div>`;
+            const winnerDisplay = celebrationContainer.querySelector('.winner-display');
+            winnerDisplay.style.display = 'block';
+
+            if (audioContext.state === 'suspended') audioContext.resume();
+            const frequencies = [523, 659, 784, 1047];
+            frequencies.forEach((freq, index) => {
+                setTimeout(() => {
+                    const osc = audioContext.createOscillator();
+                    const gain = audioContext.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioContext.destination);
+                    osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+                    gain.gain.setValueAtTime(0.2, audioContext.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8);
+                    osc.start(audioContext.currentTime);
+                    osc.stop(audioContext.currentTime + 0.8);
+                }, index * 150);
+            });
+
+            const overlay = celebrationContainer.querySelector('.celebration-overlay');
+            const fireworkColors = ['#ff6b6b', '#4ecdc4', '#feca57', '#ff9ff3', '#54a0ff'];
+            const confettiShapes = ['🎊', '🎉', '⭐', '💫', '✨', '🌟'];
+            const badges = ['🏆', '🥇', '🎖️', '🏅', '👑', '🌟', '⭐', '💎'];
+            
+            for (let i = 0; i < 15; i++) {
+                setTimeout(() => {
+                    const x = Math.random() * window.innerWidth;
+                    const y = Math.random() * window.innerHeight * 0.7;
+                    for (let j = 0; j < 15; j++) {
+                        const p = document.createElement('div');
+                        p.className = 'firework';
+                        p.style.left = x + 'px'; p.style.top = y + 'px';
+                        p.style.backgroundColor = fireworkColors[Math.floor(Math.random() * fireworkColors.length)];
+                        const angle = (j * 24) * Math.PI / 180;
+                        const distance = 120 + Math.random() * 150;
+                        p.style.animation = 'fireworkExplode 1.5s ease-out forwards';
+                        p.style.transform = `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px)`;
+                        overlay.appendChild(p);
+                        setTimeout(() => p.remove(), 1500);
+                    }
+                }, i * 200);
+            }
+
+            for (let i = 0; i < 100; i++) {
+                setTimeout(() => {
+                    const c = document.createElement('div');
+                    c.className = 'confetti';
+                    c.style.left = Math.random() * window.innerWidth + 'px';
+                    c.innerHTML = confettiShapes[Math.floor(Math.random() * confettiShapes.length)];
+                    c.style.animation = `confettiFall ${3 + Math.random() * 3}s linear forwards`;
+                    overlay.appendChild(c);
+                    setTimeout(() => c.remove(), 6000);
+                }, i * 30);
+            }
+
+            for (let i = 0; i < 8; i++) {
+                const b = document.createElement('div');
+                b.className = i < 3 ? 'trophy' : 'badge';
+                b.style.left = Math.random() * (window.innerWidth - 100) + 'px';
+                b.style.top = Math.random() * (window.innerHeight - 100) + 'px';
+                b.innerHTML = badges[i];
+                overlay.appendChild(b);
+                setTimeout(() => b.remove(), 4000);
+            }
+
+            setTimeout(() => {
+                celebrationContainer.innerHTML = '';
+            }, 5000);
+        }
+
+        function createBubbles(container) {
+            for (let i = 0; i < 5; i++) {
+                const bubble = document.createElement('div');
+                const size = Math.random() * 15 + 5;
+                bubble.style.cssText = `position: absolute; width: ${size}px; height: ${size}px; background: rgba(255,255,255,0.6); border-radius: 50%; left: ${Math.random() * container.offsetWidth}px; bottom: 0; animation: bubbleRise ${2 + Math.random() * 2}s ease-out forwards;`;
+                container.appendChild(bubble);
+                setTimeout(() => bubble.remove(), 4000);
+            }
+        }
+
+    </script>
+</body>
+</html>

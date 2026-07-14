@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2-Player Schedule Change Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Bungee&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --p1-bg: #f0f9ff; /* sky-50 */
+            --p1-accent: #0ea5e9; /* sky-500 */
+            --p1-accent-dark: #0284c7; /* sky-600 */
+            --p2-bg: #fff7ed; /* orange-50 */
+            --p2-accent: #f97316; /* orange-500 */
+            --p2-accent-dark: #ea580c; /* orange-600 */
+            --correct-bg: #16a34a; /* green-600 */
+            --incorrect-bg: #dc2626; /* red-600 */
+            --main-text: #44403c; /* stone-700 */
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; 
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto 1fr;
+            height: 100vh;
+            width: 100%;
+            gap: 0;
+        }
+        
+        .game-title {
+            grid-column: 1 / -1;
+            font-family: 'Bungee', cursive;
+            color: var(--main-text);
+            text-align: center;
+            padding: 1rem;
+        }
+
+        .player-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 2rem;
+            transition: background-color 0.3s;
+        }
+
+        #player-1-panel {
+            background-color: var(--p1-bg);
+            border-right: 4px solid #cbd5e1;
+        }
+
+        #player-2-panel {
+            background-color: var(--p2-bg);
+        }
+
+        .player-header {
+            text-align: center;
+            margin-bottom: 2.5rem; /* Increased margin */
+            position: relative; /* For score popup positioning */
+        }
+        
+        .player-name {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+        #player-1-panel .player-name { color: var(--p1-accent-dark); }
+        #player-2-panel .player-name { color: var(--p2-accent-dark); }
+        
+        .player-score {
+            font-size: 1.5rem;
+            color: var(--main-text);
+        }
+        
+        .score-popup {
+            position: absolute;
+            left: 50%;
+            top: 20px; /* Start below the score */
+            transform: translateX(-50%);
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--correct-bg);
+            opacity: 0;
+            transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+            pointer-events: none;
+        }
+
+        .score-popup.active {
+            transform: translate(-50%, -80px); /* Move up */
+            opacity: 1;
+        }
+
+        .answer-buttons {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap; 
+            justify-content: center;
+            gap: 1rem;
+            min-height: 120px; /* Reserve space for buttons */
+        }
+
+        .answer-btn {
+            padding: 1rem 1.5rem;
+            font-size: 1.75rem;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            border-radius: 12px;
+            border: none;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .answer-btn:not(:disabled):hover {
+            transform: translateY(-3px);
+        }
+        .answer-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.8;
+        }
+
+        #player-1-panel .answer-btn { background-color: var(--p1-accent); }
+        #player-1-panel .answer-btn:not(:disabled):hover { background-color: var(--p1-accent-dark); }
+        #player-2-panel .answer-btn { background-color: var(--p2-accent); }
+        #player-2-panel .answer-btn:not(:disabled):hover { background-color: var(--p2-accent-dark); }
+
+        .answer-btn.correct { background-color: var(--correct-bg) !important; }
+        .answer-btn.incorrect { background-color: var(--incorrect-bg) !important; }
+        
+        .feedback-display {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 2rem; /* Increased margin */
+            height: 3rem;
+        }
+
+        .game-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: white;
+            padding: 1rem;
+            border-radius: 16px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            z-index: 5;
+        }
+
+        .control-btn {
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .control-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        #start-game-btn, #play-again-btn {
+             background-color: #fb923c;
+             color: white;
+        }
+        #start-game-btn:hover, #play-again-btn:hover {
+             background-color: #f97316;
+        }
+
+        #timer-display {
+            font-family: 'Bungee', cursive;
+            background-color: #ef4444;
+            color: white;
+            pointer-events: none;
+        }
+
+        .start-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .start-box {
+            background: white;
+            padding: 3rem;
+            border-radius: 16px;
+            text-align: center;
+        }
+        .start-box input {
+            display: block;
+            width: 100%;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+        }
+
+        .winner-announcement {
+            grid-column: 1 / -1;
+            text-align: center;
+            font-size: 3rem;
+            font-weight: bold;
+            font-family: 'Bungee', cursive;
+            color: #f59e0b; /* amber-500 */
+        }
+        
+        @media (max-width: 768px) {
+            html, body {
+                height: auto;
+                overflow: auto;
+            }
+            .game-board {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr 1fr;
+                height: auto;
+                min-height: 100vh;
+            }
+            #player-1-panel {
+                border-right: none;
+                border-bottom: 4px solid #cbd5e1;
+            }
+        }
+        @media (max-width: 600px) {
+            .player-panel { padding: 1rem; }
+            .answer-btn { padding: 0.75rem 1rem; font-size: 1.5rem; }
+            .player-name { font-size: 1.5rem; }
+            .player-score { font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="start-overlay" id="start-overlay">
+        <div class="start-box">
+            <h1 class="text-3xl font-bold mb-4">Schedule Change Challenge</h1>
+            <input type="text" id="p1-name-input" placeholder="Player 1 Name" value="">
+            <input type="text" id="p2-name-input" placeholder="Player 2 Name" value="">
+            <button id="start-game-btn" class="control-btn">Start Game</button>
+        </div>
+    </div>
+
+    <div class="game-board">
+        <h1 class="game-title">Schedule Change Challenge</h1>
+
+        <!-- Player 1 Panel -->
+        <div class="player-panel" id="player-1-panel">
+            <div class="player-header">
+                <h2 class="player-name" id="p1-name">Player 1</h2>
+                <p class="player-score">Score: <span id="p1-score">0</span></p>
+                <span class="score-popup">+10</span>
+            </div>
+            <div class="answer-buttons" id="p1-answers">
+                <button class="answer-btn" data-player="0" disabled>&nbsp;</button>
+                <button class="answer-btn" data-player="0" disabled>&nbsp;</button>
+                <button class="answer-btn" data-player="0" disabled>&nbsp;</button>
+            </div>
+            <div class="feedback-display" id="p1-feedback"></div>
+        </div>
+
+        <!-- Player 2 Panel -->
+        <div class="player-panel" id="player-2-panel">
+            <div class="player-header">
+                <h2 class="player-name" id="p2-name">Player 2</h2>
+                <p class="player-score">Score: <span id="p2-score">0</span></p>
+                <span class="score-popup">+10</span>
+            </div>
+            <div class="answer-buttons" id="p2-answers">
+                <button class="answer-btn" data-player="1" disabled>&nbsp;</button>
+                <button class="answer-btn" data-player="1" disabled>&nbsp;</button>
+                <button class="answer-btn" data-player="1" disabled>&nbsp;</button>
+            </div>
+            <div class="feedback-display" id="p2-feedback"></div>
+        </div>
+
+        <div class="winner-announcement hidden" id="winner-announcement"></div>
+    </div>
+
+    <div class="game-controls">
+        <div id="timer-display" class="control-btn hidden">Time: 20</div>
+        <button id="play-again-btn" class="control-btn hidden">Play Again</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dom = {
+                startOverlay: document.getElementById('start-overlay'),
+                startGameBtn: document.getElementById('start-game-btn'),
+                p1NameInput: document.getElementById('p1-name-input'),
+                p2NameInput: document.getElementById('p2-name-input'),
+                
+                winnerAnnouncement: document.getElementById('winner-announcement'),
+                
+                playAgainBtn: document.getElementById('play-again-btn'),
+                timerDisplay: document.getElementById('timer-display'),
+
+                playerPanels: [
+                    {
+                        name: document.getElementById('p1-name'),
+                        score: document.getElementById('p1-score'),
+                        answers: document.getElementById('p1-answers'),
+                        feedback: document.getElementById('p1-feedback'),
+                        scorePopup: document.querySelector('#player-1-panel .score-popup')
+                    },
+                    {
+                        name: document.getElementById('p2-name'),
+                        score: document.getElementById('p2-score'),
+                        answers: document.getElementById('p2-answers'),
+                        feedback: document.getElementById('p2-feedback'),
+                        scorePopup: document.querySelector('#player-2-panel .score-popup')
+                    }
+                ]
+            };
+
+            const WINNING_SCORE = 100;
+            const POINTS_PER_CORRECT = 10;
+            const QUESTION_TIME_LIMIT = 20;
+
+            let players = [ { score: 0, name: 'Player 1' }, { score: 0, name: 'Player 2' } ];
+            let currentQuestion = {};
+            let isRoundOver = false;
+            let voices = [];
+            let preferredVoices = [];
+            let questionTimer;
+            
+            let correctSynth, incorrectSynth;
+            function setupSounds() {
+                correctSynth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 } }).toDestination();
+                incorrectSynth = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination();
+            }
+
+            function initSpeechSynthesis() {
+                if ('speechSynthesis' in window) {
+                    const getVoices = () => {
+                        voices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en'));
+                        const naturalKeywords = ["neural", "natural", "studio", "premium", "google", "zira", "david"];
+                        preferredVoices = voices.filter(v => naturalKeywords.some(kw => v.name.toLowerCase().includes(kw)));
+                        if (preferredVoices.length === 0) preferredVoices = voices;
+                    };
+                    getVoices();
+                    speechSynthesis.onvoiceschanged = getVoices;
+                } else {
+                    console.warn("Text-to-Speech is not supported in this browser.");
+                }
+            }
+            
+            function speak(text, callback) {
+                if (!('speechSynthesis' in window) || voices.length === 0) {
+                    if (callback) callback();
+                    return;
+                }
+                const voice = preferredVoices[Math.floor(Math.random() * preferredVoices.length)];
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.voice = voice;
+                utterance.onend = callback;
+                speechSynthesis.cancel();
+                speechSynthesis.speak(utterance);
+            }
+
+            function generateScheduleQuestion() {
+                const events = ["The flight to Tokyo", "The train to Central Station", "The bus to the airport", "The weekly team meeting", "The opening concert", "The Python workshop"];
+                const times = ["1:00", "1:30", "2:00", "2:30", "3:00", "3:30", "4:00", "4:30", "5:00"];
+                const changes = [10, 15, 20, 25, 30, 45, 60];
+                const templates = [
+                    (evt, t1, ch) => `Attention passengers. ${evt}, originally scheduled for ${t1}, has been delayed by ${ch} minutes.`,
+                    (evt, t1) => `This is a schedule announcement. ${evt} from ${t1} has been moved forward by half an hour.`,
+                    (evt, t1, t2) => `Please note a schedule change. ${evt} has been rescheduled from ${t1} to ${t2}.`
+                ];
+                
+                const event = events[Math.floor(Math.random() * events.length)];
+                const originalTime = times[Math.floor(Math.random() * times.length)];
+                const changeMinutes = changes[Math.floor(Math.random() * changes.length)];
+                
+                let [h, m] = originalTime.split(':').map(Number);
+                m += changeMinutes;
+                if (m >= 60) {
+                    h += Math.floor(m / 60);
+                    m %= 60;
+                }
+                if (h > 12) h -= 12;
+                if (h === 0) h = 12;
+                
+                const newTime = `${h}:${String(m).padStart(2, '0')}`;
+                const scenario = templates[0](event, originalTime, changeMinutes);
+                
+                return { scenario, originalTime, correctAnswer: newTime };
+            }
+
+            function generateDistractorOptions(correctAnswer, originalTime) {
+                let options = new Set([correctAnswer, originalTime]);
+                while(options.size < 3) {
+                    const [h, m] = correctAnswer.split(':').map(Number);
+                    const change = (Math.random() < 0.5 ? 1 : -1) * (Math.floor(Math.random() * 3) + 1) * 15;
+                    let newM = m + change;
+                    let newH = h;
+                    if (newM >= 60) { newH++; newM -= 60; }
+                    if (newM < 0) { newH--; newM += 60; }
+                    if (newH > 12) newH = 1;
+                    if (newH <= 0) newH = 12;
+                    options.add(`${newH}:${String(newM).padStart(2, '0')}`);
+                }
+                const shuffledOptions = Array.from(options);
+                shuffledOptions.sort(() => Math.random() - 0.5);
+                return shuffledOptions;
+            }
+
+            function resetBoard() {
+                dom.playerPanels.forEach((panel) => {
+                    panel.feedback.textContent = '';
+                    const buttons = panel.answers.querySelectorAll('.answer-btn');
+                    buttons.forEach(btn => {
+                        btn.className = 'answer-btn';
+                        btn.disabled = true;
+                        btn.innerHTML = '&nbsp;';
+                    });
+                });
+            }
+            
+            function stopQuestionTimer() {
+                clearInterval(questionTimer);
+                dom.timerDisplay.classList.add('hidden');
+            }
+
+            function handleTimeOut() {
+                stopQuestionTimer();
+                if(isRoundOver) return;
+
+                isRoundOver = true;
+                incorrectSynth.triggerAttackRelease("C3", "8n", Tone.now());
+                
+                dom.playerPanels.forEach(p => {
+                    p.feedback.textContent = `Time's up!`;
+                    p.answers.querySelectorAll('.answer-btn').forEach(b => {
+                        b.disabled = true;
+                        if (b.textContent === currentQuestion.correctAnswer) {
+                            b.classList.add('correct');
+                        }
+                    });
+                });
+                setTimeout(askQuestion, 2000);
+            }
+
+            function startQuestionTimer() {
+                let timeLeft = QUESTION_TIME_LIMIT;
+                dom.timerDisplay.textContent = `Time: ${timeLeft}`;
+                dom.timerDisplay.classList.remove('hidden');
+
+                questionTimer = setInterval(() => {
+                    timeLeft--;
+                    dom.timerDisplay.textContent = `Time: ${timeLeft}`;
+                    if (timeLeft <= 0) {
+                        handleTimeOut();
+                    }
+                }, 1000);
+            }
+
+            function askQuestion() {
+                resetBoard();
+                isRoundOver = false;
+                
+                currentQuestion = generateScheduleQuestion();
+                let options = generateDistractorOptions(currentQuestion.correctAnswer, currentQuestion.originalTime);
+
+                speak(currentQuestion.scenario, () => {
+                    dom.playerPanels.forEach((panel) => {
+                        const buttons = panel.answers.querySelectorAll('.answer-btn');
+                        buttons.forEach((btn, i) => {
+                            btn.textContent = options[i];
+                            btn.disabled = false;
+                        });
+                    });
+                    startQuestionTimer();
+                });
+            }
+            
+            function handleAnswer(e) {
+                if (isRoundOver) return;
+                const button = e.target;
+                if (!button.matches('.answer-btn') || button.disabled) return;
+                
+                isRoundOver = true;
+                stopQuestionTimer();
+
+                dom.playerPanels.forEach(p => {
+                    p.answers.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);
+                });
+
+                const playerIndex = parseInt(button.dataset.player, 10);
+                const panel = dom.playerPanels[playerIndex];
+                
+                const selectedAnswer = button.textContent;
+                if (selectedAnswer === currentQuestion.correctAnswer) {
+                    players[playerIndex].score += POINTS_PER_CORRECT;
+                    panel.score.textContent = players[playerIndex].score;
+                    button.classList.add('correct');
+                    panel.feedback.textContent = "Awesome! You got it!";
+                    correctSynth.triggerAttackRelease("C5", "8n", Tone.now());
+                    
+                    panel.scorePopup.classList.add('active');
+                    setTimeout(() => {
+                        panel.scorePopup.classList.remove('active');
+                    }, 800);
+                    
+                    // Check for winner
+                    if (players[playerIndex].score >= WINNING_SCORE) {
+                        setTimeout(endGame, 1000);
+                    } else {
+                        setTimeout(askQuestion, 2000);
+                    }
+
+                } else {
+                    button.classList.add('incorrect');
+                    panel.feedback.textContent = `Nope! It was ${currentQuestion.correctAnswer}`;
+                    incorrectSynth.triggerAttackRelease("C3", "8n", Tone.now());
+                    
+                    dom.playerPanels.forEach(p => {
+                         p.answers.querySelectorAll('.answer-btn').forEach(b => {
+                            if (b.textContent === currentQuestion.correctAnswer) {
+                                b.classList.add('correct');
+                            }
+                        });
+                    });
+                    setTimeout(askQuestion, 2000);
+                }
+            }
+            
+            async function startGame() {
+                await Tone.start();
+                setupSounds();
+                
+                players[0].name = dom.p1NameInput.value.trim() || 'Player 1';
+                players[1].name = dom.p2NameInput.value.trim() || 'Player 2';
+                dom.playerPanels[0].name.textContent = players[0].name;
+                dom.playerPanels[1].name.textContent = players[1].name;
+                
+                dom.startOverlay.classList.add('hidden');
+                dom.winnerAnnouncement.classList.add('hidden');
+                
+                players.forEach(p => p.score = 0);
+                updateScores();
+                
+                askQuestion();
+            }
+
+            function updateScores() {
+                dom.playerPanels[0].score.textContent = players[0].score;
+                dom.playerPanels[1].score.textContent = players[1].score;
+            }
+
+            function endGame() {
+                stopQuestionTimer();
+                dom.playAgainBtn.classList.remove('hidden');
+                
+                let winnerText;
+                if (players[0].score >= WINNING_SCORE) {
+                    winnerText = `${players[0].name} Wins!`;
+                } else if (players[1].score >= WINNING_SCORE) {
+                    winnerText = `${players[1].name} Wins!`;
+                } else {
+                     // This case happens if endGame is called by other means (less likely now)
+                    winnerText = players[0].score > players[1].score ? `${players[0].name} Wins!` : `${players[1].name} Wins!`;
+                    if (players[0].score === players[1].score) {
+                        winnerText = "It's a Tie!";
+                    }
+                }
+                dom.winnerAnnouncement.textContent = winnerText;
+                dom.winnerAnnouncement.classList.remove('hidden');
+            }
+            
+            function resetGame() {
+                dom.playAgainBtn.classList.add('hidden');
+                dom.startOverlay.classList.remove('hidden');
+                dom.winnerAnnouncement.classList.add('hidden');
+                resetBoard();
+            }
+
+            // Event Listeners
+            dom.startGameBtn.addEventListener('click', startGame);
+            dom.playAgainBtn.addEventListener('click', resetGame);
+            dom.playerPanels[0].answers.addEventListener('click', handleAnswer);
+            dom.playerPanels[1].answers.addEventListener('click', handleAnswer);
+            
+            // Initial Load
+            initSpeechSynthesis();
+        });
+    </script>
+</body>
+</html>

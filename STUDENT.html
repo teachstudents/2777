@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S.T.U.D.E.N.T. Tracker v20</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #2980b9; --bg: #f3f4f6; --red: #e74c3c; --green: #27ae60; --gray: #95a5a6; }
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; color: #333; }
+        
+        .container { max-width: 100%; margin: 0 auto; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        
+        /* HEADER CONTROLS */
+        .control-bar { display: flex; gap: 10px; background: #f8fafc; padding: 10px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #e2e8f0; align-items: flex-end; }
+        .control-group { display: flex; flex-direction: column; flex: 1; }
+        .control-group label { font-size: 0.7em; font-weight: 700; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
+        
+        select, input[type="date"] { padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.85em; width: 100%; background: white; }
+        
+        /* TABLE */
+        .table-container { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 6px; max-height: 80vh; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+        thead { position: sticky; top: 0; z-index: 10; }
+        
+        /* HEADERS */
+        th { 
+            background: var(--primary); 
+            color: white; 
+            padding: 8px 2px; 
+            text-align: center; 
+            vertical-align: bottom;
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Stacked Header Classes */
+        .h-stack { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 1px; }
+        .h-letter { font-size: 1.4em; font-weight: 900; line-height: 1; color: #fff; margin-bottom: 0px; }
+        .h-word { font-size: 0.65em; font-weight: 600; text-transform: uppercase; opacity: 0.95; margin-bottom: 2px; }
+        .h-desc { font-size: 0.6em; font-weight: 400; color: #dfe6e9; line-height: 1.1; display: block; }
+        .h-sub-list { font-size: 0.5em; color: #bdc3c7; line-height: 1.1; margin-top: 2px; font-style: italic; opacity: 0.8; }
+
+        td { border-bottom: 1px solid #f1f5f9; padding: 4px 2px; text-align: center; vertical-align: middle; background: white; font-size: 0.9em; }
+        tr:hover td { background-color: #f8fafc; }
+
+        /* ABSENT STYLING */
+        tr.absent-row td { background-color: #f1f5f9; color: #cbd5e1; }
+        tr.absent-row input[type="number"] { background-color: #e2e8f0; color: transparent; border-color: transparent; pointer-events: none; }
+        tr.absent-row .total-cell { color: #cbd5e1 !important; text-decoration: line-through; }
+        tr.absent-row .log-btn { background: #e2e8f0; color: #94a3b8; pointer-events: none; border-color: transparent; }
+
+        /* INPUTS */
+        input[type="number"] { width: 100%; max-width: 35px; padding: 4px 0; text-align: center; border: 1px solid #e2e8f0; border-radius: 4px; font-weight: 700; font-size: 1em; color: var(--primary); }
+        input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; accent-color: var(--red); }
+        
+        /* SCORE COLORS */
+        .score-5 { color: #cbd5e1; background: #fff; } 
+        .score-bad { background-color: #fee2e2; border-color: var(--red); color: var(--red); }
+        .total-cell { font-weight: 800; color: var(--accent); }
+        .failing { color: var(--red) !important; }
+
+        /* INCIDENT BUTTON */
+        .log-btn {
+            background: white; border: 1px solid #cbd5e1; color: #64748b;
+            padding: 4px 8px; border-radius: 4px; font-size: 0.75em; cursor: pointer;
+            width: 90%; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+            transition: all 0.2s;
+        }
+        .log-btn.has-incidents {
+            background: #fee2e2; border-color: var(--red); color: var(--red); font-weight: 600;
+        }
+        .log-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* MODAL */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center;
+        }
+        .modal {
+            background: white; padding: 20px; border-radius: 8px; width: 90%; max-width: 900px;
+            max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .modal-title { font-weight: 700; color: var(--primary); font-size: 1.2em; }
+        .modal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 15px; }
+        .modal-col h4 { margin: 0 0 8px 0; font-size: 0.8em; color: var(--accent); text-transform: uppercase; border-bottom: 2px solid #eee; padding-bottom: 4px; }
+        .check-item { display: flex; align-items: start; gap: 6px; margin-bottom: 6px; font-size: 0.75em; color: #333; cursor: pointer; }
+        .check-item input { margin-top: 2px; }
+        .check-item:hover { color: #000; }
+        
+        .modal-actions { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #eee; padding-top: 15px; }
+        .btn-save { background: var(--primary); color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+        .btn-cancel { background: white; color: #666; border: 1px solid #ddd; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
+
+        /* Export Button */
+        .btn-export { background: var(--green); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.8em; align-self: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- CONTROL BAR -->
+    <div class="control-bar">
+        <div class="control-group">
+            <label>Class Roster</label>
+            <select id="classSelector" onchange="loadTable()"></select>
+        </div>
+        <div class="control-group">
+            <label>Date</label>
+            <input type="date" id="lessonDate">
+        </div>
+        <div class="control-group">
+            <label>Period</label>
+            <select id="periodSelector">
+                <option value="P1">Period 1</option>
+                <option value="P2">Period 2</option>
+                <option value="P3">Period 3</option>
+                <option value="P4">Period 4</option>
+                <option value="P5">Period 5</option>
+                <option value="P6">Period 6</option>
+                <option value="P7">Period 7</option>
+                <option value="P8">Period 8</option>
+                <option value="P9">Period 9</option>
+            </select>
+        </div>
+        <button class="btn-export" onclick="exportCSV()">Save CSV</button>
+    </div>
+
+    <!-- MAIN TABLE -->
+    <div class="table-container">
+        <table id="trackerTable">
+            <colgroup>
+                <col style="width: 30px;"> <!-- Abs -->
+                <col style="width: 115px;"> <!-- Name (Reduced Spacing) -->
+                <col style="width: 60px;"> <!-- S -->
+                <col style="width: 60px;"> <!-- T -->
+                <col style="width: 60px;"> <!-- U -->
+                <col style="width: 60px;"> <!-- D -->
+                <col style="width: 60px;"> <!-- E -->
+                <col style="width: 60px;"> <!-- N -->
+                <col style="width: 60px;"> <!-- T -->
+                <col style="width: 50px;"> <!-- Total -->
+                <col style="width: 150px;"> <!-- Incident -->
+            </colgroup>
+            <thead>
+                <tr>
+                    <th style="font-size: 0.6em;">ABS</th>
+                    <th style="text-align:left; padding-left:8px; font-size: 0.75em;">NAME</th>
+                    
+                    <!-- STACKED HEADERS WITH EXTRA DESCRIPTORS -->
+                    <th>
+                        <div class="h-stack">
+                            <span class="h-letter">S</span>
+                            <span class="h-word">State</span>
+                            <span class="h-desc">Sleep</span>
+                            <div class="h-sub-list">Posture<br>Alert<br>Ready</div>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="h-stack">
+                            <span class="h-letter">T</span>
+                            <span class="h-word">Task</span>
+                            <span class="h-desc">Focus</span>
+                            <div class="h-sub-list">Effort<br>Work<br>Active</div>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="h-stack">
+                            <span class="h-letter">U</span>
+                            <span class="h-word">Usage</span>
+                            <span class="h-desc">Phone</span>
+                            <div class="h-sub-list">Earbuds<br>Games<br>Audio</div>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="h-stack">
+                            <span class="h-letter">D</span>
+                            <span class="h-word">Demeanor</span>
+                            <span class="h-desc">Respect</span>
+                            <div class="h-sub-list">Tone<br>Listen<br>Kind</div>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="h-stack">
+                            <span class="h-letter">E</span>
+                            <span class="h-word">Ethics</span>
+                            <span class="h-desc">Integrity</span>
+                            <div class="h-sub-list">Honest<br>No-Copy<br>No-AI</div>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="h-stack">
+                            <span class="h-letter">N</span>
+                            <span class="h-word">Neatness</span>
+                            <span class="h-desc">Clean</span>
+                            <div class="h-sub-list">Folder<br>Name<br>Floor</div>
+                        </div>
+                    </th>
+                    <th>
+                        <div class="h-stack">
+                            <span class="h-letter">T</span>
+                            <span class="h-word">Timeliness</span>
+                            <span class="h-desc">Late</span>
+                            <div class="h-sub-list">Tardy<br>Start<br>Finish</div>
+                        </div>
+                    </th>
+
+                    <th style="font-size: 0.75em;">TOT</th>
+                    <th style="font-size: 0.75em;">INCIDENTS</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+</div>
+
+<!-- INCIDENT MODAL -->
+<div id="incidentModal" class="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">Select Incidents: <span id="modalStudentName">Student</span></div>
+            <button class="btn-cancel" onclick="closeModal()">X</button>
+        </div>
+        
+        <input type="hidden" id="currentRowIndex">
+        
+        <div class="modal-grid">
+            <!-- S -->
+            <div class="modal-col">
+                <h4>S - State</h4>
+                <label class="check-item"><input type="checkbox" value="S1"> Sleeping (Impacts Task)</label>
+                <label class="check-item"><input type="checkbox" value="S2"> Head Down</label>
+                <label class="check-item"><input type="checkbox" value="S3"> No Materials</label>
+                <label class="check-item"><input type="checkbox" value="S4"> Slouching</label>
+                <label class="check-item"><input type="checkbox" value="S5"> Low Energy</label>
+                <label class="check-item"><input type="checkbox" value="S6"> Unprepared</label>
+                <label class="check-item"><input type="checkbox" value="S7"> Unresponsive</label>
+                <label class="check-item"><input type="checkbox" value="S8"> Hyperactive</label>
+                <label class="check-item"><input type="checkbox" value="S9"> Sick / Unwell</label>
+            </div>
+            <!-- T -->
+            <div class="modal-col">
+                <h4>T - Task</h4>
+                <label class="check-item"><input type="checkbox" value="T1"> Off-Task</label>
+                <label class="check-item"><input type="checkbox" value="T2"> Doodling</label>
+                <label class="check-item"><input type="checkbox" value="T3"> Socializing</label>
+                <label class="check-item"><input type="checkbox" value="T4"> Zoning Out</label>
+                <label class="check-item"><input type="checkbox" value="T5"> Distracting Others</label>
+                <label class="check-item"><input type="checkbox" value="T6"> Wrong Work</label>
+                <label class="check-item"><input type="checkbox" value="T7"> Avoiding Qs</label>
+                <label class="check-item"><input type="checkbox" value="T8"> No Effort</label>
+                <label class="check-item"><input type="checkbox" value="T9"> Refusing Work</label>
+            </div>
+            <!-- U -->
+            <div class="modal-col">
+                <h4>U - Usage</h4>
+                <label class="check-item"><input type="checkbox" value="U1"> Phone Visible</label>
+                <label class="check-item"><input type="checkbox" value="U2"> Scrolling Feed</label>
+                <label class="check-item"><input type="checkbox" value="U3"> Watching Video</label>
+                <label class="check-item"><input type="checkbox" value="U4"> Earbuds/Airpods</label>
+                <label class="check-item"><input type="checkbox" value="U5"> Gaming</label>
+                <label class="check-item"><input type="checkbox" value="U6"> Unauth. Charging</label>
+                <label class="check-item"><input type="checkbox" value="U7"> Taking Photos</label>
+                <label class="check-item"><input type="checkbox" value="U8"> Recording Audio</label>
+                <label class="check-item"><input type="checkbox" value="U9"> Hotspotting</label>
+            </div>
+            <!-- D -->
+            <div class="modal-col">
+                <h4>D - Demeanor</h4>
+                <label class="check-item"><input type="checkbox" value="D1"> Profanity</label>
+                <label class="check-item"><input type="checkbox" value="D2"> Rude Tone</label>
+                <label class="check-item"><input type="checkbox" value="D3"> Argumentative</label>
+                <label class="check-item"><input type="checkbox" value="D4"> Eye Rolling</label>
+                <label class="check-item"><input type="checkbox" value="D5"> Ignoring Teacher</label>
+                <label class="check-item"><input type="checkbox" value="D6"> Eating in Class</label>
+                <label class="check-item"><input type="checkbox" value="D7"> Bullying</label>
+                <label class="check-item"><input type="checkbox" value="D8"> Unhelpful</label>
+                <label class="check-item"><input type="checkbox" value="D9"> Mocking Peers</label>
+            </div>
+            <!-- E -->
+            <div class="modal-col">
+                <h4>E - Ethics</h4>
+                <label class="check-item"><input type="checkbox" value="E1"> Cheating</label>
+                <label class="check-item"><input type="checkbox" value="E2"> Copying HW</label>
+                <label class="check-item"><input type="checkbox" value="E3"> Plagiarism</label>
+                <label class="check-item"><input type="checkbox" value="E4"> Lying</label>
+                <label class="check-item"><input type="checkbox" value="E5"> Stealing</label>
+                <label class="check-item"><input type="checkbox" value="E6"> Forgery</label>
+                <label class="check-item"><input type="checkbox" value="E7"> AI / ChatBot</label>
+                <label class="check-item"><input type="checkbox" value="E8"> Whispering</label>
+                <label class="check-item"><input type="checkbox" value="E9"> Hidden Notes</label>
+            </div>
+            <!-- N -->
+            <div class="modal-col">
+                <h4>N - Neatness</h4>
+                <label class="check-item"><input type="checkbox" value="N1"> No Folder/Binder</label>
+                <label class="check-item"><input type="checkbox" value="N2"> No Name / Messy</label>
+                <label class="check-item"><input type="checkbox" value="N3"> Trash on Floor</label>
+                <label class="check-item"><input type="checkbox" value="N4"> Messy Desk</label>
+                <label class="check-item"><input type="checkbox" value="N5"> Spilling Water</label>
+                <label class="check-item"><input type="checkbox" value="N6"> Vandalism</label>
+                <label class="check-item"><input type="checkbox" value="N7"> Gum/Candy</label>
+                <label class="check-item"><input type="checkbox" value="N8"> Graffiti</label>
+                <label class="check-item"><input type="checkbox" value="N9"> Bag in Aisle</label>
+            </div>
+            <!-- T (Time) -->
+            <div class="modal-col">
+                <h4>T - Time</h4>
+                <label class="check-item"><input type="checkbox" value="L1"> Late to Class</label>
+                <label class="check-item"><input type="checkbox" value="L2"> Tardy</label>
+                <label class="check-item"><input type="checkbox" value="L3"> Long Bathrm Break</label>
+                <label class="check-item"><input type="checkbox" value="L4"> Loitering</label>
+                <label class="check-item"><input type="checkbox" value="L5"> Late HW</label>
+                <label class="check-item"><input type="checkbox" value="L6"> Slow Start</label>
+                <label class="check-item"><input type="checkbox" value="L7"> Packing Early</label>
+                <label class="check-item"><input type="checkbox" value="L8"> Wandering</label>
+                <label class="check-item"><input type="checkbox" value="L9"> Skipping</label>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+            <button class="btn-save" onclick="saveIncidents()">Save & Update Score</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- DATA ---
+    const defaultRosters = {
+        "IELTS Group": ["Iris", "Max", "Cathy", "Sandy", "Vicky", "Jim", "Jackie", "Jay", "Grace", "Emily", "Rhea"],
+        "Grade 10": [
+            "Dino", "Tracy", "Billie", "Jessie", "Von Tony", "Jim", "Andrew", "Mark", "Leo", 
+            "Apollo", "Lion", "Tony", "Alex", "Jenny", "Steven", "Mike", "Haolin"
+        ],
+        "Grade 12": [
+            "Anna", "Mia", "Kenn", "Max", "Sky", "Sheng", "Keying", "Cen", "Xifei", "Jiaqi", 
+            "Zack", "Azure", "Joe"
+        ]
+    };
+
+    // --- INIT ---
+    document.getElementById('lessonDate').value = new Date().toISOString().split('T')[0];
+    let allClasses = JSON.parse(localStorage.getItem('efl_rosters_v20')) || defaultRosters;
+    
+    // Init Class Selector
+    const sel = document.getElementById('classSelector');
+    sel.innerHTML = '';
+    Object.keys(allClasses).forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.innerText = k;
+        sel.appendChild(opt);
+    });
+    loadTable();
+
+    // --- TABLE FUNCTIONS ---
+    function loadTable() {
+        const className = document.getElementById('classSelector').value;
+        const students = allClasses[className];
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+
+        if(!students) return;
+
+        students.forEach((name, index) => {
+            const tr = document.createElement('tr');
+            tr.dataset.index = index;
+            
+            let html = `
+                <td><input type="checkbox" class="absent-chk" onchange="toggleAbsent(this)"></td>
+                <td style="text-align:left; padding-left:8px; font-weight:600; color:#34495e;">${name}</td>
+            `;
+            
+            // 7 Scoring Inputs
+            for(let i=0; i<7; i++) {
+                html += `<td><input type="number" min="1" max="5" value="5" class="score-input score-5" oninput="updateRow(this)" onfocus="this.select()"></td>`;
+            }
+            
+            // Total & Incident Button
+            html += `
+                <td class="total-cell">100%</td>
+                <td>
+                    <button class="log-btn" onclick="openModal(this)">+ Log Incidents</button>
+                    <input type="hidden" class="incident-codes" value="">
+                </td>
+            `;
+            
+            tr.innerHTML = html;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function toggleAbsent(checkbox) {
+        const row = checkbox.closest('tr');
+        if (checkbox.checked) {
+            row.classList.add('absent-row');
+            row.querySelector('.total-cell').innerText = "ABS";
+            resetRowIncidents(row);
+        } else {
+            row.classList.remove('absent-row');
+            updateRow(row.querySelector('.score-input')); 
+        }
+    }
+
+    function resetRowIncidents(row) {
+        row.querySelector('.incident-codes').value = "";
+        row.querySelector('.log-btn').innerText = "+ Log Incidents";
+        row.querySelector('.log-btn').classList.remove('has-incidents');
+    }
+
+    function updateRow(el) {
+        const row = el.closest('tr');
+        if(row.classList.contains('absent-row')) return;
+
+        // Visuals
+        if (el.value < 5) {
+            el.classList.add('score-bad');
+            el.classList.remove('score-5');
+        } else {
+            el.classList.remove('score-bad');
+            el.classList.add('score-5');
+        }
+
+        // Calculation (Percentage)
+        const inputs = row.querySelectorAll('.score-input');
+        let sum = 0;
+        inputs.forEach(inp => sum += parseInt(inp.value || 0));
+        
+        const percent = Math.round((sum / 35) * 100);
+        const totalEl = row.querySelector('.total-cell');
+        totalEl.innerText = percent + "%";
+        
+        if(percent < 60) totalEl.classList.add('failing');
+        else totalEl.classList.remove('failing');
+    }
+
+    // --- MODAL LOGIC ---
+    let activeRow = null;
+
+    function openModal(btn) {
+        activeRow = btn.closest('tr');
+        if(activeRow.classList.contains('absent-row')) return;
+
+        const name = activeRow.querySelector('td:nth-child(2)').innerText;
+        document.getElementById('modalStudentName').innerText = name;
+        document.getElementById('currentRowIndex').value = activeRow.dataset.index;
+
+        // Load existing
+        const codes = activeRow.querySelector('.incident-codes').value.split(',');
+        document.querySelectorAll('.check-item input').forEach(chk => {
+            chk.checked = codes.includes(chk.value);
+        });
+
+        document.getElementById('incidentModal').style.display = 'flex';
+    }
+
+    function closeModal() {
+        document.getElementById('incidentModal').style.display = 'none';
+        activeRow = null;
+    }
+
+    function saveIncidents() {
+        if(!activeRow) return;
+
+        const inputs = activeRow.querySelectorAll('.score-input');
+        const checked = Array.from(document.querySelectorAll('.check-item input:checked'));
+        const codes = checked.map(c => c.value);
+        
+        // Update hidden value and button text
+        activeRow.querySelector('.incident-codes').value = codes.join(',');
+        const btn = activeRow.querySelector('.log-btn');
+        
+        if (codes.length > 0) {
+            btn.innerText = codes.join(', ');
+            btn.classList.add('has-incidents');
+        } else {
+            btn.innerText = "+ Log Incidents";
+            btn.classList.remove('has-incidents');
+        }
+
+        // --- AUTO-SCORE LOGIC ---
+        // 1. SLEEPING LOGIC: If S1 (Sleeping) is checked, also penalize Task (Index 1)
+        if (codes.includes('S1')) {
+            inputs[0].value = 1; // State
+            inputs[1].value = 1; // Task (Automatic)
+            updateRow(inputs[0]);
+        }
+
+        // 2. Standard Category Mapping
+        codes.forEach(code => {
+            const letter = code.charAt(0);
+            let colIndex = -1;
+            
+            // Map Code to Column Index
+            if(letter === 'S') colIndex = 0;
+            if(letter === 'T' && !code.startsWith('L') && !code.startsWith('T6')) colIndex = 1; 
+            if(letter === 'U') colIndex = 2;
+            if(letter === 'D') colIndex = 3;
+            if(letter === 'E') colIndex = 4;
+            if(letter === 'N') colIndex = 5;
+            if(letter === 'L') colIndex = 6; // L codes mapped to Time (7th col)
+
+            if(colIndex > -1) {
+                inputs[colIndex].value = 1;
+                updateRow(inputs[colIndex]);
+            }
+        });
+
+        closeModal();
+    }
+
+    // --- EXPORT ---
+    function exportCSV() {
+        const className = document.getElementById('classSelector').value;
+        const date = document.getElementById('lessonDate').value;
+        const period = document.getElementById('periodSelector').value;
+        
+        let csv = "\uFEFFDate,Period,Class,Name,Status,S,T,U,D,E,N,T,Score,Incidents\n";
+
+        document.querySelectorAll('#tableBody tr').forEach(row => {
+            const cols = row.querySelectorAll('td');
+            const isAbsent = row.querySelector('.absent-chk').checked;
+            const name = cols[1].innerText;
+            const status = isAbsent ? "ABSENT" : "PRESENT";
+            
+            // Get scores
+            let scores = [];
+            if(isAbsent) scores = ["","","","","","",""];
+            else scores = Array.from(row.querySelectorAll('.score-input')).map(i => i.value);
+            
+            const incidents = row.querySelector('.incident-codes').value;
+            const total = isAbsent ? "0%" : cols[9].innerText;
+
+            csv += `${date},${period},"${className}","${name}",${status},${scores.join(',')},${total},"${incidents}"\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${date}_${className}_Log.csv`;
+        a.click();
+    }
+</script>
+
+</body>
+</html>

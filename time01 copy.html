@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Talking Clock Game</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5dc;
+      overflow: hidden;
+    }
+
+
+
+    html {
+      height: 100%;
+    }
+
+    .container {
+      text-align: center;
+      padding: 1rem;
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .header-area {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .score-badge {
+      background: rgba(255,255,255,0.95);
+      padding: 0.75rem 1.5rem;
+      border-radius: 50px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      font-size: 1.8rem;
+      color: #333;
+      font-weight: bold;
+      min-width: 80px;
+      text-align: center;
+    }
+
+    .praise-overlay {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 3rem;
+      color: #27ae60;
+      font-weight: bold;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      z-index: 2000;
+    }
+
+    .praise-overlay.show {
+      opacity: 1;
+    }
+
+    .mcq-container {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      flex: 1;
+      max-width: 600px;
+      transition: opacity 0.3s ease;
+    }
+
+    .mcq-container.hidden {
+      display: none;
+    }
+
+    .mcq-button {
+      padding: 1rem 1.5rem;
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: white;
+      background: linear-gradient(145deg, #3498db, #2980b9);
+      border: none;
+      border-radius: 15px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 8px 15px rgba(0,0,0,0.3), inset 0 -4px 0 rgba(0,0,0,0.2);
+      transform: perspective(500px) rotateX(10deg);
+      min-width: 150px;
+      flex: 1;
+    }
+
+    .mcq-button:hover {
+      transform: perspective(500px) rotateX(0deg) translateY(-5px);
+      box-shadow: 0 12px 20px rgba(0,0,0,0.4);
+    }
+
+    .mcq-button:active {
+      transform: perspective(500px) rotateX(5deg) translateY(2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    .mcq-button.correct {
+      background: linear-gradient(145deg, #27ae60, #229954);
+      animation: pulse 0.5s ease;
+    }
+
+    .mcq-button.wrong {
+      background: linear-gradient(145deg, #e74c3c, #c0392b);
+      animation: shake 0.5s ease;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: perspective(500px) rotateX(0deg) scale(1); }
+      50% { transform: perspective(500px) rotateX(0deg) scale(1.1); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: perspective(500px) translateX(0); }
+      25% { transform: perspective(500px) translateX(-10px); }
+      75% { transform: perspective(500px) translateX(10px); }
+    }
+
+    .clock-container {
+      position: relative;
+      width: 320px;
+      height: 320px;
+      margin: 0 auto 1rem;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3), inset 0 0 20px rgba(0,0,0,0.1);
+      transition: all 0.3s ease;
+    }
+
+    .clock-container.hidden {
+      display: none;
+    }
+
+    .clock-container.correct-glow {
+      animation: glowPulse 1s ease-in-out;
+    }
+
+    @keyframes glowPulse {
+      0%, 100% {
+        box-shadow: 0 10px 40px rgba(0,0,0,0.3), inset 0 0 20px rgba(0,0,0,0.1);
+      }
+      50% {
+        box-shadow: 0 0 60px rgba(39, 174, 96, 0.8), 0 0 80px rgba(39, 174, 96, 0.6), inset 0 0 30px rgba(39, 174, 96, 0.3);
+        transform: scale(1.05);
+      }
+    }
+
+    .clock-face {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+    }
+
+    .center-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 16px;
+      height: 16px;
+      background: #333;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+
+    .hand {
+      position: absolute;
+      bottom: 50%;
+      left: 50%;
+      transform-origin: bottom center;
+      transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    }
+
+    .hour-hand {
+      width: 10px;
+      height: 70px;
+      background: #333;
+      margin-left: -5px;
+      border-radius: 5px 5px 0 0;
+      z-index: 3;
+    }
+
+    .minute-hand {
+      width: 5px;
+      height: 100px;
+      background: #555;
+      margin-left: -2.5px;
+      border-radius: 2.5px 2.5px 0 0;
+      z-index: 2;
+    }
+
+    .second-hand {
+      width: 3px;
+      height: 130px;
+      background: #e74c3c;
+      margin-left: -1.5px;
+      border-radius: 1.5px 1.5px 0 0;
+      z-index: 1;
+    }
+
+    .clock-number {
+      position: absolute;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #333;
+      transform: translate(-50%, -50%);
+      z-index: 5;
+    }
+
+    .digital-clock {
+      background: rgba(255,255,255,0.95);
+      padding: 1rem 2rem;
+      border-radius: 12px;
+      margin: 0 auto 1rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      max-width: 300px;
+      transition: opacity 0.3s ease;
+    }
+
+    .digital-clock.hidden {
+      display: none;
+    }
+
+    .digital-time {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #333;
+      font-family: 'Courier New', monospace;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      color: white;
+      background: #3498db;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+
+    button:hover {
+      background: #2980b9;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 8px rgba(0,0,0,0.3);
+    }
+
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    button.active {
+      background: #27ae60;
+    }
+
+    .toggle-group {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .toggle-btn {
+      background: #95a5a6;
+    }
+
+    .toggle-btn.active {
+      background: #27ae60;
+    }
+
+    .time-display {
+      background: rgba(255,255,255,0.95);
+      padding: 1rem;
+      border-radius: 12px;
+      margin-top: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.3s ease;
+    }
+
+    .time-display.hidden {
+      display: none;
+    }
+
+    .time-text {
+      font-size: 1.1rem;
+      color: #333;
+      font-weight: 500;
+    }
+
+    .glitter {
+      position: fixed;
+      pointer-events: none;
+      font-size: 2rem;
+      animation: glitterFall 2s ease-out forwards;
+      z-index: 1000;
+    }
+
+    @keyframes glitterFall {
+      0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(500px) rotate(360deg);
+        opacity: 0;
+      }
+    }
+
+    .mini-clock {
+      position: fixed;
+      pointer-events: none;
+      font-size: 2rem;
+      animation: clockFly 1.5s ease-out forwards;
+      z-index: 1000;
+    }
+
+    @keyframes clockFly {
+      0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(var(--tx), var(--ty)) scale(0.3);
+        opacity: 0;
+      }
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+  <script src="https://cdn.tailwindcss.com" type="text/javascript"></script>
+ </head>
+ <body>
+  <div class="container">
+   <div class="header-area">
+    <div class="mcq-container" id="mcq-container"><button class="mcq-button" id="option1"></button> <button class="mcq-button" id="option2"></button> <button class="mcq-button" id="option3"></button>
+    </div>
+    <div class="score-badge" id="score">
+     0
+    </div>
+   </div>
+   <div class="praise-overlay" id="praise-overlay"></div>
+   <div class="clock-container" id="clock-container">
+    <div class="clock-face" id="clock-face">
+     <div class="hand hour-hand" id="hour-hand"></div>
+     <div class="hand minute-hand" id="minute-hand"></div>
+     <div class="hand second-hand" id="second-hand"></div>
+     <div class="center-dot"></div>
+    </div>
+   </div>
+   <div class="digital-clock" id="digital-clock">
+    <div class="digital-time" id="digital-time">
+     00:00:00
+    </div>
+   </div>
+   <div class="button-group"><button id="random-btn">Random Time</button> <button id="speak-btn">Speak Time</button> <button id="game-btn" class="active">Game Mode</button>
+   </div>
+   <div class="toggle-group"><button class="toggle-btn active" id="toggle-analog">Analog Clock</button> <button class="toggle-btn active" id="toggle-digital">Digital Clock</button> <button class="toggle-btn active" id="toggle-text">Text Display</button>
+   </div>
+   <div class="time-display" id="time-display">
+    <div class="time-text" id="time-text">
+     Current time will appear here
+    </div>
+   </div>
+  </div>
+  <script>
+    const defaultConfig = {
+      random_button_text: "Random Time",
+      speak_button_text: "Speak Time",
+      game_button_text: "Game Mode",
+      background_color: "#f5f5dc",
+      clock_face_color: "#ffffff",
+      text_color: "#333333",
+      button_color: "#3498db",
+      font_family: "Segoe UI"
+    };
+
+    const voices = ['Brian', 'Emma', 'Andrew'];
+    let currentVoiceIndex = 0;
+    let currentHours = Math.floor(Math.random() * 12);
+    let currentMinutes = Math.floor(Math.random() * 60);
+    let currentSeconds = 0;
+    let isRandomTime = true;
+    let gameMode = true;
+    let score = 0;
+    let correctAnswer = '';
+
+    const hourHand = document.getElementById('hour-hand');
+    const minuteHand = document.getElementById('minute-hand');
+    const secondHand = document.getElementById('second-hand');
+    const timeText = document.getElementById('time-text');
+    const digitalTime = document.getElementById('digital-time');
+    const clockFace = document.getElementById('clock-face');
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(frequency, duration, type = 'sine') {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = frequency;
+      oscillator.type = type;
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration);
+    }
+
+    function playSuccessSound() {
+      playSound(523.25, 0.1);
+      setTimeout(() => playSound(659.25, 0.1), 100);
+      setTimeout(() => playSound(783.99, 0.2), 200);
+    }
+
+    function playWrongSound() {
+      playSound(200, 0.3, 'sawtooth');
+    }
+
+    function createGlitter(x, y) {
+      const glitterSymbols = ['✨', '⭐', '🌟', '💫', '✨'];
+      for (let i = 0; i < 15; i++) {
+        const glitter = document.createElement('div');
+        glitter.className = 'glitter';
+        glitter.textContent = glitterSymbols[Math.floor(Math.random() * glitterSymbols.length)];
+        glitter.style.left = x + (Math.random() - 0.5) * 100 + 'px';
+        glitter.style.top = y + 'px';
+        document.body.appendChild(glitter);
+        
+        setTimeout(() => glitter.remove(), 2000);
+      }
+    }
+
+    function createMiniClocks(x, y, targetX, targetY) {
+      for (let i = 0; i < 5; i++) {
+        setTimeout(() => {
+          const miniClock = document.createElement('div');
+          miniClock.className = 'mini-clock';
+          miniClock.textContent = '🕐';
+          miniClock.style.left = x + 'px';
+          miniClock.style.top = y + 'px';
+          miniClock.style.setProperty('--tx', (targetX - x) + 'px');
+          miniClock.style.setProperty('--ty', (targetY - y) + 'px');
+          document.body.appendChild(miniClock);
+          
+          setTimeout(() => miniClock.remove(), 1500);
+        }, i * 100);
+      }
+    }
+
+    function initializeClockNumbers() {
+      for (let i = 1; i <= 12; i++) {
+        const number = document.createElement('div');
+        number.className = 'clock-number';
+        number.textContent = i;
+        
+        const angle = (i * 30 - 90) * (Math.PI / 180);
+        const radius = 120;
+        const x = 160 + radius * Math.cos(angle);
+        const y = 160 + radius * Math.sin(angle);
+        
+        number.style.left = x + 'px';
+        number.style.top = y + 'px';
+        
+        clockFace.appendChild(number);
+      }
+    }
+
+    function updateClock() {
+      if (!isRandomTime) {
+        const now = new Date();
+        currentHours = now.getHours() % 12;
+        currentMinutes = now.getMinutes();
+        currentSeconds = now.getSeconds();
+      }
+
+      const secondDegrees = (currentSeconds * 6);
+      const minuteDegrees = (currentMinutes * 6) + (currentSeconds * 0.1);
+      const hourDegrees = (currentHours * 30) + (currentMinutes * 0.5);
+
+      secondHand.style.transform = `rotate(${secondDegrees}deg)`;
+      minuteHand.style.transform = `rotate(${minuteDegrees}deg)`;
+      hourHand.style.transform = `rotate(${hourDegrees}deg)`;
+
+      const fullHours = currentHours || 12;
+      digitalTime.textContent = `${String(fullHours).padStart(2, '0')}:${String(currentMinutes).padStart(2, '0')}:${String(currentSeconds).padStart(2, '0')}`;
+
+      if (!isRandomTime) {
+        currentSeconds++;
+        if (currentSeconds >= 60) {
+          currentSeconds = 0;
+          currentMinutes++;
+          if (currentMinutes >= 60) {
+            currentMinutes = 0;
+            currentHours++;
+            if (currentHours >= 12) {
+              currentHours = 0;
+            }
+          }
+        }
+      }
+    }
+
+    function getColloquialTime(hours, minutes) {
+      const displayHour = hours % 12 || 12;
+
+      if (minutes === 0) {
+        return `${displayHour} o'clock`;
+      } else if (minutes === 15) {
+        return `quarter past ${displayHour}`;
+      } else if (minutes === 30) {
+        return `half past ${displayHour}`;
+      } else if (minutes === 45) {
+        const nextHour = (displayHour % 12) + 1;
+        return `quarter to ${nextHour}`;
+      } else if (minutes === 50) {
+        const nextHour = (displayHour % 12) + 1;
+        return `ten till ${nextHour}`;
+      } else if (minutes > 30) {
+        const nextHour = (displayHour % 12) + 1;
+        const minutesToNext = 60 - minutes;
+        return `${minutesToNext} ${minutesToNext === 1 ? 'minute' : 'minutes'} to ${nextHour}`;
+      } else {
+        return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} past ${displayHour}`;
+      }
+    }
+
+    function getDigitalTime(hours, minutes) {
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+
+    function setRandomTime() {
+      isRandomTime = true;
+      currentHours = Math.floor(Math.random() * 12);
+      currentMinutes = Math.floor(Math.random() * 60);
+      currentSeconds = 0;
+      
+      updateClock();
+    }
+
+    function speakTime() {
+      updateClock();
+      
+      const fullHours = currentHours || 12;
+      const timeString = getColloquialTime(fullHours, currentMinutes);
+      timeText.textContent = timeString;
+
+      const utterance = new SpeechSynthesisUtterance(timeString);
+      
+      const loadVoices = () => {
+        const voicesList = window.speechSynthesis.getVoices();
+        const voiceName = voices[currentVoiceIndex];
+        const voice = voicesList.find(v => v.name.includes(voiceName)) || voicesList[0];
+        
+        if (voice) {
+          utterance.voice = voice;
+        }
+        
+        utterance.rate = 0.9;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        window.speechSynthesis.speak(utterance);
+        
+        currentVoiceIndex = (currentVoiceIndex + 1) % voices.length;
+      };
+
+      if (window.speechSynthesis.getVoices().length > 0) {
+        loadVoices();
+      } else {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+      }
+    }
+
+    function generateMCQ() {
+      setRandomTime();
+      
+      const fullHours = currentHours || 12;
+      const timeString = getColloquialTime(fullHours, currentMinutes);
+      timeText.textContent = timeString;
+      
+      correctAnswer = getDigitalTime(fullHours, currentMinutes);
+      
+      const options = [correctAnswer];
+      
+      while (options.length < 3) {
+        const randomHour = Math.floor(Math.random() * 12) + 1;
+        const randomMinute = Math.floor(Math.random() * 60);
+        const wrongAnswer = getDigitalTime(randomHour, randomMinute);
+        if (!options.includes(wrongAnswer)) {
+          options.push(wrongAnswer);
+        }
+      }
+      
+      options.sort(() => Math.random() - 0.5);
+      
+      document.getElementById('option1').textContent = options[0];
+      document.getElementById('option2').textContent = options[1];
+      document.getElementById('option3').textContent = options[2];
+      
+      document.querySelectorAll('.mcq-button').forEach(btn => {
+        btn.className = 'mcq-button';
+        btn.disabled = false;
+      });
+    }
+
+    function handleMCQAnswer(selectedTime, button) {
+      const praiseMessages = [
+        'Excellent! 🎉',
+        'Perfect! ⭐',
+        'Amazing! 🌟',
+        'Brilliant! 💫',
+        'Fantastic! ✨',
+        'Outstanding! 🎊',
+        'Superb! 🏆',
+        'Wonderful! 🎯'
+      ];
+
+      if (selectedTime === correctAnswer) {
+        button.classList.add('correct');
+        score++;
+        document.getElementById('score').textContent = score;
+        
+        const praise = praiseMessages[Math.floor(Math.random() * praiseMessages.length)];
+        const praiseOverlay = document.getElementById('praise-overlay');
+        praiseOverlay.textContent = praise;
+        praiseOverlay.classList.add('show');
+        
+        const clockContainer = document.getElementById('clock-container');
+        clockContainer.classList.add('correct-glow');
+        setTimeout(() => clockContainer.classList.remove('correct-glow'), 1000);
+        
+        playSuccessSound();
+        
+        const rect = button.getBoundingClientRect();
+        const scoreRect = document.getElementById('score').getBoundingClientRect();
+        
+        createGlitter(rect.left + rect.width / 2, rect.top);
+        createMiniClocks(rect.left + rect.width / 2, rect.top, scoreRect.left + scoreRect.width / 2, scoreRect.top);
+        
+        document.querySelectorAll('.mcq-button').forEach(btn => btn.disabled = true);
+        
+        setTimeout(() => {
+          praiseOverlay.classList.remove('show');
+        }, 5000);
+        
+        setTimeout(() => {
+          generateMCQ();
+        }, 2000);
+      } else {
+        button.classList.add('wrong');
+        playWrongSound();
+        button.disabled = true;
+      }
+    }
+
+    document.getElementById('random-btn').addEventListener('click', () => {
+      setRandomTime();
+      generateMCQ();
+    });
+    
+    document.getElementById('speak-btn').addEventListener('click', speakTime);
+
+    document.getElementById('option1').addEventListener('click', function() {
+      handleMCQAnswer(this.textContent, this);
+    });
+    document.getElementById('option2').addEventListener('click', function() {
+      handleMCQAnswer(this.textContent, this);
+    });
+    document.getElementById('option3').addEventListener('click', function() {
+      handleMCQAnswer(this.textContent, this);
+    });
+
+    document.getElementById('toggle-analog').addEventListener('click', function() {
+      this.classList.toggle('active');
+      document.getElementById('clock-container').classList.toggle('hidden');
+    });
+
+    document.getElementById('toggle-digital').addEventListener('click', function() {
+      this.classList.toggle('active');
+      document.getElementById('digital-clock').classList.toggle('hidden');
+    });
+
+    document.getElementById('toggle-text').addEventListener('click', function() {
+      this.classList.toggle('active');
+      document.getElementById('time-display').classList.toggle('hidden');
+    });
+
+    document.getElementById('game-btn').addEventListener('click', function() {
+      this.classList.toggle('active');
+      gameMode = !gameMode;
+      document.getElementById('mcq-container').classList.toggle('hidden');
+    });
+
+    initializeClockNumbers();
+    updateClock();
+    setInterval(updateClock, 1000);
+    generateMCQ();
+
+    async function onConfigChange(config) {
+      const randomBtn = document.getElementById('random-btn');
+      const speakBtn = document.getElementById('speak-btn');
+      const gameBtn = document.getElementById('game-btn');
+      
+      randomBtn.textContent = config.random_button_text || defaultConfig.random_button_text;
+      speakBtn.textContent = config.speak_button_text || defaultConfig.speak_button_text;
+      gameBtn.textContent = config.game_button_text || defaultConfig.game_button_text;
+
+      const customFont = config.font_family || defaultConfig.font_family;
+      const baseFontStack = 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif';
+      
+      document.body.style.fontFamily = `${customFont}, ${baseFontStack}`;
+
+      document.querySelectorAll('.clock-number').forEach(num => {
+        num.style.color = config.text_color || defaultConfig.text_color;
+      });
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities: (config) => ({
+          recolorables: [
+            {
+              get: () => config.text_color || defaultConfig.text_color,
+              set: (value) => {
+                config.text_color = value;
+                window.elementSdk.setConfig({ text_color: value });
+              }
+            },
+            {
+              get: () => config.button_color || defaultConfig.button_color,
+              set: (value) => {
+                config.button_color = value;
+                window.elementSdk.setConfig({ button_color: value });
+              }
+            }
+          ],
+          borderables: [],
+          fontEditable: {
+            get: () => config.font_family || defaultConfig.font_family,
+            set: (value) => {
+              config.font_family = value;
+              window.elementSdk.setConfig({ font_family: value });
+            }
+          },
+          fontSizeable: undefined
+        }),
+        mapToEditPanelValues: (config) => new Map([
+          ["random_button_text", config.random_button_text || defaultConfig.random_button_text],
+          ["speak_button_text", config.speak_button_text || defaultConfig.speak_button_text],
+          ["game_button_text", config.game_button_text || defaultConfig.game_button_text]
+        ])
+      });
+    }
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9a2e99c14097fad6',t:'MTc2Mzg3OTI0NS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

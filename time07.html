@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2-Player Color Conversation Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --p1-bg: #f0f9ff; /* sky-50 */
+            --p1-accent: #0284c7; /* sky-600 */
+            --p2-bg: #fff7ed; /* orange-50 */
+            --p2-accent: #ea580c; /* orange-600 */
+            --correct-bg: #16a34a; 
+            --incorrect-bg: #dc2626; 
+            --main-text: #44403c; 
+            --btn-bg: #f3f4f6;
+            --btn-hover-bg: #e5e7eb;
+            --btn-text: #1f2937;
+            --badge-bg: #fde047;
+            --badge-text: #713f12;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; 
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+
+        .game-board {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto 1fr;
+            height: 100vh;
+            width: 100%;
+            gap: 0;
+        }
+        
+        .game-title {
+            grid-column: 1 / -1;
+            font-weight: 700;
+            font-size: 1.75rem;
+            color: var(--main-text);
+            text-align: center;
+            padding: 0.5rem;
+        }
+
+        #timer-display {
+            grid-column: 1 / -1;
+            justify-self: center;
+            margin-bottom: 1rem;
+            padding: 0.5rem 2rem;
+            font-weight: 700;
+            background-color: #ef4444;
+            color: white;
+            border-radius: 12px;
+            font-size: 1.25rem;
+        }
+
+        .player-panel {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 1.5rem;
+            transition: background-color 0.3s;
+        }
+
+        #player-1-panel {
+            background-color: var(--p1-bg);
+            border-right: 4px solid #cbd5e1;
+        }
+
+        #player-2-panel {
+            background-color: var(--p2-bg);
+        }
+
+        .player-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        
+        .player-name {
+            font-size: 2.25rem;
+            font-weight: 700;
+        }
+        #player-1-panel .player-name { color: var(--p1-accent); }
+        #player-2-panel .player-name { color: var(--p2-accent); }
+        
+        .player-score {
+            font-size: 1.25rem;
+            color: var(--main-text);
+            margin-top: 0.5rem;
+        }
+        
+        .badges-display-container {
+            margin-top: 0.75rem;
+            min-height: 30px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: var(--badge-bg);
+            color: var(--badge-text);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin: 0 4px;
+        }
+
+        .score-popup {
+            position: absolute;
+            left: 50%;
+            top: 20px;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--correct-bg);
+            opacity: 0;
+            transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+            pointer-events: none;
+        }
+
+        .score-popup.active {
+            transform: translate(-50%, -80px);
+            opacity: 1;
+        }
+
+        .answer-buttons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .answer-btn {
+            padding: 1rem;
+            width: 100%;
+            max-width: 400px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            border-radius: 12px;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            border: 2px solid #d1d5db;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s, border-color 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .answer-btn:not(:disabled):hover {
+            transform: translateY(-3px);
+            background-color: var(--btn-hover-bg);
+        }
+        .answer-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .answer-btn.correct { 
+            border-color: var(--correct-bg) !important;
+            color: var(--correct-bg) !important;
+            background-color: #f0fdf4 !important;
+        }
+        .answer-btn.incorrect { 
+            border-color: var(--incorrect-bg) !important;
+            color: var(--incorrect-bg) !important;
+            background-color: #fef2f2 !important;
+        }
+        
+        .feedback-display {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 1rem;
+            height: 2.5rem;
+        }
+
+        .control-btn {
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            border: 2px solid #d1d5db;
+        }
+        .control-btn:hover {
+            transform: translateY(-2px);
+            background-color: var(--btn-hover-bg);
+        }
+        
+        #badge-alert {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background-color: var(--badge-bg); color: var(--badge-text); padding: 10px 20px;
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 2000; font-weight: 600;
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #badge-alert.show {
+            opacity: 1;
+            transform: translate(-50%, 10px);
+        }
+
+        .start-overlay, .game-over-container {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+            overflow-y: auto;
+            justify-content: center;
+        }
+        .start-box, .game-over-box {
+            background: white;
+            padding: 2rem;
+            border-radius: 16px;
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+        }
+        .start-box input {
+            display: block;
+            width: 100%;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            border: 2px solid #ccc;
+            border-radius: 8px;
+        }
+
+        .winner-announcement {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #f59e0b;
+        }
+        .high-scores-container {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+        }
+        #high-scores-list {
+            list-style-position: inside;
+            text-align: left;
+        }
+        
+        @media (max-width: 768px) {
+            html, body {
+                height: auto;
+                overflow: auto;
+            }
+            .game-board {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto 1fr 1fr;
+            }
+            #player-1-panel {
+                border-right: none;
+                border-bottom: 4px solid #cbd5e1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="start-overlay" class="start-overlay">
+        <div class="start-box">
+            <h1 class="text-2xl font-bold mb-4">Color Conversation Challenge</h1>
+            <input type="text" id="p1-name-input" placeholder="Player 1 Name" value="">
+            <input type="text" id="p2-name-input" placeholder="Player 2 Name" value="">
+            <button id="start-game-btn" class="control-btn w-full">Start Game</button>
+        </div>
+    </div>
+
+    <div class="game-board hidden">
+        <h1 class="game-title">Question: <span id="question-count">0</span> / 100</h1>
+        <div id="timer-display" class="hidden">Time: 20</div>
+
+        <!-- Player 1 Panel -->
+        <div class="player-panel" id="player-1-panel">
+            <div class="player-header">
+                <h2 class="player-name" id="p1-name">Player 1</h2>
+                <p class="player-score">Score: <span id="p1-score">0</span></p>
+                <div class="badges-display-container" id="p1-badges">Badges: None</div>
+                <span class="score-popup">+4</span>
+            </div>
+            <div class="answer-buttons" id="p1-answers">
+                <button class="answer-btn" data-player="0" disabled>&nbsp;</button>
+                <button class="answer-btn" data-player="0" disabled>&nbsp;</button>
+                <button class="answer-btn" data-player="0" disabled>&nbsp;</button>
+            </div>
+            <div class="feedback-display" id="p1-feedback"></div>
+        </div>
+
+        <!-- Player 2 Panel -->
+        <div class="player-panel" id="player-2-panel">
+            <div class="player-header">
+                <h2 class="player-name" id="p2-name">Player 2</h2>
+                <p class="player-score">Score: <span id="p2-score">0</span></p>
+                <div class="badges-display-container" id="p2-badges">Badges: None</div>
+                <span class="score-popup">+4</span>
+            </div>
+            <div class="answer-buttons" id="p2-answers">
+                <button class="answer-btn" data-player="1" disabled>&nbsp;</button>
+                <button class="answer-btn" data-player="1" disabled>&nbsp;</button>
+                <button class="answer-btn" data-player="1" disabled>&nbsp;</button>
+            </div>
+            <div class="feedback-display" id="p2-feedback"></div>
+        </div>
+    </div>
+    
+    <div id="game-over-container" class="game-over-container hidden">
+         <div class="game-over-box">
+            <h1 class="text-3xl font-bold">Game Over!</h1>
+            <p class="winner-announcement mt-4 mb-6">Player 1 Wins!</p>
+            <div class="high-scores-container">
+                <h3 class="text-xl font-bold text-center mb-2">Leaderboard</h3>
+                <ol id="high-scores-list"></ol>
+            </div>
+            <button id="play-again-btn" class="control-btn w-full mt-8">Play Again</button>
+        </div>
+    </div>
+    
+    <div id="badge-alert">Badge Unlocked!</div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dom = {
+                startOverlay: document.getElementById('start-overlay'),
+                startGameBtn: document.getElementById('start-game-btn'),
+                p1NameInput: document.getElementById('p1-name-input'),
+                p2NameInput: document.getElementById('p2-name-input'),
+                gameBoard: document.querySelector('.game-board'),
+                
+                gameOverContainer: document.getElementById('game-over-container'),
+                winnerAnnouncement: document.querySelector('.winner-announcement'),
+                playAgainBtn: document.getElementById('play-again-btn'),
+                
+                questionCount: document.getElementById('question-count'),
+                timerDisplay: document.getElementById('timer-display'),
+                highScoresList: document.getElementById('high-scores-list'),
+                badgeAlert: document.getElementById('badge-alert'),
+
+                playerPanels: [
+                    { name: document.getElementById('p1-name'), score: document.getElementById('p1-score'), badges: document.getElementById('p1-badges'), answers: document.getElementById('p1-answers'), feedback: document.getElementById('p1-feedback'), scorePopup: document.querySelector('#player-1-panel .score-popup') },
+                    { name: document.getElementById('p2-name'), score: document.getElementById('p2-score'), badges: document.getElementById('p2-badges'), answers: document.getElementById('p2-answers'), feedback: document.getElementById('p2-feedback'), scorePopup: document.querySelector('#player-2-panel .score-popup') }
+                ]
+            };
+
+            const TOTAL_QUESTIONS = 100;
+            const POINTS_PER_CORRECT = 4;
+            const QUESTION_TIME_LIMIT = 20;
+
+            let players = [];
+            let currentQuestion = {};
+            let questionsAsked = 0;
+            let isRoundOver = false;
+            let voices = [];
+            let preferredVoices = [];
+            let questionTimer;
+            
+            const positiveFeedbackPhrases = ["Nice one!", "You got it!", "Awesome!", "Great listening!", "Perfect!", "That's it!", "Excellent!"];
+            
+            let correctSynth, incorrectSynth;
+            function setupSounds() {
+                correctSynth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 } }).toDestination();
+                incorrectSynth = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination();
+            }
+
+            function initSpeechSynthesis() { if ('speechSynthesis' in window) { const getVoices = () => { voices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en')); const naturalKeywords = ["neural", "natural", "studio", "premium", "google", "zira", "david"]; preferredVoices = voices.filter(v => naturalKeywords.some(kw => v.name.toLowerCase().includes(kw))); if (preferredVoices.length === 0) preferredVoices = voices; }; getVoices(); speechSynthesis.onvoiceschanged = getVoices; } else { console.warn("TTS not supported."); } }
+            
+            function speak(text, callback) {
+                if (!('speechSynthesis' in window) || voices.length === 0 || preferredVoices.length === 0) { 
+                    if (callback) callback(); 
+                    return; 
+                }
+                const voice = preferredVoices[Math.floor(Math.random() * preferredVoices.length)]; // Rotate voice every time
+                const utterance = new SpeechSynthesisUtterance(text); 
+                utterance.voice = voice; 
+                utterance.onend = callback; 
+                speechSynthesis.cancel(); 
+                speechSynthesis.speak(utterance); 
+            }
+
+            function generateColorQuestion() {
+                const people = ['Anna', 'Leo', 'Vivian', 'Rain', 'Elsa', 'Mia', 'Kenn', 'Max', 'Sky', 'Zach', 'Joe'];
+                const items = ['hat', 'shirt', 'jacket', 'car', 'phone case', 'backpack'];
+                const colors = ['Red', 'Blue', 'Green', 'Yellow', 'Purple', 'Orange', 'Black', 'White', 'Pink', 'Brown'];
+                
+                const shuffledColors = colors.sort(() => 0.5 - Math.random());
+                const chosenColors = shuffledColors.slice(0, 3);
+                const [correctAnswer, distractor1, distractor2] = chosenColors;
+
+                const person1 = people[Math.floor(Math.random() * people.length)];
+                let person2 = people[Math.floor(Math.random() * people.length)];
+                while (person1 === person2) { person2 = people[Math.floor(Math.random() * people.length)]; }
+
+                const item = items[Math.floor(Math.random() * items.length)];
+
+                const templates = [
+                    (p1, p2, i, c1, c2, c3) => `${p1} asked, "Should I get the ${c1} ${i} or the ${c2} one?" ${p2} replied, "Hmm, I think the ${c3} one is the best."`,
+                    (p1, p2, i, c1, c2, c3) => `${p1}: "I can't decide between a ${c1} or ${c2} ${i}." ${p2}: "Neither. You should definitely get the ${c3} ${i}."`,
+                    (p1, p2, i, c1, c2, c3) => `${p1} said, "I like the ${c1} ${i}." ${p2} responded, "The ${c2} one is okay, but I just saw a ${c3} one that looks amazing. Let's go with that."`
+                ];
+
+                const scenario = templates[Math.floor(Math.random() * templates.length)](person1, person2, item, distractor1, distractor2, correctAnswer);
+                
+                return { scenario, correctAnswer, options: chosenColors.sort(() => 0.5 - Math.random()) };
+            }
+
+            function resetBoard() { dom.playerPanels.forEach((panel) => { panel.feedback.textContent = ''; const buttons = panel.answers.querySelectorAll('.answer-btn'); buttons.forEach(btn => { btn.className = 'answer-btn'; btn.disabled = true; btn.innerHTML = '&nbsp;'; }); }); }
+            function stopQuestionTimer() { clearInterval(questionTimer); dom.timerDisplay.classList.add('hidden'); }
+
+            function proceedToNextQuestion() { if (questionsAsked >= TOTAL_QUESTIONS) { endGame(); } else { askQuestion(); } }
+
+            function handleTimeOut() {
+                stopQuestionTimer();
+                if(isRoundOver) return;
+                isRoundOver = true;
+                players.forEach(p => p.correctStreak = 0);
+                incorrectSynth.triggerAttackRelease("C3", "8n", Tone.now());
+                
+                dom.playerPanels.forEach(p => {
+                    p.feedback.textContent = `Time's up!`;
+                    p.answers.querySelectorAll('.answer-btn').forEach(b => {
+                        b.disabled = true;
+                        if (b.textContent === currentQuestion.correctAnswer) { b.classList.add('correct'); }
+                    });
+                });
+                setTimeout(proceedToNextQuestion, 2000);
+            }
+
+            function startQuestionTimer() {
+                let timeLeft = QUESTION_TIME_LIMIT;
+                dom.timerDisplay.textContent = `Time: ${timeLeft}`;
+                dom.timerDisplay.classList.remove('hidden');
+                questionTimer = setInterval(() => {
+                    timeLeft--;
+                    dom.timerDisplay.textContent = `Time: ${timeLeft}`;
+                    if (timeLeft <= 0) { handleTimeOut(); }
+                }, 1000);
+            }
+
+            function askQuestion() {
+                resetBoard();
+                isRoundOver = false;
+                questionsAsked++;
+                updateGameStatsDisplay();
+                
+                currentQuestion = generateColorQuestion();
+                
+                speak(currentQuestion.scenario, () => {
+                    dom.playerPanels.forEach((panel) => {
+                        const buttons = panel.answers.querySelectorAll('.answer-btn');
+                        buttons.forEach((btn, i) => {
+                            btn.textContent = currentQuestion.options[i];
+                            btn.disabled = false;
+                        });
+                    });
+                    startQuestionTimer();
+                });
+            }
+            
+            function handleAnswer(e) {
+                if (isRoundOver) return;
+                const button = e.target;
+                if (!button.matches('.answer-btn') || button.disabled) return;
+                
+                isRoundOver = true;
+                stopQuestionTimer();
+                dom.playerPanels.forEach(p => p.answers.querySelectorAll('.answer-btn').forEach(b => b.disabled = true));
+
+                const playerIndex = parseInt(button.dataset.player, 10);
+                
+                if (button.textContent === currentQuestion.correctAnswer) {
+                    players[playerIndex].score += POINTS_PER_CORRECT;
+                    players[playerIndex].correctStreak++;
+                    players[1 - playerIndex].correctStreak = 0;
+                    
+                    button.classList.add('correct');
+                    dom.playerPanels[playerIndex].feedback.textContent = positiveFeedbackPhrases[Math.floor(Math.random() * positiveFeedbackPhrases.length)];
+                    correctSynth.triggerAttackRelease("C5", "8n", Tone.now());
+                    
+                    const popup = dom.playerPanels[playerIndex].scorePopup;
+                    popup.classList.add('active');
+                    setTimeout(() => popup.classList.remove('active'), 800);
+
+                    if (players[playerIndex].correctStreak === 5) awardBadge(playerIndex, 'Perfect Streak');
+                } else {
+                    players[playerIndex].correctStreak = 0;
+                    button.classList.add('incorrect');
+                    dom.playerPanels[playerIndex].feedback.textContent = `Nope!`;
+                    incorrectSynth.triggerAttackRelease("C3", "8n", Tone.now());
+                }
+                
+                dom.playerPanels.forEach(p => {
+                    p.answers.querySelectorAll('.answer-btn').forEach(b => {
+                        if (b.textContent === currentQuestion.correctAnswer) b.classList.add('correct');
+                    });
+                });
+
+                setTimeout(proceedToNextQuestion, 2000);
+            }
+            
+            async function startGame() {
+                await Tone.start();
+                setupSounds();
+                
+                players = [
+                    { name: dom.p1NameInput.value.trim() || 'Player 1', score: 0, correctStreak: 0, badges: [] },
+                    { name: dom.p2NameInput.value.trim() || 'Player 2', score: 0, correctStreak: 0, badges: [] }
+                ];
+                
+                dom.playerPanels[0].name.textContent = players[0].name;
+                dom.playerPanels[1].name.textContent = players[1].name;
+                
+                dom.startOverlay.classList.add('hidden');
+                dom.gameOverContainer.classList.add('hidden');
+                dom.gameBoard.classList.remove('hidden');
+                
+                questionsAsked = 0;
+                askQuestion();
+            }
+
+            function updateGameStatsDisplay() {
+                dom.questionCount.textContent = questionsAsked;
+                players.forEach((p, i) => {
+                    const panel = dom.playerPanels[i];
+                    panel.score.textContent = p.score;
+                    if (p.badges.length > 0) {
+                        panel.badges.innerHTML = 'Badges: ' + p.badges.map(b => `<span class="badge">${b}</span>`).join(' ');
+                    } else {
+                        panel.badges.innerHTML = 'Badges: None';
+                    }
+                });
+            }
+
+            function awardBadge(playerIndex, badgeName) {
+                if (players[playerIndex].badges.includes(badgeName)) return;
+                players[playerIndex].badges.push(badgeName);
+                updateGameStatsDisplay();
+                dom.badgeAlert.textContent = `${players[playerIndex].name} unlocked: ${badgeName}!`;
+                dom.badgeAlert.classList.add('show');
+                setTimeout(() => dom.badgeAlert.classList.remove('show'), 2500);
+            }
+
+            const MAX_HIGH_SCORES = 5;
+            function getHighScores() { return JSON.parse(localStorage.getItem('colorGameHighScores') || '[]'); }
+            function saveHighScore(score, username) {
+                if (!username) return;
+                const highScores = getHighScores();
+                highScores.push({ score, username });
+                highScores.sort((a, b) => b.score - a.score).splice(MAX_HIGH_SCORES);
+                localStorage.setItem('colorGameHighScores', JSON.stringify(highScores));
+            }
+            function displayHighScores() {
+                const highScores = getHighScores();
+                if (highScores.length === 0) { dom.highScoresList.innerHTML = '<li>No high scores yet!</li>'; return; }
+                dom.highScoresList.innerHTML = highScores.map(s => `<li>${s.username}: ${s.score}</li>`).join('');
+            }
+
+            function endGame() {
+                stopQuestionTimer();
+                
+                let winnerText;
+                if (players[0].score > players[1].score) {
+                    winnerText = `${players[0].name} Wins!`;
+                    saveHighScore(players[0].score, players[0].name);
+                } else if (players[1].score > players[0].score) {
+                    winnerText = `${players[1].name} Wins!`;
+                    saveHighScore(players[1].score, players[1].name);
+                } else {
+                    winnerText = "It's a Tie!";
+                }
+                dom.winnerAnnouncement.textContent = winnerText;
+                
+                displayHighScores();
+                dom.gameBoard.classList.add('hidden');
+                dom.gameOverContainer.classList.remove('hidden');
+            }
+            
+            function resetGame() {
+                dom.gameOverContainer.classList.add('hidden');
+                dom.startOverlay.classList.remove('hidden');
+                resetBoard();
+            }
+
+            // Event Listeners
+            dom.startGameBtn.addEventListener('click', startGame);
+            dom.playAgainBtn.addEventListener('click', resetGame);
+            dom.playerPanels.forEach(p => p.answers.addEventListener('click', handleAnswer));
+            
+            // Initial Load
+            initSpeechSynthesis();
+        });
+    </script>
+</body>
+</html>

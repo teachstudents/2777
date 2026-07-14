@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Scheduler Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent-bg: #f0f9ff; 
+            --accent-color: #0284c7; 
+            --correct-bg: #16a34a; 
+            --incorrect-bg: #dc2626; 
+            --main-text: #44403c; 
+            --btn-bg: #f3f4f6;
+            --btn-hover-bg: #e5e7eb;
+            --btn-text: #1f2937;
+            --badge-bg: #fde047; /* yellow-300 */
+            --badge-text: #713f12; /* amber-800 */
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            margin: 1rem;
+        }
+        
+        .game-title {
+            font-weight: 700;
+            font-size: 1.75rem;
+            color: var(--main-text);
+            text-align: center;
+            padding: 1rem 0;
+        }
+
+        .player-header {
+            text-align: center;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+        
+        .player-name {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+        
+        .player-score {
+            font-size: 1.25rem; /* Made smaller to fit badges */
+            color: var(--main-text);
+            margin-top: 0.5rem;
+        }
+        
+        .badges-display-container {
+            margin-top: 0.75rem;
+            min-height: 30px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: var(--badge-bg);
+            color: var(--badge-text);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin: 0 4px;
+        }
+
+        .score-popup {
+            position: absolute;
+            left: 50%;
+            top: 20px;
+            transform: translateX(-50%);
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--correct-bg);
+            opacity: 0;
+            transition: all 0.8s cubic-bezier(0.19, 1, 0.22, 1);
+            pointer-events: none;
+        }
+
+        .score-popup.active {
+            transform: translate(-50%, -80px);
+            opacity: 1;
+        }
+
+        .answer-buttons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            min-height: 200px;
+        }
+
+        .answer-btn {
+            padding: 1rem;
+            width: 100%;
+            font-size: 1.25rem;
+            font-weight: 600;
+            border-radius: 12px;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            border: 2px solid #d1d5db;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s, border-color 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .answer-btn:not(:disabled):hover {
+            transform: translateY(-3px);
+            background-color: var(--btn-hover-bg);
+        }
+        .answer-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .answer-btn.correct { 
+            border-color: var(--correct-bg) !important;
+            color: var(--correct-bg) !important;
+            background-color: #f0fdf4 !important;
+        }
+        .answer-btn.incorrect { 
+            border-color: var(--incorrect-bg) !important;
+            color: var(--incorrect-bg) !important;
+            background-color: #fef2f2 !important;
+        }
+        
+        .feedback-display {
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 2rem;
+            height: 3rem;
+        }
+
+        .game-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .control-btn {
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-color: var(--btn-bg);
+            color: var(--btn-text);
+            border: 2px solid #d1d5db;
+        }
+        .control-btn:hover {
+            transform: translateY(-2px);
+            background-color: var(--btn-hover-bg);
+        }
+        
+        #timer-display {
+            font-weight: 700;
+            background-color: #ef4444;
+            color: white;
+            border-color: #b91c1c;
+            pointer-events: none;
+        }
+        
+        #badge-alert {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background-color: var(--badge-bg); color: var(--badge-text); padding: 10px 20px;
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 2000; font-weight: 600;
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+            opacity: 0;
+            pointer-events: none;
+        }
+        #badge-alert.show {
+            opacity: 1;
+            transform: translate(-50%, 10px);
+        }
+
+        .winner-announcement {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #f59e0b; /* amber-500 */
+        }
+        .high-scores-container {
+            margin-top: 2rem;
+            padding: 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+        }
+        #high-scores-list {
+            list-style-position: inside;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div id="start-screen" class="game-container">
+        <h1 class="game-title">Meeting Scheduler Challenge</h1>
+        <input type="text" id="player-name-input" placeholder="Enter Your Name" value="" class="w-full p-3 text-lg border-2 border-gray-300 rounded-lg mb-4">
+        <button id="start-game-btn" class="control-btn w-full">Start Game</button>
+    </div>
+
+    <div id="game-screen" class="game-container hidden">
+        <div class="player-header">
+            <h2 class="player-name" id="p1-name">Player</h2>
+            <p class="player-score">Score: <span id="p1-score">0</span> | Question: <span id="question-count">0</span> / 25</p>
+             <div class="badges-display-container">
+                Badges: <span id="badges-display">None</span>
+            </div>
+            <span class="score-popup">+4</span>
+        </div>
+        <div class="answer-buttons" id="p1-answers">
+            <button class="answer-btn" disabled>&nbsp;</button>
+            <button class="answer-btn" disabled>&nbsp;</button>
+            <button class="answer-btn" disabled>&nbsp;</button>
+        </div>
+        <div class="feedback-display" id="p1-feedback"></div>
+        <div class="game-controls">
+            <div id="timer-display" class="control-btn hidden">Time: 20</div>
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="game-container hidden">
+        <h1 class="game-title">Game Over!</h1>
+        <p class="winner-announcement">Final Score: <span id="final-score">0</span></p>
+        <p class="text-center text-lg mt-2">Badges Earned: <span id="final-badges-display">None</span></p>
+        <div class="high-scores-container">
+            <h3 class="text-xl font-bold text-center mb-2">Leaderboard</h3>
+            <ol id="high-scores-list"></ol>
+        </div>
+         <button id="play-again-btn" class="control-btn w-full mt-8">Play Again</button>
+    </div>
+    
+    <div id="badge-alert">Badge Unlocked!</div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dom = {
+                startScreen: document.getElementById('start-screen'),
+                gameScreen: document.getElementById('game-screen'),
+                gameOverScreen: document.getElementById('game-over-screen'),
+                playerNameInput: document.getElementById('player-name-input'),
+                startGameBtn: document.getElementById('start-game-btn'),
+                
+                finalScore: document.getElementById('final-score'),
+                finalBadgesDisplay: document.getElementById('final-badges-display'),
+                
+                playAgainBtn: document.getElementById('play-again-btn'),
+                timerDisplay: document.getElementById('timer-display'),
+                highScoresList: document.getElementById('high-scores-list'),
+                badgeAlert: document.getElementById('badge-alert'),
+
+                playerPanel: {
+                    name: document.getElementById('p1-name'),
+                    score: document.getElementById('p1-score'),
+                    questionCount: document.getElementById('question-count'),
+                    badgesDisplay: document.getElementById('badges-display'),
+                    answers: document.getElementById('p1-answers'),
+                    feedback: document.getElementById('p1-feedback'),
+                    scorePopup: document.querySelector('.score-popup')
+                }
+            };
+
+            const TOTAL_QUESTIONS = 25;
+            const POINTS_PER_CORRECT = 4;
+            const QUESTION_TIME_LIMIT = 20;
+
+            let gameData = {};
+            let currentQuestion = {};
+            let isRoundOver = false;
+            let voices = [];
+            let preferredVoices = [];
+            let questionTimer;
+            
+            const positiveFeedbackPhrases = ["Nice one!", "You got it!", "Awesome!", "Great listening!", "Perfect!", "That's it!", "Excellent!"];
+            
+            let correctSynth, incorrectSynth;
+            function setupSounds() {
+                correctSynth = new Tone.Synth({ oscillator: { type: 'sine' }, envelope: { attack: 0.01, decay: 0.1, sustain: 0.2, release: 0.2 } }).toDestination();
+                incorrectSynth = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.2 } }).toDestination();
+            }
+            
+            function initSpeechSynthesis() {
+                if ('speechSynthesis' in window) {
+                    const getVoices = () => {
+                        voices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en'));
+                        const naturalKeywords = ["neural", "natural", "studio", "premium", "google", "zira", "david"];
+                        preferredVoices = voices.filter(v => naturalKeywords.some(kw => v.name.toLowerCase().includes(kw)));
+                        if (preferredVoices.length === 0) preferredVoices = voices;
+                    };
+                    getVoices();
+                    speechSynthesis.onvoiceschanged = getVoices;
+                } else {
+                    console.warn("Text-to-Speech is not supported in this browser.");
+                }
+            }
+            
+            function speak(text, callback) {
+                if (!('speechSynthesis' in window) || voices.length === 0) {
+                    if (callback) callback();
+                    return;
+                }
+                const voice = preferredVoices[Math.floor(Math.random() * preferredVoices.length)];
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.voice = voice;
+                utterance.onend = callback;
+                speechSynthesis.cancel();
+                speechSynthesis.speak(utterance);
+            }
+
+            function formatTime(numericTime) {
+                const hour = Math.floor(numericTime);
+                const minutes = (numericTime - hour) * 60;
+                const period = hour < 12 ? 'AM' : 'PM';
+                let displayHour = hour > 12 ? hour - 12 : hour;
+                if (displayHour === 0) displayHour = 12;
+                return `${displayHour}:${String(minutes).padStart(2, '0')} ${period}`;
+            }
+
+            function generateMeetingQuestion() {
+                const people = ['Anna', 'Leo', 'Vivian', 'Rain', 'Elsa', 'Mia', 'Kenn', 'Max', 'Sky', 'Zach', 'Joe'];
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                const times = { '9:00 AM': 9, '10:30 AM': 10.5, '1:00 PM': 13, '2:30 PM': 14.5, '4:00 PM': 16 };
+                const timeStrings = Object.keys(times);
+                const places = ['the library', 'the downtown cafe', 'Conference Room B', 'the online call'];
+                const dayChanges = [{ text: 'the next day', change: 1 }, { text: 'two days later', change: 2 }, { text: 'the day before', change: -1 }];
+                const timeChanges = [{ text: 'one hour later', change: 1 }, { text: 'two hours earlier', change: -2 }, { text: '30 minutes later', change: 0.5 }, { text: '90 minutes earlier', change: -1.5 }];
+
+                const person1 = people[Math.floor(Math.random() * people.length)];
+                let person2 = people[Math.floor(Math.random() * people.length)];
+                while (person1 === person2) { person2 = people[Math.floor(Math.random() * people.length)]; }
+                
+                const place = places[Math.floor(Math.random() * places.length)];
+                const startDayIndex = Math.floor(Math.random() * days.length);
+                const startDay = days[startDayIndex];
+                const startTimeStr = timeStrings[Math.floor(Math.random() * timeStrings.length)];
+                const startTimeNum = times[startTimeStr];
+
+                const dayChange = dayChanges[Math.floor(Math.random() * dayChanges.length)];
+                const timeChange = timeChanges[Math.floor(Math.random() * timeChanges.length)];
+
+                const newDayIndex = (startDayIndex + dayChange.change + days.length) % days.length;
+                const newDay = days[newDayIndex];
+                const newTimeNum = startTimeNum + timeChange.change;
+                const newTimeStr = formatTime(newTimeNum);
+
+                const scenario = `${person1}'s meeting with ${person2} at ${place} on ${startDay} at ${startTimeStr} needs to be moved. ${person1} suggests moving it ${dayChange.text} and ${timeChange.text}.`;
+                const correctAnswer = `${newDay} at ${newTimeStr}`;
+                const originalAnswer = `${startDay} at ${startTimeStr}`;
+
+                return { scenario, correctAnswer, originalAnswer };
+            }
+
+            function generateDistractorOptions(correctAnswer, originalAnswer) {
+                let options = new Set([correctAnswer, originalAnswer]);
+                const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                const timeStrings = ['9:00 AM', '10:30 AM', '1:00 PM', '2:30 PM', '4:00 PM', '11:00 AM', '12:00 PM'];
+                const [correctDay, correctTime] = correctAnswer.split(' at ');
+
+                while (options.size < 3) {
+                    if (Math.random() > 0.5) {
+                        const wrongDay = days[Math.floor(Math.random() * days.length)];
+                        if (wrongDay !== correctDay) options.add(`${wrongDay} at ${correctTime}`);
+                    } else {
+                        const wrongTime = timeStrings[Math.floor(Math.random() * timeStrings.length)];
+                        if (wrongTime !== correctTime) options.add(`${correctDay} at ${wrongTime}`);
+                    }
+                }
+                const shuffledOptions = Array.from(options);
+                shuffledOptions.sort(() => Math.random() - 0.5);
+                return shuffledOptions;
+            }
+
+            function resetBoard() {
+                dom.playerPanel.feedback.textContent = '';
+                const buttons = dom.playerPanel.answers.querySelectorAll('.answer-btn');
+                buttons.forEach(btn => {
+                    btn.className = 'answer-btn';
+                    btn.disabled = true;
+                    btn.innerHTML = '&nbsp;';
+                });
+            }
+            
+            function stopQuestionTimer() {
+                clearInterval(questionTimer);
+                dom.timerDisplay.classList.add('hidden');
+            }
+
+            function proceedToNextQuestion() {
+                if (gameData.questionsAnswered >= TOTAL_QUESTIONS) {
+                    endGame();
+                } else {
+                    askQuestion();
+                }
+            }
+
+            function handleTimeOut() {
+                stopQuestionTimer();
+                if(isRoundOver) return;
+                isRoundOver = true;
+                gameData.correctStreak = 0;
+                incorrectSynth.triggerAttackRelease("C3", "8n", Tone.now());
+                
+                dom.playerPanel.feedback.textContent = `Time's up!`;
+                dom.playerPanel.answers.querySelectorAll('.answer-btn').forEach(b => {
+                    b.disabled = true;
+                    if (b.textContent === currentQuestion.correctAnswer) {
+                        b.classList.add('correct');
+                    }
+                });
+                setTimeout(proceedToNextQuestion, 2000);
+            }
+
+            function startQuestionTimer() {
+                let timeLeft = QUESTION_TIME_LIMIT;
+                dom.timerDisplay.textContent = `Time: ${timeLeft}`;
+                dom.timerDisplay.classList.remove('hidden');
+
+                questionTimer = setInterval(() => {
+                    timeLeft--;
+                    dom.timerDisplay.textContent = `Time: ${timeLeft}`;
+                    if (timeLeft <= 0) {
+                        handleTimeOut();
+                    }
+                }, 1000);
+            }
+
+            function askQuestion() {
+                resetBoard();
+                isRoundOver = false;
+                gameData.questionsAnswered++;
+                updateGameStatsDisplay();
+                
+                currentQuestion = generateMeetingQuestion();
+                let options = generateDistractorOptions(currentQuestion.correctAnswer, currentQuestion.originalAnswer);
+
+                speak(currentQuestion.scenario, () => {
+                    const buttons = dom.playerPanel.answers.querySelectorAll('.answer-btn');
+                    buttons.forEach((btn, i) => {
+                        btn.textContent = options[i];
+                        btn.disabled = false;
+                    });
+                    startQuestionTimer();
+                });
+            }
+            
+            function handleAnswer(e) {
+                if (isRoundOver) return;
+                const button = e.target;
+                if (!button.matches('.answer-btn') || button.disabled) return;
+                
+                isRoundOver = true;
+                stopQuestionTimer();
+
+                dom.playerPanel.answers.querySelectorAll('.answer-btn').forEach(b => b.disabled = true);
+                
+                const selectedAnswer = button.textContent;
+                if (selectedAnswer === currentQuestion.correctAnswer) {
+                    gameData.score += POINTS_PER_CORRECT;
+                    gameData.correctStreak++;
+                    updateGameStatsDisplay();
+                    button.classList.add('correct');
+                    dom.playerPanel.feedback.textContent = positiveFeedbackPhrases[Math.floor(Math.random() * positiveFeedbackPhrases.length)];
+                    correctSynth.triggerAttackRelease("C5", "8n", Tone.now());
+                    
+                    dom.playerPanel.scorePopup.classList.add('active');
+                    setTimeout(() => {
+                        dom.playerPanel.scorePopup.classList.remove('active');
+                    }, 800);
+
+                    // Badge checks
+                    if (gameData.correctStreak === 5) awardBadge('Perfect Streak');
+                    const day = currentQuestion.correctAnswer.split(' ')[0];
+                    if (day === 'Saturday' || day === 'Sunday') awardBadge('Weekend Warrior');
+
+                } else {
+                    gameData.correctStreak = 0;
+                    button.classList.add('incorrect');
+                    dom.playerPanel.feedback.textContent = `Nope! It was ${currentQuestion.correctAnswer}`;
+                    incorrectSynth.triggerAttackRelease("C3", "8n", Tone.now());
+                    
+                    dom.playerPanel.answers.querySelectorAll('.answer-btn').forEach(b => {
+                        if (b.textContent === currentQuestion.correctAnswer) {
+                            b.classList.add('correct');
+                        }
+                    });
+                }
+                setTimeout(proceedToNextQuestion, 2000);
+            }
+            
+            async function startGame() {
+                await Tone.start();
+                setupSounds();
+                
+                gameData = {
+                    name: dom.playerNameInput.value.trim() || 'Player',
+                    score: 0,
+                    questionsAnswered: 0,
+                    correctStreak: 0,
+                    badges: []
+                };
+                
+                dom.playerPanel.name.textContent = gameData.name;
+                
+                dom.startScreen.classList.add('hidden');
+                dom.gameOverScreen.classList.add('hidden');
+                dom.gameScreen.classList.remove('hidden');
+                
+                askQuestion();
+            }
+
+            function updateGameStatsDisplay() {
+                dom.playerPanel.score.textContent = gameData.score;
+                dom.playerPanel.questionCount.textContent = `${gameData.questionsAnswered} / ${TOTAL_QUESTIONS}`;
+                if (gameData.badges.length > 0) {
+                    dom.playerPanel.badgesDisplay.innerHTML = gameData.badges.map(b => `<span class="badge">${b}</span>`).join(' ');
+                } else {
+                    dom.playerPanel.badgesDisplay.textContent = 'None';
+                }
+            }
+
+            function awardBadge(badgeName) {
+                if (gameData.badges.includes(badgeName)) return;
+                gameData.badges.push(badgeName);
+                updateGameStatsDisplay();
+                dom.badgeAlert.textContent = `Badge Unlocked: ${badgeName}!`;
+                dom.badgeAlert.classList.add('show');
+                setTimeout(() => {
+                    dom.badgeAlert.classList.remove('show');
+                }, 2500);
+            }
+
+            const MAX_HIGH_SCORES = 5;
+            function getHighScores() { return JSON.parse(localStorage.getItem('schedulerGameHighScores') || '[]'); }
+            function saveHighScore(score, username) {
+                const highScores = getHighScores();
+                highScores.push({ score, username });
+                highScores.sort((a, b) => b.score - a.score).splice(MAX_HIGH_SCORES);
+                localStorage.setItem('schedulerGameHighScores', JSON.stringify(highScores));
+            }
+            function displayHighScores() {
+                const highScores = getHighScores();
+                if (highScores.length === 0) {
+                    dom.highScoresList.innerHTML = '<li>No high scores yet!</li>';
+                    return;
+                }
+                dom.highScoresList.innerHTML = highScores.map(s => `<li>${s.username}: ${s.score}</li>`).join('');
+            }
+
+            function endGame() {
+                stopQuestionTimer();
+                saveHighScore(gameData.score, gameData.name);
+                displayHighScores();
+
+                dom.gameScreen.classList.add('hidden');
+                dom.gameOverScreen.classList.remove('hidden');
+                dom.finalScore.textContent = gameData.score;
+                dom.finalBadgesDisplay.innerHTML = gameData.badges.length > 0 ? gameData.badges.map(b => `<span class="badge">${b}</span>`).join(' ') : 'None';
+            }
+            
+            function resetGame() {
+                dom.gameOverScreen.classList.add('hidden');
+                dom.startScreen.classList.remove('hidden');
+                resetBoard();
+            }
+
+            // Event Listeners
+            dom.startGameBtn.addEventListener('click', startGame);
+            dom.playAgainBtn.addEventListener('click', resetGame);
+            dom.playerPanel.answers.addEventListener('click', handleAnswer);
+            
+            // Initial Load
+            initSpeechSynthesis();
+        });
+    </script>
+</body>
+</html>

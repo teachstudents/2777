@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Svalbard – Arctic Living and Global Sustainability</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        @keyframes arcticSky {
+            0% { background-color: #0c4a6e; } /* sky-900 */
+            25% { background-color: #1e293b; } /* slate-800 */
+            50% { background-color: #075985; } /* cyan-800 */
+            75% { background-color: #1e293b; } /* slate-800 */
+            100% { background-color: #0c4a6e; } /* sky-900 */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+            animation: arcticSky 240s linear infinite;
+            padding-top: 85px; /* Adjusted padding for progress bar */
+        }
+        #background-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+        }
+        .page { display: none; position: relative; }
+        .page.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .action-button, .nav-button, .quiz-option, .tfng-button, .word-bank-word, .btn-animated-3d {
+            transition: all 0.15s ease-out;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -2px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+            border: none;
+        }
+        .action-button:hover, .nav-button:hover, .quiz-option:hover:not(:disabled), .tfng-button:hover:not(:disabled), .word-bank-word:hover, .btn-animated-3d:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px -3px rgba(0,0,0,0.2), 0 4px 6px -4px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+        }
+        .action-button:active, .nav-button:active, .quiz-option:active, .tfng-button:active, .btn-animated-3d:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px -1px rgba(0,0,0,0.2), 0 1px 2px -2px rgba(0,0,0,0.1), inset 0 -2px 0 0 rgba(0,0,0,0.2);
+        }
+        
+        /* Gap Fill Styles */
+        .gap-fill-container .gap {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 120px; height: 44px; padding: 0 4px;
+            border: 2px dashed #9ca3af; border-radius: 8px; margin: 0 4px;
+            vertical-align: middle; background-color: #f3f4f6;
+        }
+        .word-bank-word {
+            cursor: grab; padding: 8px 16px; border-radius: 8px;
+            background-color: white; user-select: none;
+        }
+        .word-bank-word.selected { outline: 2px solid #6366f1; transform: scale(1.05); }
+        .gap .word-bank-word { cursor: pointer; }
+        .gap.correct .word-bank-word { background-color: #dcfce7; border-color: #22c55e; color: #15803d; }
+        .gap.incorrect .word-bank-word { background-color: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+        /* Feedback Message & Badge Notification */
+        .feedback-toast, .badge-toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border-radius: 9999px; color: white;
+            font-weight: bold; z-index: 200;
+            animation: slideUpFadeIn 0.5s ease-out, slideDownFadeOut 0.5s ease-in 3.5s forwards;
+        }
+        .feedback-toast.correct { background-color: #22c55e; }
+        .feedback-toast.encouraging { background-color: #f59e0b; }
+        .badge-toast { background: linear-gradient(45deg, #fde047, #f97316); }
+        @keyframes slideUpFadeIn { from { opacity: 0; bottom: 0; } to { opacity: 1; bottom: 20px; } }
+        @keyframes slideDownFadeOut { from { opacity: 1; bottom: 20px; } to { opacity: 0; bottom: 0; } }
+
+        /* Certificate Canvas */
+        #completion-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        
+        /* Progress Bar */
+        #progress-container { background-color: #e5e7eb; border-radius: 9999px; overflow: hidden; height: 8px; width: 100%; margin-top: 8px; }
+        #progress-bar { height: 100%; width: 0%; background-color: #38bdf8; transition: width 0.5s ease-out; }
+        
+        /* Vocab Game Timer */
+        #vocab-game-timer-bar { height: 6px; background-color: #38bdf8; transition: width 0.1s linear; }
+        
+        /* Shake Animation for incorrect answers */
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .shake { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .explanation-text {
+            margin-top: 12px;
+            padding: 10px;
+            background-color: #f3f4f6;
+            border-left: 4px solid #f59e0b;
+            font-size: 0.9em;
+            color: #4b5563;
+            border-radius: 4px;
+        }
+
+        /* Print Styles */
+        @media print {
+            body * { visibility: hidden; }
+            #certificate-to-print, #certificate-to-print * { visibility: visible; }
+            #certificate-to-print { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+    <canvas id="background-canvas"></canvas>
+    <div id="reward-animation-container" class="fixed top-0 left-0 w-full h-full pointer-events-none z-[60]"></div>
+
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 p-2" style="display: none;">
+        <div class="max-w-md mx-auto bg-white/90 backdrop-blur-sm shadow-lg rounded-full p-2">
+            <div class="flex justify-center items-center gap-2">
+                <button onclick="goBack()" class="nav-button bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <div class="font-bold text-base text-blue-500 px-3 whitespace-nowrap">Points ❄️: <span id="score-display">0</span></div>
+                <button onclick="navigateTo('main-menu')" class="nav-button bg-gray-800 text-white font-bold p-2 rounded-full hover:bg-gray-900">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                </button>
+                <button onclick="toggleTTS(this)" class="nav-button p-2 rounded-full hover:bg-gray-200" title="Toggle Sound">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"></path></svg>
+                </button>
+                <button onclick="goNext()" class="nav-button bg-blue-600 hover:bg-blue-700 text-white font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-4xl mx-auto p-4 sm:p-6 md:p-8">
+        <section id="page-title-screen" class="page active text-center bg-white rounded-2xl shadow-lg p-8">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 id="main-title" class="text-5xl md:text-6xl font-bold text-slate-800 mb-4"></h1>
+                <p id="main-subtitle" class="text-xl md:text-2xl text-gray-600 mb-8"></p>
+                <div id="main-svg-container" class="rounded-lg mb-8 w-full max-w-lg mx-auto"></div>
+                <button onclick="startApp()" class="action-button bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-blue-700">START LESSON</button>
+            </div>
+        </section>
+        <div id="dynamic-pages-container"></div>
+    </div>
+    
+    <script>
+        // ===================================================================================
+        // --- LESSON CONTENT CONFIGURATION (SVALBARD, NORWAY) ---
+        // ===================================================================================
+        const lessonData = {
+            title: "Svalbard, Norway",
+            subtitle: "Arctic Living and Global Sustainability <span aria-hidden='true'>❄️🐻‍❄️🌱</span>",
+            startPageId: 'title-screen',
+            homePageId: 'main-menu',
+            mainMenu: [
+                { id: 'menu-tps', text: '0. Think-Pair-Share <span aria-hidden="true">🧠</span>', color: 'green', target: 'tps-start' },
+                { id: 'menu-goals', text: '1. Learning Goals <span aria-hidden="true">🎯</span>', color: 'teal', target: 'learning-goals' },
+                { id: 'menu-warmup', text: '2. Warm-Up & Vocab <span aria-hidden="true">📚</span>', color: 'sky', target: 'warm-up' },
+                { id: 'menu-vocab-game', text: 'Vocab Game <span aria-hidden="true">🎮</span>', color: 'sky', target: 'vocab-game'},
+                { id: 'menu-reading', text: '3. Reading & Comprehension <span aria-hidden="true">📖</span>', color: 'blue', target: 'reading-main' },
+                { id: 'menu-convo', text: '4. Conversation Practice <span aria-hidden="true">🗣️</span>', color: 'indigo', target: 'conversation-practice' },
+                { id: 'menu-lecture-geopolitics', text: '5. Listening: A Tale of Two Treaties <span aria-hidden="true">🌍</span>', color: 'rose', target: 'lecture-geopolitics-pre' },
+                { id: 'menu-discussion', text: '6. Listening: Classroom Discussion <span aria-hidden="true">💬</span>', color: 'lime', target: 'discussion-pre' },
+                { id: 'menu-thinking', text: '7. Thinking & Exam Prep <span aria-hidden="true">📝</span>', color: 'purple', target: 'thinking-prompts' },
+                { id: 'menu-final', text: '8. Final Project <span aria-hidden="true">✍️</span>', color: 'violet', target: 'final-project-hub' },
+            ],
+            vocabulary: [
+                { word: 'Archipelago', def: 'A group or chain of islands.', sentence: 'Svalbard is a Norwegian archipelago in the Arctic Ocean.' },
+                { word: 'Permafrost', def: 'Ground that remains frozen year-round.', sentence: 'The Global Seed Vault is built deep inside the permafrost.' },
+                { word: 'Seed Vault', def: 'A secure place where seeds are stored for future use.', sentence: 'The Seed Vault protects global crop diversity against disasters.' },
+                { word: 'Sustainability', def: 'Living in a way that protects the environment for the future.', sentence: 'Sustainability is a key focus for research in Svalbard.' },
+                { word: 'Arctic', def: 'The region around the North Pole, known for cold temperatures.', sentence: 'Svalbard is located deep within the Arctic Circle.' }
+            ],
+            pages: [
+                // 0. Think Pair Share
+                { id: 'tps-start', type: 'simple', content: { title: 'Activity: Think-Pair-Share <span aria-hidden="true">🧠</span>', text: 'Let\'s think about the challenges of Arctic life.' } },
+                { id: 'tps-think', type: 'timer', content: { title: '1. Think <span aria-hidden="true">🤔</span>', text: 'Think about a daily challenge people in Svalbard might face (e.g., constant darkness in winter, risk of meeting a polar bear).', duration: 120, timerId: 'timer-think' } },
+                { id: 'tps-pair', type: 'timer', content: { title: '2. Pair <span aria-hidden="true">👥</span>', text: 'With a partner, discuss how you would solve that challenge. What special precautions or rules might you need?', duration: 180, timerId: 'timer-pair' } },
+                { id: 'tps-share', type: 'timer', content: { title: '3. Share <span aria-hidden="true">🗣️</span>', text: 'Let\'s share our ideas. What does living in Svalbard teach us about human adaptation and respecting nature?', duration: 300, timerId: 'timer-share' } },
+                
+                // 1. Learning Goals
+                { id: 'learning-goals', type: 'html-content', content: { title: 'Learning Goals <span aria-hidden="true">🎯</span>', html: `
+                                        <div class="text-left space-y-4">
+                                            <p><strong class="text-teal-600">Learning Intention:</strong> We are learning about Svalbard to understand how people live in extreme Arctic conditions and how this region contributes to global sustainability.</p>
+                                            <hr class="my-4">
+                                            <h3 class="text-2xl font-bold text-teal-600 mb-3">Success Criteria</h3>
+                                            <ul class="list-disc list-inside space-y-2 text-xl">
+                                                <li>I can describe Svalbard’s location, climate, and unique international community.</li>
+                                                <li>I can explain the importance of the Svalbard Global Seed Vault for the world.</li>
+                                                <li>I can compare life in Svalbard with life in my hometown.</li>
+                                            </ul>
+                                        </div>` } },
+                
+                // 2. Warm-Up & Vocab
+                { id: 'warm-up', type: 'html-content', content: { title: 'Background-Building Questions <span aria-hidden="true">📚</span>', html: `
+                                        <ol class="list-decimal list-inside space-y-4 text-xl text-left">
+                                            <li>What animals do you associate with the Arctic? 🐻‍❄️</li>
+                                            <li>Why is it important for the world to save seeds from different plants? 🌱</li>
+                                            <li>What would it be like to live in a place where the sun doesn't set for several months?</li>
+                                            <li>Why would scientists from many different countries want to work together in a remote place like Svalbard?</li>
+                                        </ol>` } },
+                { id: 'vocab-start', type: 'simple', content: { title: 'Unit Vocabulary <span aria-hidden="true">📚</span>', text: 'Let\'s learn the key terms for this unit. Click the "Next" arrow to cycle through the words.' } },
+                { id: 'vocab-game', type: 'vocab-game', content: { title: 'Vocabulary Review Game <span aria-hidden="true">🎮</span>'} },
+                
+                // 3. Reading & Comprehension
+                { id: 'reading-main', type: 'html-content', content: { title: 'Reading: Svalbard – Norway’s Arctic Frontier <span aria-hidden="true">📖</span>', html: `
+                                        <div class="space-y-6 text-left">
+                                            <div class="bg-blue-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-blue-800">Location and Climate 🗺️</h4>
+                                                <p>Svalbard is a Norwegian <strong>archipelago</strong> in the <strong>Arctic</strong> Ocean, located north of mainland Europe. It experiences extreme seasons with 24-hour daylight in summer (the 'midnight sun') and 24-hour darkness in winter (the 'polar night'). Temperatures can drop below −20°<strong>Celsius</strong>.</p>
+                                            </div>
+                                            <div class="bg-green-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-green-800">Global Importance 🌍</h4>
+                                                <p>Svalbard is home to the Global <strong>Seed Vault</strong>, a vital project for global food security. It stores backup copies of seeds from all over the world deep inside a mountain, using the natural <strong>permafrost</strong> to keep them frozen and safe from natural disasters or wars.</p>
+                                            </div>
+                                            <div class="bg-sky-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-sky-800">People and Culture 🧍</h4>
+                                                <p>Svalbard has no native or <strong>indigenous</strong> population. Its few thousand residents come from many different countries, living there temporarily to work in science, tourism, or mining. The main settlement is Longyearbyen.</p>
+                                            </div>
+                                             <div class="bg-yellow-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-yellow-800">Education and Research 🧑‍🏫</h4>
+                                                <p>Svalbard is a hub for international research. Scientists from around the world come to study climate change, glaciers, and Arctic wildlife. Education on the island focuses heavily on environmental science and global <strong>cooperation</strong>.</p>
+                                            </div>
+                                            <div class="bg-red-50 p-4 rounded-lg">
+                                                <h4 class="font-bold text-xl text-red-800">Wildlife and Environment 🐻‍❄️</h4>
+                                                <p>Svalbard is a wild place, famous for its polar bears, Arctic foxes, and reindeer. Because of the danger from polar bears, it is required by law for people to carry a rifle for protection when traveling outside the main settlements. The fragile Arctic environment is heavily protected to ensure its <strong>sustainability</strong>.</p>
+                                            </div>
+                                        </div>` } },
+                { id: 'reading-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Comprehension: Gap-Fill', sentences: [] } },
+                { id: 'reading-quiz-tfng', type: 'quiz-tfng', content: { title: 'Comprehension: True/False', questions: [] } },
+                { id: 'reading-quiz-mcq', type: 'quiz-mcq', content: { title: 'Comprehension: Multiple Choice', questions: [] } },
+                
+                // 4. Conversation Practice
+                { id: 'conversation-practice', type: 'dialogue', content: { title: 'Conversation Practice <span aria-hidden="true">🗣️</span>', dialogue: "A: Have you heard of Svalbard in Norway?\n\nB: Yes! Isn’t that where the Global Seed Vault is? 🌱\n\nA: Exactly. It’s deep in the Arctic, so it’s incredibly cold.\n\nB: Do people actually live there all year?\n\nA: Some do, but it's mostly scientists and workers from all over the world. There's no indigenous population.\n\nB: I’d love to see the polar bears and the midnight sun someday! 🐻‍❄️☀️" } },
+
+                // 5. Listening: A Tale of Two Treaties
+                { id: 'lecture-geopolitics-pre', type: 'html-content', content: { title: 'Pre-Listening: A Tale of Two Treaties <span aria-hidden="true">🌍</span>', html: `<div class="text-left space-y-4 text-xl"><p>Before listening to this lecture, consider these questions:</p><ol class="list-decimal list-inside pl-4 space-y-2"><li>What does "sovereignty" mean for a country?</li><li>How could a place be a "warning sign" for the rest of the world?</li></ol></div>`}},
+                { id: 'lecture-geopolitics-main', type: 'dialogue', content: { title: 'Listening: A Tale of Two Treaties', dialogue: "Professor: Good day. Today, we journey to the high Arctic to a place that represents a unique experiment in international governance, the archipelago of Svalbard. Our essential question is, how can a place be both a symbol of international cooperation and a front-line warning sign of a global crisis? I will outline my lecture in three parts. First, I will establish Svalbard's unique political status under the 1920 Svalbard Treaty. Second, we'll review the history of its settlement. And finally, we will examine its modern role as a global hub for science. Let's begin. Svalbard, I'll spell that S V A L B A R D, is an archipelago in the Arctic Ocean located on the European continent about midway between mainland Norway and the North Pole. Its unique status was formalized in the Svalbard Treaty of 1920. This treaty is critical to understand. It grants full sovereignty to Norway, but it also gives citizens and companies from all signatory nations, now over 40 countries, equal rights to engage in commercial activities. Let me repeat that key point: Norwegian sovereignty, but equal economic access for all signatories. This treaty shaped its settlement. For much of the 20th century, the primary commercial activity was coal mining, which established the main settlements such as the Norwegian town of Longyearbyen and the Russian settlement of Barentsburg. These were company towns existing almost solely for resource extraction. However, as coal has declined, Svalbard's new primary role is as a center for international science and conservation. Its most famous facility is the Svalbard Global Seed Vault. Opened in 2008, this doomsday vault is a secure repository holding over a million unique seed samples from around the world, safeguarding global crop diversity. So, to review, Svalbard is not a typical territory. It is governed by the 1920 Svalbard Treaty, a remarkable document of international cooperation. Its history is rooted in coal mining, but its future is in global science, exemplified by the Global Seed Vault. The key takeaway is that Svalbard is a place where multiple nations have agreed to share access for peaceful and commercial purposes.\n\nGuide: Good day. I want you to imagine a town where there are more polar bears than people and where the sun doesn't rise for four months. This is Longyearbyen, the main settlement on Svalbard. Our essential question today is, how can a place be both a symbol of international cooperation and a front-line warning sign of a global crisis? My talk will outline this human side of the story. First, the unique experience of life in this Arctic town. Second, we'll examine the data showing how Svalbard is on the front line of climate change. And finally, we will review the paradox this creates. So, what is life like in Longyearbyen? I'll spell that for you, L O N G Y E A R B Y E N. It is a town of about 2,500 people from over 50 different countries. Daily life has unique rules shaped by the environment. For example, because the ground is permafrost, there are no burials. It's a place where it's said you cannot die. More practically, the threat of polar bears is so real that it is law to carry a rifle when leaving the town's limits. But the greatest threat to this community is now climate change. The data is alarming. According to the Norwegian Center for Climate Services, the Arctic is warming several times faster than the rest of the planet. Let me repeat that, several times faster. Since 1971, the average temperature in Longyearbyen has risen by over 4 degrees Celsius. This isn't an abstract number; it has real consequences. The thawing permafrost is cracking the foundations of buildings, and the decline in sea ice is profoundly affecting the entire Arctic ecosystem. Let's review the situation. We have a unique international community living on the very edge of the habitable world. This community is now witnessing the effects of climate change faster and more dramatically than almost anywhere else on Earth. The key takeaway is the paradox: Svalbard is a place built on international cooperation, but it is now threatened by a global crisis that requires an even greater level of international cooperation to solve. What happens in Svalbard is a preview for the rest of the world." }},
+                { id: 'lecture-geopolitics-quiz-mcq', type: 'quiz-mcq', content: { title: 'A Tale of Two Treaties Quiz (MCQ)', questions: [] } },
+                { id: 'lecture-geopolitics-quiz-tfng', type: 'quiz-tfng', content: { title: 'A Tale of Two Treaties Quiz (TFNG)', questions: [] } },
+                { id: 'lecture-geopolitics-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'A Tale of Two Treaties Quiz (Gap Fill)', sentences: [] } },
+                
+                // 6. Listening: Classroom Discussion
+                { id: 'discussion-pre', type: 'html-content', content: { title: 'Pre-Listening: Classroom Discussion <span aria-hidden="true">💬</span>', html: `<div class="text-left space-y-4 text-xl"><p>Before listening, consider:</p><ol class="list-decimal list-inside pl-4 space-y-2"><li>What challenges might an international community face in a remote place?</li><li>How can a place be important for both science and tourism?</li></ol></div>`}},
+                { id: 'discussion-main', type: 'dialogue', content: { title: 'Listening: Classroom Discussion', dialogue: "Professor: Alright class, today we're heading far north to an archipelago in the Arctic Ocean, Svalbard, Norway. It's a place of stunning polar landscapes, unique wildlife, and a hub for Arctic research. To begin, Emily, as our student from Australia, which is on the opposite side of the globe, what were your initial thoughts or any surprising facts you learned about Svalbard?\n\nEmily: Thanks, professor. I was most surprised by how far north it is. It feels incredibly remote compared to anywhere in Australia. And the idea of the midnight sun in summer and complete darkness in winter, that's really hard to imagine.\n\nProfessor: That remoteness is certainly a defining feature, Emily. It feels like stepping onto another planet in some ways. Oliver, coming from the UK, which is closer to the Arctic but still very different, what aspects of Svalbard's environment or geography stood out to you?\n\nOliver: Hello, professor. I was struck by the dramatic landscape. The glaciers and fjords look incredible. It's a very different kind of beauty to what we have in the UK. And the sheer scale of the ice formations.\n\nProfessor: You're right, Oliver. The glaciers and fjords are breathtaking, and the midnight sun and polar night are experiences few people get to witness. Beyond the landscape, Svalbard is famous for its wildlife. Emily, what did you find interesting about the animals that call Svalbard home?\n\nEmily: I found the wildlife fascinating, especially the polar bears and walruses. It must be amazing, but also a bit scary to be in a place where you're not at the top of the food chain. And all the different seabirds nesting on the cliffs.\n\nProfessor: Polar bears are definitely the iconic symbol of Svalbard, Emily, and encountering them requires strict safety precautions. Seeing walruses and seabirds in their natural habitat must be incredible. Oliver, Svalbard isn't just about nature, it's also a center for research and, increasingly, tourism. What did you learn about those aspects?\n\nOliver: I learned there's a significant research community there, studying the Arctic environment. And tourism seems to be growing, with people going for activities like snowmobiling and hiking. It seems like a place that attracts adventurous people.\n\nProfessor: That combination of research and tourism is crucial for Svalbard, Oliver. The scientific community studies everything from climate change to Arctic ecosystems, while tourism provides economic support but also needs careful management to minimize environmental impact. Emily, speaking of challenges, what are some of the significant issues facing Svalbard, particularly related to climate change?\n\nEmily: Climate change seems like a massive issue there. The melting glaciers and sea ice, which is happening so fast, must be really impacting the wildlife and the environment. It makes you think about how connected everything is globally.\n\nProfessor: Those are critical concerns, Emily. The Arctic is warming faster than almost anywhere else on Earth, and the melting ice has profound effects on wildlife and the landscape. Oliver, what about the challenges of living and working in such an extreme Arctic environment?\n\nOliver: Living and working in that kind of cold and isolation must be really challenging. Infrastructure like buildings and roads has to cope with the permafrost. And I imagine the cost of everything is quite high because it all has to be brought in.\n\nProfessor: You've highlighted key practical difficulties, Oliver. Building and maintaining infrastructure on permafrost is complex, and the cost of living is high. Despite these challenges, people live and work there for various reasons. In conclusion, Svalbard is a remarkable place, a breathtaking Arctic wilderness, a vital center for scientific research, and a stark example of the impacts of climate change. Its unique environment and resilient community make it a compelling case study of life at the top of the world. Thank you both for your insights into this extraordinary archipelago." }},
+                { id: 'discussion-quiz-mcq', type: 'quiz-mcq', content: { title: 'Classroom Discussion Quiz (MCQ)', questions: [] } },
+                { id: 'discussion-quiz-tfng', type: 'quiz-tfng', content: { title: 'Classroom Discussion Quiz (TFNG)', questions: [] } },
+                { id: 'discussion-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Classroom Discussion Quiz (Gap Fill)', sentences: [] } },
+                
+                // 7. Thinking & Exam Prep
+                { id: 'thinking-prompts', type: 'html-content', content: { title: 'Thinking & Exam Prep <span aria-hidden="true">📝</span>', html: `
+                                        <div class="text-left space-y-8">
+                                            <div>
+                                                <h3 class="text-2xl font-bold text-purple-600 mb-3">Higher-Order Thinking Questions</h3>
+                                                <ul class="list-disc list-inside space-y-2 text-lg">
+                                                    <li><b>Analyze:</b> How does Svalbard’s climate influence its architecture and the daily rules people must follow?</li>
+                                                    <li><b>Evaluate:</b> Is Svalbard a good location for the Global Seed Vault? Why or why not? Consider both its strengths and potential weaknesses.</li>
+                                                    <li><b>Create:</b> Design a research station in Svalbard that supports sustainability and international collaboration.</li>
+                                                </ul>
+                                            </div>
+                                             <div>
+                                                <h3 class="text-2xl font-bold text-purple-600 mb-3">IELTS & TOEFL Practice</h3>
+                                                <p class="mb-2"><strong>IELTS Part 2:</strong> Describe a place you know that is important for international cooperation.</p>
+                                                <p><strong>TOEFL Speaking:</strong> Do you think it is important for countries to work together to solve global problems like climate change? Explain why.</p>
+                                            </div>
+                                        </div>` } },
+
+                // 8. Final Project
+                { id: 'final-project-hub', type: 'html-content', content: { title: 'Final Project Hub <span aria-hidden="true">✍️</span>', html: `
+                                        <div class="bg-white rounded-2xl shadow-xl p-8 text-left">
+                                        <h2 class="text-3xl font-bold text-violet-600 mb-4">GRASPS Task: The Arctic Ambassador Project 🌍</h2>
+                                        <div class="space-y-3 text-lg">
+                                            <p><strong class="font-semibold text-violet-700">Goal:</strong> To create a multimedia presentation comparing life in Svalbard with your own hometown, focusing on climate, sustainability, and global significance.</p>
+                                            <p><strong class="font-semibold text-violet-700">Role:</strong> You are a student ambassador creating a presentation for a global youth summit on climate and culture.</p>
+                                            <p><strong class="font-semibold text-violet-700">Audience:</strong> International students from many different countries.</p>
+                                            <p><strong class="font-semibold text-violet-700">Situation:</strong> You need to explain what makes Svalbard globally important while also drawing comparisons to your own community's approach to sustainability and community life.</p>
+                                            <p><strong class="font-semibold text-violet-700">Product:</strong> A 5-slide multimedia presentation comparing 1) Climate & Daily Life, 2) Approach to Sustainability, and 3) Global Significance between Svalbard and your hometown.</p>
+                                            <p><strong class="font-semibold text-violet-700">Standards:</strong> Your presentation should be visually compelling, use specific data and examples, and clearly articulate what the world can learn from Svalbard.</p>
+                                        </div>
+                                        </div>` } },
+                { id: 'writing-task', type: 'writing-task', content: { 
+                    title: 'Project Writing Activity <span aria-hidden="true">✍️</span>', 
+                    prompt: 'For your presentation script, write a paragraph (200-250 words) explaining the global importance of the Svalbard Seed Vault. Why was it built, how does it work, and what does it teach us about international cooperation?', 
+                    starters: [
+                        "Deep inside an Arctic mountain lies one of the world's most important buildings...",
+                        "The Svalbard Global Seed Vault was created to...",
+                        "Its location is critical because the permafrost provides...",
+                        "This project is a powerful symbol of..."
+                    ],
+                    wordBank: ['Arctic', 'climate', 'cooperation', 'global', 'international', 'permafrost', 'protection', 'research', 'safety', 'science', 'Seed Vault', 'sustainability', 'vault']
+                } },
+                { id: 'self-assessment', type: 'html-content', content: { title: 'Self-Assessment <span aria-hidden="true">🧑‍🏫</span>', html: `
+                                        <div class="text-left">
+                                            <h3 class="text-2xl font-bold text-purple-600 mb-3">Metacognitive Self-Assessments</h3>
+                                            <ol class="list-decimal list-inside space-y-4 text-xl">
+                                                <li>What was the most surprising fact I learned about Svalbard?</li>
+                                                <li>How did learning about the Global Seed Vault change my view on sustainability and long-term planning?</li>
+                                            </ol>
+                                        </div>` } },
+                { id: 'certificate', type: 'certificate', content: { title: 'Module Complete! <span aria-hidden="true">🎉</span>', text: 'You have successfully completed the "Arctic Living and Global Sustainability" module.', certificateTitle: 'Certificate of Arctic Studies' } }
+            ]
+        };
+        // --- END OF LESSON CONTENT CONFIGURATION ---
+        // ===================================================================================
+
+        class SpeechService {
+             constructor() {
+                 this.synth = window.speechSynthesis;
+                 this.isInitialized = false;
+                 this.isTtsEnabled = true;
+                 this.voices = {};
+                 this.speechRate = 0.85;
+                 this.isDialoguePlaying = false;
+                 this.keepAliveInterval = null;
+             }
+
+             _startKeepAlive() {
+                if (this.keepAliveInterval) {
+                    clearInterval(this.keepAliveInterval);
+                }
+                this.keepAliveInterval = setInterval(() => {
+                    if (this.synth && !this.synth.speaking) {
+                        this.synth.pause();
+                        this.synth.resume();
+                    }
+                }, 12000); 
+            }
+    
+            _stopKeepAlive() {
+                if (this.keepAliveInterval) {
+                    clearInterval(this.keepAliveInterval);
+                    this.keepAliveInterval = null;
+                }
+            }
+             
+             async _setupVoices() {
+                 const voicesPromise = new Promise(resolve => { if (this.synth.getVoices().length) return resolve(this.synth.getVoices()); this.synth.onvoiceschanged = () => resolve(this.synth.getVoices()); });
+                 const availableVoices = await voicesPromise;
+                 if (!availableVoices.length) { console.warn("No speech synthesis voices available."); return; }
+                 const speakerToVoiceMap = {
+                    'a': ['Microsoft Emma Online (Natural) - English (United States)', 'Microsoft Ava Online (Natural) - English (United States)'],
+                    'b': ['Microsoft Brian Online (Natural) - English (United States)', 'Microsoft Andrew Online (Natural) - English (United States)'],
+                    'professor': ['Microsoft Brian Online (Natural) - English (United States)', 'Google US English'],
+                    'guide': ['Microsoft Ava Online (Natural) - English (United States)', 'Google US English'],
+                    'emily': ['Microsoft Emma Online (Natural) - English (United States)', 'Google US English'],
+                    'oliver': ['Microsoft Andrew Online (Natural) - English (United States)', 'Google US English'],
+                 };
+                 for (const speaker in speakerToVoiceMap) {
+                     const voicePriorityList = speakerToVoiceMap[speaker];
+                     let chosenVoice = null;
+                     for (const voiceName of voicePriorityList) {
+                         const foundVoice = availableVoices.find(v => v.name === voiceName);
+                         if (foundVoice) { chosenVoice = foundVoice; break; }
+                     }
+                     if (chosenVoice) { this.voices[speaker] = chosenVoice; } else { console.warn(`Could not find specified voices for speaker: "${speaker}"`); }
+                 }
+                 this.voices['default'] = availableVoices.find(v => v.name === 'Microsoft Ava Online (Natural) - English (United States)') || availableVoices.find(v => v.lang === 'en-US');
+             }
+
+             async init() {
+                 if (this.isInitialized) return;
+                 try {
+                     const warmUp = new SpeechSynthesisUtterance(' ');
+                     warmUp.volume = 0;
+                     this.synth.speak(warmUp);
+                     this.synth.cancel(); 
+                     await this._setupVoices();
+                     this.isInitialized = true;
+                     this._startKeepAlive();
+                 } catch (e) {
+                     console.error("Speech synthesis setup failed:", e);
+                 }
+             }
+             
+             _cleanTextForSpeech(text) { const tempDiv = document.createElement('div'); const textWithoutSpans = text.replace(/<span aria-hidden="true">.*?<\/span>/g, ' '); tempDiv.innerHTML = textWithoutSpans; let cleanText = tempDiv.textContent || tempDiv.innerText || ''; cleanText = cleanText.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, ''); return cleanText; }
+             
+             async speak(text, { onEndCallback = null, voiceKey = 'default' } = {}) { 
+                if (!this.isInitialized || !this.isTtsEnabled || !text) { 
+                    if (onEndCallback) onEndCallback(); 
+                    return; 
+                } 
+                if (this.synth.speaking) { 
+                    this.synth.cancel(); 
+                    await new Promise(resolve => setTimeout(resolve, 100)); 
+                } 
+                const cleanText = this._cleanTextForSpeech(text); 
+                if (!cleanText.trim()) { 
+                    if (onEndCallback) onEndCallback(); 
+                    return; 
+                } 
+                const utter = new SpeechSynthesisUtterance(cleanText); 
+                utter.voice = this.voices[voiceKey] || this.voices['default']; 
+                utter.rate = this.speechRate; 
+                utter.onend = () => {
+                    if (onEndCallback) onEndCallback();
+                };
+                utter.onerror = (e) => { 
+                    console.warn('SpeechSynthesisUtterance.onerror. Trying to recover.', e); 
+                    try { this.synth.cancel(); } catch (cancelError) { /* ignore */ }
+                    if (onEndCallback) {
+                        setTimeout(onEndCallback, 100);
+                    }
+                }; 
+                try { 
+                    this.synth.speak(utter); 
+                } catch (e) { 
+                    console.error("Error calling synth.speak:", e); 
+                    if (onEndCallback) onEndCallback(); 
+                } 
+            }
+            
+             async speakDialogue(text) { if (!this.isInitialized || !this.isTtsEnabled || !text || this.isDialoguePlaying) return; this.cancel(); this.isDialoguePlaying = true; const lines = text.split('\n').filter(line => line.trim() !== '' && line.includes(':')); const queue = lines.map(line => { const [speaker, ...parts] = line.split(':'); const dialogue = parts.join(':').trim(); const cleanDialogue = this._cleanTextForSpeech(dialogue); const voiceKey = speaker.toLowerCase().replace(/dr\. |professor /g, '').trim(); return { text: cleanDialogue, voiceKey: voiceKey }; }).filter(item => item.text); if (queue.length === 0) { this.isDialoguePlaying = false; return; } const playNext = () => { if (queue.length > 0 && this.isTtsEnabled) { const item = queue.shift(); const utter = new SpeechSynthesisUtterance(item.text); utter.voice = this.voices[item.voiceKey] || this.voices['default']; utter.rate = this.speechRate; utter.onend = playNext; utter.onerror = (e) => { console.warn('A speech synthesis error occurred, attempting to recover.', e.error); try { this.synth.cancel(); } catch (cancelError) { console.error("Error while cancelling synth:", cancelError); } setTimeout(playNext, 250); }; try { this.synth.speak(utter); } catch(e) { console.error("Error in synth.speak:", e); setTimeout(playNext, 250); } } else { this.isDialoguePlaying = false; } }; playNext(); }
+             
+             cancel() { if (this.synth) { this.isDialoguePlaying = false; this.synth.cancel(); } }
+             
+             toggleTTS(forceState) { this.isTtsEnabled = forceState === undefined ? !this.isTtsEnabled : forceState; if (!this.isTtsEnabled) { this.cancel(); } return this.isTtsEnabled; }
+        }
+
+        // --- Global App State and Functions ---
+        const speechService = new SpeechService();
+        let score = 0, currentPage = lessonData.startPageId, timerInterval;
+        const pageHistory = [lessonData.startPageId];
+        let pageSequence = [];
+        let completedSections = new Set();
+        let vocabGameTimer;
+        let selectedWord = { element: null, text: '' };
+
+        // --- Sound and Reward Effects ---
+        const synth = new Tone.PolySynth(Tone.Synth).toDestination();
+        const noiseSynth = new Tone.NoiseSynth().toDestination();
+        
+        function playCorrectSound() {
+            if (!speechService.isTtsEnabled) return;
+            try {
+                const now = Tone.now();
+                synth.triggerAttackRelease(["C5", "E5", "G5"], "8n", now);
+            } catch(e) {
+                console.warn("Tone.js sound failed to play:", e);
+            }
+        }
+        
+        function playIncorrectSound() {
+            if (!speechService.isTtsEnabled) return;
+            try {
+                noiseSynth.triggerAttackRelease("4n");
+            } catch(e) {
+                console.warn("Tone.js sound failed to play:", e);
+            }
+        }
+
+        function triggerRewardAnimation() {
+            const container = document.getElementById('reward-animation-container');
+            if (!container) return;
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                const colors = ['#ffffff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa'];
+                confetti.style.position = 'absolute';
+                confetti.style.left = `${Math.random() * 100}vw`;
+                confetti.style.top = `${Math.random() * -50 - 50}px`;
+                confetti.style.width = `${Math.random() * 10 + 5}px`;
+                confetti.style.height = confetti.style.width;
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.opacity = '1';
+                confetti.style.borderRadius = '50%';
+                
+                container.appendChild(confetti);
+
+                const animation = confetti.animate([
+                    { transform: `translate(0, 0) rotate(0deg)`, opacity: 1 },
+                    { transform: `translate(${Math.random() * 100 - 50}px, 120vh) rotate(${Math.random() * 360}deg)`, opacity: 0 }
+                ], {
+                    duration: Math.random() * 3000 + 4000,
+                    easing: 'ease-out',
+                    iterations: 1
+                });
+
+                animation.onfinish = () => {
+                    confetti.remove();
+                };
+            }
+        }
+
+        // --- Progress and Completion Logic ---
+        const pageToMenuMap = {};
+        function buildPageToMenuMap() {
+            lessonData.mainMenu.forEach(menuItem => {
+                let queue = [menuItem.target];
+                let visited = new Set(queue);
+                while (queue.length > 0) {
+                    const pageId = queue.shift();
+                    pageToMenuMap[pageId] = menuItem.id;
+                    const pageDef = lessonData.pages.find(p => p.id === pageId);
+                    if (pageDef && pageDef.type.startsWith('quiz')) {
+                        const nextQuizPage = getNextQuizPage(pageId);
+                        if (nextQuizPage && !visited.has(nextQuizPage) && lessonData.pages.some(p => p.id === nextQuizPage)) {
+                            queue.push(nextQuizPage);
+                            visited.add(nextQuizPage);
+                        }
+                    }
+                }
+            });
+            // Manual mapping for vocab game
+            pageToMenuMap['vocab-game'] = 'menu-vocab-game';
+        }
+
+        function getNextQuizPage(pageId) {
+            const sequence = ['mcq','tfng', 'gap-fill'];
+            const parts = pageId.split('-quiz-');
+            if (parts.length < 2) return null;
+            const prefix = parts[0];
+            const type = parts[1];
+            const currentIndex = sequence.indexOf(type);
+            if (currentIndex > -1 && currentIndex < sequence.length - 1) {
+                return `${prefix}-quiz-${sequence[currentIndex + 1]}`;
+            }
+            return null;
+        }
+
+        function updateProgressBar() {
+            const progress = (completedSections.size / lessonData.mainMenu.length) * 100;
+            const bar = document.getElementById('progress-bar');
+            if (bar) bar.style.width = `${progress}%`;
+        }
+
+        function updateMenuCompletionState() {
+            const menuContainer = document.getElementById('page-main-menu');
+            if (!menuContainer) return;
+            lessonData.mainMenu.forEach(item => {
+                const button = menuContainer.querySelector(`#menu-btn-${item.id}`);
+                if (button && completedSections.has(item.id)) {
+                    if (!button.innerHTML.includes('✓')) {
+                        button.innerHTML += ' <span class="text-green-300">✓</span>';
+                    }
+                }
+            });
+        }
+
+        function markSectionAsComplete(pageId) {
+            const menuId = pageToMenuMap[pageId];
+            if (menuId && !completedSections.has(menuId)) {
+                completedSections.add(menuId);
+                updateProgressBar();
+            }
+        }
+        
+        function checkQuizPageCompletion(pageId) {
+            const pageElement = document.getElementById(`page-${pageId}`);
+            if (!pageElement) return false;
+
+            if (pageId.includes('gap-fill')) {
+                const gaps = pageElement.querySelectorAll('.gap');
+                return gaps.length > 0 && Array.from(gaps).every(g => g.classList.contains('correct'));
+            } else {
+                const questions = pageElement.querySelectorAll('.question-group');
+                return questions.length > 0 && Array.from(questions).every(q => q.querySelector('button:disabled'));
+            }
+        }
+
+
+        // --- App Navigation ---
+        window.toggleTTS = (button) => {
+            const isNowEnabled = speechService.toggleTTS();
+            const iconPath = isNowEnabled 
+                ? "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"
+                : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z M17 14l-4-4m0 4l4-4";
+            button.querySelector('svg').classList.toggle('text-gray-600', isNowEnabled);
+            button.querySelector('svg').classList.toggle('text-gray-400', !isNowEnabled);
+            button.querySelector('path').setAttribute('d', iconPath);
+
+            if (isNowEnabled) {
+                const pageData = lessonData.pages.find(p => p.id === currentPage);
+                const targetPage = document.getElementById(`page-${currentPage}`);
+                if (pageData && pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else if (targetPage) {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    if (readableContent) speechService.speak(readableContent.innerText);
+                    else if (titleElement) speechService.speak(titleElement.innerText);
+                }
+            }
+        };
+
+        window.startApp = async function() {
+            await speechService.init(); 
+            try { await Tone.start(); } catch (e) { console.error(e); }
+            navigateTo(lessonData.homePageId);
+        }
+        
+        function startTimer(duration, display, onComplete) {
+            let timer = duration;
+            const update = () => { display.textContent = `${String(Math.floor(timer/60)).padStart(2,'0')}:${String(timer%60).padStart(2,'0')}`; };
+            update();
+            timerInterval = setInterval(() => { timer--; update(); if (timer < 0) { clearInterval(timerInterval); if (onComplete) onComplete(); } }, 1000);
+        }
+
+        window.navigateTo = (pageId) => {
+            const previousPageId = currentPage;
+            
+            // Mark completion if leaving a quiz page and it's fully answered
+            if (previousPageId.includes('-quiz-')) {
+                if (checkQuizPageCompletion(previousPageId)) {
+                    markSectionAsComplete(previousPageId);
+                }
+            }
+            
+            const targetPage = document.getElementById(`page-${pageId}`);
+            if (!targetPage) return console.warn('navigateTo: no page found for id', pageId);
+            if (pageId === currentPage) return;
+            
+            clearInterval(timerInterval);
+            clearTimeout(vocabGameTimer);
+            speechService.cancel();
+
+            // Mark simple pages as complete on navigation
+            const previousPageDef = lessonData.pages.find(p => p.id === previousPageId);
+            if (previousPageDef && !previousPageDef.type.startsWith('quiz') && previousPageId !== 'vocab-game') {
+                 markSectionAsComplete(previousPageId);
+            }
+
+            document.getElementById(`page-${currentPage}`)?.classList.remove('active');
+            targetPage.classList.add('active');
+            currentPage = pageId;
+            if (pageHistory[pageHistory.length - 1] !== currentPage) pageHistory.push(currentPage);
+            
+            const pageData = lessonData.pages.find(p => p.id === pageId);
+            if (pageData) {
+                if (pageData.type === 'timer') {
+                    const timerEl = document.getElementById(pageData.content.timerId);
+                    if (timerEl) startTimer(pageData.content.duration, timerEl, goNext);
+                } else if (pageData.type === 'vocab-game') {
+                    startVocabGame();
+                }
+                
+                if (pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    let contentToSpeak = readableContent ? readableContent.innerText : (titleElement ? titleElement.innerText : '');
+                    let voice = 'default';
+                    if (pageId.startsWith('vocab-') || pageId === 'reading-main') {
+                       voice = 'oliver'; // Andrew voice
+                       if (pageId === 'reading-main') {
+                           contentToSpeak = Array.from(targetPage.querySelectorAll('h4, p')).map(el => el.innerText).join(' ');
+                       }
+                    }
+                    speechService.speak(contentToSpeak, { voiceKey: voice });
+                }
+            } else if (pageId === lessonData.homePageId) {
+                speechService.speak(targetPage.querySelector('h2').innerText);
+                updateMenuCompletionState();
+            }
+            updateNavButtons();
+            window.scrollTo(0, 0);
+        }
+
+        window.goNext = () => { const currentIndex = pageSequence.indexOf(currentPage); if (currentIndex > -1 && currentIndex < pageSequence.length - 1) navigateTo(pageSequence[currentIndex + 1]); }
+        window.goBack = () => { if (pageHistory.length > 1) { pageHistory.pop(); navigateTo(pageHistory.pop()); } }
+
+        function updateNavButtons() {
+            const nav = document.getElementById('nav-header');
+            if (!nav) return;
+            nav.style.display = (currentPage === lessonData.startPageId) ? 'none' : 'block';
+            const backBtn = nav.querySelector('button:first-child');
+            backBtn.disabled = pageHistory.length <= 1;
+            backBtn.classList.toggle('opacity-50', backBtn.disabled);
+            const nextBtn = nav.querySelector('button:last-child');
+            const currentIndex = pageSequence.indexOf(currentPage);
+            const isLast = currentIndex >= pageSequence.length - 1;
+            nextBtn.disabled = isLast || currentPage === lessonData.homePageId;
+            nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+        }
+        
+        function showFeedbackMessage(isCorrect) {
+            const correctFeedback = ["That's right!", "Excellent!", "Perfect!", "Great job!"];
+            const incorrectFeedback = ["Not quite.", "Keep trying!", "Almost there."];
+            const message = isCorrect ? correctFeedback[Math.floor(Math.random() * correctFeedback.length)] : incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.className = `feedback-toast ${isCorrect ? 'correct' : 'encouraging'}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function updateScore(points) { score += points; document.getElementById('score-display').textContent = score; }
+
+        function checkCompletionAndMark() {
+            if(checkQuizPageCompletion(currentPage)) {
+                markSectionAsComplete(currentPage);
+            }
+        }
+
+        window.checkTfngAnswer = function(clickedButton, chosenAnswer, correctAnswer) {
+            const buttonContainer = clickedButton.parentElement;
+            Array.from(buttonContainer.children).forEach(btn => btn.disabled = true);
+            const isCorrect = chosenAnswer === correctAnswer;
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                updateScore(10);
+                playCorrectSound();
+                triggerRewardAnimation();
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-green-500');
+            } else {
+                playIncorrectSound();
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-red-600');
+                const correctBtn = Array.from(buttonContainer.children).find(btn => btn.textContent === correctAnswer.charAt(0));
+                if (correctBtn) correctBtn.className = correctBtn.className.replace(/bg-\w+-500/, 'bg-green-500');
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+        
+        window.checkMcqAnswer = function(button, isCorrect) {
+            const questionGroup = button.closest('.question-group');
+            questionGroup.querySelectorAll('.quiz-option').forEach(opt => opt.disabled = true);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                updateScore(10);
+                playCorrectSound();
+                triggerRewardAnimation();
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+            } else {
+                playIncorrectSound();
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-red-500', 'border-red-600', 'text-white', 'shake');
+                const correctButton = questionGroup.querySelector(".quiz-option[data-correct='true']");
+                if (correctButton) {
+                    correctButton.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                    correctButton.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                }
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+
+        function initGapFill(pageId) {
+            const page = document.getElementById(pageId);
+            if (!page) return;
+            const gaps = page.querySelectorAll('.gap');
+            const words = page.querySelectorAll('.word-bank-word');
+            const wordBank = page.querySelector('.word-bank-container');
+
+            words.forEach(word => {
+                word.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', word.dataset.word); });
+                word.addEventListener('click', handleWordClick);
+            });
+            gaps.forEach(gap => {
+                gap.addEventListener('dragover', e => e.preventDefault());
+                gap.addEventListener('drop', e => handleDrop(e, gap));
+                gap.addEventListener('click', handleGapClick);
+            });
+
+            function handleWordClick(e) {
+                const clickedWord = e.currentTarget;
+                if (clickedWord.parentElement.classList.contains('gap')) { 
+                    wordBank.appendChild(clickedWord); 
+                    clickedWord.parentElement.classList.remove('correct', 'incorrect');
+                    return; 
+                }
+                if (selectedWord.element) selectedWord.element.classList.remove('selected');
+                if (selectedWord.element === clickedWord) { selectedWord = { element: null, text: '' }; } 
+                else { selectedWord = { element: clickedWord, text: clickedWord.dataset.word }; clickedWord.classList.add('selected'); }
+            }
+            function handleGapClick(e) {
+                const clickedGap = e.currentTarget;
+                if(clickedGap.children.length > 0) {
+                     wordBank.appendChild(clickedGap.children[0]);
+                     clickedGap.classList.remove('correct', 'incorrect');
+                }
+                if (!selectedWord.element) return;
+                clickedGap.appendChild(selectedWord.element);
+                checkGap(clickedGap);
+                selectedWord.element.classList.remove('selected');
+                selectedWord = { element: null, text: '' };
+            }
+            function handleDrop(e, gap) {
+                e.preventDefault();
+                if (gap.children.length > 0) return;
+                const wordText = e.dataTransfer.getData('text/plain');
+                const wordElement = page.querySelector(`.word-bank-word[data-word="${wordText}"]`);
+                if (wordElement) { gap.appendChild(wordElement); checkGap(gap); }
+            }
+            function checkGap(gap) {
+                const word = gap.querySelector('.word-bank-word');
+                const isCorrect = word && word.dataset.word.toLowerCase() === gap.dataset.answer.toLowerCase();
+                gap.classList.toggle('correct', isCorrect);
+                gap.classList.toggle('incorrect', !isCorrect);
+                if (isCorrect) { 
+                    updateScore(10); 
+                    playCorrectSound();
+                    triggerRewardAnimation();
+                    showFeedbackMessage(true); 
+                } else { 
+                    playIncorrectSound();
+                    showFeedbackMessage(false); 
+                }
+                setTimeout(checkCompletionAndMark, 100);
+            }
+        }
+
+        // --- Vocab Game Logic ---
+        let vocabGameQuestions = [];
+        let vocabGameCurrentIndex = 0;
+        let vocabGameScore = 0;
+        const ROUND_TIME = 10000; // 10 seconds
+
+        function startVocabGame() {
+            vocabGameQuestions = [...lessonData.vocabulary].sort(() => 0.5 - Math.random());
+            vocabGameCurrentIndex = 0;
+            vocabGameScore = 0;
+            document.getElementById('vocab-game-score').textContent = '0';
+            nextVocabGameRound();
+        }
+
+        function nextVocabGameRound() {
+            if (vocabGameCurrentIndex >= vocabGameQuestions.length) {
+                endVocabGame();
+                return;
+            }
+            
+            const question = vocabGameQuestions[vocabGameCurrentIndex];
+            document.getElementById('vocab-game-definition').textContent = question.def;
+            
+            const options = [question.word];
+            const wrongAnswers = lessonData.vocabulary.filter(v => v.word !== question.word);
+            while (options.length < 4 && wrongAnswers.length > 0) {
+                const randomWrong = wrongAnswers.splice(Math.floor(Math.random() * wrongAnswers.length), 1)[0];
+                options.push(randomWrong.word);
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.innerHTML = '';
+            options.sort(() => 0.5 - Math.random()).forEach(opt => {
+                const button = document.createElement('button');
+                button.className = 'quiz-option p-3 rounded-lg text-left bg-gray-100 hover:bg-gray-200 border border-gray-200';
+                button.textContent = opt;
+                button.onclick = () => checkVocabGameAnswer(button, opt === question.word);
+                optionsContainer.appendChild(button);
+            });
+
+            startRoundTimer();
+        }
+        
+        function startRoundTimer() {
+            clearTimeout(vocabGameTimer);
+            const timerBar = document.getElementById('vocab-game-timer-bar');
+            timerBar.style.transition = 'none';
+            timerBar.style.width = '100%';
+            
+            setTimeout(() => {
+                timerBar.style.transition = `width ${ROUND_TIME / 1000}s linear`;
+                timerBar.style.width = '0%';
+            }, 100);
+
+            vocabGameTimer = setTimeout(() => {
+                showFeedbackMessage(false);
+                playIncorrectSound();
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, ROUND_TIME);
+        }
+
+        function checkVocabGameAnswer(button, isCorrect) {
+            clearTimeout(vocabGameTimer);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                vocabGameScore++;
+                updateScore(5);
+                playCorrectSound();
+                triggerRewardAnimation();
+                document.getElementById('vocab-game-score').textContent = vocabGameScore;
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-green-500', 'text-white');
+            } else {
+                playIncorrectSound();
+                button.classList.remove('bg-gray-100', 'hover:bg-gray-200');
+                button.classList.add('bg-red-500', 'text-white', 'shake');
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.querySelectorAll('button').forEach(btn => btn.disabled = true);
+
+            setTimeout(() => {
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, 1500);
+        }
+
+        function endVocabGame() {
+            document.getElementById('vocab-game-definition').textContent = `Game Over! You scored ${vocabGameScore} out of ${vocabGameQuestions.length}.`;
+            document.getElementById('vocab-game-options').innerHTML = `<button onclick="startVocabGame()" class="action-button bg-blue-500 text-white font-bold p-3 rounded-lg">Play Again</button>`;
+            markSectionAsComplete('vocab-game');
+        }
+
+
+        function createPageElement(id, content) {
+            const section = document.createElement('section');
+            section.id = `page-${id}`;
+            section.className = 'page';
+            section.innerHTML = content;
+            document.getElementById('dynamic-pages-container').appendChild(section);
+        }
+        
+        function populateAllQuizzes() {
+            // Reading Quizzes
+            const readingGapFill = lessonData.pages.find(p => p.id === 'reading-quiz-gap-fill');
+             if(readingGapFill) readingGapFill.content.sentences = [
+                { text: ["Svalbard is located in the", "Ocean."], answer: "Arctic" },
+                { text: ["The Global", "Vault stores seeds from around the world."], answer: "Seed" },
+                { text: ["The main town in Svalbard is called", "."], answer: "Longyearbyen" },
+                { text: ["Svalbard has no native", "."], answer: "population" },
+                { text: ["People study climate", "and wildlife in Svalbard."], answer: "change" }
+             ];
+            const readingTfng = lessonData.pages.find(p => p.id === 'reading-quiz-tfng');
+            if(readingTfng) readingTfng.content.questions = [ 
+                { statement: 'Svalbard is in southern Norway.', correctAnswer: 'False' },
+                { statement: 'The Seed Vault protects global food security.', correctAnswer: 'True' },
+                { statement: 'Svalbard has a large native population.', correctAnswer: 'False' },
+                { statement: 'Polar bears live in Svalbard.', correctAnswer: 'True' },
+                { statement: 'Svalbard has hot summers.', correctAnswer: 'False' }
+            ];
+            const readingMcq = lessonData.pages.find(p => p.id === 'reading-quiz-mcq');
+            if(readingMcq) readingMcq.content.questions = [ 
+                { question: 'What is Svalbard known for?', options: ['Beaches', 'Seed Vault', 'Rainforests', 'Skyscrapers'], correctAnswer: 'Seed Vault' },
+                { question: 'What is permafrost?', options: ['Frozen food', 'A type of snow', 'Ground that stays frozen', 'A mountain'], correctAnswer: 'Ground that stays frozen' },
+                { question: 'Why is the Seed Vault important?', options: ['It stores money', 'It protects seeds for the future', 'It grows vegetables', 'It is a tourist attraction'], correctAnswer: 'It protects seeds for the future' },
+                { question: 'What animals live in Svalbard?', options: ['Lions', 'Elephants', 'Polar bears', 'Kangaroos'], correctAnswer: 'Polar bears' },
+                { question: 'What is the main town in Svalbard?', options: ['Oslo', 'Bergen', 'Longyearbyen', 'Tromsø'], correctAnswer: 'Longyearbyen' }
+            ];
+            
+            // Geography & History Lecture Quizzes
+            const lectureGeopoliticsMcq = lessonData.pages.find(p => p.id === 'lecture-geopolitics-quiz-mcq');
+            if(lectureGeopoliticsMcq) lectureGeopoliticsMcq.content.questions = [
+                { question: "What key right does the 1920 Svalbard Treaty grant to signatory nations?", options: ["The right to claim territory", "The right to establish military bases", "Equal rights to engage in commercial activities", "The right to govern the archipelago"], correctAnswer: "Equal rights to engage in commercial activities" },
+                { question: "What was the primary commercial activity in Svalbard for much of the 20th century?", options: ["Fishing", "Tourism", "Scientific research", "Coal mining"], correctAnswer: "Coal mining" },
+                { question: "What is the main purpose of the Svalbard Global Seed Vault?", options: ["To provide seeds for local farming", "To study the effects of cold on seeds", "To safeguard global crop diversity", "To create a tourist attraction"], correctAnswer: "To safeguard global crop diversity" },
+                { question: "What is a unique rule in Longyearbyen mentioned by the guide, related to its permafrost?", options: ["All buildings must be painted white.", "No cars are allowed in the town center.", "There are no burials in the ground.", "All food must be imported."], correctAnswer: "There are no burials in the ground." },
+                { question: "According to the guide, how much has the average temperature in Longyearbyen risen since 1971?", options: ["About 1 degree Celsius", "About 2 degrees Celsius", "Over 4 degrees Celsius", "It has not changed"], correctAnswer: "Over 4 degrees Celsius" }
+            ];
+            const lectureGeopoliticsTfng = lessonData.pages.find(p => p.id === 'lecture-geopolitics-quiz-tfng');
+            if(lectureGeopoliticsTfng) lectureGeopoliticsTfng.content.questions = [
+                { statement: "The Svalbard Treaty gives sovereignty of the archipelago to Denmark.", correctAnswer: "False" },
+                { statement: "The main settlements in Svalbard were originally established for tourism.", correctAnswer: "False" },
+                { statement: "The guide states that it is illegal to leave the main town without a rifle.", correctAnswer: "True" },
+                { statement: "The Arctic is warming at the same rate as the rest of the planet.", correctAnswer: "False" },
+                { statement: "The guide describes Svalbard as a 'preview' of the effects of climate change for the rest of the world.", correctAnswer: "True" }
+            ];
+            const lectureGeopoliticsGapFill = lessonData.pages.find(p => p.id === 'lecture-geography-quiz-gap-fill');
+            if(lectureGeopoliticsGapFill) lectureGeopoliticsGapFill.content.sentences = [
+                { text: ["Svalbard is a symbol of international", "."], answer: "cooperation" },
+                { text: ["The Svalbard Treaty grants full", "to Norway."], answer: "sovereignty" },
+                { text: ["The thawing", "is cracking the foundations of buildings in Longyearbyen."], answer: "permafrost" },
+                { text: ["The guide describes the situation in Svalbard as a", ": a place of cooperation threatened by a global crisis."], answer: "paradox" }
+            ];
+
+            // Classroom Discussion Quizzes
+            const discussionMcq = lessonData.pages.find(p => p.id === 'discussion-quiz-mcq');
+            if(discussionMcq) discussionMcq.content.questions = [
+                { question: "What was Emily's initial reaction to Svalbard's location?", options: ["She was surprised by its tropical climate.", "She thought it was very close to Australia.", "She was surprised by how remote it is and its extreme seasons of light and dark.", "She was most interested in its political history."], correctAnswer: "She was surprised by how remote it is and its extreme seasons of light and dark." },
+                { question: "What aspect of Svalbard's wildlife did Emily find both amazing and 'a bit scary'?", options: ["The large number of reindeer.", "Being in a place where humans are not at the top of the food chain.", "The variety of fish in the fjords.", "The sound of the seabirds on the cliffs."], correctAnswer: "Being in a place where humans are not at the top of the food chain." },
+                { question: "According to Oliver, what two industries are growing in importance on Svalbard besides research?", options: ["Fishing and agriculture", "Manufacturing and technology", "Snowmobiling and hiking (tourism)", "Mining and oil drilling"], correctAnswer: "Snowmobiling and hiking (tourism)" },
+                { question: "What specific impact of climate change in Svalbard does Emily mention?", options: ["The increase in tourism", "The decline in the coal mining industry", "The melting of glaciers and sea ice", "The difficulty of building new roads"], correctAnswer: "The melting of glaciers and sea ice" },
+                { question: "What practical challenge of living in Svalbard does Oliver highlight related to the cost of living?", options: ["Housing is very expensive.", "The cost of everything is high because it has to be brought in.", "Taxes are higher than in the UK.", "Entertainment is very costly."], correctAnswer: "The cost of everything is high because it has to be brought in." }
+            ];
+            const discussionTfng = lessonData.pages.find(p => p.id === 'discussion-quiz-tfng');
+            if(discussionTfng) discussionTfng.content.questions = [
+                { statement: "Emily is from the UK and Oliver is from Australia.", correctAnswer: "False" },
+                { statement: "Oliver was not impressed by the glaciers and fjords of Svalbard.", correctAnswer: "False" },
+                { statement: "The professor confirms that strict safety precautions are needed for polar bears.", correctAnswer: "True" },
+                { statement: "According to the discussion, tourism in Svalbard does not need careful management.", correctAnswer: "False" },
+                { statement: "The professor describes Svalbard as a 'compelling case study of life at the top of the world.'", correctAnswer: "True" }
+            ];
+            const discussionGap = lessonData.pages.find(p => p.id === 'discussion-quiz-gap-fill');
+            if(discussionGap) discussionGap.content.sentences = [
+                { text: ["Emily found the idea of the midnight sun and complete winter", "hard to imagine."], answer: "darkness" },
+                { text: ["Oliver was struck by the dramatic landscape and the sheer scale of the ice", "."], answer: "formations" },
+                { text: ["The discussion mentions that Svalbard is a hub for a significant", "community."], answer: "research" },
+                { text: ["Emily notes that the Arctic is", "faster than almost anywhere else on Earth."], answer: "warming" },
+                { text: ["Oliver points out that infrastructure must be built to cope with the", "."], answer: "permafrost" }
+            ];
+        }
+
+        function initializeLesson() {
+            document.getElementById('main-title').innerHTML = lessonData.title;
+            document.getElementById('main-subtitle').innerHTML = lessonData.subtitle;
+            document.getElementById('main-svg-container').innerHTML = `<svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="grad-arctic" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#93c5fd;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <rect width="600" height="300" fill="url(#grad-arctic)"/>
+                <path d="M 0 300 L 0 200 Q 150 150 300 200 T 600 150 L 600 300 Z" fill="#ffffff" opacity="0.8"/>
+                <path d="M 100 200 L 150 150 L 200 200 Z" fill="#e0f2fe"/>
+                <path d="M 400 180 L 450 120 L 500 180 Z" fill="#f0f9ff"/>
+                <rect x="270" y="180" width="60" height="40" fill="#374151" />
+                <polygon points="260,180 340,180 300,150" style="fill:#4b5563;" />
+                <text x="50%" y="30%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="48" fill="#f8fafc" font-weight="bold">Arctic Frontier</text>
+            </svg>`;
+
+            populateAllQuizzes();
+            buildPageToMenuMap();
+
+            const menuButtons = lessonData.mainMenu.map(item => {
+                const colors = { green: 'bg-green-500 border-green-700', blue: 'bg-blue-500 border-blue-700', sky: 'bg-sky-500 border-sky-700', amber: 'bg-amber-500 border-amber-700', rose: 'bg-rose-500 border-rose-700', violet: 'bg-violet-500 border-violet-700', teal: 'bg-teal-500 border-teal-700', orange: 'bg-orange-500 border-orange-700', indigo: 'bg-indigo-500 border-indigo-700', lime: 'bg-lime-500 border-lime-700', emerald: 'bg-emerald-500 border-emerald-700', red: 'bg-red-500 border-red-700', purple: 'bg-purple-500 border-purple-700' };
+                return `<button id="menu-btn-${item.id}" onclick="navigateTo('${item.target}')" class="btn-animated-3d ${colors[item.color] || colors['green']} text-white font-bold text-xl p-4 rounded-xl">${item.text}</button>`;
+            }).join('');
+            createPageElement(lessonData.homePageId, `<div class="bg-white rounded-2xl shadow-lg p-8"><h2 class="text-4xl font-bold text-center text-slate-800 mb-8">Main Menu</h2><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">${menuButtons}</div></div>`);
+            
+            const pageOrderMap = { 
+                'warm-up': ['vocab-start'], 
+                'vocab-start': lessonData.vocabulary.map((v, i) => `vocab-${i}`), 
+                'reading-main': ['reading-quiz-gap-fill', 'reading-quiz-tfng', 'reading-quiz-mcq'],
+                'lecture-geopolitics-pre': ['lecture-geopolitics-main', 'lecture-geopolitics-quiz-mcq', 'lecture-geopolitics-quiz-tfng', 'lecture-geopolitics-quiz-gap-fill'],
+                'discussion-pre': ['discussion-main', 'discussion-quiz-mcq', 'discussion-quiz-tfng', 'discussion-quiz-gap-fill'],
+                'final-project-hub': ['writing-task', 'self-assessment', 'certificate'] 
+            };
+            let flatPageList = [lessonData.startPageId];
+            lessonData.mainMenu.forEach(item => {
+                let queue = [item.target];
+                let visited = new Set();
+                while(queue.length > 0) {
+                    let current = queue.shift();
+                    if (visited.has(current)) continue;
+                    visited.add(current);
+                    flatPageList.push(current);
+                    if (pageOrderMap[current]) {
+                        queue.push(...pageOrderMap[current]);
+                    }
+                }
+            });
+            pageSequence = [...new Set(flatPageList)];
+
+            lessonData.vocabulary.forEach((v, i) => {
+                createPageElement(`vocab-${i}`, `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h3 class="text-2xl font-bold text-sky-600 mb-2">Vocabulary ${i + 1} / ${lessonData.vocabulary.length}</h3><div class="my-8"><h2 class="text-5xl font-bold text-gray-800 mb-4">${v.word}</h2><p class="text-2xl text-gray-600 mb-4">${v.def}</p><p class="text-xl text-gray-500 italic">"${v.sentence}"</p></div></div></div>`);
+            });
+
+            lessonData.pages.forEach(page => {
+                let pageHTML = '';
+                switch (page.type) {
+                    case 'simple': pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-gray-800 mb-6">${page.content.title}</h2><p class="text-xl text-gray-600 mb-8">${page.content.text}</p></div></div>`; break;
+                    case 'timer': pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-left pt-16"><div class="w-full flex justify-between items-center mb-4"><h2 class="text-2xl md:text-3xl font-bold text-blue-700">${page.content.title}</h2><div id="${page.content.timerId}" class="text-3xl md:text-4xl font-bold text-gray-700 ml-4"></div></div><div class="readable-content"><p class="text-lg md:text-xl text-gray-600 mt-8">${page.content.text}</p></div></div>`; break;
+                    case 'dialogue':
+                    case 'html-content':
+                        const contentHTML = page.type === 'html-content' ? page.content.html : (page.content.dialogue || '').split('\n').map(line => `<p class="mb-2">${line.replace(/([^:]+):/, '<strong class="font-semibold text-blue-700">$1:</strong>')}</p>`).join('');
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-slate-800 mb-6">${page.content.title}</h2><div class="readable-content text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg max-h-[70vh] overflow-y-auto">${contentHTML}</div></div>`;
+                        break;
+                    case 'vocab-game':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h2 class="text-4xl font-bold text-center text-sky-600 mb-4">${page.content.title}</h2><div class="text-center mb-4 text-lg">Score: <span id="vocab-game-score" class="font-bold">0</span></div><div class="w-full bg-gray-200 rounded-full h-2.5 mb-4"><div id="vocab-game-timer-bar" class="bg-blue-600 h-2.5 rounded-full"></div></div><div id="vocab-game-definition" class="text-center text-2xl font-semibold my-6 min-h-[6rem]"></div><div id="vocab-game-options" class="grid grid-cols-2 gap-4"></div></div>`;
+                        break;
+                    case 'writing-task':
+                        const startersHTML = page.content.starters.map(s => `<li class="text-gray-500">${s}</li>`).join('');
+                        const wordBankHTML = page.content.wordBank ? `<div class="mt-6"><h4 class="font-bold text-lg text-violet-600">Word Bank:</h4><div class="flex flex-wrap gap-2 mt-2 p-4 bg-gray-100 rounded-lg">${page.content.wordBank.map(w => `<span class="bg-white px-2 py-1 rounded-md shadow-sm text-gray-700">${w}</span>`).join('')}</div></div>` : '';
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><div class="readable-content"><h2 class="text-4xl font-bold text-center text-violet-700 mb-6">${page.content.title}</h2><div class="text-lg leading-relaxed space-y-4 bg-gray-50 p-6 rounded-lg"><h3 class="font-bold text-xl text-violet-600">Prompt:</h3><p>${page.content.prompt}</p><h3 class="font-bold text-xl text-violet-600 mt-4">Sentence Starters:</h3><ul class="list-disc list-inside ml-4">${startersHTML}</ul>${wordBankHTML}</div></div><div class="text-center mt-6"><button onclick="goNext()" class="action-button bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-xl hover:bg-blue-700">Continue</button></div></div>`;
+                        break;
+                    case 'certificate':
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 text-center pt-16 relative overflow-hidden"><canvas id="completion-canvas"></canvas><div class="relative z-10"><div class="readable-content"><h2 class="text-4xl font-bold text-amber-600 mb-4">${page.content.title}</h2><p class="text-xl text-gray-600 mb-6">${page.content.text}</p></div><div id="certificate-to-print" class="bg-blue-50 border-4 border-dashed border-blue-300 rounded-lg p-8 max-w-2xl mx-auto"><div class="flex justify-center mb-4"><span class="text-6xl"><span aria-hidden="true">🇳🇴</span></span></div><h3 class="text-3xl font-bold text-slate-800">${page.content.certificateTitle}</h3><p class="mt-4 text-lg">This certificate is awarded to</p><p id="certificate-name" class="text-2xl font-bold text-blue-600 my-2 border-b-2 border-gray-400 pb-2">[Enter Your Name Here]</p><p class="mt-4 text-lg">for successfully completing this lesson.</p><p class="mt-6 text-md"><strong>Final Score:</strong> <span id="certificate-score" class="font-bold"></span> points</p><p class="text-sm mt-1"><strong>Date of Completion:</strong> <span id="certificate-date"></span></p></div><div id="cert-controls" class="mt-6"><div id="cert-initial-controls"><input type="text" id="name-input-cert" placeholder="Enter your name for the certificate" class="text-center p-2 border rounded-lg w-full max-w-md"><button onclick="generateCertificate()" class="action-button bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-700">Generate Certificate</button></div><div id="cert-generated-controls" class="hidden mt-4 flex flex-wrap justify-center gap-4"><button onclick="downloadCertificateAsImage()" class="action-button bg-sky-600 text-white font-bold py-2 px-4 rounded-full text-sm">Download Image</button></div></div></div></div>`;
+                        break;
+                    case 'quiz-tfng':
+                    case 'quiz-mcq':
+                    case 'quiz-gap-fill':
+                        let questionsHTML = '';
+                        if (page.type === 'quiz-tfng' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group flex items-center gap-4 p-4 rounded-lg bg-gray-100"><div class="flex-shrink-0 flex gap-2">${['True', 'False', 'Not Given'].map(l => `<button onclick="checkTfngAnswer(this, '${l}', '${q.correctAnswer}')" class="tfng-button bg-${l==='True'?'blue':l==='False'?'red':'gray'}-500 text-white font-bold w-12 h-10 rounded-full">${l.charAt(0)}</button>`).join('')}</div><p>${i + 1}. ${q.statement}</p></div>`).join('');
+                        } else if (page.type === 'quiz-mcq' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group ${i > 0 ? 'border-t pt-6 mt-6' : ''}"><p class="font-semibold mb-2">${i + 1}. ${q.question}</p><div class="grid grid-cols-1 md:grid-cols-2 gap-2">${q.options.map(o => `<button onclick="checkMcqAnswer(this, '${o.replace(/'/g, "\\'")}' === '${q.correctAnswer.replace(/'/g, "\\'")}')" data-correct="${o === q.correctAnswer}" class="quiz-option p-3 rounded-lg text-left bg-gray-100 hover:bg-gray-200 border border-gray-200">${o}</button>`).join('')}</div></div>`).join('');
+                        } else if (page.type === 'quiz-gap-fill' && page.content.sentences) {
+                            const words = page.content.sentences.map(s => s.answer).sort(() => Math.random() - 0.5);
+                            questionsHTML = `<div class="gap-fill-container">${page.content.sentences.map((s, i) => `<p class="text-lg mb-4">${i + 1}. ${s.text[0]} <span class="gap" data-answer="${s.answer}"></span> ${s.text[1]}</p>`).join('')}</div><div class="word-bank-container mt-8 p-4 bg-gray-100 rounded-lg flex flex-wrap gap-4 justify-center">${words.map(w => `<div class="word-bank-word" draggable="true" data-word="${w}">${w}</div>`).join('')}</div>`;
+                        }
+                        pageHTML = `<div class="bg-white rounded-2xl shadow-lg p-8 pt-16"><h3 class="text-3xl font-bold text-rose-600 mb-6 text-center">${page.content.title}</h3><div class="space-y-6">${questionsHTML}</div></div>`;
+                        break;
+                }
+                if (pageHTML) {
+                    createPageElement(page.id, pageHTML);
+                    if (page.type === 'quiz-gap-fill') initGapFill(`page-${page.id}`);
+                }
+            });
+            updateNavButtons();
+        }
+
+        function generateCertificate() {
+            const name = document.getElementById('name-input-cert').value || 'Dedicated Student';
+            document.getElementById('certificate-name').textContent = name;
+            document.getElementById('certificate-score').textContent = score;
+            document.getElementById('certificate-date').textContent = new Date().toLocaleDateString();
+            document.getElementById('cert-initial-controls').classList.add('hidden');
+            document.getElementById('cert-generated-controls').classList.remove('hidden');
+
+            const canvas = document.getElementById('completion-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            let particles = [];
+            for (let i = 0; i < 50; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 5 + 2,
+                    color: ['#ffffff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa'][Math.floor(Math.random() * 5)],
+                    speed: Math.random() * 2 + 1
+                });
+            }
+
+            function drawConfetti() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => {
+                    p.y += p.speed;
+                    if (p.y > canvas.height) {
+                        p.y = -p.radius;
+                        p.x = Math.random() * canvas.width;
+                    }
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                });
+                requestAnimationFrame(drawConfetti);
+            }
+            drawConfetti();
+        }
+
+        function downloadCertificateAsImage() {
+            html2canvas(document.querySelector("#certificate-to-print")).then(canvas => {
+                const link = document.createElement('a');
+                link.download = 'Svalbard_Certificate.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        }
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeLesson();
+            const bgCanvas = document.getElementById('background-canvas');
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            let particles = [];
+            function animateBackground() {
+                bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+                particles.forEach((p, i) => {
+                    p.y += p.speed;
+                    if (p.y > bgCanvas.height) {
+                        particles.splice(i, 1);
+                    }
+                    bgCtx.beginPath();
+                    bgCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    bgCtx.fillStyle = p.color;
+                    bgCtx.fill();
+                });
+                if (Math.random() > 0.95) {
+                    particles.push({ 
+                        x: Math.random() * bgCanvas.width, 
+                        y: -20, 
+                        radius: Math.random() * 3 + 1, 
+                        speed: Math.random() * 1 + 0.5, 
+                        color: `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.2})`
+                    });
+                }
+                requestAnimationFrame(animateBackground);
+            }
+            window.addEventListener('resize', () => { bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; });
+            animateBackground();
+        });
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatic TTS Page</title>
+    
+    <!-- 1. Include the Tone.js library for sound effects -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    
+    <!-- 2. CSS for styling the page and UI elements -->
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+        header {
+            background-color: #ffffff;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        main {
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        #tts-toggle-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+        }
+        #tts-toggle-button:hover {
+            background-color: #e9ecef;
+        }
+        #tts-toggle-button svg {
+            width: 28px;
+            height: 28px;
+            stroke: #495057;
+        }
+        #start-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 2rem;
+            cursor: pointer;
+            z-index: 2000;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 3. HTML Structure -->
+    <header>
+        <h1>My Page Title</h1>
+        <button id="tts-toggle-button" aria-label="Toggle text-to-speech">
+            <!-- Icon will be inserted here by JavaScript -->
+        </button>
+    </header>
+
+    <main>
+        <!-- THIS IS WHERE YOU PUT YOUR PAGE'S CONTENT -->
+        <div class="readable-content">
+            <h2>Welcome to the Page</h2>
+            <p>This is the main content area that will be read aloud automatically after you start the experience. The speech service we designed is now fully integrated into this page.</p>
+            <p>It uses a sophisticated method to select the highest quality voice available in your browser. On Microsoft Edge, it will prioritize the excellent "Online Natural" voices like Fable, Onyx, and Alloy. On other browsers like Chrome or Safari, it will fall back to their respective best options.</p>
+            <p>You can use the ear icon in the header to mute or unmute the playback at any time.</p>
+        </div>
+    </main>
+
+    <!-- Overlay to handle the browser's user-interaction requirement for audio -->
+    <div id="start-overlay">
+        <div>
+            <p>Click anywhere to begin</p>
+        </div>
+    </div>
+
+    <!-- 4. The Final, Optimized JavaScript -->
+    <script>
+        /**
+         * SpeechService v4.2 (Definitive, User-Ranked)
+         * Production-grade speech synthesis with a user-defined voice quality ranking
+         * for Microsoft Edge and other modern browsers.
+         */
+        class SpeechService {
+            constructor() {
+                this.synth = window.speechSynthesis;
+                this.toneSynth = null;
+                this.isInitialized = false;
+                this.isTtsEnabled = true;
+                this.voices = {};
+                this.speechRate = 0.85;
+                this.maleNameHints = ['john', 'mike', 'david', 'brian', 'tom', 'chris', 'alex', 'robert', 'mark', 'james', 'paul', 'leo', 'onyx', 'alloy'];
+                this.femaleNameHints = ['mary', 'lisa', 'susan', 'jane', 'sarah', 'emma', 'eva', 'allison', 'ava', 'samantha', 'kate', 'linda', 'mia', 'sofia', 'chen', 'fable', 'shimmer'];
+            }
+
+            _getBrowserVoicePriorities() {
+                return {
+                    edge: {
+                        female: ['Microsoft Fable Online (Natural) - English (United States)', 'Microsoft Shimmer Online (Natural) - English (United States)', 'Microsoft Ava Online (Natural) - English (United States)', 'Microsoft Aria Online (Natural) - English (United States)', 'Microsoft Ana Online (Natural) - English (United States)'],
+                        male: ['Microsoft Onyx Online (Natural) - English (United States)', 'Microsoft Alloy Online (Natural) - English (United States)', 'Microsoft Brian Online (Natural) - English (United States)', 'Microsoft Guy Online (Natural) - English (United States)', 'Microsoft Davis Online (Natural) - English (United States)']
+                    },
+                    safari: { female: ['Samantha', 'Ava (Premium)', 'Allison'], male: ['Alex', 'Evan (Premium)', 'Tom'] },
+                    chrome: { female: ['Google US English'], male: ['Google US English'] }
+                };
+            }
+
+            _getBrowser() {
+                const ua = navigator.userAgent;
+                if (ua.includes("Edg/")) return "edge";
+                if (ua.includes("Chrome") && !ua.includes("Chromium")) return "chrome";
+                if (ua.includes("Safari") && !ua.includes("Chrome")) return "safari";
+                return "other";
+            }
+
+            async _setupVoices() {
+                const voicesPromise = new Promise(resolve => {
+                    if (this.synth.getVoices().length) return resolve(this.synth.getVoices());
+                    this.synth.onvoiceschanged = () => resolve(this.synth.getVoices());
+                });
+                const availableVoices = await voicesPromise;
+                if (!availableVoices.length) { console.warn("No voices available."); return; }
+                const browser = this._getBrowser();
+                const priorities = this._getBrowserVoicePriorities();
+                const keywordPriorities = ['onyx', 'fable', 'shimmer', 'alloy', 'neural', 'natural', 'premium', 'enhanced', 'microsoft'];
+                const findBest = (voiceList, gender) => {
+                    const browserPriorityNames = priorities[browser]?.[gender] || [];
+                    for (const name of browserPriorityNames) {
+                        const found = voiceList.find(v => v.name === name);
+                        if (found) return found;
+                    }
+                    for (const tag of keywordPriorities) {
+                        const found = voiceList.find(v => v.name.toLowerCase().includes(tag));
+                        if (found) return found;
+                    }
+                    return voiceList[0] || null;
+                };
+                const usEnglish = availableVoices.filter(v => v.lang === 'en-US');
+                const maleVoices = usEnglish.filter(v => /onyx|alloy|david|guy|brian|male/i.test(v.name));
+                const femaleVoices = usEnglish.filter(v => /fable|shimmer|aria|ava|ana|female/i.test(v.name));
+                this.voices['male'] = findBest(maleVoices, 'male');
+                this.voices['female'] = findBest(femaleVoices, 'female');
+                this.voices['default'] = this.voices['female'] || this.voices['male'] || findBest(usEnglish, 'female');
+            }
+
+            async _ensureReady() { if (!this.isInitialized) await this.init(); }
+            
+            async init() {
+                if (this.isInitialized) return;
+                try {
+                    await Tone.start();
+                    this.toneSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+                } catch (e) { console.error("Tone.js failed to start:", e); }
+                try {
+                    const warmUp = new SpeechSynthesisUtterance(' ');
+                    warmUp.volume = 0;
+                    this.synth.speak(warmUp);
+                    this.synth.cancel();
+                    await this._setupVoices();
+                    this.isInitialized = true;
+                } catch (e) { console.error("Speech synthesis setup failed:", e); }
+            }
+            
+            async speak(text, { voiceKey = 'default', rate = this.speechRate, onEndCallback = null } = {}) {
+                await this._ensureReady();
+                if (!this.isTtsEnabled || !text) {
+                    if (onEndCallback) onEndCallback();
+                    return;
+                }
+                if (this.synth.speaking) this.synth.cancel();
+                await new Promise(resolve => setTimeout(resolve, 50));
+                const utter = new SpeechSynthesisUtterance(text);
+                utter.voice = this.voices[voiceKey] || this.voices['default'];
+                utter.rate = rate;
+                if (onEndCallback) utter.onend = onEndCallback;
+                utter.onerror = (e) => {
+                    console.error('SpeechSynthesisUtterance.onerror', e);
+                    if (onEndCallback) onEndCallback();
+                };
+                this.synth.speak(utter);
+            }
+            
+            cancel() { if (this.synth) this.synth.cancel(); }
+
+            toggleTTS(forceState) {
+                this.isTtsEnabled = forceState === undefined ? !this.isTtsEnabled : forceState;
+                if (!this.isTtsEnabled) {
+                    this.cancel();
+                }
+                return this.isTtsEnabled;
+            }
+        }
+
+        // --- Application Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const speechService = new SpeechService();
+            const toggleButton = document.getElementById('tts-toggle-button');
+            const startOverlay = document.getElementById('start-overlay');
+            const contentToRead = document.querySelector('.readable-content');
+
+            // SVG icons for the toggle button
+            const earIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zm-7.518-.267A8.25 8.25 0 1120.25 10.5M8.288 14.212A5.25 5.25 0 1117.25 10.5" /></svg>`;
+            const earSlashIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008v-.008zM12 1.5V2.25m0 19.5V21.75m-8.625-8.625H2.25m19.5 0h-.825M4.5 12a7.5 7.5 0 0115 0m-15 0a7.5 7.5 0 0015 0m-7.5-3.75a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18" /></svg>`;
+
+            // Set the initial state of the button
+            toggleButton.innerHTML = earIcon;
+
+            // Handle the mute/unmute button click
+            toggleButton.addEventListener('click', () => {
+                const isNowEnabled = speechService.toggleTTS();
+                toggleButton.innerHTML = isNowEnabled ? earIcon : earSlashIcon;
+                // If re-enabling, resume reading
+                if (isNowEnabled && contentToRead) {
+                    speechService.speak(contentToRead.innerText);
+                }
+            });
+
+            // Handle the initial click to start the experience
+            startOverlay.addEventListener('click', async () => {
+                startOverlay.style.display = 'none';
+                // Initialize the service and read the content
+                await speechService.init();
+                if (contentToRead) {
+                    speechService.speak(contentToRead.innerText);
+                }
+            }, { once: true }); // This listener will only ever fire once
+        });
+    </script>
+
+</body>
+</html>

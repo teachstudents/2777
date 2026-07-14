@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading Explorer 1: Interactive Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #1e293b; overflow-x: hidden; }
+        
+        /* Animated Background */
+        .bg-animate {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background: linear-gradient(to bottom, #0f172a, #1e293b);
+        }
+        .particle {
+            position: absolute; border-radius: 50%; background: rgba(255, 255, 255, 0.05);
+            animation: float 20s infinite linear;
+        }
+        @keyframes float {
+            0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+            50% { opacity: 0.5; }
+            100% { transform: translateY(-100px) translateX(20px); opacity: 0; }
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; background-color: rgba(37, 99, 235, 0.05); }
+        .tab-inactive { color: #64748b; }
+        .tab-inactive:hover { color: #334155; background-color: rgba(0,0,0,0.02); }
+        
+        .quiz-btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .quiz-btn:active { transform: scale(0.98); }
+        .correct-anim { animation: pulseGreen 0.5s ease-out; }
+        @keyframes pulseGreen { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
+
+        .btn-interactive {
+            transition: all 0.3s ease;
+        }
+        .btn-interactive:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .reader-text { line-height: 1.8; font-size: 1.15rem; color: #334155; }
+        .script-text { font-family: 'Courier New', monospace; font-size: 1rem; color: #475569; background-color: #f1f5f9; padding: 20px; border-radius: 8px; white-space: pre-line; }
+    </style>
+</head>
+<body>
+    <div class="bg-animate" id="particles"></div>
+    <div id="root"></div>
+
+    <script>
+        // Particle Generator
+        const container = document.getElementById('particles');
+        for(let i=0; i<30; i++) {
+            const p = document.createElement('div');
+            p.className = 'particle';
+            p.style.left = Math.random() * 100 + 'vw';
+            p.style.width = Math.random() * 10 + 5 + 'px';
+            p.style.height = p.style.width;
+            p.style.animationDuration = Math.random() * 20 + 10 + 's';
+            p.style.animationDelay = Math.random() * 10 + 's';
+            container.appendChild(p);
+        }
+    </script>
+
+    <script type="text/babel">
+        // --- INTERNAL ICON LIBRARY ---
+        const Icons = {
+            ArrowLeft: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>,
+            BookOpen: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>,
+            MonitorPlay: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m10 7 5 3-5 3z"/><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M12 17v4"/><path d="M8 21h8"/></svg>,
+            CheckCircle: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            Layout: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="9" x2="9" y1="9" y2="21"/></svg>,
+            Globe: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>,
+            Volume2: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>,
+            Square: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>,
+            Star: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+            Zap: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+            Users: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            List: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
+            Target: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        };
+
+        const Icon = ({ name, size = 20, className }) => {
+            const IconComp = Icons[name];
+            return IconComp ? <IconComp width={size} height={size} className={className} /> : null;
+        };
+
+        // --- DATA REPOSITORY ---
+        const unitsData = {
+            '1': {
+                title: "Amazing Animals",
+                topic: "Chameleons & Octopuses",
+                emoji: "🦎",
+                objectives: [
+                    "Understand how animals adapt to their environment (e.g., color change).",
+                    "Identify main ideas and supporting details in informational texts.",
+                    "Define and use target vocabulary in context.",
+                    "GRAPS: Goal - Create an animal fact sheet; Role - Wildlife Researcher; Audience - Museum Visitors; Product - Fact Sheet; Standards - Accurate information and clear organization."
+                ],
+                textA: `[A] There are 202 species of chameleon in the world... These creatures are famous for their ability to change color. For a long time, scientists thought chameleons changed color to hide from other animals. But now they know that the main reason chameleons change color is to communicate with each other.\n[B] Chameleons can change color to attract other chameleons or to warn them to go away. They can use their colors to show that they are angry or scared. Sometimes, their colors also change because of changes in the temperature.\n[C] So, if chameleons don't change colors to hide from predators, how do they stay safe? It turns out that chameleons stay safe by moving back and forth in a strange way. By following this odd system of movements, the chameleon looks less like a moving animal, and more like a leaf being blown by the wind.\n[D] A chameleon's tongue is very long and moves very fast... The muscles at the back of the tongue prepare the sticky parts to shoot out—just like how a person pulls back the string of a bow.`,
+                textB: `[A] Octopuses are famous for their round bodies, big eyes, and eight arms. There are many different types of octopuses, but all are alike in one way: They are masters of disguise. Octopuses can change their appearance in less than a second to look like rocks, plants, or even other animals.`,
+                videoScript: `Narrator: There are 202 species of chameleon in the world, that scientists know about. 42 percent of these different types of chameleons live in Madagascar...\n\nThese creatures are famous for their ability to change color. For a long time, scientists thought chameleons changed color to hide from other animals. But now they know that the main reason chameleons change color is to communicate with each other. Chameleons can change color to attract other chameleons or to warn them to go away. They can use their colors to show that they are angry or scared. Sometimes, their colors also change because of changes in the temperature.\n\nSo, if chameleons don't change colors to hide from predators, how do they stay safe?\n\nIt turns out that chameleons stay safe by moving back and forth in a strange way. By following this odd system of movements, the chameleon looks less like a moving animal, and more like a leaf being blown by the wind.\n\nA chameleon's tongue is very long and moves very fast. To catch food, a chameleon hides in the trees until an insect walks by. Then it shoots out its tongue to catch the insect. A chameleon can catch insects as far away as two times its body length. A chameleon's tongue is made of bone and muscles. And the end of its tongue is very sticky. The muscles at the back of the tongue prepare the sticky parts to shoot out-just like how a person pulls back the string of a bow to get ready to shoot an arrow. ...`,
+                warmup: "Imagine you could change color like a chameleon. When would you use this ability? (e.g., when embarrassed, to hide, to scare someone)",
+                thinkPairShare: "Discuss with a partner: Why is it important for animals to have 'disguises'? Can you name other animals that use camouflage?",
+                vocab: ["advantage", "alike", "assist", "communicate", "feelings", "intelligent", "method", "smart", "special", "system", "species", "predator", "disguise"],
+                quiz: [
+                    { q: "1. (Vocab) This word refers to when we talk or chat with other people.", options: ["Survive", "Communicate", "Hide"], ans: 1 },
+                    { q: "2. (Vocab) This word refers to a living animal.", options: ["Creature", "Method", "Special"], ans: 0 },
+                    { q: "3. (Vocab) We use these to control how we move.", options: ["Shapes", "Muscles", "Appearance"], ans: 1 },
+                    { q: "4. (Reading) Why do chameleons primarily change color?", options: ["To hide from predators", "To communicate with others", "To mimic rocks"], ans: 1 },
+                    { q: "5. (Reading) How does an octopus change its skin texture?", options: ["By using muscles", "By eating coral", "By swimming fast"], ans: 0 }
+                ],
+                organizer: "Fact Sheet: Fill in Description, Communication, Play, and Teamwork for Dolphins."
+            },
+            '2': {
+                title: "Travel and Adventure",
+                topic: "The Trip of a Lifetime",
+                emoji: "🚲",
+                objectives: [
+                    "Identify key details in a travel narrative.",
+                    "Interpret maps and routes.",
+                    "Discuss risk factors in adventure travel.",
+                    "GRAPS: Goal - Plan an adventure trip; Role - Travel Agent; Audience - Adventure Seekers; Product - Trip Itinerary; Standards - Feasible route and exciting activities."
+                ],
+                textA: `[A] Many people dream of going on a great travel adventure. Most of us keep dreaming; others make it happen.\n[B] Gregg Bleakney's dream was to travel the Americas from top to bottom. He got the idea after he finished a 1,600-kilometer bike ride. Gregg's friend Brooks Allen was also a cyclist. The two friends talked and decided on their goal: They would travel from Alaska to Argentina - by bike.\n[C] To pay for the journey, Gregg and Brooks worked and saved money for years. In 2005, after four years of planning, they set off. Once they were on the road, they often camped outdoors or stayed in hostels. In many places along their route, local people opened their homes to the two friends and gave them food.\n[D] During their trip, Gregg and Brooks cycled through deserts, rain forests, and mountains. They visited modern cities and explored ancient ruins, such as Tikal in Guatemala. In many places, they met other cyclists from all over the world.\n[E] In May 2007 - two years, 12 countries, and over 30,500 km later - Gregg eventually reached Ushuaia, Argentina, at the southern tip of South America. (Halfway through the trip, Brooks had to stop. He returned to the United States and Gregg continued without him.)\n[F] Gregg and Brooks kept a record of their adventures in an online blog. The trip taught both men a lot about traveling. Here is ...`,
+                textB: `[A] Vanuatu is a nation of small islands in the South Pacific. It is one of the smallest countries in the world. But for those interested in adventure and sport, there is a lot to do. Some of the best swimming, snorkeling, and sea kayaking can be found here. Vanuatu's islands also offer visitors two of the most exciting - and dangerous - activities in the world: volcano surfing and land diving.\n[B] On Tanna Island, Mount Yasur rises 300 meters into the sky. Yasur is one of Vanuatu's few active volcanoes. It erupts almost every day, sometimes several times a day. For centuries, both locals and tourists have climbed this mountain to visit the top. Recently, people have also started climbing Yasur to surf the volcano. In some ways, volcano surfing is like surfing in the sea, but in other ways, it's very different. A volcano surfer's goal is to escape the erupting volcano - without being hit by flying rocks! It's fast, fun, and dangerous - the perfect extreme sport.\n[C] Most people are familiar with bungee jumping. But did you know that bungee jumping started on Pentecost Island in Vanuatu almost 15 centuries ago? The original activity - called land diving - is part of a religious ceremony. A man ties two tree vines around his ankles. He then climbs a wooden tower around

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Joel Mitchell's Spelling Practice - Set 7</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 650px;
+      margin: 40px auto;
+      background: #fff;
+      padding: 20px 30px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    h1 {
+      color: #333;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 1em;
+      cursor: pointer;
+    }
+    input[type="text"] {
+      padding: 8px;
+      font-size: 1em;
+      width: 80%;
+      margin: 10px;
+    }
+    .hidden {
+      display: none;
+    }
+    #resultImg {
+      margin-top: 15px;
+      width: 100px;
+      height: auto;
+    }
+    #timerDisplay, #overallTimerDisplay {
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Joel Mitchell's Spelling Practice - Set 7</h1>
+    
+    <!-- Start Screen: Name Entry -->
+    <div id="startScreen">
+      <p>Please enter your name to start the quiz:</p>
+      <input type="text" id="userName" placeholder="Your Name" required>
+      <br>
+      <button id="startBtn">Start Quiz</button>
+    </div>
+    
+    <!-- Quiz Screen -->
+    <div id="quizScreen" class="hidden">
+      <!-- Overall Countdown Timer (10 minutes) -->
+      <p id="overallTimerDisplay">Overall Time Left: 10:00</p>
+      <!-- Question-specific content -->
+      <p>Question <span id="questionNumber">1</span> of 25</p>
+      <p><em id="clue">Clue will appear here</em></p>
+      <button id="playAudio">Play Word</button>
+      <br>
+      <input type="text" id="userAnswer" placeholder="Type your answer here">
+      <br>
+      <button id="submitBtn">Submit</button>
+      <p id="timer">Time Left for this word: <span id="timeLeft">20</span> seconds</p>
+      <p id="feedback"></p>
+      <img id="resultImg" src="" alt="Result" class="hidden">
+      <!-- (Optional) You might also wish to show current score here -->
+    </div>
+    
+    <!-- Result Screen -->
+    <div id="resultScreen" class="hidden">
+      <h2>Quiz Completed</h2>
+      <p id="finalScore"></p>
+    </div>
+  </div>
+  
+  <script>
+    // Array of 25 words (with audio file location, clue, and proper display text)
+    const words = [
+      { word: "paper", display: "paper", clue: "A sheet of material used for writing.", file: "voc/paper.mp3" },
+      { word: "park", display: "park", clue: "A public area for recreation.", file: "voc/park.mp3" },
+      { word: "pen", display: "pen", clue: "A writing tool that uses ink.", file: "voc/pen.mp3" },
+      { word: "pencil", display: "pencil", clue: "A writing instrument made of graphite.", file: "voc/pencil.mp3" },
+      { word: "pepper", display: "pepper", clue: "A spice often used in cooking.", file: "voc/pepper.mp3" },
+      { word: "photographer", display: "photographer", clue: "A person who takes pictures.", file: "voc/photographer.mp3" },
+      { word: "pig", display: "pig", clue: "A farm animal known for its snout.", file: "voc/pig.mp3" },
+      { word: "pilot", display: "pilot", clue: "A person who flies an airplane.", file: "voc/pilot.mp3" },
+      { word: "pink", display: "pink", clue: "A light red color.", file: "voc/pink.mp3" },
+      { word: "planet", display: "planet", clue: "A celestial body orbiting a star.", file: "voc/planet.mp3" },
+      { word: "plant", display: "plant", clue: "A living organism that typically grows in soil.", file: "voc/plant.mp3" },
+      { word: "plate", display: "plate", clue: "A flat dish used for serving food.", file: "voc/plate.mp3" },
+      { word: "plumber", display: "plumber", clue: "A professional who repairs pipes.", file: "voc/plumber.mp3" },
+      { word: "pool", display: "pool", clue: "A place for swimming.", file: "voc/pool.mp3" },
+      { word: "pork", display: "pork", clue: "Meat from a pig.", file: "voc/pork.mp3" },
+      { word: "postman", display: "postman", clue: "A person who delivers mail.", file: "voc/postman.mp3" },
+      { word: "pot", display: "pot", clue: "A container used for cooking.", file: "voc/pot.mp3" },
+      { word: "potato", display: "potato", clue: "A starchy tuber vegetable.", file: "voc/potato.mp3" },
+      { word: "purple", display: "purple", clue: "A color mixing red and blue.", file: "voc/purple.mp3" },
+      { word: "rabbit", display: "rabbit", clue: "A small animal with long ears.", file: "voc/rabbit.mp3" },
+      { word: "rainbow", display: "rainbow", clue: "A colorful arc seen after rain.", file: "voc/rainbow.mp3" },
+      { word: "red", display: "red", clue: "A primary color between orange and violet.", file: "voc/red.mp3" },
+      { word: "refrigerator", display: "refrigerator", clue: "An appliance used to keep food cold.", file: "voc/refrigerator.mp3" },
+      { word: "reporter", display: "reporter", clue: "A person who gathers and presents news.", file: "voc/reporter.mp3" },
+      { word: "restaurant", display: "restaurant", clue: "A place where people dine.", file: "voc/restaurant.mp3" }
+    ];
+
+    // State variables
+    let currentQuestion = 0;
+    let score = 125; // 25 questions × 5 points each = 125 points maximum
+    const pointsPerWrong = 5; // Deduct 5 points per mistake
+    const timePerWord = 20; // Per-question timer (20 seconds)
+    let questionTimer; // Timer for each word
+    let timeLeft;
+    
+    // Overall countdown timer variables
+    const overallTimeTotal = 600; // 10 minutes in seconds
+    let overallTime = overallTimeTotal;
+    let overallTimer; 
+
+    // Get DOM elements
+    const startScreen = document.getElementById("startScreen");
+    const quizScreen = document.getElementById("quizScreen");
+    const resultScreen = document.getElementById("resultScreen");
+    const userNameInput = document.getElementById("userName");
+    const startBtn = document.getElementById("startBtn");
+    const questionNumberEl = document.getElementById("questionNumber");
+    const clueEl = document.getElementById("clue");
+    const playAudioBtn = document.getElementById("playAudio");
+    const userAnswerInput = document.getElementById("userAnswer");
+    const submitBtn = document.getElementById("submitBtn");
+    const timerDisplay = document.getElementById("timeLeft");
+    const overallTimerDisplay = document.getElementById("overallTimerDisplay");
+    const feedbackEl = document.getElementById("feedback");
+    const resultImg = document.getElementById("resultImg");
+    const finalScoreEl = document.getElementById("finalScore");
+
+    // Audio objects for correct and wrong responses
+    const correctSound = new Audio("game1.mp3");
+    const wrongSound = new Audio("wrong.mp3");
+
+    // Format seconds as mm:ss
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+    }
+
+    // Start the overall timer (10 minutes)
+    function startOverallTimer() {
+      overallTimerDisplay.textContent = "Overall Time Left: " + formatTime(overallTime);
+      overallTimer = setInterval(() => {
+        overallTime--;
+        overallTimerDisplay.textContent = "Overall Time Left: " + formatTime(overallTime);
+        if (overallTime <= 0) {
+          clearInterval(overallTimer);
+          clearInterval(questionTimer);
+          feedbackEl.textContent = "Overall time is up!";
+          endQuiz();
+        }
+      }, 1000);
+    }
+
+    // Start quiz when user clicks the start button
+    startBtn.addEventListener("click", () => {
+      if (userNameInput.value.trim() === "") {
+        alert("Please enter your name to start the quiz.");
+        return;
+      }
+      startScreen.classList.add("hidden");
+      quizScreen.classList.remove("hidden");
+      startOverallTimer();
+      loadQuestion();
+    });
+
+    // Load the current question
+    function loadQuestion() {
+      clearInterval(questionTimer);
+      userAnswerInput.value = "";
+      feedbackEl.textContent = "";
+      resultImg.classList.add("hidden");
+
+      timeLeft = timePerWord;
+      timerDisplay.textContent = timeLeft;
+      const currentWord = words[currentQuestion];
+      questionNumberEl.textContent = currentQuestion + 1;
+      clueEl.textContent = currentWord.clue;
+
+      playAudioBtn.onclick = () => {
+        const audio = new Audio(currentWord.file);
+        audio.play();
+      };
+
+      questionTimer = setInterval(() => {
+        timeLeft--;
+        timerDisplay.textContent = timeLeft;
+        if (timeLeft <= 0) {
+          clearInterval(questionTimer);
+          feedbackEl.textContent = "Time's up! The correct spelling was: " + currentWord.display;
+          score -= pointsPerWrong;
+          resultImg.src = "wrong.gif";
+          resultImg.classList.remove("hidden");
+          wrongSound.play();
+          setTimeout(nextQuestion, 2000);
+        }
+      }, 1000);
+    }
+
+    // Check submitted answer
+    submitBtn.addEventListener("click", () => {
+      clearInterval(questionTimer);
+      const currentWord = words[currentQuestion];
+      const userAnswer = userAnswerInput.value.trim();
+      if (userAnswer === currentWord.display) {
+        feedbackEl.textContent = "Correct!";
+        resultImg.src = "reward1.gif";
+        resultImg.classList.remove("hidden");
+        correctSound.play();
+      } else {
+        feedbackEl.textContent = "Incorrect! The correct spelling was: " + currentWord.display;
+        score -= pointsPerWrong;
+        resultImg.src = "wrong.gif";
+        resultImg.classList.remove("hidden");
+        wrongSound.play();
+      }
+      setTimeout(nextQuestion, 2000);
+    });
+
+    // Proceed to next question or end the quiz
+    function nextQuestion() {
+      currentQuestion++;
+      if (currentQuestion < words.length) {
+        loadQuestion();
+      } else {
+        endQuiz();
+      }
+    }
+
+    // End quiz: clear timers and show final results.
+    function endQuiz() {
+      clearInterval(questionTimer);
+      clearInterval(overallTimer);
+      quizScreen.classList.add("hidden");
+      resultScreen.classList.remove("hidden");
+      // Calculate percentage score based on maximum of 125 points.
+      const percentageScore = Math.max(Math.round((score / 125) * 100), 0);
+      finalScoreEl.textContent = "Your final score is: " + percentageScore + "%";
+    }
+  </script>
+</body>
+</html>

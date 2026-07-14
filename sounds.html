@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Quiz Soundboard</title>
+<style>
+  body { font-family: sans-serif; background: #f4f4f4; padding: 20px; }
+  h2 { margin-top: 30px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  button {
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    color: white;
+    transition: transform 0.1s ease;
+  }
+  .correct button { background: #28a745; }
+  .incorrect button { background: #dc3545; }
+  button:hover { opacity: 0.85; }
+  button:active {
+    transform: scale(0.95);
+  }
+  .phrase-display {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 15px 25px;
+    border-radius: 12px;
+    font-size: 1.2em;
+    font-weight: bold;
+    color: white;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease, bottom 0.3s ease;
+    text-align: center;
+  }
+
+  .phrase-display.show {
+    bottom: 50px;
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .phrase-display.correct-phrase {
+    background: #28a745;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.5);
+  }
+
+  .phrase-display.incorrect-phrase {
+    background: #dc3545;
+    box-shadow: 0 4px 15px rgba(220, 53, 69, 0.5);
+  }
+</style>
+</head>
+<body>
+
+<h1>Quiz Soundboard</h1>
+
+<h2>✅ Correct Sounds (40)</h2>
+<div class="grid correct" id="correct-buttons"></div>
+
+<h2>❌ Incorrect Sounds (40)</h2>
+<div class="grid incorrect" id="incorrect-buttons"></div>
+
+<div id="phrase-display" class="phrase-display"></div>
+
+<script>
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playToneSequence(steps) {
+  if (ctx.state === 'suspended') {
+    ctx.resume();
+  }
+  let now = ctx.currentTime;
+  steps.forEach(step => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = step.type || 'sine';
+    osc.frequency.setValueAtTime(step.freq, now);
+    gain.gain.setValueAtTime(step.vol || 0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + (step.dur || 0.3));
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + (step.dur || 0.3));
+    now += (step.gap || step.dur || 0.3);
+  });
+}
+
+// Motivational Phrases
+const correctPhrases = [
+  "Stellar work!", "You've got it!", "Absolutely brilliant!", "That's the one!", "Incredible!",
+  "You're a genius!", "Keep it up!", "Outstanding!", "Perfectly done!", "You're on fire!"
+];
+
+const incorrectPhrases = [
+  "That was a great attempt! Let's try another.",
+  "Not this time, but you're getting warmer!",
+  "Every try is a step forward. Keep going!",
+  "Mistakes are proof that you are trying. Don't stop!",
+  "That's not the answer, but I believe in you!",
+  "So close! What's your next idea?",
+  "Don't worry, the best discoveries come after a few tries.",
+  "That's a learning opportunity! Try again.",
+  "Your persistence is inspiring. Let's go again.",
+  "Even experts get it wrong sometimes. You've got this!"
+];
+
+let phraseTimeout;
+
+function showPhrase(type) {
+  const phraseDisplay = document.getElementById('phrase-display');
+  clearTimeout(phraseTimeout); // Clear previous timeout if it exists
+
+  const phrases = type === 'correct' ? correctPhrases : incorrectPhrases;
+  const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+
+  // Display the phrase visually
+  phraseDisplay.textContent = randomPhrase;
+  phraseDisplay.className = 'phrase-display'; // Reset classes
+  
+  if (type === 'correct') {
+    phraseDisplay.classList.add('correct-phrase');
+  } else {
+    phraseDisplay.classList.add('incorrect-phrase');
+  }
+  
+  phraseDisplay.classList.add('show');
+
+  // Use the Web Speech API to speak the phrase
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(randomPhrase);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  // Set a timeout to hide the visual phrase after a couple of seconds
+  phraseTimeout = setTimeout(() => {
+    phraseDisplay.classList.remove('show');
+  }, 2500);
+}
+
+
+// Define 40 correct sounds
+const correctSounds = [
+  {name: "Bright Ding", seq: [{freq:880,dur:0.3}]},
+  {name: "Double Chime", seq: [{freq:660,dur:0.2},{freq:880,dur:0.2}]},
+  {name: "Sparkle Sweep", seq: [{freq:500,dur:0.3},{freq:1500,dur:0.1}]},
+  {name: "Bell Ping", seq: [{freq:784,dur:0.4}]},
+  {name: "Arcade Win", seq: [{freq:880,type:'square',dur:0.15},{freq:1320,type:'square',dur:0.15}]},
+  {name: "Coin Drop", seq: [{freq:1200,type:'sawtooth',dur:0.15},{freq:1800,type:'sawtooth',dur:0.15}]},
+  {name: "Harp Pluck", seq: [{freq:660,dur:0.15},{freq:880,dur:0.15},{freq:990,dur:0.15}]},
+  {name: "Pop Click", seq: [{freq:1000,type:'square',dur:0.05}]},
+  {name: "Magic Twinkle", seq: [{freq:1200,dur:0.1},{freq:2000,dur:0.1}]},
+  {name: "Level Up", seq: [{freq:660,dur:0.15},{freq:880,dur:0.15},{freq:1320,dur:0.15}]},
+  {name: "Rising Arpeggio", seq: [{freq:523, dur:0.1}, {freq:659, dur:0.1}, {freq:784, dur:0.1}, {freq:1046, dur:0.1}]},
+  {name: "Quick Trill", seq: [{freq:988, dur:0.05, gap: 0.05}, {freq:1046, dur:0.05, gap: 0.05}, {freq:988, dur:0.05, gap: 0.05}, {freq:1046, dur:0.05}]},
+  {name: "Fanfare", seq: [{freq:784, dur:0.15}, {freq:1046, dur:0.25}]},
+  {name: "Confirm Beep", seq: [{freq:600, type:'triangle', dur:0.1}, {freq:1200, type:'triangle', dur:0.1, gap: 0.1}]},
+  {name: "Synth Pluck", seq: [{freq:900, type:'sawtooth', vol: 0.3, dur:0.2}]},
+  {name: "Bell Tree", seq: [{freq:2000, dur:0.05}, {freq:2500, dur:0.05, gap:0.1}, {freq:3000, dur:0.05}]},
+  {name: "Scale Up", seq: [{freq:440, dur:0.1}, {freq:550, dur:0.1}, {freq:660, dur:0.1}]},
+  {name: "Shimmer", seq: [{freq:1500, dur:0.4, vol: 0.4}, {freq:1510, dur:0.4, vol:0.4, gap: -0.4}]},
+  {name: "Power Up", seq: [{freq:330, type:'square', dur:0.1}, {freq:440, type:'square', dur:0.1}, {freq:660, type:'square', dur:0.2}]},
+  {name: "Complete Chime", seq: [{freq:1046, dur:0.5}]},
+  {name: "Success Chord", seq: [{freq:523.25, dur:0.4}, {freq:659.25, dur:0.4, gap: -0.4}, {freq:783.99, dur:0.4, gap: -0.4}]},
+  {name: "Laser Zap", seq: [{freq:1500, type:'sawtooth', dur:0.01}, {freq:500, type:'sawtooth', dur:0.1}]},
+  {name: "Soft Bell", seq: [{freq:1046.50, dur:0.5, vol: 0.4}]},
+  {name: "Echo Ping", seq: [{freq:1200, dur:0.1, gap: 0.2}, {freq:1200, dur:0.1, vol: 0.2}]},
+  {name: "Bubble Pop", seq: [{freq:800, type:'triangle', dur:0.05, vol:0.8}]},
+  {name: "Achievement", seq: [{freq:392, dur:0.1}, {freq:523, dur:0.1}, {freq:784, dur:0.2}]},
+  {name: "Positive Chirp", seq: [{freq:2000, type:'sine', dur:0.1}]},
+  {name: "Digital OK", seq: [{freq:880, type:'square', dur:0.15}, {freq:1108, type:'square', dur:0.15}]},
+  {name: "Crystal Clear", seq: [{freq:3000, dur:0.2, vol:0.3}]},
+  {name: "Triumph", seq: [{freq:523.25, type:'sawtooth', dur:0.6}]},
+  {name: "Glimmer", seq: [{freq:2000, dur:0.3}, {freq:2010, dur:0.3, gap: -0.3}]},
+  {name: "Double Pop", seq: [{freq:1000, type:'square', dur:0.05, gap:0.05}, {freq:1200, type:'square', dur:0.05}]},
+  {name: "Ascend", seq: [{freq:440, dur:0.05}, {freq:554, dur:0.05}, {freq:659, dur:0.05}, {freq:880, dur:0.1}]},
+  {name: "Mission Done", seq: [{freq:261, dur:0.15}, {freq:392, dur:0.15}, {freq:523, dur:0.3}]},
+  {name: "Harp Cascade", seq: [{freq:1046, dur:0.1}, {freq:784, dur:0.1}, {freq:659, dur:0.1}, {freq:523, dur:0.1}]},
+  {name: "Victory", seq: [{freq:523, dur:0.1}, {freq:523, dur:0.1, gap:0.1}, {freq:784, dur:0.2}, {freq:659, dur:0.3}]},
+  {name: "Simple OK", seq: [{freq:700, type:'triangle', dur:0.2}]},
+  {name: "Gleam", seq: [{freq:4000, dur:0.05, vol:0.2}]},
+  {name: "Prize Reveal", seq: [{freq:1200, dur:0.1}, {freq:1600, dur:0.1}, {freq:2000, dur:0.2}]},
+  {name: "Final Ding", seq: [{freq:1046.50, dur:0.4}]}
+];
+
+// Define 40 incorrect sounds
+const incorrectSounds = [
+  {name: "Buzzer", seq: [{freq:200,type:'square',dur:0.5}]},
+  {name: "Double Buzz", seq: [{freq:200,type:'square',dur:0.2},{freq:200,type:'square',dur:0.2}]},
+  {name: "Descending Wah", seq: [{freq:600,dur:0.2},{freq:200,dur:0.3}]},
+  {name: "Flat Fail", seq: [{freq:150,dur:0.4}]},
+  {name: "Error Beep", seq: [{freq:400,type:'sawtooth',dur:0.3}]},
+  {name: "Glitch Zap", seq: [{freq:1000,type:'square',dur:0.05},{freq:300,type:'square',dur:0.05}]},
+  {name: "Sad Trombone", seq: [{freq:400,dur:0.2},{freq:300,dur:0.2},{freq:200,dur:0.3}]},
+  {name: "Reject Click", seq: [{freq:100,type:'square',dur:0.05}]},
+  {name: "Alarm Chirp", seq: [{freq:500,dur:0.2},{freq:500,dur:0.2}]},
+  {name: "Drop Off", seq: [{freq:800,dur:0.2},{freq:100,dur:0.3}]},
+  {name: "Wobble", seq: [{freq:300, dur:0.4}, {freq:290, dur:0.4, gap: -0.4}]},
+  {name: "Downward Slide", seq: [{freq:500, type:'sawtooth', dur:0.05}, {freq:400, type:'sawtooth', dur:0.05}, {freq:300, type:'sawtooth', dur:0.05}, {freq:200, type:'sawtooth', dur:0.2}]},
+  {name: "Detuned Chord", seq: [{freq:220, dur:0.5}, {freq:225, dur:0.5, gap: -0.5}]},
+  {name: "Muted Thud", seq: [{freq:100, type:'triangle', dur:0.2, vol: 0.8}]},
+  {name: "Static Burst", seq: [{freq:1800, type:'sawtooth', dur:0.05}, {freq:1900, type:'sawtooth', dur:0.05, gap: -0.05}, {freq:1700, type:'sawtooth', dur:0.05, gap: -0.05}]},
+  {name: "Game Over", seq: [{freq:330, dur:0.2}, {freq:220, dur:0.2}, {freq:110, dur:0.3}]},
+  {name: "Clank", seq: [{freq:800, type:'square', dur:0.1}, {freq:810, type:'square', dur:0.1, gap: -0.1}]},
+  {name: "Wrong Synth", seq: [{freq:155, type:'sawtooth', dur:0.4}]},
+  {name: "Fail Arpeggio", seq: [{freq:523, dur:0.1}, {freq:392, dur:0.1}, {freq:261, dur:0.2}]},
+  {name: "Rattle", seq: [{freq:900, type:'square', dur:0.02, gap:0.02}, {freq:900, type:'square', dur:0.02, gap:0.02}, {freq:900, type:'square', dur:0.02}]},
+  {name: "Wrong Chord", seq: [{freq:261.63, dur:0.5}, {freq:311.13, dur:0.5, gap:-0.5}, {freq:369.99, dur:0.5, gap:-0.5}]},
+  {name: "System Error", seq: [{freq:110, type:'square', dur:0.6}]},
+  {name: "Mechanical Fail", seq: [{freq:250, type:'sawtooth', dur:0.2}, {freq:240, type:'sawtooth', dur:0.2, gap:-0.2}]},
+  {name: "Short Circuit", seq: [{freq:1800, type:'square', dur:0.02}, {freq:1850, type:'square', dur:0.02, gap:-0.02}]},
+  {name: "Deflated", seq: [{freq:500, dur:0.1}, {freq:400, dur:0.1}, {freq:300, dur:0.1}, {freq:200, dur:0.2}]},
+  {name: "Denied", seq: [{freq:220, dur:0.2, gap:0.1}, {freq:220, dur:0.2}]},
+  {name: "Alert Beep", seq: [{freq:1000, type:'sawtooth', dur:0.1, gap:0.1}, {freq:1000, type:'sawtooth', dur:0.1}]},
+  {name: "Low Drone", seq: [{freq:80, dur:0.8}]},
+  {name: "Scrape", seq: [{freq:600, type:'sawtooth', dur:0.3}, {freq:610, type:'sawtooth', dur:0.3, gap:-0.3}]},
+  {name: "Bonk", seq: [{freq:150, type:'triangle', dur:0.15, vol:0.9}]},
+  {name: "Glitchy Signal", seq: [{freq:800, type:'square', dur:0.03}, {freq:400, type:'square', dur:0.03}, {freq:1200, type:'square', dur:0.03}]},
+  {name: "Sad Beep", seq: [{freq:440, dur:0.3}, {freq:415, dur:0.3, gap:-0.3}]},
+  {name: "Error Chord", seq: [{freq:440, dur:0.4}, {freq:466, dur:0.4, gap:-0.4}]},
+  {name: "System Halt", seq: [{freq:100, type:'sawtooth', dur:0.6}]},
+  {name: "Warning Siren", seq: [{freq:800, dur:0.2, gap:0.1}, {freq:700, dur:0.2}]},
+  {name: "Interference", seq: [{freq:2500, type:'square', dur:0.2, vol:0.2}, {freq:2550, type:'square', dur:0.2, vol:0.2, gap:-0.2}]},
+  {name: "Shutdown", seq: [{freq:400, type:'square', dur:0.1}, {freq:300, type:'square', dur:0.1}, {freq:200, type:'square', dur:0.2}]},
+  {name: "Muted Error", seq: [{freq:120, dur:0.2}]},
+  {name: "Dissonant Ring", seq: [{freq:1000, dur:0.4}, {freq:1015, dur:0.4, gap:-0.4}]},
+  {name: "Final Buzz", seq: [{freq:120, type:'square', dur:0.5}]}
+];
+
+// Render buttons
+function renderButtons(containerId, sounds) {
+  const container = document.getElementById(containerId);
+  const type = containerId.includes('correct') ? 'correct' : 'incorrect';
+  sounds.forEach(sound => {
+    const btn = document.createElement('button');
+    btn.textContent = sound.name;
+    btn.onclick = () => {
+      playToneSequence(sound.seq);
+      showPhrase(type);
+    };
+    container.appendChild(btn);
+  });
+}
+
+renderButtons('correct-buttons', correctSounds);
+renderButtons('incorrect-buttons', incorrectSounds);
+</script>
+
+</body>
+</html>
