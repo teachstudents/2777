@@ -1,0 +1,2049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Listening Database</title>
+    
+    <!-- Microsoft Azure Speech SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@latest/dist/microsoft.cognitiveservices.speech.sdk.bundle.js"></script>
+
+    <style>
+        :root {
+            --primary: #005a9e;
+            --bg: #f3f2f1;
+            --paper: #ffffff;
+            --text: #201f1e;
+            --active-tab: #004578;
+            --border: #edebe9;
+            --correct-bg: #dff6dd;
+            --correct-border: #107c10;
+            --incorrect-bg: #fde7e9;
+            --incorrect-border: #a80000;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 5px;
+            font-size: 14px;
+            line-height: 1.3;
+        }
+
+        .container {
+            max-width: 980px; 
+            margin: 0 auto;
+            background: var(--paper);
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            min-height: 95vh;
+        }
+
+        /* Header & Controls */
+        .header-controls {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+            background: #fff;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            border-bottom: 2px solid var(--border);
+            align-items: center;
+            padding-bottom: 10px;
+        }
+
+        .header-title {
+            margin-right: auto;
+        }
+
+        button, select {
+            padding: 6px 10px;
+            border: 1px solid #8a8886;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            background: #fff;
+            color: var(--text);
+            transition: background-color 0.2s;
+        }
+
+        button.primary-btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            font-weight: 600;
+        }
+
+        button.primary-btn:hover {
+            background: var(--active-tab);
+        }
+
+        button.check-btn {
+            background: #107c10;
+            color: #fff;
+            border: none;
+            font-weight: bold;
+        }
+
+        button.check-btn:hover {
+            background: #0b5a0b;
+        }
+
+        /* Main Layout Grid */
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .layout-grid.show-transcript {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        @media (max-width: 768px) {
+            .layout-grid.show-transcript {
+                grid-template-columns: 1fr; 
+            }
+        }
+
+        /* Questions Panel */
+        .questions-panel {
+            padding-right: 5px;
+        }
+
+        .question-block {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .question-text {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+
+        .option-label {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--bg);
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+            font-size: 14px;
+        }
+
+        .option-label:hover {
+            background: #e1dfdd;
+        }
+
+        .option-label input[type="radio"] {
+            margin-right: 10px;
+            transform: scale(1.1);
+            cursor: pointer;
+        }
+
+        .option-label.correct {
+            background-color: var(--correct-bg) !important;
+            border-color: var(--correct-border) !important;
+            color: #054b05;
+            font-weight: bold;
+        }
+
+        .option-label.incorrect {
+            background-color: var(--incorrect-bg) !important;
+            border-color: var(--incorrect-border) !important;
+            color: #790000;
+        }
+
+        .feedback-box {
+            display: none;
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: #e1f0fe;
+            border-left: 4px solid var(--primary);
+            font-size: 13px;
+            border-radius: 0 4px 4px 0;
+            color: var(--text);
+        }
+
+        .feedback-box.show {
+            display: block;
+        }
+
+        /* Transcript Panel */
+        .transcript-panel {
+            display: none;
+            background: #faf9f8;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            height: fit-content;
+            position: sticky;
+            top: 60px;
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+
+        .script-line {
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .audio-status {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .playing-indicator {
+            display: none;
+            width: 8px;
+            height: 8px;
+            background-color: #d13438;
+            border-radius: 50%;
+            animation: pulse 1s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1.2); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-controls">
+        <div class="header-title"></div>
+        
+        <select id="testSelector" onchange="loadTest(this.value)">
+            <option value="0">Test 1: S15 Papers 31 & 41 (Ex 1)</option>
+            <option value="1">Test 2: S15 Papers 32 & 42 (Ex 1)</option>
+            <option value="2">Test 3: S15 Papers 33 & 43 (Ex 1)</option>
+            <option value="3">Test 4: S16 Papers 31 & 41 (Ex 1)</option>
+            <option value="4">Test 5: S16 Papers 32 & 42 (Ex 1)</option>
+            <option value="5">Test 6: S16 Papers 33 & 43 (Ex 1)</option>
+            <option value="6">Test 7: S17 Papers 31 & 41 (Ex 1)</option>
+            <option value="7">Test 8: S17 Papers 32 & 42 (Ex 1)</option>
+            <option value="8">Test 9: S17 Papers 33 & 43 (Ex 1)</option>
+            <option value="9">Test 10: S18 Papers 31 & 41 (Ex 1)</option>
+            <option value="10">Test 11: S18 Papers 32 & 42 (Ex 1)</option>
+            <option value="11">Test 12: S18 Papers 33 & 43 (Ex 1)</option>
+            <option value="12">Test 13: S19 Papers 31 & 41 (Ex 1)</option>
+            <option value="13">Test 14: S19 Papers 32 & 42 (Ex 1)</option>
+            <option value="14">Test 15: S19 Papers 33 & 43 (Ex 1)</option>
+            <option value="15">Test 16: S19 Papers 31 & 41 (Ex 4)</option>
+            <option value="16">Test 17: S19 Papers 32 & 42 (Ex 4)</option>
+            <option value="17">Test 18: S19 Papers 33 & 43 (Ex 4)</option>
+            <option value="18">Test 19: S20 Papers 31 & 41 (Ex 1)</option>
+            <option value="19">Test 20: S20 Papers 32 & 42 (Ex 1)</option>
+            <option value="20">Test 21: S20 Papers 33 & 43 (Ex 1)</option>
+            <option value="21">Test 22: S21 Papers 31 & 41 (Ex 1)</option>
+            <option value="22">Test 23: S21 Papers 32 & 42 (Ex 1)</option>
+            <option value="23">Test 24: S21 Papers 33 & 43 (Ex 1)</option>
+            <option value="24">Test 25: S22 Papers 31 & 41 (Ex 1)</option>
+            <option value="25">Test 26: S22 Papers 32 & 42 (Ex 1)</option>
+            <option value="26">Test 27: S22 Papers 33 & 43 (Ex 1)</option>
+        </select>
+
+        <button class="primary-btn" id="playBtn" onclick="toggleAudio()">▶</button>
+        
+        <div class="audio-status">
+            <div class="playing-indicator" id="playingIndicator"></div>
+            <span id="audioStatusText"></span>
+        </div>
+
+        <button onclick="toggleTranscript()" style="margin-left: auto;">📄</button>
+        <button onclick="checkAnswers()" class="check-btn">✔</button>
+    </div>
+
+    <div class="layout-grid" id="layoutGrid">
+        <div class="questions-panel" id="questionsContainer">
+            <!-- Questions rendered here via JS -->
+        </div>
+
+        <div class="transcript-panel" id="transcriptContainer">
+            <div id="transcriptContent">
+                <!-- Transcript rendered here via JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const listeningBank = [
+        // TEST 1: Based on 0511_s15_ms_31 & 0511_s15_ms_41
+        [
+            {
+                stem: "Why will the train have to stop?",
+                options: ["Bad weather", "Cows on the line", "A broken signal", "Driver illness"],
+                correctIndex: 1,
+                explanation: "Just like when your school bus is delayed by something totally unexpected, these passengers are stuck because of cows! The announcer clearly states 'cows on the line' as the problem.",
+                dialogue: [
+                    { speaker: "William", text: "Attention all passengers waiting for the 10:15 train to London. We regret to inform you that there is a delay." },
+                    { speaker: "Emma", text: "Oh no, is it the bad weather again?" },
+                    { speaker: "William", text: "No, apparently there are some cows on the line up ahead. It's a small problem, but they need to be moved safely." }
+                ]
+            },
+            {
+                stem: "How will the passengers complete their journey?",
+                options: ["By taxi", "On the next train", "By bus", "Walking"],
+                correctIndex: 2,
+                explanation: "Always listen to the final instruction. Because of the cows, a replacement service has been arranged and they have to finish the trip by bus.",
+                dialogue: [
+                    { speaker: "Emma", text: "So how are we going to get there? We have tickets for a show." },
+                    { speaker: "William", text: "A replacement service has been arranged for everyone. You will continue your journey by bus. Please wait outside the station." }
+                ]
+            },
+            {
+                stem: "Why will everyone have a day off next week?",
+                options: ["The King's 70th birthday", "Independence Day", "A royal wedding", "New Year"],
+                correctIndex: 0,
+                explanation: "Secondary students love a day off! Instead of a regular school break, they get a public holiday specifically to celebrate the King's 70th birthday.",
+                dialogue: [
+                    { speaker: "Ava", text: "Did you hear the news? We are getting an extra day off school next month!" },
+                    { speaker: "Brian", text: "Really? Is it for the royal wedding?" },
+                    { speaker: "Ava", text: "No, they just announced it's going to be a public holiday to celebrate the King's 70th birthday." }
+                ]
+            },
+            {
+                stem: "In which month will the public holiday take place?",
+                options: ["May", "June", "July", "August"],
+                correctIndex: 1,
+                explanation: "The boy asks exactly when the holiday is, and the girl confirms it will take place in June.",
+                dialogue: [
+                    { speaker: "Brian", text: "That's great. When exactly is it?" },
+                    { speaker: "Ava", text: "It's going to be in June. I can't wait." }
+                ]
+            },
+            {
+                stem: "Where does the artist get her inspiration for her puppet characters?",
+                options: ["From story-books", "From soap operas", "From people in the street", "From other artists"],
+                correctIndex: 2,
+                explanation: "She used to use story-books (distractor), and friends suggested soap operas (distractor), but she explicitly states she gets ideas unexpectedly by walking down the street or past a market stall.",
+                dialogue: [
+                    { speaker: "Andrew", text: "I've seen your website and there seems to be no end to the variety of characters you create. Where do you get your inspiration from?" },
+                    { speaker: "Vivienne", text: "Well, I used to re-read the story-books I enjoyed as a child, because some of those characters were so clear in my mind. But now I don't rely on books any more." },
+                    { speaker: "Vivienne", text: "Some of my friends suggested using TV characters from soap operas, but I didn't find them very inspirational. I get ideas from all sorts of places. I might, for example, walk down the street or past a market stall and quite unexpectedly see someone who catches my attention." }
+                ]
+            }
+        ],
+        // TEST 2: Based on 0511_s15_ms_32 & 0511_s15_ms_42
+        [
+            {
+                stem: "What does Rakesh like best about his new bike?",
+                options: ["Special tyres", "A new chain", "A comfortable seat", "A helmet"],
+                correctIndex: 0,
+                explanation: "Just like prepping for a big sports match at school, he needs the right gear. He rejects the chain and helmet options and specifically states he needs special tyres for the mud.",
+                dialogue: [
+                    { speaker: "Florian", text: "I'm taking my mountain bike to the forest trail this weekend, but I need to get some new gear for it." },
+                    { speaker: "Seraphina", text: "Do you need a new chain or a better helmet?" },
+                    { speaker: "Florian", text: "No, those are fine. The trail is really muddy, so I absolutely need to buy some special tyres to get enough grip." }
+                ]
+            },
+            {
+                stem: "What is the main disadvantage of the new items?",
+                options: ["They are expensive", "They are difficult to fit", "They are heavy", "They are ugly"],
+                correctIndex: 2,
+                explanation: "While they might be expensive, the boy specifically complains that they are heavy, making the cycling harder work.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "Good idea. Aren't they quite expensive?" },
+                    { speaker: "Florian", text: "Yes, they are. But the main problem is that they are really heavy. It makes cycling up hills much harder work." }
+                ]
+            },
+            {
+                stem: "What attracts the woman's family most about New Zealand?",
+                options: ["The historical buildings", "The beautiful scenery", "The local food", "The friendly people"],
+                correctIndex: 1,
+                explanation: "She mentions the historical buildings, but says what really amazed her was the beautiful scenery.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Welcome back! How was your trip to Scotland? Did you like the historical buildings?" },
+                    { speaker: "Emma", text: "They were okay, but what really amazed me was the beautiful scenery. The mountains and lakes were just breathtaking." }
+                ]
+            },
+            {
+                stem: "Why is Marian staying in England rather than going back next summer?",
+                options: ["Because of her new job", "Because of her studies", "Because it is too expensive", "Because her family is moving"],
+                correctIndex: 0,
+                explanation: "When you leave secondary school and start working, free time disappears! She can't go back because her new job (work) keeps her too busy.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Are you planning to go back?" },
+                    { speaker: "Emma", text: "I'd love to, maybe next summer if I can get some time off from my new job. But the work keeps me so busy right now, I don't think I can go." }
+                ]
+            },
+            {
+                stem: "Heather's proudest moment was when",
+                options: ["she won a presenter's award.", "she met celebrities.", "her first book was published.", "she got a full time contract."],
+                correctIndex: 3,
+                explanation: "She lists several great things, but explicitly says that 'being offered a full-time contract has been the high point of my career so far.'",
+                dialogue: [
+                    { speaker: "Remy", text: "So, Heather, what would you say was your proudest moment as a presenter?" },
+                    { speaker: "Ava", text: "Well... I was really surprised when I won the prize for Young Presenter of the Year. And my family were delighted. Last year I finished my first novel and I'm hoping to find a publisher." },
+                    { speaker: "Ava", text: "But looking back, it sounds really dull, but being offered a full-time contract has been the high point of my career so far." }
+                ]
+            }
+        ],
+        // TEST 3: Based on 0511_s15_ms_33 & 0511_s15_ms_43
+        [
+            {
+                stem: "Who is the girl going to meet at the airport?",
+                options: ["Her best friend", "Her teacher", "Her family", "Her tennis coach"],
+                correctIndex: 2,
+                explanation: "She explicitly states she is going to the airport to pick up her family.",
+                dialogue: [
+                    { speaker: "Andrew", text: "Are you going straight home after school today?" },
+                    { speaker: "Vivienne", text: "No, I have to go to the airport. I'm so excited, I'm picking up my family. They've been away for two weeks." }
+                ]
+            },
+            {
+                stem: "What time is the flight arriving?",
+                options: ["9:30 pm", "10:00 pm", "10:20 pm", "11:00 pm"],
+                correctIndex: 2,
+                explanation: "The flight was delayed from 9:30, and the new landing time is exactly ten twenty (10:20 pm).",
+                dialogue: [
+                    { speaker: "Andrew", text: "That's nice. What time does their flight arrive?" },
+                    { speaker: "Vivienne", text: "It was supposed to be 9:30 pm, but it's been delayed. It's now landing at ten twenty this evening." }
+                ]
+            },
+            {
+                stem: "Which exhibition do they decide to visit at the museum?",
+                options: ["The dinosaur skeletons", "The science exhibition", "The local history gallery", "The space exhibit"],
+                correctIndex: 1,
+                explanation: "They skip the dinosaurs because they've seen them before, and decide to go to the science exhibition to help with their physics project.",
+                dialogue: [
+                    { speaker: "Brian", text: "Here we are at the museum. The dinosaur skeletons are over there, should we start with those?" },
+                    { speaker: "Emma", text: "I saw them last time. Let's head to the new science exhibition first. I need to get some notes for our physics project." }
+                ]
+            },
+            {
+                stem: "How loud are the airplanes outside the earth huts?",
+                options: ["17 decibels", "70 decibels", "87 decibels", "90 decibels"],
+                correctIndex: 2,
+                explanation: "87 decibels is almost as loud as the school cafeteria during lunch break! The boy explicitly mentions this number when talking about the noise level outside.",
+                dialogue: [
+                    { speaker: "Emma", text: "Apparently at one school where they've built the earth huts, planes fly only 180 metres overhead, and every 90 seconds - that must be so loud." },
+                    { speaker: "Brian", text: "It is - I read that the sound level is up to 87 decibels - that's pretty noisy!" },
+                    { speaker: "Emma", text: "But since the earth huts have been built, children can use them so their exposure to the noise is reduced. The level of the noise is about 17 decibels lower when you're inside the hut." }
+                ]
+            },
+            {
+                stem: "What strategy is the airport using to control noise problems?",
+                options: ["Building more earth huts", "Changing flight paths", "Banning noisy airplanes", "Using a 'fly quiet table'"],
+                correctIndex: 3,
+                explanation: "The airport uses a 'fly quiet table' to rank airlines. It's basically a league table for noise, just like a sports leaderboard at school.",
+                dialogue: [
+                    { speaker: "Brian", text: "I'd hate to live so close to an airport. But I read that there's a lot of pressure on the airport to try to control the noise problems." },
+                    { speaker: "Brian", text: "One strategy they're using is what they call a 'fly quiet table', which is basically a way of ranking airlines in terms of the amount of noise that they create." },
+                    { speaker: "Emma", text: "Well, let's hope that works!" }
+                ]
+            }
+        ],
+        // TEST 4: Based on 0511_s16_ms_31 & 0511_s16_ms_41
+        [
+            {
+                stem: "What is the name of the book that the man recommends?",
+                options: ["The Dark", "Star Ship", "Under the Moon", "The Sun"],
+                correctIndex: 2,
+                explanation: "Just like when your classmates recommend a novel for your English literature project, the boy gives a specific title. He mentions 'The Dark', but strongly recommends 'Under the Moon' which he finished last week.",
+                dialogue: [
+                    { speaker: "Emma", text: "I need another book to read. What are you reading at the moment?" },
+                    { speaker: "Brian", text: "I've just started a really good thriller called 'The Dark'. You can borrow it after me. Or you might like 'Under the Moon'. I finished that last week. It's brilliant." },
+                    { speaker: "Emma", text: "Thanks! I've just finished a science fiction novel called 'Star Ship', so I need a change from that." }
+                ]
+            },
+            {
+                stem: "What did the family get to use for free at their holiday accommodation?",
+                options: ["The windmill", "A car", "Mountain bikes", "A sailing boat"],
+                correctIndex: 2,
+                explanation: "Imagine going on a school residential trip and finding out the outdoor activities are completely free! The owner let them use his mountain bikes without any charge.",
+                dialogue: [
+                    { speaker: "Andrew", text: "How was your holiday in the windmill?" },
+                    { speaker: "Vivienne", text: "It was really great! And the best part was the owner let us use his mountain bikes without any charge. Usually you have to pay quite a bit to rent them." }
+                ]
+            },
+            {
+                stem: "Where is the woman going to put the mirror she bought?",
+                options: ["In the hallway", "In the bedroom", "In the bathroom", "In the living room"],
+                correctIndex: 2,
+                explanation: "When redecorating your bedroom, you might change your mind multiple times. She thought about the hallway and bedroom but ultimately chose the bathroom.",
+                dialogue: [
+                    { speaker: "Ava", text: "Look at this lovely mirror I got at the market today." },
+                    { speaker: "William", text: "It's nice. Are you putting it in the hallway?" },
+                    { speaker: "Ava", text: "I thought about putting it in the bedroom, but actually it'll look perfect in the bathroom." }
+                ]
+            },
+            {
+                stem: "Who did the man buy his new car from?",
+                options: ["A local garage", "A car dealer", "A teacher", "A farmer"],
+                correctIndex: 3,
+                explanation: "Secondary students sometimes buy second-hand items from people in the community to save money. He bought his car from a farmer in the next village.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "Is that your new car? Did you get it from the local garage?" },
+                    { speaker: "Florian", text: "No, a farmer in the next village was selling it. It's great, but I'm not too keen on its colour." }
+                ]
+            },
+            {
+                stem: "What course is the girl planning to study at college?",
+                options: ["Business", "Photography", "Professional cookery", "IT"],
+                correctIndex: 2,
+                explanation: "Making choices about college is stressful! She considered business, but she decided to follow her passion and applied for professional cookery.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Have you decided what to study next year at college?" },
+                    { speaker: "Emma", text: "Well, I considered business, but I've finally decided to apply for professional cookery. I absolutely love making food." }
+                ]
+            }
+        ],
+        // TEST 5: Based on 0511_s16_ms_32 & 0511_s16_ms_42
+        [
+            {
+                stem: "Which street is the new bookshop on?",
+                options: ["High Street", "River Lane", "Station Road", "Market Square"],
+                correctIndex: 1,
+                explanation: "Like finding a shortcut to the school cafeteria, the new bookshop is just around the corner on River Lane, not the High Street.",
+                dialogue: [
+                    { speaker: "Brian", text: "Did you know a new bookshop has opened in town?" },
+                    { speaker: "Emma", text: "Oh, is it on the High Street?" },
+                    { speaker: "Brian", text: "No, it's actually just around the corner on River Lane. And they're giving away free calendars to their first customers." }
+                ]
+            },
+            {
+                stem: "Which film do the friends decide to go and see?",
+                options: ["The new comedy", "Coming Home", "Star Wars", "A documentary"],
+                correctIndex: 1,
+                explanation: "When organizing a weekend movie trip with your classmates, you have to compromise. They decide against the comedy and choose the drama 'Coming Home'.",
+                dialogue: [
+                    { speaker: "Ava", text: "Do you want to go to the cinema on the 12th of December? There's a new comedy out." },
+                    { speaker: "William", text: "I'd rather see that new drama, 'Coming Home'." },
+                    { speaker: "Ava", text: "Okay, let's watch that one. I'll book the tickets." }
+                ]
+            },
+            {
+                stem: "What did the boy feel he lacked during the sports match?",
+                options: ["Speed", "Skill", "Energy", "Luck"],
+                correctIndex: 2,
+                explanation: "After a grueling PE lesson or after-school match, you often feel completely drained. The boy specifically says he had no 'energy'.",
+                dialogue: [
+                    { speaker: "Andrew", text: "That was a tough match. I felt like I had absolutely no energy today." },
+                    { speaker: "Vivienne", text: "You played well though! Let's go and get a drink in the cafe to recover." }
+                ]
+            },
+            {
+                stem: "What item did the girl lose in the water?",
+                options: ["Her phone", "Her sunglasses", "Her new camera", "Her hat"],
+                correctIndex: 2,
+                explanation: "A nightmare for any student on a field trip! Leaning over the side of the boat caused her new camera to fall straight into the water.",
+                dialogue: [
+                    { speaker: "Remy", text: "How was your sailing trip?" },
+                    { speaker: "Seraphina", text: "It was fun, but I leaned over the side and my new camera fell straight into the water! At least I didn't drop my phone." }
+                ]
+            },
+            {
+                stem: "Which animal did the speakers spend the most time watching at the living museum?",
+                options: ["The seals", "The polar bears", "The dolphins", "The penguins"],
+                correctIndex: 3,
+                explanation: "They saw a few different animals at the living museum, but they couldn't take their eyes off the penguins.",
+                dialogue: [
+                    { speaker: "Florian", text: "The living museum was great. We saw so many animals." },
+                    { speaker: "Emma", text: "Yes, the seals were really active, but we couldn't stop watching the penguins. We stood there for hours." }
+                ]
+            }
+        ],
+        // TEST 6: Based on 0511_s16_ms_33 & 0511_s16_ms_43
+        [
+            {
+                stem: "What time will the passenger's flight depart?",
+                options: ["8:40 pm", "9:40 pm", "10:00 pm", "7:40 pm"],
+                correctIndex: 1,
+                explanation: "Flight delays are frustrating, just like when the school bus is late. The new time is clearly stated as 21:40, which translates to 9:40 pm.",
+                dialogue: [
+                    { speaker: "William", text: "Attention passengers. The 20:40 flight to New York has been delayed. The new departure time is 21:40, which is twenty to ten in the evening. We apologise for the limited information provided earlier." }
+                ]
+            },
+            {
+                stem: "Why couldn't the girl attend the party?",
+                options: ["She was away on holiday", "She had to work", "She was ill", "She forgot about it"],
+                correctIndex: 2,
+                explanation: "FOMO (Fear Of Missing Out) happens when you can't attend a classmate's party because you are ill. She was sick, but is feeling better now.",
+                dialogue: [
+                    { speaker: "Brian", text: "I missed you at the party on Saturday! Were you away?" },
+                    { speaker: "Ava", text: "No, unfortunately I was ill. But I'm feeling much better now. Let's meet at the Italian restaurant for lunch." }
+                ]
+            },
+            {
+                stem: "When must the science project be handed in?",
+                options: ["Next Monday", "4pm Friday", "5pm Thursday", "Next Tuesday"],
+                correctIndex: 1,
+                explanation: "Deadlines change in school all the time! The teacher brought it forward, meaning they now have to hand it in by 4pm on Friday.",
+                dialogue: [
+                    { speaker: "Andrew", text: "Have we got until next Monday to finish the science project?" },
+                    { speaker: "Vivienne", text: "Actually, the teacher changed the deadline. It's now 4pm this Friday. Oh, and don't forget we need to wear rubber gloves for the experiment." }
+                ]
+            },
+            {
+                stem: "Why does the man have to take a book out of the parcel?",
+                options: ["It's too big", "It's too heavy", "The box is broken", "It has prohibited items"],
+                correctIndex: 1,
+                explanation: "Just like when your school backpack is over the weight limit for a flight. The parcel is too heavy for the cheaper postal rate.",
+                dialogue: [
+                    { speaker: "Florian", text: "I'd like to post this parcel to Australia." },
+                    { speaker: "Seraphina", text: "Let me weigh it... I'm afraid it's too heavy for the standard rate. It'll cost £30." },
+                    { speaker: "Florian", text: "That's a lot! I'll take a book out so it weighs less. How much is it now?" }
+                ]
+            },
+            {
+                stem: "How much will it cost to send the parcel now?",
+                options: ["£12.50", "£16.80", "£25.00", "£30.00"],
+                correctIndex: 1,
+                explanation: "After removing the heavy book to lower the weight, the new, cheaper price for the parcel is calculated as £16.80.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "Okay, let me weigh it again without that heavy book. That's much better." },
+                    { speaker: "Florian", text: "Great. So what is the total price now?" },
+                    { speaker: "Seraphina", text: "That will be £16.80." }
+                ]
+            }
+        ],
+        // TEST 7: Based on 0511_s17_ms_31 & 0511_s17_ms_41
+        [
+            {
+                stem: "What type of gym membership does the man decide to buy?",
+                options: ["Bronze", "Silver", "Gold", "Platinum"],
+                correctIndex: 2,
+                explanation: "Just like when trying out a new club at school, there are different tiers. He decides that the gold membership is the best option.",
+                dialogue: [
+                    { speaker: "Emma", text: "Are you joining the new sports centre?" },
+                    { speaker: "William", text: "Yes, they have different levels. Bronze is too basic. I thought about Silver, but the gold membership gives you access to the pool." },
+                    { speaker: "Emma", text: "What about Platinum?" },
+                    { speaker: "William", text: "Too expensive. Gold is definitely the best option for me." }
+                ]
+            },
+            {
+                stem: "When is the man's first induction session?",
+                options: ["Friday evening", "Saturday at 9 am", "Saturday at 11 am", "Sunday morning"],
+                correctIndex: 2,
+                explanation: "He wants to sleep in, so he avoids 9 am and chooses Saturday at 11 am.",
+                dialogue: [
+                    { speaker: "Emma", text: "When do you start?" },
+                    { speaker: "William", text: "I wanted Friday evening, but they were full. They offered Saturday at 9 am, but I like to sleep in. So I booked Saturday at 11 am instead." }
+                ]
+            },
+            {
+                stem: "Why can't the friends go to the concert tonight?",
+                options: ["The band cancelled", "It is sold out", "They have a party", "They missed the bus"],
+                correctIndex: 1,
+                explanation: "Secondary students often wait too long to buy tickets! The girl explicitly states that the concert is completely sold out.",
+                dialogue: [
+                    { speaker: "Brian", text: "Are we still going to the rock concert tonight?" },
+                    { speaker: "Ava", text: "I tried to get tickets online, but it's completely sold out. We left it too late." },
+                    { speaker: "Brian", text: "That's a shame. What should we do instead?" },
+                    { speaker: "Ava", text: "Well, my sister has invited us to a party at her house. Let's do that!" }
+                ]
+            },
+            {
+                stem: "What is the local name for the bird they saw?",
+                options: ["Puffin", "Sea parrot", "Ocean pigeon", "Water eagle"],
+                correctIndex: 1,
+                explanation: "While the bird is a puffin, the guide mentioned the locals call it a 'sea parrot'.",
+                dialogue: [
+                    { speaker: "Andrew", text: "Look at that bird on the cliff! Is it a puffin?" },
+                    { speaker: "Vivienne", text: "Actually, the guide told us the locals call it a sea parrot because of its colourful beak. We need to find some photographs of it for our biology project." }
+                ]
+            },
+            {
+                stem: "What was the historic building originally used as?",
+                options: ["A hospital", "A school", "A prison", "A castle"],
+                correctIndex: 2,
+                explanation: "Before becoming a museum in 2007, the building was a prison in the 19th century.",
+                dialogue: [
+                    { speaker: "Florian", text: "This is a fascinating building. Was it a hospital?" },
+                    { speaker: "Seraphina", text: "No, long before it became a museum in 2007, it was actually built as a prison in the 19th century." }
+                ]
+            }
+        ],
+        // TEST 8: Based on 0511_s17_ms_32 & 0511_s17_ms_42
+        [
+            {
+                stem: "Which types of food are they going to eat?",
+                options: ["Italian and Mexican", "Indian and Chinese", "Thai and Japanese", "French and Indian"],
+                correctIndex: 1,
+                explanation: "They reject Italian and agree to get Indian and Chinese food.",
+                dialogue: [
+                    { speaker: "Ava", text: "Are we having Italian food for dinner?" },
+                    { speaker: "William", text: "We had that last week. I was thinking we could go to the food court. They have a great place that serves Indian and Chinese dishes." },
+                    { speaker: "Ava", text: "Sounds good. Let's meet by the cinema." }
+                ]
+            },
+            {
+                stem: "Where will the friends meet?",
+                options: ["By the fountain", "By the restaurant", "By the cinema", "At the bus stop"],
+                correctIndex: 2,
+                explanation: "The girl suggests meeting by the cinema.",
+                dialogue: [
+                    { speaker: "Ava", text: "I'll see you there. Make sure you don't wait by the restaurant, it gets too crowded. Just stand by the cinema." },
+                    { speaker: "William", text: "Got it. See you by the cinema!" }
+                ]
+            },
+            {
+                stem: "What is the main attraction at the transport museum?",
+                options: ["A modern bus", "An old airplane", "A steam train", "A sports car"],
+                correctIndex: 2,
+                explanation: "The woman confirms the steam train is the main attraction.",
+                dialogue: [
+                    { speaker: "Brian", text: "We're visiting the transport museum tomorrow. I hear the old airplanes are interesting." },
+                    { speaker: "Emma", text: "Yes, but the main attraction everyone talks about is the working steam train. They also have an amazing collection of uniforms from old railway workers." }
+                ]
+            },
+            {
+                stem: "Which hiking route do they choose?",
+                options: ["The Mountain Trail", "The Forest Path", "The Ocean Walk", "The Valley Route"],
+                correctIndex: 2,
+                explanation: "The boy prefers the Ocean Walk because it leads to a waterfall.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "Which path should we take? The Forest Path looks shady." },
+                    { speaker: "Florian", text: "I prefer the Ocean Walk. It has better views of the coast, and it leads straight to a nearby waterfall which is supposed to be beautiful." }
+                ]
+            },
+            {
+                stem: "What did the boy like most about the film?",
+                options: ["The special effects", "The acting", "The soundtrack", "The story"],
+                correctIndex: 1,
+                explanation: "He thought the special effects were just okay, but the acting was incredible.",
+                dialogue: [
+                    { speaker: "Andrew", text: "That film was amazing. The special effects were okay, but the acting was absolutely incredible." },
+                    { speaker: "Vivienne", text: "Really? I usually prefer comedies, but you know I love thrillers!" }
+                ]
+            }
+        ],
+        // TEST 9: Based on 0511_s17_ms_33 & 0511_s17_ms_43
+        [
+            {
+                stem: "On which day is the music competition?",
+                options: ["Tuesday", "Wednesday", "Thursday", "Friday"],
+                correctIndex: 2,
+                explanation: "The competition was moved from Wednesday to Thursday.",
+                dialogue: [
+                    { speaker: "William", text: "Is the school music competition on Wednesday?" },
+                    { speaker: "Emma", text: "It was moved. It's now going to be on a Thursday evening. Are you ready?" },
+                    { speaker: "William", text: "Almost. I just bought a new guitar for the performance!" }
+                ]
+            },
+            {
+                stem: "What did the boy buy for the competition?",
+                options: ["A new keyboard", "A new guitar", "A microphone", "A drum set"],
+                correctIndex: 1,
+                explanation: "He explicitly mentions buying a new guitar.",
+                dialogue: [
+                    { speaker: "Emma", text: "I can't wait to see you play. Did you get your instrument sorted?" },
+                    { speaker: "William", text: "Yes, I managed to get a new guitar yesterday." }
+                ]
+            },
+            {
+                stem: "How will the man get to work tomorrow?",
+                options: ["By bus", "By train", "By car", "By motorbike"],
+                correctIndex: 3,
+                explanation: "Because the trains are on strike, he decides to take his motorbike.",
+                dialogue: [
+                    { speaker: "Ava", text: "The trains are on strike tomorrow. How are you getting to the office?" },
+                    { speaker: "Brian", text: "I'll have to take my motorbike. I usually take the bus when the trains are off, but the traffic will be terrible. I'll leave at 8 am." }
+                ]
+            },
+            {
+                stem: "Where is the girl going on her next trip?",
+                options: ["The French coast", "The Swiss mountains", "The Italian lakes", "The Spanish cities"],
+                correctIndex: 1,
+                explanation: "They changed their plans and are going to the Swiss mountains.",
+                dialogue: [
+                    { speaker: "Florian", text: "Are you packed for your hiking trip? Are you going to the French coast?" },
+                    { speaker: "Seraphina", text: "No, we changed our plans. We're heading to the Swiss mountains this time. I had to buy a backpack because my old one ripped." }
+                ]
+            },
+            {
+                stem: "What is the man drinking for his health?",
+                options: ["Fruit smoothies", "Green tea", "Vegetable juices", "Mineral water"],
+                correctIndex: 2,
+                explanation: "He swapped fruit smoothies for vegetable juices.",
+                dialogue: [
+                    { speaker: "Vivienne", text: "You look very healthy lately! What's your secret?" },
+                    { speaker: "Andrew", text: "I've been doing a special diet for five days. Instead of my usual fruit smoothies, I've just been drinking vegetable juices. It tastes terrible but it works!" }
+                ]
+            }
+        ],
+        // TEST 10: Based on 0511_s18_ms_31 & 0511_s18_ms_41
+        [
+            {
+                stem: "Which book did the man get the recipe from?",
+                options: ["Baking for Beginners", "Life is Sweet", "Cooking Made Easy", "Sweet Treats"],
+                correctIndex: 1,
+                explanation: "Just like when you browse the library for a project but end up using a different book, he looked at 'Baking for Beginners' but actually got the recipe from 'Life is Sweet'.",
+                dialogue: [
+                    { speaker: "Emma", text: "Have you decided what to cook yet?" },
+                    { speaker: "Brian", text: "Yes. I've spent ages going through your cookery books! I liked some of the ideas in 'Baking for Beginners', but I actually got the recipe from one called 'Life is Sweet'." },
+                    { speaker: "Emma", text: "Great. Do you need me to get anything from the shop?" },
+                    { speaker: "Brian", text: "I've got the flour and eggs, but I still need to buy some coconuts." }
+                ]
+            },
+            {
+                stem: "Where is the new exhibition located?",
+                options: ["The dinosaur hall", "The space area", "The science section", "The main entrance"],
+                correctIndex: 1,
+                explanation: "They discuss the museum layout, and he specifically states that the new exhibition is set up in the space area.",
+                dialogue: [
+                    { speaker: "Ava", text: "Are we going to the museum tomorrow to see the dinosaur skeletons?" },
+                    { speaker: "Andrew", text: "I'd rather see the new exhibition. It's just opened." },
+                    { speaker: "Ava", text: "Oh, is that in the science section?" },
+                    { speaker: "Andrew", text: "No, they've set it up in the space area. We should get there before it closes at six fifteen." }
+                ]
+            },
+            {
+                stem: "What is the name of the new café?",
+                options: ["Winter Sun", "Summer Sky", "Spring Morning", "Autumn Leaves"],
+                correctIndex: 1,
+                explanation: "It's easy to get confused when meeting friends! The boy clarifies that the new place is called 'Summer Sky'.",
+                dialogue: [
+                    { speaker: "William", text: "Do you want to grab a coffee later? There's a new place that just opened." },
+                    { speaker: "Seraphina", text: "Sure, is it the one called Winter Sun?" },
+                    { speaker: "William", text: "No, it's called Summer Sky. I hear their cakes are amazing." },
+                    { speaker: "Seraphina", text: "Where is it?" },
+                    { speaker: "William", text: "It's just opposite the supermarket in town." }
+                ]
+            },
+            {
+                stem: "Which role did the actor audition for?",
+                options: ["The police officer", "The villain", "The detective", "The victim"],
+                correctIndex: 2,
+                explanation: "Secondary school drama auditions can be unpredictable! She wanted the police officer role but was asked to read for the detective.",
+                dialogue: [
+                    { speaker: "Florian", text: "How did your audition for the play go?" },
+                    { speaker: "Vivienne", text: "Really well, thanks. I originally wanted the part of the police officer." },
+                    { speaker: "Florian", text: "Did you get it?" },
+                    { speaker: "Vivienne", text: "No, the director asked me to read for the detective role instead, and I got that!" }
+                ]
+            },
+            {
+                stem: "What does the headteacher say students should focus on?",
+                options: ["Passing exams", "Time management", "Finding a job", "University applications"],
+                correctIndex: 1,
+                explanation: "While passing exams is crucial, the headteacher emphasizes that feedback from universities highlights 'time management' as the key skill to focus on.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Listen carefully everybody. As you know, this is your final year at school, and there are several options available to you." },
+                    { speaker: "Giuseppe", text: "While passing exams is obviously important, the feedback we get from universities is that students really need to focus on time management." },
+                    { speaker: "Giuseppe", text: "We will be running some workshops on this next Tuesday." }
+                ]
+            }
+        ],
+        // TEST 11: Based on 0511_s18_ms_32 & 0511_s18_ms_42
+        [
+            {
+                stem: "What type of competition has the girl just won?",
+                options: ["Dancing", "Singing", "Athletics", "Poetry"],
+                correctIndex: 1,
+                explanation: "The boy thought her talent was just a hobby. He knew she was good at athletics, but she actually won a singing competition.",
+                dialogue: [
+                    { speaker: "William", text: "Congratulations Katie! I knew you were good at athletics a long time before you won the school tournament last year, but singing?" },
+                    { speaker: "William", text: "I thought that was just a hobby and you managed to beat everyone in this year's contest!" },
+                    { speaker: "Ava", text: "Thanks! I was so surprised when I won." }
+                ]
+            },
+            {
+                stem: "What special occasion is the woman buying a gift for?",
+                options: ["Her husband's birthday", "Her son's graduation", "Her daughter's wedding", "A retirement party"],
+                correctIndex: 1,
+                explanation: "She is shopping for a watch to celebrate a big milestone: her son's graduation.",
+                dialogue: [
+                    { speaker: "Emma", text: "I'm looking for a nice watch. It's a gift for my son's graduation." },
+                    { speaker: "Brian", text: "We have some lovely ones here. How much were you looking to spend?" },
+                    { speaker: "Emma", text: "Well, I saw one online for eighty pounds, but my budget is really sixty pounds." }
+                ]
+            },
+            {
+                stem: "What is the topic of the new documentary?",
+                options: ["Wildlife", "Climate change", "Extreme sports", "Ancient history"],
+                correctIndex: 2,
+                explanation: "They usually watch wildlife documentaries, but this new series is all about extreme sports.",
+                dialogue: [
+                    { speaker: "Andrew", text: "Did you watch that wildlife documentary last night?" },
+                    { speaker: "Vivienne", text: "No, I watched the new series instead. The first episode was all about extreme sports. It was terrifying but fascinating." },
+                    { speaker: "Andrew", text: "When is the next episode?" },
+                    { speaker: "Vivienne", text: "It's on Thursday at 8pm." }
+                ]
+            },
+            {
+                stem: "Where did the student find out about the trip?",
+                options: ["The school noticeboard", "A teacher's email", "The school website", "A local newspaper"],
+                correctIndex: 2,
+                explanation: "Communication at school is moving online. The student found the details on the school website, not via a teacher's email.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "Are you going on the school trip to the science museum?" },
+                    { speaker: "Florian", text: "I hadn't heard about it. Did a teacher send an email?" },
+                    { speaker: "Seraphina", text: "No, all the details were posted on the school website yesterday. There are many discounts if we book early." }
+                ]
+            },
+            {
+                stem: "What quality do the students agree is most important for the activity?",
+                options: ["Patience", "Strength", "Courage", "Intelligence"],
+                correctIndex: 2,
+                explanation: "While physical strength is mentioned, they both agree that 'courage' is the most vital trait for such a terrifying activity.",
+                dialogue: [
+                    { speaker: "Remy", text: "I can't believe people actually do cave diving. You need so much strength." },
+                    { speaker: "Giuseppe", text: "You definitely need to be fit, but I think courage is the most important thing. It's so dark down there." },
+                    { speaker: "Remy", text: "Yes, you're right. I wouldn't be brave enough." }
+                ]
+            }
+        ],
+        // TEST 12: Based on 0511_s18_ms_33 & 0511_s18_ms_43
+        [
+            {
+                stem: "What do the students agree was the best part of the school trip?",
+                options: ["The museum", "The city walls", "The local park", "The castle"],
+                correctIndex: 1,
+                explanation: "It's easy to get distracted by what one person liked. The girl liked the museum, but the boy's favourite part was the city walls, and the girl agrees that it was the best part.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "The school trip was great, wasn't it? I liked the museum more than I thought I was going to, and the guide was interesting." },
+                    { speaker: "Florian", text: "It was okay, but walking around the city walls was definitely the highlight for me." },
+                    { speaker: "Seraphina", text: "Actually, I completely agree with you. Now we just have to give a presentation about it on Monday!" }
+                ]
+            },
+            {
+                stem: "Where did the actress perform the final scene?",
+                options: ["In the forest", "On the castle roof", "In the town square", "Beside the lake"],
+                correctIndex: 1,
+                explanation: "They talk about the amazing costumes, but note that the final scene was performed dangerously high up on the castle roof.",
+                dialogue: [
+                    { speaker: "Emma", text: "Did you see the play last night? The costumes were amazing." },
+                    { speaker: "Brian", text: "Yes, but I was so nervous during the final scene." },
+                    { speaker: "Emma", text: "I know! I couldn't believe they filmed it right up on the castle roof. It looked so dangerous." }
+                ]
+            },
+            {
+                stem: "What did the man find most difficult during the pottery class?",
+                options: ["Choosing the colours", "Designing the shape", "Using the equipment", "Baking the clay"],
+                correctIndex: 2,
+                explanation: "Learning a new skill is tough. Getting the shape right was okay, but mastering 'using the equipment' was the biggest hurdle.",
+                dialogue: [
+                    { speaker: "Andrew", text: "How was your pottery class? Did you make anything nice?" },
+                    { speaker: "Vivienne", text: "I managed to make a small bowl. It was quite fun, actually." },
+                    { speaker: "Andrew", text: "Was it hard to do?" },
+                    { speaker: "Vivienne", text: "Getting the shape right was okay, but I found using the equipment really challenging at first." }
+                ]
+            },
+            {
+                stem: "What caused the delay at the sports event?",
+                options: ["Heavy rain", "Bad light", "A broken camera", "Crowd noise"],
+                correctIndex: 1,
+                explanation: "Even though they thought it might rain, it was actually 'bad light' that caused the racing cars to be delayed.",
+                dialogue: [
+                    { speaker: "Ava", text: "I heard the racing cars were delayed yesterday afternoon." },
+                    { speaker: "William", text: "Yes, I was there. We thought it was going to rain, but it stayed dry." },
+                    { speaker: "Ava", text: "So why did they stop the race?" },
+                    { speaker: "William", text: "It was because of bad light. It got too dark for the drivers to see safely." }
+                ]
+            },
+            {
+                stem: "Where did the man grow up?",
+                options: ["Canada", "New Zealand", "South Africa", "Mozambique"],
+                correctIndex: 2,
+                explanation: "He mentions Mozambique as a border, but clearly states he grew up near the east coast of South Africa.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "When I announced that I wanted to swim around Britain's coastline, people thought I was crazy." },
+                    { speaker: "Giuseppe", text: "Anyway, I grew up near the east coast of South Africa, not too far from the border with Mozambique." },
+                    { speaker: "Giuseppe", text: "The sea could be quite rough there, which was valuable experience for dealing with big waves." }
+                ]
+            }
+        ],
+        // TEST 13: Based on 0511_s19_ms_31 & 0511_s19_ms_41
+        [
+            {
+                stem: "Which is the woman's favourite picture?",
+                options: ["The beaches", "The volcanoes", "The wildlife", "The forest"],
+                correctIndex: 1,
+                explanation: "The woman visited an island and while many like the beaches, her favourite picture was of the volcanoes.",
+                dialogue: [
+                    { speaker: "Brian", text: "Did you have a good time on the island? Your photos of the beaches are supposed to be amazing." },
+                    { speaker: "William", text: "They were fine, but to be honest, the picture I really loved taking was of the volcanoes. They were incredible." },
+                    { speaker: "Brian", text: "Who are you going to send the postcard to?" },
+                    { speaker: "William", text: "My sister." }
+                ]
+            },
+            {
+                stem: "Where do the two friends decide to have lunch?",
+                options: ["The cafe", "The canteen", "The restaurant", "Outside"],
+                correctIndex: 1,
+                explanation: "Secondary school students know this debate well! They decide against the cafe and go to the canteen instead.",
+                dialogue: [
+                    { speaker: "Emma", text: "I'm starving. Shall we go to the cafe across the street?" },
+                    { speaker: "Ava", text: "It's a bit pricey. Let's just go down to the canteen, it's much cheaper." },
+                    { speaker: "Emma", text: "OK. Do you know how much the special meal is today?" },
+                    { speaker: "Ava", text: "I think it's four pound twenty." }
+                ]
+            },
+            {
+                stem: "What was the subject of the seminar the woman went to?",
+                options: ["Customer service", "Managing change", "Digital marketing", "Staff training"],
+                correctIndex: 1,
+                explanation: "The seminar topic is specifically identified as 'managing change'.",
+                dialogue: [
+                    { speaker: "Andrew", text: "How did your seminar go today?" },
+                    { speaker: "Vivienne", text: "It was really useful. It was all about managing change in the workplace." },
+                    { speaker: "Andrew", text: "What was the woman sitting next to you doing during the seminar?" },
+                    { speaker: "Vivienne", text: "She was just checking her emails the whole time!" }
+                ]
+            },
+            {
+                stem: "What does the author need to decide on next?",
+                options: ["The cover design", "A title", "The character names", "The ending"],
+                correctIndex: 1,
+                explanation: "The author is struggling to come up with a title for her new book.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Your new book is almost finished, isn't it? Do you need any help with the cover design?" },
+                    { speaker: "Seraphina", text: "No, the publisher is doing that. What I really need to decide on next is a title. I just can't think of a good one." },
+                    { speaker: "Giuseppe", text: "Where do you prefer to write?" },
+                    { speaker: "Seraphina", text: "I find the most peaceful place is in my garden." }
+                ]
+            }
+        ],
+        // TEST 14: Based on 0511_s19_ms_32 & 0511_s19_ms_42
+        [
+            {
+                stem: "What does the man miss about his home country?",
+                options: ["Playing sports", "Seeing his friends", "Watching a movie", "Going shopping"],
+                correctIndex: 1,
+                explanation: "School weekends are all about socializing! He mentions seeing his friends was the thing he missed most.",
+                dialogue: [
+                    { speaker: "William", text: "What do you miss about your home country?" },
+                    { speaker: "Brian", text: "It's brilliant here. We play some football, but seeing my friends is definitely what I miss most. We hadn't caught up in ages." },
+                    { speaker: "William", text: "When will you next go back there?" },
+                    { speaker: "Brian", text: "Probably not until early next year." }
+                ]
+            },
+            {
+                stem: "Why was the woman late for her meeting?",
+                options: ["Heavy traffic", "She woke up late", "She got lost", "The train was delayed"],
+                correctIndex: 2,
+                explanation: "The woman was delayed because she lost her way.",
+                dialogue: [
+                    { speaker: "Emma", text: "You're very late! Was the traffic bad?" },
+                    { speaker: "Andrew", text: "The roads were actually fine, but my GPS stopped working and I got lost. I've been driving in circles for twenty minutes!" },
+                    { speaker: "Emma", text: "Well, what time is your next meeting?" },
+                    { speaker: "Andrew", text: "Try not to be late for that one. It's at ten thirty tomorrow." }
+                ]
+            },
+            {
+                stem: "What is the man going to do this afternoon?",
+                options: ["Cleaning the house", "Some gardening", "Going for a run", "Reading a book"],
+                correctIndex: 1,
+                explanation: "He decides to spend his time outside doing some gardening.",
+                dialogue: [
+                    { speaker: "Ava", text: "The weather is gorgeous today. I think I'll do some gardening this afternoon." },
+                    { speaker: "Vivienne", text: "That sounds like hard work. I'm just going to relax. Where do you want to go for dinner later?" },
+                    { speaker: "Ava", text: "Let's treat ourselves and go to the pizza restaurant." }
+                ]
+            },
+            {
+                stem: "What is the woman buying a dress for?",
+                options: ["A birthday party", "Her son's graduation", "An anniversary", "A wedding"],
+                correctIndex: 1,
+                explanation: "The celebration is specifically for her son's graduation.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "I need to buy a nice dress for next weekend. It's a big celebration." },
+                    { speaker: "Florian", text: "Oh, is it someone's birthday?" },
+                    { speaker: "Seraphina", text: "No, it's for my son's graduation. We're having a big family meal." },
+                    { speaker: "Florian", text: "Where is the event going to take place?" },
+                    { speaker: "Seraphina", text: "We booked a room in a hotel." }
+                ]
+            }
+        ],
+        // TEST 15: Based on 0511_s19_ms_33 & 0511_s19_ms_43
+        [
+            {
+                stem: "Where did the girl meet her best friend for the first time?",
+                options: ["At a sports club", "At primary school", "At university", "At a competition"],
+                correctIndex: 1,
+                explanation: "They have known each other since they were very young, meeting at primary school.",
+                dialogue: [
+                    { speaker: "Andrew", text: "You two have been friends for years. Where did you first meet? Was it at the local sports club?" },
+                    { speaker: "Brian", text: "No, we actually met years ago at primary school. We've been friends ever since." },
+                    { speaker: "Andrew", text: "What do you think you have in common with your friend?" },
+                    { speaker: "Brian", text: "I'd say it takes loads of determination." }
+                ]
+            },
+            {
+                stem: "Which part of the geography course does the boy like most?",
+                options: ["Volcanoes", "Climate change", "Ocean currents", "Deforestation"],
+                correctIndex: 1,
+                explanation: "The students were working on a project about climate change.",
+                dialogue: [
+                    { speaker: "Emma", text: "Have you finished your geography project yet?" },
+                    { speaker: "William", text: "Almost. I found some great statistics about climate change to include. That's definitely the part I like most." },
+                    { speaker: "Emma", text: "What do you have to do for your homework?" },
+                    { speaker: "William", text: "Yes, I'm just putting the finishing touches to my presentation." }
+                ]
+            },
+            {
+                stem: "Where did the couple stay on their holiday?",
+                options: ["In a modern hotel", "Inside a castle", "In a country cottage", "On a boat"],
+                correctIndex: 1,
+                explanation: "They stayed in a very unusual location for their holiday.",
+                dialogue: [
+                    { speaker: "Ava", text: "Welcome back! How was your trip? Did you stay in a nice hotel?" },
+                    { speaker: "Seraphina", text: "It was quite unique actually. We stayed in a room inside a castle!" },
+                    { speaker: "Ava", text: "Wow, was it good?" },
+                    { speaker: "Seraphina", text: "The location was amazing, but we were really disappointed with the poor service." }
+                ]
+            },
+            {
+                stem: "What kind of tree has the man just planted?",
+                options: ["A cherry tree", "An apple tree", "A pear tree", "A plum tree"],
+                correctIndex: 1,
+                explanation: "He planted a fruit tree in his garden.",
+                dialogue: [
+                    { speaker: "Florian", text: "I've been busy in the garden all weekend. I finally planted that fruit tree." },
+                    { speaker: "Vivienne", text: "Oh nice, did you go for a cherry tree?" },
+                    { speaker: "Florian", text: "No, I decided on an apple tree in the end. I just hope it gets some direct sunlight in that corner." }
+                ]
+            }
+        ],
+        // TEST 16: Based on 0511_s19_qp_31 (Ex 4 - Josie)
+        [
+            {
+                stem: "What is Josie's main role on the school newspaper?",
+                options: ["Checking facts", "Choosing photos", "Writing articles"],
+                correctIndex: 2,
+                explanation: "The distractors 'checking facts' and 'choosing photos' are explicitly assigned to other team members.",
+                dialogue: [
+                    { speaker: "William", text: "Today we're talking to Josie, the editor of the school newspaper. Josie, what's your main role?" },
+                    { speaker: "Emma", text: "Well, I have a great team. Tom checks the facts, and Sarah chooses the photos. As editor, my main responsibility is actually writing the main articles. It takes a lot of time!" }
+                ]
+            },
+            {
+                stem: "What does Josie enjoy most about her role?",
+                options: ["Learning new skills", "Leading a team", "Attending events"],
+                correctIndex: 0,
+                explanation: "She enjoys attending events and leading a team, but learning new skills is her absolute favourite part.",
+                dialogue: [
+                    { speaker: "William", text: "And what do you enjoy most about it?" },
+                    { speaker: "Emma", text: "Attending school events is fun, and leading a team is okay, but for me, the best thing is definitely learning new skills. I've learnt so much about journalism." }
+                ]
+            },
+            {
+                stem: "Josie decided to use the article about the skate park because...",
+                options: ["It had good quality writing", "It included an interview", "It was relevant to students"],
+                correctIndex: 2,
+                explanation: "She chose the article not for its writing quality, but because it mattered to the students.",
+                dialogue: [
+                    { speaker: "William", text: "Last month you featured an article about the local skate park. Why did you choose that?" },
+                    { speaker: "Emma", text: "It didn't have an interview, and to be honest, the quality of the writing wasn't the best. But I chose it because it's highly relevant to students. Everyone goes there." }
+                ]
+            },
+            {
+                stem: "What was the biggest problem with the first issue of the newspaper?",
+                options: ["They printed too few copies", "It didn't look attractive", "They missed the deadline"],
+                correctIndex: 1,
+                explanation: "They met the deadline and printed enough copies, but poor software made it look unattractive.",
+                dialogue: [
+                    { speaker: "William", text: "Did you have any problems with the first issue?" },
+                    { speaker: "Emma", text: "We met the deadline, thankfully, and we printed enough copies. However, we used the wrong software, so it didn't look very attractive. We've fixed that now." }
+                ]
+            },
+            {
+                stem: "What does Josie hope to do in the next issue?",
+                options: ["Have more pages", "Include a competition", "Print it in colour"],
+                correctIndex: 1,
+                explanation: "They already print in colour, but she hopes to add a competition.",
+                dialogue: [
+                    { speaker: "William", text: "What are your plans for the next issue?" },
+                    { speaker: "Emma", text: "We already print in colour, and we don't have the budget to add more pages. What I'm really hoping to do is include a competition with a nice prize to get more readers involved." }
+                ]
+            },
+            {
+                stem: "Why is Josie writing an article for the local newspaper?",
+                options: ["To earn some money", "To get writing practice", "To gain useful experience"],
+                correctIndex: 2,
+                explanation: "She isn't getting paid, but values the experience for her future career.",
+                dialogue: [
+                    { speaker: "William", text: "I hear you're writing for the local newspaper now." },
+                    { speaker: "Emma", text: "Yes! It's not paid, so I'm not earning money, and I already get enough writing practice at school. I'm doing it to gain useful experience for my future career." }
+                ]
+            },
+            {
+                stem: "What has Josie gained most from editing the school newspaper?",
+                options: ["What responsibility means", "The value of teamwork", "How to manage people"],
+                correctIndex: 0,
+                explanation: "She highlights learning what responsibility means as her biggest takeaway.",
+                dialogue: [
+                    { speaker: "William", text: "Has editing the paper changed you?" },
+                    { speaker: "Emma", text: "Yes. I already understood the value of teamwork from playing sports, and managing people is something I'm still learning. But above all, I've really learned what responsibility means. If I don't do my job, the paper doesn't happen." }
+                ]
+            },
+            {
+                stem: "Who will choose the next editor?",
+                options: ["The current team", "The readers", "The head teacher"],
+                correctIndex: 0,
+                explanation: "The head teacher lets the team decide among themselves.",
+                dialogue: [
+                    { speaker: "William", text: "When you leave, who will choose the next editor?" },
+                    { speaker: "Emma", text: "The head teacher leaves it up to us, and we don't ask the readers to vote. The current team will sit down and choose the next editor together." }
+                ]
+            }
+        ],
+        // TEST 17: Based on 0511_s19_qp_32 (Ex 4 - Lisa)
+        [
+            {
+                stem: "What does Lisa say about working on the comedy series?",
+                options: ["It was stressful", "It was boring", "It was confusing"],
+                correctIndex: 0,
+                explanation: "She clarifies it wasn't confusing or boring, but the long hours made it incredibly stressful.",
+                dialogue: [
+                    { speaker: "Andrew", text: "Lisa, you started your career working on a comedy series. How was that?" },
+                    { speaker: "Vivienne", text: "People assume it's just fun all day long. Actually, the plot wasn't confusing, and it certainly wasn't boring, but the long hours meant it was incredibly stressful." }
+                ]
+            },
+            {
+                stem: "How did Lisa get her job on the science programme?",
+                options: ["She applied online", "She was invited by the producer", "She met someone at a party"],
+                correctIndex: 1,
+                explanation: "She didn't apply online; she was personally invited by the producer.",
+                dialogue: [
+                    { speaker: "Andrew", text: "How did you get your next job on the science programme?" },
+                    { speaker: "Vivienne", text: "I didn't see an advert online to apply for. I was actually invited by the producer after he saw my work on the comedy show. I didn't even meet him at a party!" }
+                ]
+            },
+            {
+                stem: "What is the hardest part of making a science programme?",
+                options: ["Finding locations", "Making it understandable", "Getting experts"],
+                correctIndex: 1,
+                explanation: "The challenge lies in translating complex science for a general audience.",
+                dialogue: [
+                    { speaker: "Andrew", text: "What's the biggest challenge with science shows?" },
+                    { speaker: "Vivienne", text: "Getting experts to agree to appear is quite easy, and finding locations isn't too bad. The real challenge is taking complex theories and making them understandable for a general audience." }
+                ]
+            },
+            {
+                stem: "What is Lisa's favourite part of the science programme?",
+                options: ["The studio", "The experiments", "The locations"],
+                correctIndex: 1,
+                explanation: "She prefers the unpredictability of live experiments.",
+                dialogue: [
+                    { speaker: "Andrew", text: "And what's your favourite part?" },
+                    { speaker: "Vivienne", text: "The studio work is a bit repetitive, and travelling to locations is tiring. My absolute favourite part is filming the live experiments. They're so unpredictable!" }
+                ]
+            },
+            {
+                stem: "What advice does Lisa give to people who want to work in television?",
+                options: ["Getting a job as a studio assistant", "Doing a certificate in a related subject", "Watching as many performances as possible"],
+                correctIndex: 1,
+                explanation: "She strongly recommends formal education via a certificate.",
+                dialogue: [
+                    { speaker: "Andrew", text: "What's your advice for young people wanting to work in TV?" },
+                    { speaker: "Vivienne", text: "You could try getting a job as a studio assistant, or watching performances, but I highly recommend doing a certificate in a related subject. It gives you the foundation you need." }
+                ]
+            },
+            {
+                stem: "What does Lisa think about her career so far?",
+                options: ["Hard work has been the main reason for her success", "She has been very lucky in getting interesting work", "Her career has been based on careful planning"],
+                correctIndex: 1,
+                explanation: "She admits that luck played a massive role in her success.",
+                dialogue: [
+                    { speaker: "Andrew", text: "Looking back at your career so far, what are your thoughts?" },
+                    { speaker: "Vivienne", text: "I didn't have a careful plan at all! And while I do work hard, if I'm totally honest, I've just been very lucky in getting interesting work offered to me." }
+                ]
+            }
+        ],
+        // TEST 18: Based on 0511_s19_qp_33 (Ex 4 - Maggie)
+        [
+            {
+                stem: "How did Maggie become a gymnast?",
+                options: ["Through a school club", "From her parent's suggestion", "Because she saw it on TV"],
+                correctIndex: 0,
+                explanation: "She didn't have a TV and her parents didn't suggest it. It was her PE teacher who suggested she join a school club.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Maggie, how did you get started in gymnastics?" },
+                    { speaker: "Seraphina", text: "My parents didn't know anything about it, and we didn't even have a TV back then! It all started when my PE teacher suggested I join a new school club." }
+                ]
+            },
+            {
+                stem: "What did Maggie find hardest during her training?",
+                options: ["The early mornings", "The strict diet", "The lack of free time"],
+                correctIndex: 2,
+                explanation: "The lack of free time was the most difficult aspect of her intense training.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Training must have been tough. What was the hardest part?" },
+                    { speaker: "Seraphina", text: "I didn't mind the early mornings, and the strict diet became a habit. What really bothered me was the total lack of free time to see my friends." }
+                ]
+            },
+            {
+                stem: "What was Maggie's best moment as a gymnast?",
+                options: ["Winning gold", "Meeting her hero", "Travelling the world"],
+                correctIndex: 1,
+                explanation: "Winning gold was great, but meeting her hero meant everything to her.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "And what was your best moment?" },
+                    { speaker: "Seraphina", text: "Travelling the world was great, and winning gold was amazing. But for me, nothing compared to the moment I got to meet my absolute hero, a famous Olympic champion." }
+                ]
+            },
+            {
+                stem: "Why did Maggie decide to retire?",
+                options: ["She had an injury", "She felt she was too old", "She wanted a change of career"],
+                correctIndex: 2,
+                explanation: "She was perfectly healthy; she just wanted a career change.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Why did you stop competing?" },
+                    { speaker: "Seraphina", text: "A lot of gymnasts stop because of injury or age. Thankfully, I was perfectly healthy and still quite young. I just felt I'd achieved what I wanted and really wanted a change of career." }
+                ]
+            },
+            {
+                stem: "How did Maggie feel immediately after she stopped competing?",
+                options: ["She missed the excitement of the sport", "She was worried that her career was over", "She couldn't stand watching gymnastics on TV"],
+                correctIndex: 2,
+                explanation: "She couldn't watch gymnastics on TV right after retiring because it felt too strange.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "How did you feel immediately after you stopped?" },
+                    { speaker: "Seraphina", text: "I thought I'd miss the excitement, but I didn't. And I definitely didn't worry my career was over. Actually, I just couldn't stand watching gymnastics on TV for a while, it felt too weird." }
+                ]
+            },
+            {
+                stem: "Maggie enjoys coaching children because...",
+                options: ["She feels under much less pressure", "She is constantly surprised by what they can do", "She likes the fact that they don't question what she says"],
+                correctIndex: 1,
+                explanation: "The children constantly surprise her with their quick learning.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Now you coach children. Why do you enjoy that?" },
+                    { speaker: "Seraphina", text: "There's still a lot of pressure, and they certainly question what I say all the time! But I love it because I am constantly surprised by what they can do and how quickly they learn." }
+                ]
+            }
+        ],
+        // TEST 19: Based on 0511_s20_qp_31 & 0511_s20_qp_41
+        [
+            {
+                stem: "Where would the girl like to work in the summer?",
+                options: ["In a cafe", "At a sports centre", "In a library", "In a supermarket"],
+                correctIndex: 1,
+                explanation: "The girl mentions she originally thought about a cafe, but her true preference is to work at a sports centre.",
+                dialogue: [
+                    { speaker: "William", text: "Have you found a summer job yet?" },
+                    { speaker: "Ava", text: "I'm still looking. I originally thought about a cafe, but I'd really prefer to work at a sports centre. I've sent an application there." }
+                ]
+            },
+            {
+                stem: "When is the girl able to start work?",
+                options: ["14th June", "21st June", "Early July", "Late July"],
+                correctIndex: 2,
+                explanation: "She clarifies that although employers often want someone in late June, she can only start in early July due to her holiday.",
+                dialogue: [
+                    { speaker: "William", text: "That's a good idea. They usually want people to start in late June." },
+                    { speaker: "Ava", text: "I know, but I'm away then. I told them I'm able to start work in early July. Hopefully, they still hire me." }
+                ]
+            },
+            {
+                stem: "How did the man prefer to travel into town?",
+                options: ["By train", "By bus", "By car", "By taxi"],
+                correctIndex: 0,
+                explanation: "He mentions that while he normally takes his car, he now prefers the train because it is more relaxing.",
+                dialogue: [
+                    { speaker: "Brian", text: "The traffic into town was awful today. I took the bus and it took forever." },
+                    { speaker: "Andrew", text: "I normally take my car, but parking is so expensive. I used to cycle, but now I prefer to travel by train. It's much faster and more relaxing." }
+                ]
+            },
+            {
+                stem: "What will the friends buy for their teacher?",
+                options: ["A book", "A pen", "A plant", "A box of chocolates"],
+                correctIndex: 0,
+                explanation: "They consider a pen and a plant, but finally agree to get a book.",
+                dialogue: [
+                    { speaker: "Emma", text: "We need to get a leaving present for Mr. Smith. I was thinking of a nice pen." },
+                    { speaker: "Brian", text: "He already has loads of those. How about a plant for his desk?" },
+                    { speaker: "Emma", text: "Maybe, but he's always reading. Let's get him a book instead." },
+                    { speaker: "Brian", text: "Perfect. We can pick one up later." }
+                ]
+            },
+            {
+                stem: "What time does the museum close on Sundays?",
+                options: ["4:00 pm", "4:30 pm", "5:00 pm", "5:30 pm"],
+                correctIndex: 0,
+                explanation: "The museum closes at 5:30 pm on weekdays, 5:00 pm on Saturdays, and 4:00 pm on Sundays.",
+                dialogue: [
+                    { speaker: "Andrew", text: "What time shall we go to the museum on Sunday?" },
+                    { speaker: "Vivienne", text: "We should go early. On weekdays it stays open until 5:30 pm." },
+                    { speaker: "Andrew", text: "Is it the same at the weekend?" },
+                    { speaker: "Vivienne", text: "No, on Saturdays it closes at 5:00 pm, and on Sundays it closes even earlier, at 4:00 pm." }
+                ]
+            }
+        ],
+        // TEST 20: Based on 0511_s20_qp_32 & 0511_s20_qp_42
+        [
+            {
+                stem: "How much does the tennis racket normally cost?",
+                options: ["£45", "£55", "£60", "£75"],
+                correctIndex: 2,
+                explanation: "The racket is on sale for £45, but the dialogue clearly states the normal price is £60.",
+                dialogue: [
+                    { speaker: "Florian", text: "I need some new tennis gear. Look at this racket, it's on sale for £45." },
+                    { speaker: "Seraphina", text: "That's a good discount. How much does it normally cost?" },
+                    { speaker: "Florian", text: "It's usually £60. But actually, my racket is fine." }
+                ]
+            },
+            {
+                stem: "What does the boy decide to buy?",
+                options: ["A tennis racket", "A pair of shoes", "Some tennis balls", "A sports bag"],
+                correctIndex: 1,
+                explanation: "He ultimately decides his racket is fine and chooses to buy a pair of shoes instead.",
+                dialogue: [
+                    { speaker: "Florian", text: "What I really need is a pair of shoes. I'll get these ones instead." },
+                    { speaker: "Seraphina", text: "Good choice. Your old ones are completely worn out." }
+                ]
+            },
+            {
+                stem: "Who did the girl go to the cinema with?",
+                options: ["Her brother", "Her friends", "Her cousin", "Her parents"],
+                correctIndex: 2,
+                explanation: "The girl mentions her friends were busy, so she went with her cousin.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Did you go to the cinema with your friends yesterday?" },
+                    { speaker: "Emma", text: "They were all busy, so I actually went with my cousin." }
+                ]
+            },
+            {
+                stem: "What did the girl like most about the film she saw?",
+                options: ["The acting", "The special effects", "The music", "The story"],
+                correctIndex: 2,
+                explanation: "She found the story confusing and the special effects just 'okay', but she thought the music was brilliant.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "How was the film? I heard the special effects were great." },
+                    { speaker: "Emma", text: "They were okay, and the story was a bit confusing. But what I liked most was the music. It was absolutely brilliant." }
+                ]
+            },
+            {
+                stem: "Which subject does the boy need help with?",
+                options: ["Maths", "History", "Science", "Geography"],
+                correctIndex: 3,
+                explanation: "He finished Maths and Science, but is struggling with his Geography project.",
+                dialogue: [
+                    { speaker: "Brian", text: "Are you free to help me study tonight? I'm really struggling." },
+                    { speaker: "Ava", text: "Sure, is it for the Maths test?" },
+                    { speaker: "Brian", text: "I finally finished all my Maths and Science homework. It's Geography that I need help with. I just don't understand this map project." }
+                ]
+            }
+        ],
+        // TEST 21: Based on 0511_s20_qp_33 & 0511_s20_qp_43
+        [
+            {
+                stem: "What sport did the girl play on her first visit to the sports club?",
+                options: ["Tennis", "Squash", "Table tennis", "Badminton"],
+                correctIndex: 3,
+                explanation: "She wanted to play tennis, but because the courts were full, she played badminton.",
+                dialogue: [
+                    { speaker: "William", text: "How was your first visit to the new sports club?" },
+                    { speaker: "Vivienne", text: "Great! I wanted to play tennis, but the courts were full, so I played badminton instead. It was really fun." }
+                ]
+            },
+            {
+                stem: "What does the girl think is the best thing about the sports club?",
+                options: ["The café", "The coaches", "The equipment", "The swimming pool"],
+                correctIndex: 1,
+                explanation: "She thinks the equipment is fine, but the coaches are definitely the best thing about the club.",
+                dialogue: [
+                    { speaker: "William", text: "Is the equipment good?" },
+                    { speaker: "Vivienne", text: "It's fine, but the best thing about the club is definitely the coaches. They are so helpful and friendly." }
+                ]
+            },
+            {
+                stem: "What type of book does the man usually read?",
+                options: ["Biographies", "Science fiction", "Crime thrillers", "Historical novels"],
+                correctIndex: 2,
+                explanation: "The man confirms that he normally reads crime thrillers.",
+                dialogue: [
+                    { speaker: "Ava", text: "What are you reading right now?" },
+                    { speaker: "Andrew", text: "It's a biography of a famous scientist. It's quite different from what I normally go for." },
+                    { speaker: "Ava", text: "Oh? What do you usually read?" },
+                    { speaker: "Andrew", text: "I'm a big fan of crime thrillers. I read them all the time." }
+                ]
+            },
+            {
+                stem: "Where did the woman leave her mobile phone?",
+                options: ["On the train", "In the office", "At a restaurant", "In her car"],
+                correctIndex: 1,
+                explanation: "She thought it was at the restaurant, but the man reminds her it was left on her desk in the office.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "Can you call my phone? I think I've lost it." },
+                    { speaker: "Andrew", text: "Did you leave it on the train, or maybe in your car?" },
+                    { speaker: "Seraphina", text: "No, I had it at the restaurant during lunch." },
+                    { speaker: "Andrew", text: "Wait, I remember seeing it on your desk before we left. You must have left it in the office." }
+                ]
+            },
+            {
+                stem: "What is the boy going to do this weekend?",
+                options: ["Visit relatives", "Go camping", "Study for exams", "Play in a concert"],
+                correctIndex: 1,
+                explanation: "Even though exams are coming up, he already made plans to go camping.",
+                dialogue: [
+                    { speaker: "Remy", text: "Are you ready for the exams next week? I'm going to study all weekend." },
+                    { speaker: "Brian", text: "I should probably do that, but I've already made plans to go camping with my scout group." },
+                    { speaker: "Remy", text: "That sounds fun. Better than staying indoors!" }
+                ]
+            }
+        ],
+        // TEST 22: Based on S21 Papers 31 & 41
+        [
+            {
+                stem: "How long did the girl's art course last?",
+                options: ["One week", "Two weeks", "Three weeks", "Four weeks"],
+                correctIndex: 1,
+                explanation: "Just like deciding to extend a fun school camp, she originally signed up for one week but stayed for two.",
+                dialogue: [
+                    { speaker: "William", text: "How was your art course? You went for a week, right?" },
+                    { speaker: "Emma", text: "It was great. Originally I signed up for a one-week course, but I enjoyed it so much I extended it, so it lasted two weeks in the end." }
+                ]
+            },
+            {
+                stem: "What did the girl most enjoy making on the art course?",
+                options: ["A clay bowl", "A wooden box", "A silver ring", "A glass vase"],
+                correctIndex: 2,
+                explanation: "She made a few items, but specifically highlights the silver ring as her absolute favourite.",
+                dialogue: [
+                    { speaker: "William", text: "What did you make while you were there?" },
+                    { speaker: "Emma", text: "We tried lots of things. The clay bowl I made was a complete disaster, but the silver ring I designed was definitely my favourite part. I'm really proud of it." }
+                ]
+            },
+            {
+                stem: "Who did the boy go to the concert with?",
+                options: ["His brother", "His cousin", "His friend", "His father"],
+                correctIndex: 1,
+                explanation: "His brother was supposed to go, but his cousin went with him instead.",
+                dialogue: [
+                    { speaker: "Ava", text: "Did you enjoy the concert? Who did you go with?" },
+                    { speaker: "Brian", text: "My brother was supposed to come, but he was ill. So my cousin came with me instead. We had an absolutely brilliant time!" }
+                ]
+            },
+            {
+                stem: "The films that Max is most proud of making are about...",
+                options: ["whales.", "sharks.", "seals.", "dolphins."],
+                correctIndex: 2,
+                explanation: "While people love his films about sharks and whales, he states his personal favourites are the ones about seals.",
+                dialogue: [
+                    { speaker: "Andrew", text: "Max, you've made amazing underwater films. Which are you most proud of?" },
+                    { speaker: "Remy", text: "Audiences always love the ones about sharks and whales, but the films about seals are the ones I'm most proud of. They are so playful and curious." }
+                ]
+            },
+            {
+                stem: "Max suggests that anyone who wants to become an underwater film-maker should...",
+                options: ["invest in high-quality cameras.", "base their work on films they like.", "develop their skills close to home.", "travel to exotic locations."],
+                correctIndex: 2,
+                explanation: "He explicitly advises beginners to develop their skills locally rather than buying expensive gear or travelling far away.",
+                dialogue: [
+                    { speaker: "Andrew", text: "What's your advice for beginners who want to do what you do?" },
+                    { speaker: "Remy", text: "Don't spend a fortune on high-quality cameras yet, and don't worry about trying to copy other films. The best thing you can do is develop your skills close to home before you start travelling the world." }
+                ]
+            }
+        ],
+        // TEST 23: Based on S21 Papers 32 & 42
+        [
+            {
+                stem: "What did the woman buy as a present at the department store?",
+                options: ["A watch", "A scarf", "A wallet", "A perfume"],
+                correctIndex: 2,
+                explanation: "When buying a gift for a family member, she considered a few options but ultimately bought a leather wallet.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "Did you get a present for Dad at the department store?" },
+                    { speaker: "Florian", text: "Yes, eventually! I looked at a nice watch and a silk scarf, but I ended up buying a leather wallet. I think he'll like it." }
+                ]
+            },
+            {
+                stem: "How much did the woman spend at the department store?",
+                options: ["£25", "£35", "£45", "£55"],
+                correctIndex: 1,
+                explanation: "The item was marked at £45, but she received a discount and only spent £35.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "How much was it?" },
+                    { speaker: "Florian", text: "It was marked at £45, but there was a special discount today, so I only spent £35 in total." }
+                ]
+            },
+            {
+                stem: "Tamsin says that entering the music competition...",
+                options: ["made her realise her lack of experience.", "felt it showed where her strengths were.", "was disappointed by the sound quality.", "made her want to give up."],
+                correctIndex: 1,
+                explanation: "Like performing in the school talent show, she realised exactly what she was good at.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "Tamsin, how was the music competition for you?" },
+                    { speaker: "Vivienne", text: "It was scary! The sound quality in the hall was actually fine, but the best part was that entering really felt it showed where my strengths were as a performer." }
+                ]
+            },
+            {
+                stem: "What has Tamsin achieved since the competition?",
+                options: ["She has won an award for musical composition.", "She has appeared on TV several times.", "She has returned to studying music.", "She has released a new album."],
+                correctIndex: 2,
+                explanation: "She didn't become a TV star immediately; instead, she went back to her studies to learn more.",
+                dialogue: [
+                    { speaker: "Giuseppe", text: "And what have you achieved since the competition?" },
+                    { speaker: "Vivienne", text: "I haven't appeared on TV, but I realised I needed to learn a lot more. So, I have returned to studying music full time, which has been great." }
+                ]
+            },
+            {
+                stem: "What do they decide to propose to the Markermeer authorities?",
+                options: ["A new bridge", "A wildlife documentary", "A visitor centre", "A photography exhibition"],
+                correctIndex: 2,
+                explanation: "For their project, they decide proposing a visitor centre is the best way to publicise the location.",
+                dialogue: [
+                    { speaker: "Emma", text: "Our project on the Markermeer lake needs a conclusion." },
+                    { speaker: "William", text: "Yes. To publicise the location properly, why don't we propose a visitor centre to the authorities?" },
+                    { speaker: "Emma", text: "Great idea. That would attract lots of tourists and help the area." }
+                ]
+            }
+        ],
+        // TEST 24: Based on S21 Papers 33 & 43
+        [
+            {
+                stem: "Which activity is new at the adventure camp this year?",
+                options: ["Kayaking", "Rock climbing", "Mountain biking", "Archery"],
+                correctIndex: 2,
+                explanation: "They still have the old activities, but mountain biking is specifically mentioned as the new addition.",
+                dialogue: [
+                    { speaker: "Ava", text: "Have you seen the brochure for the adventure camp?" },
+                    { speaker: "Brian", text: "Yes. They still have rock climbing and kayaking, but mountain biking is the new activity they've added this year! I can't wait to try it." }
+                ]
+            },
+            {
+                stem: "What accommodation would the students like to stay in?",
+                options: ["A tent", "A wooden cabin", "A hotel", "A caravan"],
+                correctIndex: 1,
+                explanation: "They agree they don't want to stay in a tent again, opting for a wooden cabin.",
+                dialogue: [
+                    { speaker: "Ava", text: "We need to book our accommodation. I really don't want to sleep in a tent again." },
+                    { speaker: "Brian", text: "Me neither. Let's ask to stay in a wooden cabin this time. It'll be much warmer." }
+                ]
+            },
+            {
+                stem: "Where did the girl volunteer last spring?",
+                options: ["At an animal shelter", "At a local library", "At a hospital", "At a food bank"],
+                correctIndex: 1,
+                explanation: "She tried the animal shelter previously, but last spring she helped out at the local library.",
+                dialogue: [
+                    { speaker: "Andrew", text: "Where did you do your volunteer work last spring?" },
+                    { speaker: "Vivienne", text: "Well, I tried the animal shelter in the winter, but last spring I helped out at a local library. I loved organizing the books." }
+                ]
+            },
+            {
+                stem: "Matt says that during his long-distance run he...",
+                options: ["wished he had done more training.", "wishes he had a chance to admire the views.", "experiences a certain level of discomfort.", "often gets completely lost."],
+                correctIndex: 2,
+                explanation: "He notes that while the views are nice, he just accepts the discomfort that comes with such a long run.",
+                dialogue: [
+                    { speaker: "Florian", text: "Matt, tell us about your long-distance running. Do you get to enjoy the scenery?" },
+                    { speaker: "Remy", text: "It's tough. People think I wish I had more time to admire the views, but honestly, you're pushing your body so hard that you just accept that you experience a certain level of discomfort." }
+                ]
+            },
+            {
+                stem: "What does Matt say about advice he's been given?",
+                options: ["It prevented him from making mistakes.", "It helped him consider decisions more carefully.", "It encouraged him to seek answers to questions.", "It was completely useless."],
+                correctIndex: 1,
+                explanation: "He states that advice from others helps him weigh his options more carefully before acting.",
+                dialogue: [
+                    { speaker: "Florian", text: "Do you listen to advice from other runners?" },
+                    { speaker: "Remy", text: "Always. It doesn't prevent mistakes entirely, but it definitely helps me consider decisions more carefully before a big race." }
+                ]
+            }
+        ],
+        // TEST 25: Based on S22 Papers 31 & 41
+        [
+            {
+                stem: "What did the girl lose at the castle?",
+                options: ["Her phone", "Her sunglasses", "Her bag", "Her camera"],
+                correctIndex: 1,
+                explanation: "Losing things on school trips is common! She explicitly mentions leaving her sunglasses behind.",
+                dialogue: [
+                    { speaker: "William", text: "Did you have a good day out at the castle?" },
+                    { speaker: "Emma", text: "Yes, the views were amazing. But I somehow managed to leave my sunglasses there. I've often put my phone down somewhere before and just forgotten to pick it up, so it could've been a lot worse, I guess." }
+                ]
+            },
+            {
+                stem: "How often does the boy visit his aunt and uncle?",
+                options: ["Every month", "Twice a year", "Once a year", "Every summer"],
+                correctIndex: 1,
+                explanation: "He says they used to go every month, but now they only manage to visit twice a year.",
+                dialogue: [
+                    { speaker: "Ava", text: "Are you visiting your aunt and uncle this summer?" },
+                    { speaker: "Brian", text: "Yes, we usually go every summer. We used to visit them every month when they lived closer, but now they are further away so we only manage to go twice a year." }
+                ]
+            },
+            {
+                stem: "What did the man forget to buy at the supermarket?",
+                options: ["The milk", "The bread", "The eggs", "The coffee"],
+                correctIndex: 2,
+                explanation: "It's easy to forget things when you don't make a list! He remembered the milk and coffee, but forgot the eggs.",
+                dialogue: [
+                    { speaker: "Vivienne", text: "Did you get everything from the supermarket? We need milk and eggs for breakfast." },
+                    { speaker: "Andrew", text: "I picked up the milk, and I grabbed some coffee too. But I completely forgot to get the eggs. I'll have to go back tomorrow." }
+                ]
+            },
+            {
+                stem: "What time will the train to London depart?",
+                options: ["09:15", "09:30", "09:45", "10:00"],
+                correctIndex: 2,
+                explanation: "The train was scheduled for 09:15, but has been delayed until 09:45.",
+                dialogue: [
+                    { speaker: "William", text: "Attention passengers. The 09:15 train to London has been delayed due to a signalling problem. The new departure time will be 09:45. We apologise for the delay." }
+                ]
+            },
+            {
+                stem: "Which subject is the girl going to study at university?",
+                options: ["Geography", "History", "Maths", "Chemistry"],
+                correctIndex: 1,
+                explanation: "She considered Geography, but ultimately decided to apply for History.",
+                dialogue: [
+                    { speaker: "Florian", text: "Have you decided what to study at university yet? I know you love Geography." },
+                    { speaker: "Seraphina", text: "I do, but I've actually decided to apply for History instead. I struggled a bit with Maths and Chemistry this year, so History feels like the right choice for me." }
+                ]
+            }
+        ],
+        // TEST 26: Based on S22 Papers 32 & 42
+        [
+            {
+                stem: "What did the man buy in the clothes shop?",
+                options: ["A shirt", "A jacket", "A tie", "A jumper"],
+                correctIndex: 1,
+                explanation: "He considered a silk tie, but ended up buying a jacket because it was on sale.",
+                dialogue: [
+                    { speaker: "Emma", text: "Did you get a new shirt for the wedding?" },
+                    { speaker: "William", text: "I looked at a few, and I almost bought a nice silk tie. But in the end, I decided to buy a jacket because it was on sale." }
+                ]
+            },
+            {
+                stem: "Who did the man buy it for?",
+                options: ["Himself", "His brother", "His father", "His friend"],
+                correctIndex: 2,
+                explanation: "He didn't buy the jacket for himself; he bought it for his father, with some help from his brother.",
+                dialogue: [
+                    { speaker: "Emma", text: "Oh, is it for you?" },
+                    { speaker: "William", text: "Actually, no. I got it for my father. His old one is completely worn out. My brother helped me choose the colour." }
+                ]
+            },
+            {
+                stem: "Where did the woman leave her keys?",
+                options: ["In her car", "On the kitchen table", "At the office", "In her bag"],
+                correctIndex: 2,
+                explanation: "She thought about her car keys, but remembered she left her house keys on her desk at the office.",
+                dialogue: [
+                    { speaker: "Brian", text: "Are you looking for your keys? I saw them on the kitchen table earlier." },
+                    { speaker: "Ava", text: "No, those are my car keys. I'm looking for my house keys. Oh wait, I remember now. I left them at the office on my desk. I'll have to go back and get them." }
+                ]
+            },
+            {
+                stem: "Which exhibition did the boy enjoy most?",
+                options: ["The dinosaurs", "The space travel", "The ancient coins", "The photography"],
+                correctIndex: 1,
+                explanation: "He usually loves dinosaurs, but today he found the space travel exhibition the most interesting.",
+                dialogue: [
+                    { speaker: "Vivienne", text: "How was the museum? Did you see the photography exhibition?" },
+                    { speaker: "Andrew", text: "Yes, it was okay. I usually love the dinosaurs, but today the space travel exhibition was definitely the most interesting part for me." }
+                ]
+            },
+            {
+                stem: "What is the girl going to bake for the competition?",
+                options: ["A chocolate cake", "A fruit pie", "Some biscuits", "A lemon tart"],
+                correctIndex: 0,
+                explanation: "She thought about making a fruit pie or biscuits, but finally decided to make a chocolate cake.",
+                dialogue: [
+                    { speaker: "Remy", text: "Are you ready for the baking competition? Are you making your famous fruit pie?" },
+                    { speaker: "Seraphina", text: "I thought about it, or maybe some biscuits, but I've decided to make a chocolate cake instead. I've been practising it all week." }
+                ]
+            }
+        ],
+        // TEST 27: Based on S22 Papers 33 & 43
+        [
+            {
+                stem: "What did the woman make for her sister's graduation party?",
+                options: ["A dress", "A cake", "Some decorations", "A necklace"],
+                correctIndex: 0,
+                explanation: "She didn't make a necklace because she isn't good at jewellery, but she did make a beautiful dress for the occasion.",
+                dialogue: [
+                    { speaker: "Florian", text: "Did you have a good time at your sister's graduation party?" },
+                    { speaker: "Emma", text: "Yes, it was lovely. I spent weeks making a dress for her to wear. She looked fantastic in it. She originally wanted a necklace, but I'm not good at making jewellery." }
+                ]
+            },
+            {
+                stem: "What did the woman forget to take with her to the party?",
+                options: ["Her phone", "The present", "Her coat", "The camera"],
+                correctIndex: 3,
+                explanation: "She had her phone, but she was annoyed because she left her camera on the kitchen counter.",
+                dialogue: [
+                    { speaker: "Florian", text: "Did you manage to take lots of photos?" },
+                    { speaker: "Emma", text: "I had my phone, so I took a few on that. But I was so annoyed because I left the camera sitting on the kitchen counter at home!" }
+                ]
+            },
+            {
+                stem: "What was the weather like on the first day of the holiday?",
+                options: ["Sunny", "Raining", "Cloudy", "Windy"],
+                correctIndex: 1,
+                explanation: "They expected sunshine, but on the very first day it was pouring with rain.",
+                dialogue: [
+                    { speaker: "William", text: "How was your holiday by the coast?" },
+                    { speaker: "Ava", text: "Well, we expected it to be sunny all week. But on the first day it was pouring with rain! Fortunately, the wind died down and the rest of the week was beautiful." }
+                ]
+            },
+            {
+                stem: "Which instrument does the boy want to learn to play?",
+                options: ["The piano", "The guitar", "The drums", "The violin"],
+                correctIndex: 1,
+                explanation: "He stopped playing the piano and rejected his parents' suggestion of the violin. He wants to play the guitar.",
+                dialogue: [
+                    { speaker: "Seraphina", text: "Are you still having piano lessons?" },
+                    { speaker: "Brian", text: "I stopped last month. I'd really love to learn the guitar now. My parents suggested the violin, but I don't think it's for me." }
+                ]
+            },
+            {
+                stem: "Where did the boy find his missing textbook?",
+                options: ["In his locker", "Under his bed", "In the library", "On the sofa"],
+                correctIndex: 2,
+                explanation: "He checked under his bed and in his locker, but finally found the textbook left on a desk in the library.",
+                dialogue: [
+                    { speaker: "Vivienne", text: "Did you find your history textbook? You thought it was under your bed." },
+                    { speaker: "Andrew", text: "I looked there, and I even checked my school locker. It turns out I'd left it on a desk in the library after our study session." }
+                ]
+            }
+        ]
+    ];
+
+    let currentTestIndex = 0;
+    let audioPlaying = false;
+    let audioQueue = [];
+
+    const allowedVoices = ["Emma", "Brian", "Ava", "Andrew", "William", "Remy", "Giuseppe", "Vivienne", "Florian", "Seraphina"];
+    let voiceMap = {};
+
+    function init() {
+        loadVoices();
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+        loadTest(0);
+    }
+
+    function loadVoices() {
+        const voices = window.speechSynthesis.getVoices();
+        if (voices.length === 0) return;
+
+        allowedVoices.forEach(name => {
+            let foundVoice = voices.find(v => v.name.includes(name) && v.name.includes("Online"));
+            if (!foundVoice) foundVoice = voices.find(v => v.name.includes(name));
+            if (!foundVoice) foundVoice = voices.find(v => (v.lang === 'en-US' || v.lang === 'en-GB'));
+            voiceMap[name] = foundVoice;
+        });
+    }
+
+    function loadTest(index) {
+        currentTestIndex = parseInt(index);
+        const questionsContainer = document.getElementById('questionsContainer');
+        const transcriptContent = document.getElementById('transcriptContent');
+        
+        questionsContainer.innerHTML = '';
+        transcriptContent.innerHTML = '';
+
+        const testData = listeningBank[currentTestIndex];
+
+        testData.forEach((q, idx) => {
+            const block = document.createElement('div');
+            block.className = 'question-block';
+            
+            let optionsHtml = '';
+            q.options.forEach((opt, i) => {
+                optionsHtml += `
+                    <label class="option-label" data-q="${idx}" data-index="${i}">
+                        <input type="radio" name="q${idx}" value="${i}">
+                        ${String.fromCharCode(65 + i)}) ${opt}
+                    </label>
+                `;
+            });
+
+            block.innerHTML = `
+                <div class="question-text">${q.stem}</div>
+                <div class="options-grid">
+                    ${optionsHtml}
+                </div>
+                <div class="feedback-box" id="feedback-${idx}">
+                    ${q.explanation}
+                </div>
+            `;
+            questionsContainer.appendChild(block);
+
+            const scriptDiv = document.createElement('div');
+            scriptDiv.className = 'script-line';
+            let dialogueHtml = ``;
+            
+            q.dialogue.forEach(line => {
+                dialogueHtml += `<div>${line.text}</div><br>`;
+            });
+            
+            scriptDiv.innerHTML = dialogueHtml;
+            transcriptContent.appendChild(scriptDiv);
+        });
+
+        document.getElementById('transcriptContainer').style.display = 'none';
+        document.getElementById('layoutGrid').classList.remove('show-transcript');
+        stopAudio();
+    }
+
+    function toggleTranscript() {
+        const grid = document.getElementById('layoutGrid');
+        const panel = document.getElementById('transcriptContainer');
+        
+        if (panel.style.display === 'block') {
+            panel.style.display = 'none';
+            grid.classList.remove('show-transcript');
+        } else {
+            panel.style.display = 'block';
+            grid.classList.add('show-transcript');
+        }
+    }
+
+    function checkAnswers() {
+        const testData = listeningBank[currentTestIndex];
+        let allAnswered = true;
+
+        testData.forEach((q, idx) => {
+            const selected = document.querySelector(`input[name="q${idx}"]:checked`);
+            if (!selected) allAnswered = false;
+        });
+
+        if (!allAnswered) {
+            alert("Please select an answer for all questions in this test before checking.");
+            return;
+        }
+
+        let score = 0;
+
+        testData.forEach((q, idx) => {
+            const options = document.querySelectorAll(`label[data-q="${idx}"]`);
+            const selectedVal = parseInt(document.querySelector(`input[name="q${idx}"]:checked`).value);
+            const feedbackBox = document.getElementById(`feedback-${idx}`);
+
+            options.forEach(lbl => {
+                lbl.classList.remove('correct', 'incorrect'); 
+                const optIdx = parseInt(lbl.getAttribute('data-index'));
+                
+                if (optIdx === q.correctIndex) {
+                    lbl.classList.add('correct');
+                } else if (optIdx === selectedVal && selectedVal !== q.correctIndex) {
+                    lbl.classList.add('incorrect');
+                }
+            });
+
+            if (selectedVal === q.correctIndex) score++;
+            feedbackBox.classList.add('show'); 
+        });
+
+        alert(`You scored ${score} out of ${testData.length} on this test!`);
+    }
+
+    function toggleAudio() {
+        if (audioPlaying) {
+            stopAudio();
+        } else {
+            playAudio();
+        }
+    }
+
+    function stopAudio() {
+        audioPlaying = false;
+        audioQueue = [];
+        window.speechSynthesis.cancel();
+        updateAudioUI();
+    }
+
+    function playAudio() {
+        if (!('speechSynthesis' in window)) {
+            alert("Your browser does not support the Web Speech API required for audio.");
+            return;
+        }
+
+        window.speechSynthesis.cancel(); 
+        audioQueue = [];
+        
+        const testData = listeningBank[currentTestIndex];
+
+        testData.forEach((q, idx) => {
+            audioQueue.push({ speaker: "System", text: `${q.stem}` });
+            
+            q.dialogue.forEach(line => {
+                audioQueue.push({ speaker: line.speaker, text: line.text });
+            });
+            
+            audioQueue.push({ speaker: "System", text: `Pause.` }); 
+        });
+
+        audioPlaying = true;
+        updateAudioUI();
+        processQueue();
+    }
+
+    function processQueue() {
+        if (!audioPlaying) return;
+        
+        if (audioQueue.length === 0) {
+            stopAudio();
+            return;
+        }
+
+        const currentLine = audioQueue.shift();
+        const utterance = new SpeechSynthesisUtterance(currentLine.text);
+        
+        utterance.rate = 0.85; 
+        
+        if (currentLine.speaker !== "System" && voiceMap[currentLine.speaker]) {
+            utterance.voice = voiceMap[currentLine.speaker];
+        } else {
+            if (voiceMap["William"]) {
+                utterance.voice = voiceMap["William"];
+            } else {
+                const fallbackVoice = window.speechSynthesis.getVoices().find(v => v.lang.startsWith('en'));
+                if(fallbackVoice) utterance.voice = fallbackVoice;
+            }
+        }
+
+        utterance.onstart = () => {
+            document.getElementById('audioStatusText').innerText = "";
+        };
+
+        utterance.onend = () => {
+            setTimeout(() => {
+                processQueue();
+            }, 500); 
+        };
+
+        utterance.onerror = (e) => {
+            console.warn("TTS Error:", e);
+            processQueue(); 
+        };
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function updateAudioUI() {
+        const btn = document.getElementById('playBtn');
+        const indicator = document.getElementById('playingIndicator');
+        const statusText = document.getElementById('audioStatusText');
+        
+        if (audioPlaying) {
+            btn.innerHTML = '⏸';
+            indicator.style.display = 'block';
+        } else {
+            btn.innerHTML = '▶';
+            indicator.style.display = 'none';
+            statusText.innerText = "";
+        }
+    }
+
+    window.addEventListener('load', init);
+
+</script>
+</body>
+</html>

@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Human Journey: Tracing Our Ancestors</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        @keyframes journeyColors {
+            0% { background-color: #0f172a; } /* Night sky / slate-900 */
+            25% { background-color: #451a03; } /* Desert / amber-900 */
+            50% { background-color: #0c4a6e; } /* Ocean / sky-900 */
+            75% { background-color: #1e3a8a; } /* Deep sea / blue-900 */
+            100% { background-color: #0f172a; } /* Night sky */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+            animation: journeyColors 240s linear infinite;
+            padding-top: 85px; 
+        }
+        #background-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none;
+        }
+        .page { display: none; position: relative; }
+        .page.active { display: block; animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .action-button, .nav-button, .quiz-option, .tf-button, .word-bank-word, .btn-animated-3d, .timeline-node {
+            transition: all 0.15s ease-out;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 2px 4px -2px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+            border: none;
+        }
+        .action-button:hover, .nav-button:hover, .quiz-option:hover:not(:disabled), .tf-button:hover:not(:disabled), .word-bank-word:hover, .btn-animated-3d:hover, .timeline-node:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px -3px rgba(0,0,0,0.2), 0 4px 6px -4px rgba(0,0,0,0.1), inset 0 -4px 0 0 rgba(0,0,0,0.2);
+        }
+        .action-button:active, .nav-button:active, .quiz-option:active, .tf-button:active, .btn-animated-3d:active, .timeline-node:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px -1px rgba(0,0,0,0.2), 0 1px 2px -2px rgba(0,0,0,0.1), inset 0 -2px 0 0 rgba(0,0,0,0.2);
+        }
+        
+        /* Gap Fill Styles */
+        .gap-fill-container .gap {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 150px; height: 44px; padding: 0 4px;
+            border: 2px dashed #9ca3af; border-radius: 8px; margin: 0 4px;
+            vertical-align: middle; background-color: #f3f4f6;
+        }
+        .word-bank-word {
+            cursor: grab; padding: 8px 16px; border-radius: 8px;
+            background-color: white; user-select: none;
+        }
+        .word-bank-word.selected { outline: 2px solid #6366f1; transform: scale(1.05); }
+        .gap .word-bank-word { cursor: pointer; }
+        .gap.correct .word-bank-word { background-color: #dcfce7; border-color: #22c55e; color: #15803d; }
+        .gap.incorrect .word-bank-word { background-color: #fee2e2; border-color: #ef4444; color: #b91c1c; }
+
+        /* Feedback Message & Badge Notification */
+        .feedback-toast, .badge-toast {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            padding: 12px 24px; border-radius: 9999px; color: white;
+            font-weight: bold; z-index: 200;
+            animation: slideUpFadeIn 0.5s ease-out, slideDownFadeOut 0.5s ease-in 3.5s forwards;
+        }
+        .feedback-toast.correct { background-color: #22c55e; }
+        .feedback-toast.encouraging { background-color: #f59e0b; }
+        .badge-toast { background: linear-gradient(45deg, #fde047, #f97316); animation-duration: 4.5s; }
+        @keyframes slideUpFadeIn { from { opacity: 0; bottom: 0; } to { opacity: 1; bottom: 20px; } }
+        @keyframes slideDownFadeOut { from { opacity: 1; bottom: 20px; } to { opacity: 0; bottom: 0; } }
+
+        /* Certificate Canvas */
+        #completion-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+        
+        /* Progress Bar */
+        #progress-container { background-color: #e5e7eb; border-radius: 9999px; overflow: hidden; height: 8px; width: 100%; margin-top: 8px; }
+        #progress-bar { height: 100%; width: 0%; background-color: #f59e0b; transition: width 0.5s ease-out; }
+        
+        /* Vocab Game Timer */
+        #vocab-game-timer-bar { height: 6px; background-color: #f59e0b; transition: width 0.1s linear; }
+        
+        /* Shake Animation for incorrect answers */
+        @keyframes shake {
+          10%, 90% { transform: translate3d(-1px, 0, 0); }
+          20%, 80% { transform: translate3d(2px, 0, 0); }
+          30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+          40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
+        .shake { animation: shake 0.82s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .word-bank { margin-top: 1.5rem; }
+        .word-bank h4 { font-weight: 700; font-size: 1.125rem; color: #b45309; }
+        .word-bank-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; padding: 1rem; background-color: #fffbeb; border-radius: 0.5rem; border: 1px solid #fde68a; }
+        .word-bank-pills span { background-color: #ffffff; border: 1px solid #fcd34d; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem; font-weight: 500; color: #92400e; }
+
+        /* SDG Badges */
+        .sdg-badge { display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 700; color: white; margin-right: 0.5rem; margin-bottom: 0.5rem; }
+        .sdg-10 { background-color: #dd1367; } /* Reduced Inequalities */
+        .sdg-11 { background-color: #fd6925; } /* Sustainable Cities/Communities */
+        .sdg-4 { background-color: #c5192d; } /* Quality Education */
+
+        /* Print Styles */
+        @media print {
+            body * { visibility: hidden; }
+            #certificate-to-print, #certificate-to-print * { visibility: visible; }
+            #certificate-to-print { position: absolute; left: 0; top: 0; width: 100%; padding: 40px; border: 10px solid #451a03; background: #fff; }
+        }
+    
+        /* Reward Animation Styles */
+        .particle { position: fixed; pointer-events: none; z-index: 9999; will-change: transform, opacity; opacity: 1; transition: opacity 0.5s ease-out; }
+        .particle.glitter { width: 10px; height: 10px; border-radius: 50%; background: #fde047; box-shadow: 0 0 5px #fde047, 0 0 10px #fde047, 0 0 15px #fff; }
+        .particle.glitter.alt { background: #ffffff; box-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 15px #38bdf8; }
+        .particle.dna { font-size: 32px; }
+    </style>
+</head>
+<body class="antialiased text-gray-800 text-lg">
+    <canvas id="background-canvas"></canvas>
+    <div id="reward-animation-container" class="fixed top-0 left-0 w-full h-full pointer-events-none z-[60]"></div>
+
+    <header id="nav-header" class="fixed top-0 left-0 right-0 z-50 p-2" style="display: none;">
+        <div class="max-w-md mx-auto bg-white/90 backdrop-blur-sm shadow-lg rounded-full p-2">
+            <div class="flex justify-center items-center gap-2">
+                <button onclick="goBack()" class="nav-button bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <div class="font-bold text-base text-amber-600 px-3 whitespace-nowrap">Points 🧬: <span id="score-display">0</span></div>
+                <button onclick="navigateTo('main-menu')" class="nav-button bg-gray-800 text-white font-bold p-2 rounded-full hover:bg-gray-900">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6-4h.01M5 19h14"></path></svg>
+                </button>
+                <button onclick="toggleTTS(this)" class="nav-button p-2 rounded-full hover:bg-gray-200" title="Toggle Sound">
+                    <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"></path></svg>
+                </button>
+                <button onclick="goNext()" class="nav-button bg-amber-600 hover:bg-amber-700 text-white font-bold p-2 rounded-full">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+    </header>
+
+    <div id="app-container" class="max-w-6xl mx-auto p-4 sm:p-6 md:p-8">
+        <section id="page-title-screen" class="page active text-center bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-10">
+            <div class="h-full flex flex-col justify-center items-center">
+                <h1 id="main-title" class="text-5xl md:text-6xl font-bold text-slate-800 mb-4"></h1>
+                <p id="main-subtitle" class="text-xl md:text-2xl text-gray-600 mb-8"></p>
+                <div id="main-svg-container" class="rounded-lg mb-8 w-full max-w-lg mx-auto"></div>
+                <button onclick="startApp()" class="action-button bg-amber-600 text-white font-bold py-3 px-8 rounded-full text-2xl hover:bg-amber-700">START JOURNEY</button>
+            </div>
+        </section>
+        <div id="dynamic-pages-container"></div>
+    </div>
+    
+    <script>
+        // --- Helper for true shuffling ---
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // ===================================================================================
+        // --- LESSON CONTENT CONFIGURATION (UNIT 5: THE HUMAN JOURNEY) ---
+        // ===================================================================================
+
+        const reflectionQuestions = [
+            "Homo sapiens have lived in the Great Rift Valley, a geological fault stretching 3,000 miles, for about 200,000 years. If you were designing an educational video game for Chinese students about this 3,000-mile “crucible,” what specific environmental challenges would you include to show how early humans were tested to survive?",
+            "In 1997, scientists found the “Idaltu” skull in Ethiopia, proving modern humans walked the Earth 160,000 years ago. How does realizing that Africa is the true cradle of humanity change the way you personally understand global history compared to the stories you learned as a child?",
+            "The documentary states that the false historical myth of Africans being a “subhuman” species actually began during the Enlightenment in the 18th century. Why do you think highly educated societies in the 18th century invented these myths, and how can we recognize similar false scientific claims on social media today?",
+            "DNA evidence traces all humans back to one “Mitochondrial Eve” who lived 200,000 years ago, meaning all 8 billion humans alive today share the same Black ancestors. Based on this genetic data, how would you argue against the concept of deep racial divisions in a modern, globalized world?",
+            "Between 80,000 and 50,000 years ago, early humans began migrating out of Africa, possibly aided by a huge 80,000-year-old adaptation: the invention of speech. In your opinion, how did the ability to speak give these small human communities the specific power to survive in dangerous, unknown lands?",
+            "Discovered in 1991, the Blombos Cave contains evidence of human life for over 140,000 years, including a decorated ochre block with purposeful markings from 77,000 years ago. Compare this ancient 77,000-year-old desire to stamp symbols on stones with how modern youth in China use digital avatars or emojis to express their identities today.",
+            "Scientists used to think art started in France 35,000 years ago, but African art in the south dates back 90,000 to 100,000 years. Why is it important for our historical timelines to be updated with new data, and how does this shift the traditional focus away from Europe?",
+            "Cave paintings from 7,000 years ago in Wadi Sura show people swimming in what is now a dry desert, proving the Sahara was actually a green savanna 10,000 years ago. What can this 10,000-year-old rock art teach modern societies about the realities of surviving extreme climate change today?",
+            "Between 4,800 and 4,200 B.C. (over 1,000 years before ancient Egypt), cattle herders formed the first complex African society west of the Nile. Why do you think the responsibility of managing large herds of livestock required early humans to create a more organized and complex society?",
+            "By 4,000 B.C., vast areas of the lush Sahara savanna turned into a harsh desert, forcing people to migrate to the fertile Nile Valley. How do you think forced migration due to a dying environment impacts a culture's resilience and forces them to innovate?",
+            "Burial pits dating back to 3,600 B.C. (over 6,000 years ago) contain elaborate Afro combs used by elites. What does a 6,000-year-old society's focus on complex hairstyles and beauty tell us about its economic stability and wealth?",
+            "In 1988, archaeologists found 150 ivory tags in a tomb at Abydos dating back to 3,250 B.C.E., proving writing developed independently in Africa. If you were an ancient ruler, how would using these 150 tags to track your property and labor help you strictly dominate your society?",
+            "The Great Pyramid of Giza was built for Pharaoh Khufu, who took the throne in 2,600 B.C. and ruled for 27 years. It was built by Egyptian farmers paying their taxes with labor during the Nile floods. How does this change the common Hollywood myth that the pyramids were built by slaves?",
+            "Taking 27 years and 2,300,000 stone blocks (each weighing 2.5 tons), the Great Pyramid remained the tallest building on Earth for 4,000 years. What kind of cultural mindset is required for a society to spend massive national resources on a single 2.5-ton block building for one leader?",
+            "Between 1913 and 1916, archaeologists digging in Kerma found 322 human remains in a single elite burial pit. Knowing these 322 people were retainers meant to serve the king in the afterlife, what does this say about ancient African belief systems compared to ancient Chinese emperor burials?",
+            "The earliest Kerma settlement was in 4,000 B.C., and by 2,500 B.C. it had over 10,000 residents and a massive mud-brick building known as the Deffufa. Why is it significant for modern students to learn that massive, independent cities of 10,000 people thrived in Africa outside of Egypt?",
+            "By 1,500 B.C., Egypt was a world power relying heavily on the 18th Dynasty's trade with Kush for luxury gold. When two powerful neighboring countries rely on each other for vital resources, what psychological factors usually lead them to war instead of peace?",
+            "Between 1,800 B.C. and 1,500 B.C., African craftsmen accidentally discovered iron while making ceramics. How does the independent invention of iron 3,000 years ago in Central Africa challenge the old, biased idea that advanced technology only came from places outside of Africa?",
+            "In 1943, a farmer found the Nok terracottas in Nigeria, which date back to 900 B.C. If you had to guess the social structure of a 900 B.C. African society based only on these highly detailed, heavy-jewelry sculptures, what would you deduce?",
+            "By 500 B.C., Meroe became the new capital of Kush, featuring over 100 pyramids and enormous iron slagheaps for making weapons. Why is becoming an industrial center for iron weapons a better long-term survival strategy for a nation than just trading raw gold?"
+        ];
+
+        const reflectionPages = reflectionQuestions.map((q, i) => ({
+            id: `perspective-${i+1}`,
+            type: 'reflection-prompt',
+            content: {
+                title: `Perspective ${i+1} of 20`,
+                prompt: q
+            }
+        }));
+
+        const lessonData = {
+            title: "The Human Journey",
+            subtitle: "Tracing Our Ancestors <span aria-hidden='true'>👣</span>",
+            startPageId: 'title-screen',
+            homePageId: 'main-menu',
+            mainMenu: [
+                { id: 'menu-goals', text: '1. Learning Goals & SDGs <span aria-hidden="true">🎯</span>', color: 'orange', target: 'learning-goals' },
+                { id: 'menu-tbl', text: '2. TBL: Migration Strategy <span aria-hidden="true">🗺️</span>', color: 'amber', target: 'tbl-start' },
+                { id: 'menu-warmup', text: '3. Pre-Reading & Vocab <span aria-hidden="true">📚</span>', color: 'blue', target: 'warm-up' },
+                { id: 'menu-vocab-game', text: 'Vocab Game <span aria-hidden="true">🎮</span>', color: 'indigo', target: 'vocab-game'},
+                { id: 'menu-reading', text: '4. Reading: Human Journey <span aria-hidden="true">📖</span>', color: 'sky', target: 'reading-main' },
+                { id: 'menu-timeline', text: '5. Interactive Timeline <span aria-hidden="true">⏳</span>', color: 'teal', target: 'migration-timeline' },
+                { id: 'menu-lecture1', text: '6. Listening: Lecture <span aria-hidden="true">🧑‍🏫</span>', color: 'green', target: 'lecture-uni' },
+                { id: 'menu-lecture2', text: '7. Listening: Expert Talk <span aria-hidden="true">🎙️</span>', color: 'emerald', target: 'lecture-expert' },
+                { id: 'menu-podcast1', text: '8. Listening: Podcast <span aria-hidden="true">🎧</span>', color: 'rose', target: 'podcast-convo' },
+                { id: 'menu-debate', text: '9. Discussion: DNA Debate <span aria-hidden="true">🤔</span>', color: 'violet', target: 'debate-planning' },
+                { id: 'menu-thinking', text: '10. Thinking & Exam Prep <span aria-hidden="true">📝</span>', color: 'amber', target: 'thinking-prompts' },
+                { id: 'menu-perspectives', text: '11. Personal Perspectives <span aria-hidden="true">💭</span>', color: 'indigo', target: 'perspective-intro' },
+                { id: 'menu-final', text: '12. Final Project <span aria-hidden="true">✍️</span>', color: 'blue', target: 'final-project-hub' },
+            ],
+            vocabulary: [
+                { word: 'Descendant', def: 'A person\'s children, grandchildren, and future generations.', sentence: 'We are all descendants of the first humans who left Africa.' },
+                { word: 'Vanish', def: 'To disappear completely.', sentence: 'The trail seemed to vanish into the deep jungle.' },
+                { word: 'Scattered', def: 'Spread over a large area; not grouped together.', sentence: 'Scientists found scattered bones across the desert.' },
+                { word: 'Trace', def: 'To follow the history or development of something.', sentence: 'We can trace our ancestors using DNA testing.' },
+                { word: 'Immense', def: 'Extremely large in size or scale.', sentence: 'The Pacific Ocean is an immense body of water.' },
+                { word: 'Navigation', def: 'The science of planning and following a route.', sentence: 'Early sailors used the stars for navigation.' },
+                { word: 'Intact', def: 'Complete and not damaged.', sentence: 'The ancient canoe was found completely intact.' },
+                { word: 'Horizon', def: 'The line at which the earth\'s surface and the sky appear to meet.', sentence: 'The sailors looked for land on the horizon.' },
+                { word: 'Phenomenon', def: 'A fact or event in nature or society, especially one not fully understood.', sentence: 'A solar eclipse is a rare natural phenomenon.' },
+                { word: 'Stubborn', def: 'Refusing to change your mind or behavior.', sentence: 'The stubborn explorers refused to turn back despite the storm.' }
+            ],
+            pages: [
+                // 1. Learning Goals & SDGs
+                { id: 'learning-goals', type: 'html-content', content: { title: 'Learning Goals & SDGs <span aria-hidden="true">🎯</span>', html: `
+                    <div class="text-left space-y-6">
+                        <div class="mb-4">
+                            <span class="sdg-badge sdg-10">SDG 10: Reduced Inequalities</span>
+                            <span class="sdg-badge sdg-11">SDG 11: Sustainable Cities & Communities</span>
+                            <span class="sdg-badge sdg-4">SDG 4: Quality Education</span>
+                        </div>
+                        <p><strong class="text-amber-600 text-xl">Learning Intention:</strong> We are learning to analyze how modern DNA tracks ancient human migration out of Africa, and how early Polynesians navigated the immense Pacific Ocean.</p>
+                        <hr class="my-4 border-gray-300">
+                        <h3 class="text-2xl font-bold text-amber-600 mb-3">Success Criteria</h3>
+                        <ul class="list-disc list-inside space-y-3 text-xl text-slate-700">
+                            <li>I can explain the <strong>Out of Africa</strong> theory using DNA evidence, highlighting our shared human origins (SDG 10).</li>
+                            <li>I can describe how the Lapita people used natural <strong>navigation</strong> techniques to explore the Pacific, preserving cultural heritage (SDG 11).</li>
+                            <li>I can evaluate the ethical implications and privacy risks of commercial DNA testing.</li>
+                        </ul>
+                    </div>` } },
+                
+                // 2. TBL Activity
+                { id: 'tbl-start', type: 'simple', content: { title: 'Task-Based Learning <span aria-hidden="true">🗺️</span>', text: 'Let\'s step into the shoes of our ancestors before we read their history.' } },
+                { id: 'tbl-pre', type: 'html-content', content: { title: 'Pre-Task: The Push and Pull', html: `<div class="text-left text-xl space-y-4"><p>Imagine moving to a brand new high school in a different city next year.</p><p>What are the <strong>"push" factors</strong> (reasons you want to leave your old school) and <strong>"pull" factors</strong> (things attracting you to the new city)?</p><p class="text-slate-500 italic mt-4">Discuss with a partner for 2 minutes. Write down 2 Push and 2 Pull factors.</p></div>` } },
+                { id: 'tbl-task', type: 'html-content', content: { title: 'The Task: Survival Blueprint', html: `<div class="text-left text-xl space-y-4"><p>Your group is a band of early humans living 60,000 years ago. A massive drought has hit your homeland (a massive Push factor!). You must migrate 1,000 miles to an unknown land across the sea.</p><div class="bg-amber-50 p-6 border border-amber-200 rounded-xl mt-6"><h4 class="font-bold text-amber-800 mb-2">Group Assignment:</h4><ul class="list-disc list-inside space-y-2"><li>Identify <strong>3 major environmental challenges</strong> you will face on the journey.</li><li>Invent <strong>3 tools or adaptations</strong> your group will use to survive and navigate without modern technology.</li></ul></div></div>` } },
+                { id: 'tbl-post', type: 'html-content', content: { title: 'Post-Task: Presentation', html: `<div class="text-left text-xl space-y-4"><p>Present your survival blueprint to the class.</p><p>As you listen to other groups, compare their strategies: Did they rely on <em>technology</em> (inventing boats/clothes) or <em>nature</em> (reading stars/following animals)?</p><p class="mt-8 text-amber-700 font-bold">Now, let's read about how real humans actually survived this journey.</p></div>` } },
+
+                // 3. Warm-Up & Vocab
+                { id: 'warm-up', type: 'html-content', content: { title: 'Pre-Reading: Tracing Our Steps <span aria-hidden="true">📚</span>', html: `
+                    <ol class="list-decimal list-inside space-y-6 text-2xl text-left text-slate-700 leading-relaxed">
+                        <li>If you wanted to prove where your ancestors came from 10,000 years ago, what physical proof could you possibly find today?</li>
+                        <li>How do you think early sailors crossed the Pacific Ocean thousands of years before compasses and GPS were invented?</li>
+                        <li>What makes a human journey a "fantastic voyage" rather than just a trip?</li>
+                    </ol>` } },
+                { id: 'vocab-start', type: 'simple', content: { title: 'Unit Vocabulary <span aria-hidden="true">📚</span>', text: 'Let\'s learn the key terms for this unit. Click "Next" to see each word. The vocabulary words will be read automatically for you.' } },
+                { id: 'vocab-game', type: 'vocab-game', content: { title: 'Vocabulary Review Game <span aria-hidden="true">🎮</span>'} },
+                
+                // 4. Reading & Comprehension
+                { id: 'reading-main', type: 'html-content', content: { title: 'Reading: The Human Journey <span aria-hidden="true">📖</span>', html: `
+                    <div class="space-y-8 text-left text-xl leading-relaxed">
+                        <div class="bg-orange-50 p-6 rounded-xl border border-orange-200">
+                            <h4 class="font-bold text-2xl text-orange-800 mb-3">The DNA Trail</h4>
+                            <p>It may be the greatest story ever told. It begins in Africa with a group of people, perhaps just a few hundred, surviving by hunting and gathering. It ends about 200,000 years later with their seven billion <strong>descendants</strong> spread across the Earth. For decades, the only proof was found in <strong>scattered</strong> bones and artifacts. In the past 20 years, however, DNA technologies have allowed scientists to <strong>trace</strong> ancient human migrations by looking at the genetic code of living people. Probably between 50,000 and 70,000 years ago, one small group left Africa for western Asia, eventually reaching the Americas via the Bering Land Bridge.</p>
+                        </div>
+                        <div class="bg-blue-50 p-6 rounded-xl border border-blue-200">
+                            <h4 class="font-bold text-2xl text-blue-800 mb-3">Fantastic Voyage</h4>
+                            <p>Thousands of years ago, another incredible journey began. The ancestors of the Polynesians, known as the Lapita, sailed into the <strong>immense</strong> Pacific Ocean. Without modern instruments, they relied on natural <strong>navigation</strong>. They looked at the <strong>horizon</strong> for clues like cloud formations, the flight paths of birds, and the patterns of ocean swells. They successfully navigated huge distances, ensuring their culture remained <strong>intact</strong> as they settled islands from Hawaii to New Zealand.</p>
+                        </div>
+                        <div class="bg-emerald-50 p-6 rounded-xl border border-emerald-200">
+                            <h4 class="font-bold text-2xl text-emerald-800 mb-3">The Ultimate Drive</h4>
+                            <p>What drove early humans to venture into the unknown? "We jump borders," says geneticist Svante Pääbo. "We push into new territory even when we have resources where we are." Whether it was walking into Ice Age Europe or sailing toward an endless horizon, human migration is a unique <strong>phenomenon</strong>. We are a <strong>stubborn</strong> and endlessly curious species, and our shared DNA proves that we are all deeply connected.</p>
+                        </div>
+                    </div>` } },
+                
+                // 5. Interactive Timeline
+                { id: 'migration-timeline', type: 'timeline', content: { 
+                    title: 'The Great Migration', 
+                    description: 'Explore the factual timeline of human expansion out of Africa.',
+                    events: [
+                        { date: "~200,000 Years Ago", title: "The Origin", desc: "Homo sapiens (modern humans) emerge in East Africa. For a long time, populations stay within the African continent, adapting to different environments and hunting." },
+                        { date: "~60,000 Years Ago", title: "Out of Africa", desc: "A small group of humans crosses out of Africa into western Asia (the Middle East), likely crossing the Red Sea. They become the ancestors of all modern non-African populations." },
+                        { date: "~50,000 Years Ago", title: "The Coastal Route", desc: "Humans rapidly migrate along the coastlines of the Arabian Peninsula, India, and Southeast Asia, eventually reaching Australia via primitive boats." },
+                        { date: "~15,000 Years Ago", title: "The Americas", desc: "Humans cross the Bering Land Bridge (a strip of land connecting Siberia and Alaska during the Ice Age) and enter the Americas, eventually migrating south." },
+                        { date: "~3,000 Years Ago", title: "The Pacific", desc: "The Lapita people (ancestors of the Polynesians) begin sailing into the immense Pacific Ocean using advanced natural navigation techniques, settling remote islands." }
+                    ]
+                } },
+
+                { id: 'reading-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Comprehension: Gap Fill', sentences: [], wordBank: [] } },
+                { id: 'reading-quiz-tf', type: 'quiz-tf', content: { title: 'Comprehension: True / False', questions: [] } },
+                { id: 'reading-quiz-mcq', type: 'quiz-mcq', content: { title: 'Comprehension: Multiple Choice', questions: [] } },
+                
+                // 6. Listening: Lecture
+                { id: 'lecture-uni', type: 'dialogue', content: { title: 'Listening: University Lecture <span aria-hidden="true">🧑‍🏫</span>', dialogue: `Professor Wang: Good morning, everyone. Today we are looking at the 'Out of Africa' theory. For a long time, the history of human migration was a puzzle with missing pieces. We only had scattered bones to rely on. But today, the human genome is our greatest history book. 
+
+Professor Wang: Every drop of your blood contains a record of your ancestors' journeys. How do we read it? We look for genetic markers. A marker is a rare mutation—a tiny spelling mistake in the DNA code. When a mutation occurs, it is passed down to all the descendants of that person.
+
+Professor Wang: By comparing the DNA of living people around the world, geneticists can trace these markers backwards in time. They use specific parts of our DNA that don't get mixed up from generation to generation: mitochondrial DNA from the mother, and the Y chromosome from the father. 
+
+Professor Wang: Through this method, we have proven that every single non-African person alive today is a descendant of one small group of humans who crossed out of Africa, likely over the Red Sea, roughly 60,000 years ago. It’s an immense, incredible realization. We are all family.` } },
+                { id: 'lecture-uni-quiz-mcq', type: 'quiz-mcq', content: { title: 'Lecture Quiz (MCQ)', questions: [] } },
+                { id: 'lecture-uni-quiz-tf', type: 'quiz-tf', content: { title: 'Lecture Quiz (True/False)', questions: [] } },
+                { id: 'lecture-uni-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Lecture Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+                
+                // 7. Listening: Expert Talk
+                { id: 'lecture-expert', type: 'dialogue', content: { title: 'Listening: Expert Talk <span aria-hidden="true">🎙️</span>', dialogue: `Host 1: Welcome back. Today we're speaking with Dr. Elena Cruz, a maritime anthropologist, about the greatest ocean explorers in history: the Polynesians. Dr. Cruz, they didn't have compasses, so how did they find tiny islands in the immense Pacific?
+
+Dr. Elena Cruz: It’s a pleasure to be here. The ancestors of the Polynesians, the Lapita people, used what we call 'wayfinding' or natural navigation. They didn't need metal instruments because they used the environment itself as a compass.
+
+Host 1: Can you give us an example?
+
+Dr. Elena Cruz: The most crucial tool was the star compass. Navigators memorized the rising and setting points of dozens of stars. But during the day, or when it was cloudy, they read the ocean. They could feel the direction of the ocean swells bouncing back from distant islands, even if the land was far beyond the horizon.
+
+Host 1: I read they also used birds?
+
+Dr. Elena Cruz: Exactly. Certain seabirds fly out to fish in the morning and return to land at night. If a navigator saw a bird with fish in its mouth flying in a specific direction at dusk, they knew land was that way. It was an incredibly complex system passed down orally, and it allowed them to cross thousands of miles of open water.` } },
+                { id: 'lecture-expert-quiz-mcq', type: 'quiz-mcq', content: { title: 'Expert Talk Quiz (MCQ)', questions: [] } },
+                { id: 'lecture-expert-quiz-tf', type: 'quiz-tf', content: { title: 'Expert Talk Quiz (True/False)', questions: [] } },
+                { id: 'lecture-expert-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Expert Talk Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+
+                // 8. Listening: Podcast
+                { id: 'podcast-convo', type: 'dialogue', content: { title: 'Listening: Podcast <span aria-hidden="true">🎧</span>', dialogue: `Host 1: Welcome to 'History Uncovered'! Today we're tackling the final frontier of ancient human migration: The Americas. How did humans get from Asia to North America?
+
+Host 2: For decades, the textbook answer was simple: the Bering Land Bridge. During the last Ice Age, sea levels dropped, creating a frozen strip of land connecting Siberia to Alaska. Hunters supposedly walked across following big game.
+
+Host 1: Right. And then, once the glaciers melted, an ice-free corridor opened up, allowing them to move south into the rest of the Americas. That was the 'Clovis First' theory.
+
+Host 2: But recently, archaeologists have found human artifacts in South America that are much older than that ice-free corridor. If the inland route was blocked by ice, how did they get so far south so fast?
+
+Host 1: This is where it gets exciting! The new leading theory is the 'Kelp Highway' or the coastal route. Scientists now believe early Americans used small boats to travel down the Pacific coastline, surviving on fish and kelp, bypassing the massive glaciers entirely.` } },
+                { id: 'podcast-convo-quiz-mcq', type: 'quiz-mcq', content: { title: 'Podcast Quiz (MCQ)', questions: [] } },
+                { id: 'podcast-convo-quiz-tf', type: 'quiz-tf', content: { title: 'Podcast Quiz (True/False)', questions: [] } },
+                { id: 'podcast-convo-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Podcast Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+                
+                // 9. Discussion: DNA Debate
+                { id: 'debate-planning', type: 'dialogue', content: { title: 'Discussion: DNA Data Debate <span aria-hidden="true">🤔</span>', dialogue: `Moderator: Welcome. Today’s topic: Commercial DNA ancestry kits are wildly popular, but are they safe? Maria, let’s start with you.
+
+Maria: Thank you. I believe we must stop using commercial DNA kits. When you send your spit to a private company, you are handing over your most personal, private data. These companies store your genetic code. What happens if they are hacked? What if health insurance companies buy this data and deny you coverage because your DNA shows you might get sick in the future? The privacy risks are immense.
+
+Moderator: Carlos, your response?
+
+Carlos: I understand Maria’s concern about privacy, but we cannot ignore the immense benefits. On a personal level, these tests help people find lost family members and discover their true heritage. On a scientific level, the massive databases created by these companies are allowing researchers to trace human migration and cure genetic diseases at a rate we've never seen before. 
+
+Maria: But Carlos, the user gives up all control. You don't know who is using your DNA or what they are doing with it. It's a massive corporate profit scheme disguised as fun science.
+
+Carlos: Users sign agreements, Maria. It's an informed choice. The potential to understand our shared human journey and cure diseases far outweighs the hypothetical risks of data breaches.` } },
+                { id: 'debate-planning-quiz-mcq', type: 'quiz-mcq', content: { title: 'Debate Quiz (MCQ)', questions: [] } },
+                { id: 'debate-planning-quiz-tf', type: 'quiz-tf', content: { title: 'Debate Quiz (True/False)', questions: [] } },
+                { id: 'debate-planning-quiz-gap-fill', type: 'quiz-gap-fill', content: { title: 'Debate Quiz (Gap Fill)', sentences: [], wordBank: [] } },
+
+                // 10. Thinking & Exam Prep
+                { id: 'thinking-prompts', type: 'html-content', content: { title: 'Thinking & Exam Prep <span aria-hidden="true">📝</span>', html: `
+                    <div class="text-left">
+                        <h3 class="text-2xl font-bold text-amber-600 mb-4">Higher-Order Thinking Questions</h3>
+                        <ul class="list-disc list-inside space-y-6 text-xl text-slate-700">
+                            <li><b>Analyzing:</b> Compare the navigation tools used by early Polynesians to modern GPS. What are the advantages and disadvantages of relying entirely on <strong>phenomena</strong> in nature?</li>
+                            <li><b>Evaluating:</b> Do you agree with Carlos or Maria regarding commercial DNA testing? Is the loss of privacy worth the scientific progress?</li>
+                            <li><b>Creating:</b> If you were designing a monument to celebrate the human journey out of Africa (SDG 10), what symbols would you use and why?</li>
+                        </ul>
+                        <div class="word-bank">
+                            <h4>Word Bank:</h4>
+                            <div class="word-bank-pills">
+                                <span>compare</span><span>contrast</span><span>GPS</span><span>nature</span>
+                                <span>privacy</span><span>benefits</span><span>risk</span><span>heritage</span>
+                                <span>monument</span><span>symbolize</span><span>migration</span><span>connection</span>
+                            </div>
+                        </div>
+                    </div>` } },
+
+                // 11. Personal Perspectives Section
+                { id: 'perspective-intro', type: 'html-content', content: { title: 'Personal Perspectives <span aria-hidden="true">💭</span>', html: `
+                    <div class="text-left text-xl text-slate-700 leading-relaxed max-w-4xl mx-auto space-y-6">
+                        <p>Welcome to the Personal Perspectives Journal.</p>
+                        <p>In the next 20 pages, you will explore profound questions about human history. Think about these massive spans of time like chapters in your own high school journey—history isn't just dry dates; it's the story of people your age innovating, surviving, and expressing themselves!</p>
+                        <div class="bg-indigo-50 border-l-8 border-indigo-500 p-6 mt-8 rounded-r-xl">
+                            <p class="font-bold text-indigo-900 mb-2 text-2xl">Important Rule:</p>
+                            <p class="text-indigo-800">Do not use AI to generate your answers, as these questions require your personal perspective. Your unique voice and real-world high school experiences matter most here.</p>
+                        </div>
+                    </div>` } },
+                ...reflectionPages,
+
+                // 12. Final Project
+                { id: 'final-project-hub', type: 'html-content', content: { title: 'Final Project Hub <span aria-hidden="true">✍️</span>', html: `
+                    <div class="bg-white/90 rounded-2xl shadow-xl p-8 text-left border border-blue-200">
+                    <h2 class="text-3xl font-bold text-blue-700 mb-4">GRASPS Task: The Shared Origins Exhibition</h2>
+                    <div class="space-y-4 text-xl text-slate-700 leading-relaxed">
+                        <p><strong class="font-bold text-blue-800">Goal:</strong> To create an educational exhibit that uses DNA and migration history to combat racism and promote global unity (SDG 10).</p>
+                        <p><strong class="font-bold text-blue-800">Role:</strong> You are a museum curator specializing in human genetics.</p>
+                        <p><strong class="font-bold text-blue-800">Audience:</strong> Local high school students visiting your museum.</p>
+                        <p><strong class="font-bold text-blue-800">Situation:</strong> In a world divided by borders and prejudice, people often forget their shared origins. Your team must design a museum display that proves we are all biologically connected.</p>
+                        <p><strong class="font-bold text-blue-800">Product:</strong> A digital exhibit toolkit that includes: 1) A catchy title and visual poster, 2) A 100-word plaque explaining the "Out of Africa" theory, and 3) An interactive map activity concept.</p>
+                    </div>
+                    <div class="mt-8">
+                        <h3 class="text-2xl font-bold text-blue-700 mb-3">My Field Notes <span aria-hidden="true">📓</span></h3>
+                        <textarea id="field-notes" class="w-full h-48 p-4 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 shadow-inner text-lg" placeholder="Jot down your ideas, key vocabulary, and exhibit titles here. Your notes will be saved automatically..."></textarea>
+                    </div>
+                    </div>` } },
+                { id: 'certificate', type: 'certificate', content: { title: 'Journey Complete! <span aria-hidden="true">🎉</span>', text: 'You have successfully completed "The Human Journey" module.' } }
+            ]
+        };
+        // --- END OF LESSON CONTENT CONFIGURATION ---
+
+        // Expose timeline data globally for the click handler
+        window.timelineData = lessonData.pages.find(p => p.id === 'migration-timeline').content.events;
+
+        window.showTimelineInfo = function(index) {
+            const ev = window.timelineData[index];
+            const detailBox = document.getElementById('timeline-detail');
+            if (detailBox) {
+                detailBox.innerHTML = `
+                    <div class="text-left w-full animation-fadeIn">
+                        <h3 class="text-3xl font-bold text-amber-700 mb-2">${ev.date}: ${ev.title}</h3>
+                        <p class="text-xl text-slate-800 leading-relaxed">${ev.desc}</p>
+                    </div>
+                `;
+                if (typeof Tone !== 'undefined') {
+                    try {
+                        const synth = new Tone.Synth().toDestination();
+                        synth.volume.value = -10;
+                        synth.triggerAttackRelease("G4", "32n");
+                    } catch (e) {}
+                }
+            }
+        };
+
+        class SpeechService {
+             constructor() { 
+                 this.synth = window.speechSynthesis; 
+                 this.isInitialized = false; 
+                 this.isTtsEnabled = true; 
+                 this.voices = {}; 
+                 
+                 // Forced speed at 1x as explicitly requested
+                 this.speechRate = 1; 
+                 
+                 this.isDialoguePlaying = false; 
+             }
+             
+             async _setupVoices() {
+                 const voicesPromise = new Promise(resolve => { 
+                     if (this.synth.getVoices().length) return resolve(this.synth.getVoices()); 
+                     this.synth.onvoiceschanged = () => resolve(this.synth.getVoices()); 
+                 });
+                 
+                 const availableVoices = await voicesPromise;
+                 if (!availableVoices.length) { console.warn("No speech synthesis voices available."); return; }
+                 
+                 const speakerToVoiceMap = {
+                     'mei': ['Emma', 'Ava', 'Vivienne', 'Seraphina'],
+                     'leo': ['Brian', 'Andrew', 'William', 'Florian'],
+                     'professor wang': ['Florian', 'Giuseppe', 'William', 'Andrew'],
+                     'dr. elena cruz': ['Seraphina', 'Vivienne', 'Emma', 'Ava'],
+                     'host 1': ['Remy', 'Ava', 'Emma', 'Vivienne'],
+                     'host 2': ['Andrew', 'Brian', 'Florian', 'Giuseppe'],
+                     'narrator': ['William', 'Florian', 'Brian', 'Remy'],
+                     'moderator': ['Giuseppe', 'Remy', 'Andrew', 'William'],
+                     'maria': ['Ava', 'Emma', 'Seraphina', 'Vivienne'],
+                     'carlos': ['Brian', 'Andrew', 'Giuseppe', 'Florian'],
+                     'guide': ['William', 'Florian', 'Remy', 'Andrew'],
+                     'student 1': ['Seraphina', 'Emma', 'Vivienne', 'Ava'],
+                     'student 2': ['Remy', 'Brian', 'Andrew', 'William']
+                 };
+                 
+                 for (const speaker in speakerToVoiceMap) {
+                     const voicePriorityList = speakerToVoiceMap[speaker];
+                     let chosenVoice = null;
+                     
+                     for (const voiceName of voicePriorityList) {
+                         const foundVoice = availableVoices.find(v => v.name.includes(voiceName));
+                         if (foundVoice) { chosenVoice = foundVoice; break; }
+                     }
+                     if (chosenVoice) { 
+                         this.voices[speaker] = chosenVoice; 
+                     } else { 
+                         console.warn(`Could not find specified voices for speaker: "${speaker}"`); 
+                     }
+                 }
+                 
+                 // Main menu voice forced to Florian per user request
+                 this.voices['default'] = availableVoices.find(v => v.name.includes('Florian')) || 
+                                          availableVoices.find(v => v.name.includes('William')) || 
+                                          availableVoices.find(v => v.name.includes('Brian')) || 
+                                          availableVoices[0];
+             }
+             
+             async init() { 
+                 if (this.isInitialized) return; 
+                 try { 
+                     const warmUp = new SpeechSynthesisUtterance(' '); 
+                     warmUp.volume = 0; 
+                     this.synth.speak(warmUp); 
+                     this.synth.cancel(); 
+                     await this._setupVoices(); 
+                     this.isInitialized = true; 
+                 } catch (e) { 
+                     console.error("Speech init failed", e); 
+                 } 
+             }
+             
+             _cleanTextForSpeech(text) { 
+                 const tempDiv = document.createElement('div'); 
+                 const textWithoutSpans = text.replace(/<span aria-hidden="true">.*?<\/span>/g, ' '); 
+                 tempDiv.innerHTML = textWithoutSpans; 
+                 return tempDiv.innerText || tempDiv.textContent || ''; 
+             }
+             
+             async speak(text, { onEndCallback = null } = {}) { 
+                 if (!this.isInitialized || !this.isTtsEnabled || !text) { 
+                     if (onEndCallback) onEndCallback(); 
+                     return; 
+                 } 
+                 if (this.synth.speaking) { this.cancel(); } 
+                 
+                 const utterance = new SpeechSynthesisUtterance(this._cleanTextForSpeech(text)); 
+                 utterance.voice = this.voices['default']; 
+                 utterance.rate = this.speechRate; 
+                 
+                 if (onEndCallback) utterance.onend = onEndCallback; 
+                 this.synth.speak(utterance); 
+             }
+             
+             async speakDialogue(text) { 
+                 if (!this.isInitialized || !this.isTtsEnabled || !text || this.isDialoguePlaying) return; 
+                 this.cancel(); 
+                 this.isDialoguePlaying = true; 
+                 
+                 const lines = text.split('\n\n'); 
+                 
+                 const speakLine = (index) => { 
+                     if (index >= lines.length || !this.isDialoguePlaying) { 
+                         this.isDialoguePlaying = false; 
+                         return; 
+                     } 
+                     
+                     const line = lines[index]; 
+                     const [speaker, ...rest] = line.split(': '); 
+                     const lineText = rest.join(': '); 
+                     const utterance = new SpeechSynthesisUtterance(this._cleanTextForSpeech(lineText || speaker)); 
+                     
+                     utterance.voice = this.voices[speaker.trim().toLowerCase()] || this.voices['default']; 
+                     utterance.rate = this.speechRate; 
+                     utterance.onend = () => speakLine(index + 1); 
+                     
+                     this.synth.speak(utterance); 
+                 }; 
+                 
+                 speakLine(0); 
+             }
+             
+             cancel() { 
+                 if (this.synth) { 
+                     this.isDialoguePlaying = false; 
+                     this.synth.cancel(); 
+                 } 
+             }
+             
+             toggleTTS(forceState) { 
+                 this.isTtsEnabled = forceState === undefined ? !this.isTtsEnabled : forceState; 
+                 if (!this.isTtsEnabled) { this.cancel(); } 
+                 return this.isTtsEnabled; 
+             }
+         }
+
+        // --- Global App State and Functions ---
+        const speechService = new SpeechService();
+        let score = 0, currentPage = lessonData.startPageId, timerInterval;
+        const pageHistory = [lessonData.startPageId];
+        let pageSequence = [];
+        let completedSections = new Set();
+        let vocabGameTimer;
+        
+        let particles = [];
+        let rewardAfHandle = null;
+
+        function spawnRewardAnimation(x, y) {
+            const numParticles = 40; 
+            const container = document.getElementById('reward-animation-container');
+            if (!container) return;
+            
+            for (let i = 0; i < numParticles; i++) {
+                const el = document.createElement('div');
+                el.classList.add('particle');
+                
+                let type;
+                if (Math.random() < 0.15) { 
+                    type = 'dna';
+                    el.classList.add('dna');
+                    el.textContent = '🧬';
+                } else {
+                    type = 'glitter';
+                    el.classList.add('glitter');
+                    if (Math.random() < 0.5) el.classList.add('alt'); 
+                }
+
+                const particle = {
+                    el: el,
+                    x: x, 
+                    y: y, 
+                    vx: (Math.random() - 0.5) * 12, 
+                    vy: (Math.random() * -10) - 5, 
+                    life: 60 + Math.random() * 60, 
+                    gravity: 0.2,
+                    friction: 0.98,
+                    type: type
+                };
+
+                particles.push(particle);
+                container.appendChild(el);
+            }
+
+            if (!rewardAfHandle) {
+                rewardAfHandle = requestAnimationFrame(animateParticles);
+            }
+        }
+
+        function animateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                
+                p.vx *= p.friction; 
+                p.vy += p.gravity; 
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+
+                if (p.life <= 0) {
+                    p.el.remove();
+                    particles.splice(i, 1);
+                } else {
+                    if (p.life < 20) {
+                        p.el.style.opacity = p.life / 20;
+                    }
+                    
+                    if (p.type === 'dna') {
+                        p.el.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${p.x}deg)`;
+                    } else {
+                        p.el.style.transform = `translate(${p.x}px, ${p.y}px)`;
+                    }
+                }
+            }
+
+            if (particles.length > 0) {
+                rewardAfHandle = requestAnimationFrame(animateParticles);
+            } else {
+                rewardAfHandle = null; 
+            }
+        }
+
+        function playCorrectSound() {
+            if (typeof Tone !== 'undefined') {
+                try {
+                    const synth = new Tone.Synth().toDestination();
+                    synth.volume.value = -8;
+                    synth.triggerAttackRelease("C5", "8n");
+                } catch (e) { console.error("Tone.js sound failed:", e); }
+            }
+        }
+
+        function playIncorrectSound() {
+            if (typeof Tone !== 'undefined') {
+                try {
+                    const synth = new Tone.Synth().toDestination();
+                    synth.volume.value = -8;
+                    synth.triggerAttackRelease("C3", "8n");
+                } catch (e) { console.error("Tone.js sound failed:", e); }
+            }
+        }
+
+        const pageToMenuMap = {};
+        function buildPageToMenuMap() {
+            lessonData.mainMenu.forEach(menuItem => {
+                let queue = [menuItem.target];
+                let visited = new Set(queue);
+                while (queue.length > 0) {
+                    const pageId = queue.shift();
+                    pageToMenuMap[pageId] = menuItem.id;
+                    const pageDef = lessonData.pages.find(p => p.id === pageId);
+                    if (pageDef && pageDef.type.startsWith('quiz')) {
+                        const nextQuizPage = getNextQuizPage(pageId);
+                        if (nextQuizPage && !visited.has(nextQuizPage)) {
+                            queue.push(nextQuizPage);
+                            visited.add(nextQuizPage);
+                        }
+                    }
+                }
+            });
+            pageToMenuMap['vocab-game'] = 'menu-vocab-game';
+            pageToMenuMap['tbl-start'] = 'menu-tbl';
+            pageToMenuMap['migration-timeline'] = 'menu-timeline';
+            pageToMenuMap['perspective-intro'] = 'menu-perspectives';
+        }
+
+        function getNextQuizPage(pageId) {
+            const sequence = ['mcq', 'tf', 'gap-fill'];
+            const parts = pageId.split('-quiz-');
+            if (parts.length < 2) return null;
+            const prefix = parts[0];
+            const type = parts[1];
+            const currentIndex = sequence.indexOf(type);
+            if (currentIndex > -1 && currentIndex < sequence.length - 1) {
+                const nextPageId = `${prefix}-quiz-${sequence[currentIndex + 1]}`;
+                if (lessonData.pages.find(p => p.id === nextPageId)) {
+                    return nextPageId;
+                }
+            }
+            return null;
+        }
+
+        function updateProgressBar() {
+            const progress = (completedSections.size / lessonData.mainMenu.length) * 100;
+            const bar = document.getElementById('progress-bar');
+            if (bar) bar.style.width = `${progress}%`;
+        }
+
+        function updateMenuCompletionState() {
+            const menuContainer = document.getElementById('page-main-menu');
+            if (!menuContainer) return;
+            lessonData.mainMenu.forEach(item => {
+                const button = menuContainer.querySelector(`#menu-btn-${item.id}`);
+                if (button && completedSections.has(item.id)) {
+                    if (!button.innerHTML.includes('✓')) {
+                        button.innerHTML += ' <span class="text-green-300 ml-2">✓</span>';
+                    }
+                }
+            });
+        }
+
+        function markSectionAsComplete(pageId) {
+            const menuId = pageToMenuMap[pageId];
+            if (menuId && !completedSections.has(menuId)) {
+                completedSections.add(menuId);
+                updateProgressBar();
+            }
+        }
+        
+        function checkQuizPageCompletion(pageId) {
+            const pageElement = document.getElementById(`page-${pageId}`);
+            if (!pageElement) return false;
+
+            if (pageId.includes('gap-fill')) {
+                const gaps = pageElement.querySelectorAll('.gap');
+                return gaps.length > 0 && Array.from(gaps).every(g => g.classList.contains('correct'));
+            } else {
+                const questions = pageElement.querySelectorAll('.question-group');
+                return questions.length > 0 && Array.from(questions).every(q => q.querySelector('button:disabled'));
+            }
+        }
+
+        window.toggleTTS = (button) => {
+            const isNowEnabled = speechService.toggleTTS();
+            const iconPath = isNowEnabled 
+                ? "M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.858 5.858a3 3 0 104.243 4.243M9 12l4.243 4.243"
+                : "M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707a1 1 0 011.414 0v14a1 1 0 01-1.414 0L5.586 15z M17 14l-4-4m0 4l4-4";
+            button.querySelector('svg').classList.toggle('text-gray-600', isNowEnabled);
+            button.querySelector('svg').classList.toggle('text-gray-400', !isNowEnabled);
+            button.querySelector('path').setAttribute('d', iconPath);
+
+            if (isNowEnabled) {
+                const pageData = lessonData.pages.find(p => p.id === currentPage);
+                const targetPage = document.getElementById(`page-${currentPage}`);
+                
+                if (currentPage.startsWith('vocab-') && currentPage !== 'vocab-start' && currentPage !== 'vocab-game') {
+                    const vocabIndex = parseInt(currentPage.split('-')[1]);
+                    const v = lessonData.vocabulary[vocabIndex];
+                    const speakers = ['Emma', 'Brian', 'Seraphina', 'Andrew', 'Ava', 'William', 'Vivienne', 'Florian'];
+                    const speaker = speakers[vocabIndex % speakers.length];
+                    speechService.speakDialogue(`${speaker}: ${v.word}.\n\n${speaker}: ${v.def}\n\n${speaker}: For example. ${v.sentence}`);
+                } else if (pageData && pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else if (targetPage) {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    if (readableContent) speechService.speak(readableContent.innerText);
+                    else if (titleElement) speechService.speak(titleElement.innerText);
+                }
+            }
+        };
+
+        window.startApp = async function() {
+            await speechService.init(); 
+            try { await Tone.start(); } catch (e) { console.error(e); }
+            navigateTo(lessonData.homePageId);
+        }
+        
+        function startTimer(duration, display, onComplete) {
+            let timer = duration;
+            const update = () => { display.textContent = `${String(Math.floor(timer/60)).padStart(2,'0')}:${String(timer%60).padStart(2,'0')}`; };
+            update();
+            timerInterval = setInterval(() => { timer--; update(); if (timer < 0) { clearInterval(timerInterval); if (onComplete) onComplete(); } }, 1000);
+        }
+
+        window.navigateTo = (pageId) => {
+            const previousPageId = currentPage;
+            
+            if (previousPageId.includes('-quiz-')) {
+                if (checkQuizPageCompletion(previousPageId)) {
+                    markSectionAsComplete(previousPageId);
+                }
+            }
+            
+            const targetPage = document.getElementById(`page-${pageId}`);
+            if (!targetPage) return console.warn('navigateTo: no page found for id', pageId);
+            if (pageId === currentPage) return;
+            
+            clearInterval(timerInterval);
+            clearTimeout(vocabGameTimer);
+            speechService.cancel();
+
+            const previousPageDef = lessonData.pages.find(p => p.id === previousPageId);
+            if (previousPageDef && !previousPageDef.type.startsWith('quiz') && previousPageId !== 'vocab-game') {
+                 markSectionAsComplete(previousPageId);
+            }
+
+            document.getElementById(`page-${currentPage}`)?.classList.remove('active');
+            targetPage.classList.add('active');
+            currentPage = pageId;
+            if (pageHistory[pageHistory.length - 1] !== currentPage) pageHistory.push(currentPage);
+            
+            const pageData = lessonData.pages.find(p => p.id === pageId);
+            if (pageData || pageId.startsWith('vocab-')) {
+                if (pageData && pageData.type === 'timer') {
+                    const timerEl = document.getElementById(pageData.content.timerId);
+                    if (timerEl) startTimer(pageData.content.duration, timerEl, goNext);
+                } else if (pageData && pageData.type === 'vocab-game') {
+                    startVocabGame();
+                } else if (pageId === 'certificate') {
+                    startConfetti();
+                    showBadgeToast('🎉 Module Complete! Well done! 🎉');
+                }
+                
+                if (pageId.startsWith('vocab-') && pageId !== 'vocab-start' && pageId !== 'vocab-game') {
+                    const vocabIndex = parseInt(pageId.split('-')[1]);
+                    const v = lessonData.vocabulary[vocabIndex];
+                    const speakers = ['Emma', 'Brian', 'Seraphina', 'Andrew', 'Ava', 'William', 'Vivienne', 'Florian'];
+                    const speaker = speakers[vocabIndex % speakers.length];
+                    speechService.speakDialogue(`${speaker}: ${v.word}.\n\n${speaker}: ${v.def}\n\n${speaker}: For example. ${v.sentence}`);
+                } else if (pageData && pageData.type === 'dialogue') {
+                    speechService.speakDialogue(pageData.content.dialogue);
+                } else if (pageData && pageData.type === 'reflection-prompt') {
+                    // Do not auto-speak full text area on reflection prompt
+                    speechService.speak(pageData.content.title + ". " + pageData.content.prompt);
+                } else {
+                    const readableContent = targetPage.querySelector('.readable-content');
+                    const titleElement = targetPage.querySelector('h2, h3');
+                    const contentToSpeak = readableContent ? readableContent.innerText : (titleElement ? titleElement.innerText : '');
+                    speechService.speak(contentToSpeak);
+                }
+            } else if (pageId === lessonData.homePageId) {
+                speechService.speak(targetPage.querySelector('h2').innerText);
+                updateMenuCompletionState();
+            }
+            updateNavButtons();
+            window.scrollTo(0, 0);
+        }
+
+        window.goNext = () => { const currentIndex = pageSequence.indexOf(currentPage); if (currentIndex > -1 && currentIndex < pageSequence.length - 1) navigateTo(pageSequence[currentIndex + 1]); }
+        window.goBack = () => { if (pageHistory.length > 1) { pageHistory.pop(); navigateTo(pageHistory.pop()); } }
+
+        function updateNavButtons() {
+            const nav = document.getElementById('nav-header');
+            if (!nav) return;
+            nav.style.display = (currentPage === lessonData.startPageId) ? 'none' : 'block';
+            const backBtn = nav.querySelector('button:first-child');
+            backBtn.disabled = pageHistory.length <= 1;
+            backBtn.classList.toggle('opacity-50', backBtn.disabled);
+            const nextBtn = nav.querySelector('button:last-child');
+            const currentIndex = pageSequence.indexOf(currentPage);
+            const isLast = currentIndex >= pageSequence.length - 1;
+            nextBtn.disabled = isLast || currentPage === lessonData.homePageId;
+            nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+        }
+        
+        function showFeedbackMessage(isCorrect) {
+            const correctFeedback = ["That's right!", "Excellent!", "Perfect!", "Great job!"];
+            const incorrectFeedback = ["Not quite.", "Keep trying!", "Almost there."];
+            const message = isCorrect ? correctFeedback[Math.floor(Math.random() * correctFeedback.length)] : incorrectFeedback[Math.floor(Math.random() * incorrectFeedback.length)];
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.className = `feedback-toast ${isCorrect ? 'correct' : 'encouraging'}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function showBadgeToast(message) {
+            const toast = document.createElement('div');
+            toast.innerHTML = message;
+            toast.className = 'badge-toast';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        function updateScore(points) { score += points; document.getElementById('score-display').textContent = score; }
+
+        function checkCompletionAndMark() {
+            if(checkQuizPageCompletion(currentPage)) {
+                markSectionAsComplete(currentPage);
+            }
+        }
+
+        window.checkTfAnswer = function(clickedButton, chosenAnswer, correctAnswer) {
+            const buttonContainer = clickedButton.parentElement;
+            Array.from(buttonContainer.children).forEach(btn => btn.disabled = true);
+            const isCorrect = chosenAnswer === correctAnswer;
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                playCorrectSound();
+                updateScore(10);
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-green-500');
+                const rect = clickedButton.getBoundingClientRect();
+                spawnRewardAnimation(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            } else {
+                playIncorrectSound();
+                clickedButton.className = clickedButton.className.replace(/bg-\w+-500/, 'bg-red-600');
+                const correctBtn = Array.from(buttonContainer.children).find(btn => btn.textContent === correctAnswer.charAt(0));
+                if (correctBtn) correctBtn.className = correctBtn.className.replace(/bg-\w+-500/, 'bg-green-500');
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+        
+        window.checkMcqAnswer = function(button, isCorrect) {
+            const questionGroup = button.closest('.question-group');
+            questionGroup.querySelectorAll('.quiz-option').forEach(opt => opt.disabled = true);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                playCorrectSound();
+                updateScore(10);
+                button.classList.remove('bg-slate-100', 'hover:bg-blue-50');
+                button.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                const rect = button.getBoundingClientRect();
+                spawnRewardAnimation(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            } else {
+                playIncorrectSound();
+                button.classList.remove('bg-slate-100', 'hover:bg-blue-50');
+                button.classList.add('bg-red-500', 'border-red-600', 'text-white', 'shake');
+                const correctButton = questionGroup.querySelector(".quiz-option[data-correct='true']");
+                if (correctButton) {
+                    correctButton.classList.remove('bg-slate-100', 'hover:bg-blue-50');
+                    correctButton.classList.add('bg-green-500', 'border-green-600', 'text-white');
+                }
+            }
+            setTimeout(checkCompletionAndMark, 100);
+        }
+
+        function initGapFill(pageId) {
+            const page = document.getElementById(pageId);
+            if (!page) return;
+            
+            let selectedWord = { element: null, text: '' }; 
+
+            const gaps = page.querySelectorAll('.gap');
+            const words = page.querySelectorAll('.word-bank-word');
+            const wordBank = page.querySelector('.word-bank-container');
+
+            words.forEach(word => {
+                word.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', word.dataset.word); });
+                word.addEventListener('click', handleWordClick);
+            });
+            gaps.forEach(gap => {
+                gap.addEventListener('dragover', e => e.preventDefault());
+                gap.addEventListener('drop', e => handleDrop(e, gap));
+                gap.addEventListener('click', handleGapClick);
+            });
+
+            function handleWordClick(e) {
+                const clickedWord = e.currentTarget;
+                if (clickedWord.parentElement.classList.contains('gap')) { wordBank.appendChild(clickedWord); return; }
+                if (selectedWord.element) selectedWord.element.classList.remove('selected');
+                if (selectedWord.element === clickedWord) { selectedWord = { element: null, text: '' }; } 
+                else { selectedWord = { element: clickedWord, text: clickedWord.dataset.word }; clickedWord.classList.add('selected'); }
+            }
+            function handleGapClick(e) {
+                const clickedGap = e.currentTarget;
+                if (!selectedWord.element || clickedGap.children.length > 0) return;
+                clickedGap.appendChild(selectedWord.element);
+                checkGap(clickedGap);
+                selectedWord.element.classList.remove('selected');
+                selectedWord = { element: null, text: '' };
+            }
+            function handleDrop(e, gap) {
+                e.preventDefault();
+                if (gap.children.length > 0) return;
+                const wordText = e.dataTransfer.getData('text/plain');
+                const wordElement = page.querySelector(`.word-bank-word[data-word="${wordText}"]`);
+                if (wordElement) { gap.appendChild(wordElement); checkGap(gap); }
+            }
+            function checkGap(gap) {
+                const word = gap.querySelector('.word-bank-word');
+                const isCorrect = word && word.dataset.word.toLowerCase() === gap.dataset.answer.toLowerCase();
+                gap.classList.toggle('correct', isCorrect);
+                gap.classList.toggle('incorrect', !isCorrect);
+                if (isCorrect) { 
+                    playCorrectSound();
+                    updateScore(10); 
+                    showFeedbackMessage(true); 
+                    const rect = gap.getBoundingClientRect();
+                    spawnRewardAnimation(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                } else { 
+                    playIncorrectSound();
+                    showFeedbackMessage(false); 
+                }
+                setTimeout(checkCompletionAndMark, 100);
+            }
+        }
+
+        // --- Vocab Game Logic ---
+        let vocabGameQuestions = [];
+        let vocabGameCurrentIndex = 0;
+        let vocabGameScore = 0;
+        const ROUND_TIME = 10000; 
+
+        function startVocabGame() {
+            vocabGameQuestions = [...lessonData.vocabulary].sort(() => 0.5 - Math.random());
+            vocabGameCurrentIndex = 0;
+            vocabGameScore = 0;
+            document.getElementById('vocab-game-score').textContent = '0';
+            nextVocabGameRound();
+        }
+
+        function nextVocabGameRound() {
+            if (vocabGameCurrentIndex >= vocabGameQuestions.length) {
+                endVocabGame();
+                return;
+            }
+            
+            const question = vocabGameQuestions[vocabGameCurrentIndex];
+            document.getElementById('vocab-game-definition').textContent = question.def;
+            
+            const options = [question.word];
+            const wrongAnswers = lessonData.vocabulary.filter(v => v.word !== question.word);
+            while (options.length < 4 && wrongAnswers.length > 0) {
+                const randomWrong = wrongAnswers.splice(Math.floor(Math.random() * wrongAnswers.length), 1)[0];
+                options.push(randomWrong.word);
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.innerHTML = '';
+            shuffleArray(options).forEach(opt => {
+                const button = document.createElement('button');
+                button.className = 'quiz-option p-4 rounded-xl text-left bg-slate-100 hover:bg-slate-200 border border-slate-200 font-medium text-slate-800 text-xl';
+                button.textContent = opt;
+                button.onclick = () => checkVocabGameAnswer(button, opt === question.word);
+                optionsContainer.appendChild(button);
+            });
+
+            startRoundTimer();
+        }
+        
+        function startRoundTimer() {
+            clearTimeout(vocabGameTimer);
+            const timerBar = document.getElementById('vocab-game-timer-bar');
+            timerBar.style.transition = 'none';
+            timerBar.style.width = '100%';
+            
+            setTimeout(() => {
+                timerBar.style.transition = `width ${ROUND_TIME / 1000}s linear`;
+                timerBar.style.width = '0%';
+            }, 100);
+
+            vocabGameTimer = setTimeout(() => {
+                showFeedbackMessage(false);
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, ROUND_TIME);
+        }
+
+        function checkVocabGameAnswer(button, isCorrect) {
+            clearTimeout(vocabGameTimer);
+            showFeedbackMessage(isCorrect);
+            if (isCorrect) {
+                playCorrectSound();
+                vocabGameScore++;
+                updateScore(5);
+                document.getElementById('vocab-game-score').textContent = vocabGameScore;
+                button.classList.remove('bg-slate-100', 'hover:bg-slate-200');
+                button.classList.add('bg-green-500', 'text-white');
+                const rect = button.getBoundingClientRect();
+                spawnRewardAnimation(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            } else {
+                playIncorrectSound();
+                button.classList.remove('bg-slate-100', 'hover:bg-slate-200');
+                button.classList.add('bg-red-500', 'text-white', 'shake');
+            }
+            
+            const optionsContainer = document.getElementById('vocab-game-options');
+            optionsContainer.querySelectorAll('button').forEach(btn => btn.disabled = true);
+
+            setTimeout(() => {
+                vocabGameCurrentIndex++;
+                nextVocabGameRound();
+            }, 1500);
+        }
+
+        function endVocabGame() {
+            document.getElementById('vocab-game-definition').textContent = `Game Over! You scored ${vocabGameScore} out of ${vocabGameQuestions.length}.`;
+            document.getElementById('vocab-game-options').innerHTML = `<button onclick="startVocabGame()" class="action-button bg-blue-500 text-white font-bold p-4 rounded-xl text-xl w-full">Play Again</button>`;
+            markSectionAsComplete('vocab-game');
+        }
+
+        window.printCertificate = function() {
+            window.print();
+        }
+        
+        window.downloadCertificate = function() {
+            const certElement = document.getElementById('certificate-to-print');
+            if (!certElement) { console.error('Certificate element not found'); return; }
+            
+            certElement.classList.add('shadow-2xl', 'border-2', 'border-amber-600');
+            
+            html2canvas(certElement, {
+                scale: 2,
+                backgroundColor: '#ffffff'
+            }).then(canvas => {
+                const a = document.createElement('a');
+                a.href = canvas.toDataURL('image/png');
+                a.download = 'Human_Journey_Certificate.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                certElement.classList.remove('shadow-2xl', 'border-2', 'border-amber-600');
+            }).catch(err => {
+                console.error('Failed to download certificate:', err);
+                certElement.classList.remove('shadow-2xl', 'border-2', 'border-amber-600');
+            });
+        }
+
+        function startConfetti() {
+            const canvas = document.getElementById('completion-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            
+            if (canvas.parentElement) {
+                canvas.width = canvas.parentElement.offsetWidth;
+                canvas.height = canvas.parentElement.offsetHeight;
+            } else {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+
+            let confetti = [];
+            const colors = ['#fde047', '#f97316', '#38bdf8', '#22c55e', '#6366f1'];
+            
+            for (let i = 0; i < 100; i++) {
+                confetti.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height - canvas.height, 
+                    size: Math.random() * 10 + 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    speed: Math.random() * 3 + 2,
+                    angle: Math.random() * 2 * Math.PI,
+                    tilt: Math.random() * 10 - 5
+                });
+            }
+            
+            let animationFrameId;
+            function drawConfetti() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                confetti.forEach((p, i) => {
+                    p.y += p.speed;
+                    p.x += Math.sin(p.angle);
+                    p.angle += 0.05;
+                    
+                    if (p.y > canvas.height) {
+                        confetti.splice(i, 1);
+                    }
+                    
+                    ctx.save();
+                    ctx.fillStyle = p.color;
+                    ctx.translate(p.x + p.size / 2, p.y + p.size / 2);
+                    ctx.rotate(p.angle);
+                    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                    ctx.restore();
+                });
+                
+                if (confetti.length > 0) {
+                    animationFrameId = requestAnimationFrame(drawConfetti);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); 
+                    cancelAnimationFrame(animationFrameId);
+                }
+            }
+            drawConfetti();
+        }
+
+        function createPageElement(id, content) {
+            const section = document.createElement('section');
+            section.id = `page-${id}`;
+            section.className = 'page';
+            section.innerHTML = content;
+            document.getElementById('dynamic-pages-container').appendChild(section);
+        }
+        
+        function populateAllQuizzes() {
+            const readingGapFill = lessonData.pages.find(p => p.id === 'reading-quiz-gap-fill');
+            if (readingGapFill) {
+                readingGapFill.content.sentences = [
+                    { text: ['We are all the', 'of the first humans who left Africa.'], answer: 'descendant' },
+                    { text: ['Scientists used', 'bones and artifacts to piece together early history.'], answer: 'scattered' },
+                    { text: ['Polynesian sailors relied on natural', 'techniques to cross the ocean.'], answer: 'navigation' },
+                    { text: ['They looked at clouds on the distant', 'for clues to finding land.'], answer: 'horizon' },
+                    { text: ['We can now', 'ancient human migrations using our genetic code.'], answer: 'trace' }
+                ];
+                readingGapFill.content.wordBank = ['descendant', 'scattered', 'navigation', 'horizon', 'trace'];
+            }
+            const readingTf = lessonData.pages.find(p => p.id === 'reading-quiz-tf');
+            if(readingTf) readingTf.content.questions = [
+                { statement: 'Modern humans first left Africa approximately 10,000 years ago.', correctAnswer: 'False' },
+                { statement: 'Early Polynesians used compasses and maps to cross the Pacific.', correctAnswer: 'False' },
+                { statement: 'DNA technologies have allowed scientists to map ancient migrations.', correctAnswer: 'True' },
+                { statement: 'The sweet potato was originally brought to Polynesia from Asia.', correctAnswer: 'False' },
+                { statement: 'Geneticists believe that humans have a natural drive to explore.', correctAnswer: 'True' }
+            ];
+            const readingMcq = lessonData.pages.find(p => p.id === 'reading-quiz-mcq');
+            if(readingMcq) readingMcq.content.questions = [
+                { question: 'According to the DNA trail, where did the first modern humans originate?', options: ['South America', 'Western Asia', 'Europe', 'Africa'], correctAnswer: 'Africa' },
+                { question: 'What was the primary method early scientists used before DNA technology?', options: ['Satellite imagery', 'Studying scattered bones and artifacts', 'Reading ancient written records', 'Tracking ocean currents'], correctAnswer: 'Studying scattered bones and artifacts' },
+                { question: 'How did early Polynesians navigate the Pacific without modern instruments?', options: ['They used advanced metal compasses.', 'They followed the trails of large whales.', 'They read clouds, bird flights, and ocean swells.', 'They stayed close to the coastlines.'], correctAnswer: 'They read clouds, bird flights, and ocean swells.' },
+                { question: 'What does the text say about human migration?', options: ['It stopped once humans reached the Americas.', 'It is an unnatural behavior forced by climate change.', 'It is a unique phenomenon driven by our curious nature.', 'It only happened because humans were looking for gold.'], correctAnswer: 'It is a unique phenomenon driven by our curious nature.' },
+                { question: 'About when did one small group leave Africa for western Asia?', options: ['Between 10,000 and 15,000 years ago.', 'Between 20,000 and 30,000 years ago.', 'Between 50,000 and 70,000 years ago.', 'Between 100,000 and 200,000 years ago.'], correctAnswer: 'Between 50,000 and 70,000 years ago.' }
+            ];
+
+            const lectureMcq = lessonData.pages.find(p => p.id === 'lecture-uni-quiz-mcq');
+            if(lectureMcq) lectureMcq.content.questions = [
+                { question: 'What is a genetic marker?', options: ['A type of bone found in Africa.', 'A rare mutation or spelling mistake in the DNA code.', 'A tool used to draw maps.', 'A blood disease.'], correctAnswer: 'A rare mutation or spelling mistake in the DNA code.' },
+                { question: 'What specific parts of the DNA do geneticists use to trace ancestry?', options: ['White blood cells and red blood cells.', 'Mitochondrial DNA and the Y chromosome.', 'Hair and skin cells.', 'Only the DNA of identical twins.'], correctAnswer: 'Mitochondrial DNA and the Y chromosome.' },
+                { question: 'What does the lecture claim about every non-African person alive today?', options: ['They have different ancestors.', 'They evolved completely independently in Asia.', 'They are descendants of one small group that left Africa.', 'They have no genetic markers.'], correctAnswer: 'They are descendants of one small group that left Africa.' },
+                { question: 'What does every drop of human blood contain, according to the professor?', options: ['A record of our ancestors\' journeys.', 'Different levels of gravity.', 'Markers of specific ancient diseases only.', 'Only information from the father.'], correctAnswer: 'A record of our ancestors\' journeys.' },
+                { question: 'Around how many years ago did the group likely cross the Red Sea?', options: ['10,000 years ago', '30,000 years ago', '60,000 years ago', '200,000 years ago'], correctAnswer: '60,000 years ago' }
+            ];
+            const lectureTf = lessonData.pages.find(p => p.id === 'lecture-uni-quiz-tf');
+            if(lectureTf) lectureTf.content.questions = [
+                { statement: 'Genetic markers are passed down from generation to generation.', correctAnswer: 'True' },
+                { statement: 'Mitochondrial DNA gets completely mixed up every generation.', correctAnswer: 'False' },
+                { statement: 'The "Out of Africa" migration likely crossed the Red Sea.', correctAnswer: 'True' },
+                { statement: 'The history of human migration was fully understood before DNA technology.', correctAnswer: 'False' },
+                { statement: 'All non-African people today descend from a single group that left Africa.', correctAnswer: 'True' }
+            ];
+            const lectureGap = lessonData.pages.find(p => p.id === 'lecture-uni-quiz-gap-fill');
+            if(lectureGap) {
+                lectureGap.content.sentences = [
+                    { text: ['A genetic marker is a rare', 'in the DNA code.'], answer: 'mutation' },
+                    { text: ['These markers are passed down to all the', 'of that person.'], answer: 'descendants' },
+                    { text: ['Geneticists', 'these markers backwards in time.'], answer: 'trace' },
+                    { text: ['The human', 'is our greatest history book.'], answer: 'genome' },
+                    { text: ['They likely crossed the Red', 'roughly 60,000 years ago.'], answer: 'Sea' }
+                ];
+                lectureGap.content.wordBank = ['mutation', 'descendants', 'trace', 'genome', 'Sea'];
+            }
+            
+            const expertMcq = lessonData.pages.find(p => p.id === 'lecture-expert-quiz-mcq');
+            if(expertMcq) expertMcq.content.questions = [
+                { question: 'What is the name of the ancestors of the Polynesians?', options: ['The Clovis people', 'The Lapita people', 'The Neanderthals', 'The Beringians'], correctAnswer: 'The Lapita people' },
+                { question: 'What was the most crucial tool for Polynesian navigators?', options: ['The star compass', 'A magnetic compass', 'A map drawn on animal skin', 'A telescope'], correctAnswer: 'The star compass' },
+                { question: 'How did birds help the navigators find land?', options: ['By singing specific songs.', 'By dropping seeds on the boat.', 'By flying back to land with fish in their mouths at dusk.', 'By attacking the boat when near land.'], correctAnswer: 'By flying back to land with fish in their mouths at dusk.' },
+                { question: 'What did navigators read during the day when it was cloudy?', options: ['The ocean swells', 'The wind speed', 'The color of the sky', 'The fish in the water'], correctAnswer: 'The ocean swells' },
+                { question: 'What kind of instruments did the Lapita use to cross the ocean?', options: ['Early metal astrolabes', 'Magnetic compasses and maps', 'Telescopes', 'None, they used natural navigation'], correctAnswer: 'None, they used natural navigation' }
+            ];
+            const expertTf = lessonData.pages.find(p => p.id === 'lecture-expert-quiz-tf');
+            if(expertTf) expertTf.content.questions = [
+                { statement: 'The Lapita people used metal instruments to navigate.', correctAnswer: 'False' },
+                { statement: 'Navigators could read the ocean swells bouncing back from islands.', correctAnswer: 'True' },
+                { statement: 'The star compass was an incredibly complex system passed down orally.', correctAnswer: 'True' },
+                { statement: 'Navigators memorized the rising and setting points of dozens of stars.', correctAnswer: 'True' },
+                { statement: 'Birds flying out to fish at dusk indicated where land was.', correctAnswer: 'False' }
+            ];
+            const expertGap = lessonData.pages.find(p => p.id === 'lecture-expert-quiz-gap-fill');
+            if(expertGap) {
+                expertGap.content.sentences = [
+                    { text: ['The Lapita people used what we call natural', '.'], answer: 'navigation' },
+                    { text: ['Navigators memorized the rising and setting points of dozens of', '.'], answer: 'stars' }, 
+                    { text: ['They could feel the direction of the ocean', 'bouncing back from islands.'], answer: 'swells' },
+                    { text: ['Birds fly back to land with', 'in their mouths.'], answer: 'fish' },
+                    { text: ['It was a complex system passed down', 'from generation to generation.'], answer: 'orally' }
+                ];
+                expertGap.content.wordBank = ['navigation', 'stars', 'swells', 'fish', 'orally'];
+            }
+
+            const convoMcq = lessonData.pages.find(p => p.id === 'podcast-convo-quiz-mcq');
+            if(convoMcq) convoMcq.content.questions = [
+                { question: 'What was the traditional "textbook" theory for how humans reached the Americas?', options: ['They sailed across the Atlantic.', 'They walked across the Bering Land Bridge.', 'They flew in early hot air balloons.', 'They evolved there independently.'], correctAnswer: 'They walked across the Bering Land Bridge.' },
+                { question: 'What is the "Kelp Highway" theory?', options: ['A road made of seaweed in Asia.', 'The idea that humans drove across ice.', 'The theory that early Americans used small boats to travel down the Pacific coast.', 'A new way to cook fish.'], correctAnswer: 'The theory that early Americans used small boats to travel down the Pacific coast.' },
+                { question: 'What caused sea levels to drop and create the land bridge?', options: ['A massive earthquake', 'The last Ice Age', 'A long period of drought', 'Volcanic activity'], correctAnswer: 'The last Ice Age' },
+                { question: 'What blocked the inland route for a long time?', options: ['Large mountain ranges', 'Hostile animal species', 'Massive glaciers', 'Deep canyons'], correctAnswer: 'Massive glaciers' },
+                { question: 'Where have older human artifacts recently been found that challenge the old theory?', options: ['South America', 'Central America', 'Greenland', 'Canada'], correctAnswer: 'South America' }
+            ];
+            const convoTf = lessonData.pages.find(p => p.id === 'podcast-convo-quiz-tf');
+            if(convoTf) convoTf.content.questions = [
+                { statement: 'The Bering Land Bridge was a frozen strip of land connecting Siberia to Alaska.', correctAnswer: 'True' },
+                { statement: 'Artifacts in South America are younger than the ice-free corridor.', correctAnswer: 'False' },
+                { statement: 'The coastal route theory suggests humans bypassed the glaciers using boats.', correctAnswer: 'True' },
+                { statement: 'The Clovis First theory suggested an ice-free corridor was used.', correctAnswer: 'True' },
+                { statement: 'The Kelp Highway theory assumes early Americans survived entirely on large land animals.', correctAnswer: 'False' }
+            ];
+            const convoGap = lessonData.pages.find(p => p.id === 'podcast-convo-quiz-gap-fill');
+            if(convoGap) {
+                convoGap.content.sentences = [
+                    { text: ['Sea levels dropped creating a land', '.'], answer: 'bridge' },
+                    { text: ['The new leading theory is called the coastal', '.'], answer: 'route' },
+                    { text: ['Early Americans survived on fish and', 'while traveling.'], answer: 'kelp' },
+                    { text: ['The inland route was blocked by massive', '.'], answer: 'glaciers' },
+                    { text: ['The traditional theory was known as Clovis', '.'], answer: 'First' }
+                ];
+                convoGap.content.wordBank = ['bridge', 'route', 'kelp', 'glaciers', 'First'];
+            }
+
+            const debateMcq = lessonData.pages.find(p => p.id === 'debate-planning-quiz-mcq');
+            if(debateMcq) debateMcq.content.questions = [
+                { question: 'What is Maria’s main concern about commercial DNA testing kits?', options: ['They are too expensive.', 'They are highly inaccurate.', 'They pose immense privacy risks with personal genetic data.', 'They cause arguments within families.'], correctAnswer: 'They pose immense privacy risks with personal genetic data.' },
+                { question: 'What does Carlos argue is the main benefit of DNA testing?', options: ['It is a fun hobby.', 'It helps researchers trace human migration and cure genetic diseases.', 'It creates jobs for doctors.', 'It replaces traditional passports.'], correctAnswer: 'It helps researchers trace human migration and cure genetic diseases.' },
+                { question: 'What does Maria call the DNA testing industry?', options: ['A fun science experiment', 'A massive corporate profit scheme', 'A vital part of history', 'A modern medical miracle'], correctAnswer: 'A massive corporate profit scheme' },
+                { question: 'What might health insurance companies do with the data, according to Maria?', options: ['Lower premiums', 'Deny coverage', 'Offer free checkups', 'Fund genetic research'], correctAnswer: 'Deny coverage' },
+                { question: 'How does Carlos justify the risk of sharing DNA data?', options: ['He says the data is easily changed.', 'He believes nobody cares about the data.', 'Users sign agreements and make an informed choice.', 'He argues that hacking is impossible.'], correctAnswer: 'Users sign agreements and make an informed choice.' }
+            ];
+
+            const debateTf = lessonData.pages.find(p => p.id === 'debate-planning-quiz-tf');
+            if(debateTf) debateTf.content.questions = [
+                { statement: 'Maria worries that health insurance companies might use DNA data to deny coverage.', correctAnswer: 'True' },
+                { statement: 'Carlos believes that the risk of data breaches is greater than the scientific benefits.', correctAnswer: 'False' },
+                { statement: 'Users must sign agreements before taking commercial DNA tests.', correctAnswer: 'True' },
+                { statement: 'Maria believes commercial DNA tests are completely safe from hackers.', correctAnswer: 'False' },
+                { statement: 'Carlos states that massive databases help cure genetic diseases.', correctAnswer: 'True' }
+            ];
+
+            const debateGap = lessonData.pages.find(p => p.id === 'debate-planning-quiz-gap-fill');
+            if(debateGap) {
+                debateGap.content.sentences = [
+                    { text: ['Handing over your genetic code is an', 'privacy risk.'], answer: 'immense' },
+                    { text: ['Databases help researchers trace our shared human', '.'], answer: 'journey' },
+                    { text: ['Maria calls it a corporate profit', 'disguised as science.'], answer: 'scheme' },
+                    { text: ['Users must sign', 'before taking the test.'], answer: 'agreements' },
+                    { text: ['Carlos says that providing the data is an informed', '.'], answer: 'choice' }
+                ];
+                debateGap.content.wordBank = ['immense', 'journey', 'scheme', 'agreements', 'choice'];
+            }
+        }
+
+        function initializeLesson() {
+            document.getElementById('main-title').innerHTML = lessonData.title;
+            document.getElementById('main-subtitle').innerHTML = lessonData.subtitle;
+            document.getElementById('main-svg-container').innerHTML = `<svg viewBox="0 0 600 300" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+                    </linearGradient>
+                    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#38bdf8;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#0284c7;stop-opacity:1" />
+                    </linearGradient>
+                    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+                        <feOffset dx="2" dy="2" result="offsetblur"/>
+                        <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+                    </filter>
+                </defs>
+                <path d="M50,150 Q100,80 150,150 T250,150 T350,150 Q400,80 450,150 T550,150" stroke="url(#grad2)" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.6" />
+                <path d="M50,150 Q100,220 150,150 T250,150 T350,150 Q400,220 450,150 T550,150" stroke="url(#grad1)" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.6" />
+                <line x1="100" y1="115" x2="100" y2="185" stroke="#94a3b8" stroke-width="4" opacity="0.5" />
+                <line x1="200" y1="115" x2="200" y2="185" stroke="#94a3b8" stroke-width="4" opacity="0.5" />
+                <line x1="300" y1="150" x2="300" y2="150" stroke="#94a3b8" stroke-width="4" opacity="0.5" />
+                <line x1="400" y1="115" x2="400" y2="185" stroke="#94a3b8" stroke-width="4" opacity="0.5" />
+                <line x1="500" y1="115" x2="500" y2="185" stroke="#94a3b8" stroke-width="4" opacity="0.5" />
+                <text x="250" y="165" font-size="60" font-family="Inter, sans-serif" fill="#f59e0b" filter="url(#shadow)">🧬</text>
+                <text x="350" y="110" font-size="60" font-family="Inter, sans-serif" fill="#0284c7" filter="url(#shadow)">🛶</text>
+            </svg>`;
+
+            populateAllQuizzes();
+            buildPageToMenuMap();
+
+            const menuButtons = lessonData.mainMenu.map(item => {
+                const colors = { green: 'bg-green-600 border-green-800', blue: 'bg-blue-600 border-blue-800', sky: 'bg-sky-500 border-sky-700', amber: 'bg-amber-500 border-amber-700', rose: 'bg-rose-500 border-rose-700', indigo: 'bg-indigo-500 border-indigo-700', purple: 'bg-purple-500 border-purple-700', violet: 'bg-violet-500 border-violet-700', red: 'bg-red-500 border-red-700', orange: 'bg-orange-500 border-orange-700', lime: 'bg-lime-500 border-lime-700', emerald: 'bg-emerald-500 border-emerald-700', teal: 'bg-teal-500 border-teal-700' };
+                return `<button id="menu-btn-${item.id}" onclick="navigateTo('${item.target}')" class="btn-animated-3d ${colors[item.color] || colors['green']} text-white font-bold text-xl p-6 rounded-2xl w-full text-left">${item.text}</button>`;
+            }).join('');
+            createPageElement(lessonData.homePageId, `<div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10"><h2 class="text-4xl font-bold text-center text-slate-800 mb-8">Main Menu</h2><div class="grid grid-cols-1 md:grid-cols-2 gap-6">${menuButtons}</div></div>`);
+            
+            const pageOrderMap = {
+                'tps-start': ['tps-think'],
+                'tbl-start': ['tbl-pre'],
+                'tbl-pre': ['tbl-task'],
+                'tbl-task': ['tbl-post'],
+                'tps-think': ['tps-pair'],
+                'tps-pair': ['tps-share'],
+                'warm-up': ['vocab-start'],
+                'vocab-start': [...lessonData.vocabulary.map((v, i) => `vocab-${i}`), 'vocab-game'],
+                'vocab-game': ['reading-main'],
+                'reading-main': ['migration-timeline'],
+                'migration-timeline': ['reading-quiz-gap-fill'],
+                'reading-quiz-gap-fill': ['reading-quiz-tf'],
+                'reading-quiz-tf': ['reading-quiz-mcq'],
+                'lecture-uni': ['lecture-uni-quiz-mcq'],
+                'lecture-uni-quiz-mcq': ['lecture-uni-quiz-tf'],
+                'lecture-uni-quiz-tf': ['lecture-uni-quiz-gap-fill'],
+                'lecture-expert': ['lecture-expert-quiz-mcq'],
+                'lecture-expert-quiz-mcq': ['lecture-expert-quiz-tf'],
+                'lecture-expert-quiz-tf': ['lecture-expert-quiz-gap-fill'],
+                'podcast-convo': ['podcast-convo-quiz-mcq'],
+                'podcast-convo-quiz-mcq': ['podcast-convo-quiz-tf'],
+                'podcast-convo-quiz-tf': ['podcast-convo-quiz-gap-fill'],
+                'debate-planning': ['debate-planning-quiz-mcq'],
+                'debate-planning-quiz-mcq': ['debate-planning-quiz-tf'],
+                'debate-planning-quiz-tf': ['debate-planning-quiz-gap-fill'],
+                'thinking-prompts': ['perspective-intro'],
+                'perspective-intro': ['perspective-1']
+            };
+            
+            for (let i = 1; i < 20; i++) {
+                pageOrderMap[`perspective-${i}`] = [`perspective-${i+1}`];
+            }
+            pageOrderMap['perspective-20'] = ['final-project-hub'];
+
+            let flatPageList = [lessonData.startPageId];
+            lessonData.mainMenu.forEach(item => {
+                let queue = [item.target];
+                let visited = new Set();
+                while(queue.length > 0) {
+                    let current = queue.shift();
+                    if (visited.has(current)) continue;
+                    
+                    const pageExists = lessonData.pages.find(p => p.id === current) || 
+                                     lessonData.vocabulary.find((v,i) => `vocab-${i}` === current) || 
+                                     current === 'vocab-game';
+                    
+                    if (!pageExists || flatPageList.includes(current)) {
+                        continue;
+                    }
+                    
+                    visited.add(current);
+                    flatPageList.push(current);
+                    if (pageOrderMap[current]) {
+                        queue.push(...pageOrderMap[current]);
+                    }
+                }
+            });
+            pageSequence = [...new Set(flatPageList)]; 
+
+            lessonData.vocabulary.forEach((v, i) => {
+                createPageElement(`vocab-${i}`, `<div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10 text-center pt-16"><div class="readable-content max-w-4xl mx-auto"><h3 class="text-3xl font-bold text-amber-600 mb-4">Vocabulary</h3><h2 class="text-6xl font-bold text-gray-800 mb-6">${v.word}</h2><p class="text-3xl text-gray-600 mb-8 leading-relaxed">${v.def}</p><p class="text-2xl text-gray-500 italic">e.g. "${v.sentence}"</p></div></div>`);
+            });
+
+            lessonData.pages.forEach(page => {
+                let pageHTML = '';
+                switch (page.type) {
+                    case 'simple': pageHTML = `<div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10 text-center pt-16"><div class="readable-content max-w-4xl mx-auto"><h2 class="text-5xl font-bold text-gray-800 mb-8">${page.content.title}</h2><p class="text-3xl text-gray-600">${page.content.text}</p></div></div>`; break;
+                    case 'timer': pageHTML = `<div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10 text-left pt-16"><div class="w-full flex justify-between items-center mb-6"><h2 class="text-3xl md:text-4xl font-bold text-gray-800">${page.content.title}</h2><span id="${page.content.timerId}" class="text-4xl font-bold text-amber-600 bg-amber-100 px-6 py-3 rounded-lg border border-amber-300">00:00</span></div><div class="readable-content max-w-4xl mx-auto"><p class="text-2xl text-gray-600 leading-relaxed">${page.content.text}</p></div></div>`; break;
+                    case 'timeline':
+                        let timelineHtml = `<div class="flex flex-col md:flex-row justify-between items-stretch gap-4 mt-10">`;
+                        page.content.events.forEach((ev, i) => {
+                            timelineHtml += `
+                                <div class="timeline-node flex-1 bg-slate-50 p-6 rounded-2xl border border-slate-200 text-center relative shadow-sm cursor-pointer hover:bg-amber-50 hover:border-amber-300 transition-colors flex flex-col justify-center" onclick="showTimelineInfo(${i})">
+                                    <div class="text-amber-600 font-black text-2xl mb-2">${ev.date}</div>
+                                    <div class="font-bold text-slate-700 text-xl">${ev.title}</div>
+                                </div>`;
+                        });
+                        timelineHtml += `</div>
+                            <div id="timeline-detail" class="mt-8 p-8 bg-amber-50 rounded-2xl border-2 border-amber-200 text-slate-800 text-xl shadow-md min-h-[160px] flex items-center justify-center italic text-center transition-all duration-300">
+                                Click on a timeline event above to reveal the historical facts.
+                            </div>`;
+                        
+                        pageHTML = `<div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10 pt-16"><div class="readable-content max-w-4xl mx-auto"><h2 class="text-4xl font-bold text-center text-amber-600 mb-4">${page.content.title}</h2><p class="text-2xl text-center text-gray-600 mb-8">${page.content.description}</p>${timelineHtml}</div></div>`;
+                        break;
+                    case 'dialogue':
+                    case 'html-content':
+                        const contentHTML = page.type === 'html-content' ? page.content.html : 
+                            (page.content.dialogue || '').split('\n\n').map(line => {
+                                if (line.startsWith('Professor Wang: ') || line.startsWith('Narrator: ') || line.startsWith('Guide: ')) {
+                                    return `<p class="mb-6 text-slate-700 leading-relaxed text-2xl">${line.substring(line.indexOf(': ') + 2)}</p>`;
+                                }
+                                return `<p class="mb-6 text-slate-700 leading-relaxed text-2xl">${line.replace(/([^:]+):/, '<strong class="font-bold text-blue-700">$1:</strong>')}</p>`;
+                            }).join('');
+                        
+                        pageHTML = `<div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10 pt-16"><h2 class="text-5xl font-bold text-center text-slate-800 mb-10">${page.content.title}</h2><div class="readable-content max-w-4xl mx-auto">${contentHTML}</div></div>`;
+                        break;
+                    case 'vocab-game':
+                        pageHTML = `<div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10 pt-16"><h2 class="text-5xl font-bold text-center text-amber-600 mb-6">${page.content.title}</h2><div class="text-center mb-6 text-3xl font-bold">Score: <span id="vocab-game-score" class="text-amber-600">0</span></div><div class="w-full bg-gray-200 rounded-full h-4 mb-8"><div id="vocab-game-timer-bar" class="bg-amber-600 h-4 rounded-full"></div></div><div class="bg-amber-50 border border-amber-200 p-8 rounded-2xl min-h-[160px] flex items-center justify-center mb-8"><p id="vocab-game-definition" class="text-3xl text-center font-medium text-amber-900 leading-relaxed"></p></div><div id="vocab-game-options" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div></div>`;
+                        break;
+                    case 'reflection-prompt':
+                        pageHTML = `
+                            <div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10 pt-16">
+                                <div class="readable-content max-w-4xl mx-auto">
+                                    <h2 class="text-4xl font-bold text-indigo-700 mb-6">${page.content.title}</h2>
+                                    <div class="bg-indigo-50 border-l-4 border-indigo-500 p-6 rounded-r-xl mb-8">
+                                        <p class="text-2xl text-slate-800 leading-relaxed font-medium">${page.content.prompt}</p>
+                                    </div>
+                                    <div class="mt-4">
+                                        <label class="block text-xl font-bold text-slate-700 mb-4 uppercase tracking-wide">Your Personal Perspective:</label>
+                                        <p class="text-md text-red-600 font-bold mb-4">⚠️ Do not use AI to generate your answers, as these questions require your personal perspective.</p>
+                                        <textarea id="resp-${page.id}" rows="8" class="w-full p-4 border-2 border-indigo-200 rounded-xl focus:ring-4 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none transition-all resize-y text-slate-700 text-xl" placeholder="Type your personal thoughts here..."></textarea>
+                                    </div>
+                                </div>
+                            </div>`;
+                        break;
+                    case 'certificate':
+                        pageHTML = `<div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10 text-center pt-16 relative overflow-hidden"><canvas id="completion-canvas"></canvas><div class="relative z-10"><div class="readable-content max-w-4xl mx-auto"><h2 class="text-5xl font-bold text-amber-500 mb-4">${page.content.title}</h2><p class="text-3xl text-gray-600 mb-10">${page.content.text}</p></div><div id="certificate-to-print" class="max-w-3xl mx-auto bg-white p-10 rounded-2xl border-8 border-double border-amber-600 text-left"><h3 class="text-4xl font-black text-amber-800 text-center mb-6 tracking-wide uppercase">Certificate of Completion</h3><p class="text-2xl mb-4 text-slate-700 text-center">This certifies that</p><div class="w-full bg-slate-300 h-1 mb-6"></div><p class="text-2xl mb-6 text-slate-700 text-center">has successfully completed the module</p><p class="text-3xl font-bold text-blue-700 text-center mb-8">The Human Journey: Tracing Our Ancestors</p><p class="text-xl text-slate-600 text-center italic">Congratulations on your hard work exploring migration, navigation, and our shared DNA! <span aria-hidden="true">👣</span></p></div><div class="flex justify-center gap-6 mt-10"><button onclick="downloadCertificate()" class="action-button bg-amber-600 text-white font-bold py-3 px-8 rounded-full text-xl hover:bg-amber-700">Download</button><button onclick="printCertificate()" class="action-button bg-gray-600 text-white font-bold py-3 px-8 rounded-full text-xl hover:bg-gray-700">Print</button></div></div></div>`;
+                        break;
+                    case 'quiz-tf':
+                    case 'quiz-mcq':
+                    case 'quiz-gap-fill':
+                        let questionsHTML = '';
+                        if (page.type === 'quiz-tf' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group flex flex-col md:flex-row items-center gap-6 p-6 rounded-2xl bg-slate-50 border border-slate-200"><p class="font-semibold flex-1 text-left text-slate-800 text-2xl">${i + 1}. ${q.statement}</p><div class="flex-shrink-0 flex gap-4">${['True', 'False'].map(a => `<button onclick="checkTfAnswer(this, '${a}', '${q.correctAnswer}')" class="tf-button bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-xl text-xl">${a.charAt(0)}</button>`).join('')}</div></div>`).join('');
+                        } else if (page.type === 'quiz-mcq' && page.content.questions) {
+                            questionsHTML = page.content.questions.map((q, i) => `<div class="question-group ${i > 0 ? 'border-t-2 border-gray-200 pt-8 mt-8' : ''}"><p class="font-bold mb-6 text-left text-slate-800 text-2xl">${i + 1}. ${q.question}</p><div class="space-y-4">${q.options.map(opt => `<button onclick="checkMcqAnswer(this, ${opt === q.correctAnswer})" data-correct="${opt === q.correctAnswer}" class="quiz-option p-5 rounded-xl text-left w-full bg-slate-100 hover:bg-blue-50 border border-slate-200 text-slate-800 font-medium text-xl">${opt}</button>`).join('')}</div></div>`).join('');
+                        } else if (page.type === 'quiz-gap-fill' && page.content.sentences) {
+                            let words = page.content.wordBank 
+                                ? [...page.content.wordBank]
+                                : page.content.sentences.map(s => s.answer);
+                            words = shuffleArray(words);
+                            questionsHTML = `<div class="gap-fill-container text-left">${page.content.sentences.map((s, i) => `<p class="text-2xl mb-8 text-slate-800 leading-loose">${i + 1}. ${s.text[0]} <span class="gap" data-answer="${s.answer}"></span> ${s.text[1] || ''}</p>`).join('')}</div><div class="word-bank-container flex flex-wrap justify-center gap-4 p-6 mt-8 bg-slate-100 border border-slate-200 rounded-2xl">${words.map(w => `<div class="word-bank-word border border-slate-300 shadow-sm text-blue-800 text-xl py-3 px-6" draggable="true" data-word="${w}">${w}</div>`).join('')}</div>`;
+                        }
+                        pageHTML = `<div class="bg-white/95 backdrop-blur-md rounded-2xl shadow-xl p-10 pt-16"><h3 class="text-4xl font-bold text-amber-600 mb-8 text-center">${page.content.title}</h3><div class="space-y-8 max-w-4xl mx-auto">${questionsHTML}</div></div>`;
+                        break;
+                }
+                if (pageHTML) {
+                    createPageElement(page.id, pageHTML);
+                    if (page.type === 'quiz-gap-fill') initGapFill(`page-${page.id}`);
+
+                    if (page.id === 'final-project-hub') {
+                        const fieldNotes = document.getElementById('field-notes');
+                        if (fieldNotes) {
+                            fieldNotes.value = localStorage.getItem('humanJourneyFieldNotes') || '';
+                            fieldNotes.addEventListener('input', (e) => {
+                                localStorage.setItem('humanJourneyFieldNotes', e.target.value);
+                            });
+                        }
+                    }
+
+                    if (page.type === 'reflection-prompt') {
+                        const ta = document.getElementById(`resp-${page.id}`);
+                        if (ta) {
+                            ta.value = localStorage.getItem(`saved-${page.id}`) || '';
+                            ta.addEventListener('input', (e) => localStorage.setItem(`saved-${page.id}`, e.target.value));
+                        }
+                    }
+                }
+            });
+            updateNavButtons();
+        }
+
+        // ----------------------------
+        // Initialization and background particle animation
+        // ----------------------------
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeLesson();
+            const bgCanvas = document.getElementById('background-canvas');
+            const bgCtx = bgCanvas.getContext('2d');
+            bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight;
+            let bgParticles = [];
+            function animateBackground() {
+                bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+                bgParticles.forEach((p, i) => {
+                    p.y -= p.speed;
+                    // Horizontal drift
+                    p.x += Math.sin(p.y * 0.01) * 0.5; 
+                    if (p.y < -p.radius) bgParticles.splice(i, 1);
+                    bgCtx.beginPath();
+                    bgCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                    bgCtx.fillStyle = p.color;
+                    bgCtx.fill();
+                });
+                if (Math.random() > 0.95 && bgParticles.length < 50) {
+                    bgParticles.push({ 
+                        x: Math.random() * bgCanvas.width, 
+                        y: bgCanvas.height + 20, 
+                        radius: Math.random() * 8 + 2, 
+                        speed: Math.random() * 1 + 0.5, 
+                        color: `rgba(255, 255, 255, ${Math.random() * 0.2 + 0.1})`
+                    });
+                }
+                requestAnimationFrame(animateBackground);
+            }
+            window.addEventListener('resize', () => { bgCanvas.width = window.innerWidth; bgCanvas.height = window.innerHeight; });
+            animateBackground();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IELTS Listening Part 2 Simulator</title>
+    <style>
+        :root { --primary: #0056b3; --bg: #f4f7f6; --text: #333; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: var(--text); }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        
+        /* Header */
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 20px; margin-bottom: 20px; }
+        h1 { color: var(--primary); margin: 0; font-size: 24px; }
+        
+        .header-controls { display: flex; align-items: center; gap: 10px; }
+        .voice-status { font-size: 0.9em; color: #666; display: none; }
+        .control-btn { background: var(--primary); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .control-btn:hover { background: #004494; }
+        /* Smaller buttons for the Check/Transcript actions in header */
+        .header-action-btn { padding: 8px 15px; border: none; border-radius: 4px; font-size: 14px; font-weight: bold; cursor: pointer; background: #6c757d; color: white; transition: 0.2s; }
+        .header-action-btn:hover { background: #5a6268; }
+        .btn-check { background: #28a745; }
+        .btn-check:hover { background: #218838; }
+        .btn-check.active { background: #155724; box-shadow: inset 0 3px 5px rgba(0,0,0,0.2); }
+
+        /* Navigation Grid (2x4) */
+        .nav-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 30px; }
+        .nav-btn { padding: 15px; border: none; background: #e0e0e0; cursor: pointer; border-radius: 8px; font-weight: 600; transition: 0.2s; text-align: center; }
+        .nav-btn.active { background: var(--primary); color: white; transform: scale(1.02); box-shadow: 0 2px 8px rgba(0,86,179,0.3); }
+        .nav-btn:hover:not(.active) { background: #d0d0d0; }
+
+        /* Test Section */
+        .test-section { display: none; animation: fadeIn 0.4s; }
+        .test-section.active { display: block; }
+        
+        .topic-header { background: #e3f2fd; padding: 10px; border-radius: 8px; margin-bottom: 15px; border-left: 5px solid var(--primary); display: flex; justify-content: space-between; align-items: center;}
+        .topic-title { flex: 1; } /* Take up remaining space on the left */
+        .topic-title h2 { margin: 0 0 5px 0; font-size: 1.1em; }
+        .topic-title p { margin: 0; color: #555; font-size: 0.9em; }
+        
+        /* Questions Layout - Compact to fit on page */
+        #quizForm { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; } /* 2 Column layout */
+        .question-block { margin-bottom: 0; padding: 10px; background: #fff; border: 1px solid #eee; border-radius: 8px; font-size: 0.9em; }
+        .q-header { font-weight: 700; margin-bottom: 5px; display: block; color: #444; font-size: 0.95em; }
+        
+        .options label { display: block; margin: 3px 0; cursor: pointer; padding: 4px; border-radius: 4px; background: #f9f9f9; font-size: 0.9em; }
+        .options label:hover { background: #eee; }
+        
+        /* Gap input styling */
+        .gap-text { display: inline; }
+        .input-gap { border: none; border-bottom: 1px solid #333; padding: 0 5px; width: 100px; font-size: 1em; background: transparent; text-align: center; margin: 0 3px; height: 1.2em;}
+        .input-gap:focus { border-color: var(--primary); outline: none; background: #eef; }
+        
+        .match-select { padding: 4px; border-radius: 4px; border: 1px solid #ccc; width: 100%; max-width: 100%; font-size: 0.9em; }
+
+        /* Feedback */
+        .transcript-box { display: none; margin-top: 15px; padding: 15px; background: #f1f3f4; border-radius: 8px; line-height: 1.4; white-space: pre-line; font-size: 0.85em; height: 200px; overflow-y: auto; }
+        
+        .correct-ans { color: #28a745; font-weight: bold; display: none; margin-top: 3px; font-size: 0.85em; }
+        .show-keys .correct-ans { display: block; }
+        .show-keys .question-block.correct { border-left: 4px solid #28a745; }
+        .show-keys .question-block.incorrect { border-left: 4px solid #dc3545; }
+
+        /* Startup Overlay */
+        #overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        #startBtn { padding: 20px 40px; font-size: 24px; background: var(--primary); color: white; border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 0 20px rgba(0,86,179,0.5); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            #quizForm { grid-template-columns: 1fr; }
+            .header-controls { flex-wrap: wrap; justify-content: flex-end; }
+            .topic-header { flex-direction: column; align-items: flex-start; } /* Stack on smaller screens */
+            .controls-area { width: 100%; justify-content: space-between; margin-top: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="overlay">
+    <button id="startBtn" onclick="startApp()">Start IELTS Simulator</button>
+</div>
+
+<div class="container">
+    <header>
+        <div>
+            <!-- Removed text per request -->
+        </div>
+        <div class="header-controls">
+            <!-- Header Action Buttons -->
+            <button class="header-action-btn btn-check" id="checkBtn" onclick="toggleCheckAnswers()" style="display:none">Check Answers</button>
+            <button class="header-action-btn btn-script" id="scriptBtn" onclick="toggleScript()" style="display:none">Transcript</button>
+            
+            <!-- Controls -->
+            <button class="control-btn" id="headerPlayBtn" onclick="toggleAudio()" title="Play/Pause">
+                ❚❚
+            </button>
+            <button class="control-btn" onclick="restartAudio()" title="Replay">
+                ↺
+            </button>
+            <button class="control-btn" onclick="goHome()" title="Home">
+                ⌂
+            </button>
+        </div>
+    </header>
+
+    <!-- 2x4 Grid Navigation -->
+    <div class="nav-grid" id="navGrid"></div>
+
+    <div id="testContainer"></div>
+</div>
+
+<script>
+// --- CONFIGURATION ---
+// Automatic rotation: Brian -> Emma -> Andrew -> Ava
+const preferredOrder = ["Brian", "Emma", "Andrew", "Ava", "Brian", "Emma", "Andrew", "Ava"];
+let voices = [];
+let voiceMap = {};
+let currentTestIdx = 0;
+let synth = window.speechSynthesis;
+let currentUtterance = null;
+let isPlaying = false;
+let checkMode = false; // Toggle state for checking answers
+
+// --- DATA ---
+const tests = [
+    {
+        id: 1,
+        title: "Community Park Redevelopment",
+        topic: "A council representative explains changes to a local park.",
+        script: `Good evening. I'm Brian from the Town Council. I'm here to outline the redevelopment plans for Redfern Park.
+
+        First, the Rose Garden. We know this is a popular feature. We considered moving it to the north side to get more sun, but the soil there isn't suitable. So, we have decided to keep it in its original location near the east gate. However, the Children's Playground will definitely move. It's currently too close to the road, so we are relocating it to the centre of the park, where the old fountain used to be.
+
+        Regarding the new Cafe. We wanted to build it by the lake, but that area floods in winter. Instead, the Cafe will be constructed right next to the Main Entrance. This allows people to grab a drink as soon as they arrive.
+
+        Now, looking at the map layout. If you enter through the South Gate, the first building on your left is the Ranger's Lodge. Immediately opposite the Lodge, on the right-hand side of the path, is the new Bike Rack. If you continue straight, the path forks. The left path takes you to the Picnic Area, which is now fully paved.
+
+        Finally, a note on regulations. We have had issues with litter. From next month, anyone caught dropping litter will face an increased fine of £50. Also, please note that while cycling is allowed, electric scooters are strictly banned on all paths.`,
+        questions: [
+            { type: 'mcq', text: "What decision has been made about the Rose Garden?", options: ["It will move to the north.", "It will remain where it is.", "It will be replaced by a playground."], ans: "B" },
+            { type: 'mcq', text: "Why was the 'Lake' location rejected for the Cafe?", options: ["It is too far from the entrance.", "The view is blocked.", "The area is prone to flooding."], ans: "C" },
+            { type: 'gap', text: "The new fine for dropping litter is £________.", ans: "50" },
+            { type: 'gap', text: "While cycling is permitted, ________ are banned.", ans: "electric scooters / scooters" },
+            { type: 'gap', text: "The Ranger's Lodge is located on the ________ (left/right) side.", ans: "left" },
+            { type: 'gap', text: "The Bike Rack is located opposite the ________.", ans: "Lodge / Ranger's Lodge" }
+        ]
+    },
+    {
+        id: 2,
+        title: "Museum Volunteer Induction",
+        topic: "A curator gives an orientation talk to new volunteers.",
+        script: `Hi everyone, I'm Emma. Welcome to the City Museum. Let me explain a few key changes to our layout and rules.
+
+        We have moved the Dinosaur Exhibition. It used to be in the Main Hall, but it's now located in the West Wing. The Main Hall is currently being used for a temporary photography display. Please direct visitors accordingly. 
+
+        If you are working at the Information Desk, your primary duty isn't just answering questions; it is actually handing out the audio guides. We find visitors enjoy the museum much more if they have one. 
+
+        In the Gift Shop, we have a new policy. We no longer provide plastic bags. If a customer wants a bag, we sell reusable canvas ones for £1. Please remind them of this before you scan their items.
+
+        For your breaks, the Staff Room is on the third floor. Please do not eat or drink in the galleries. Last week we had a spill on a rug, which was very expensive to clean. Finally, if the fire alarm sounds, your meeting point is not the car park anymore; it is now the park across the street.`,
+        questions: [
+            { type: 'mcq', text: "Where is the Dinosaur Exhibition now located?", options: ["The Main Hall", "The West Wing", "The Photography Room"], ans: "B" },
+            { type: 'mcq', text: "What is the main duty at the Information Desk?", options: ["Selling tickets", "Giving directions", "Distributing audio guides"], ans: "C" },
+            { type: 'match', text: "Gift Shop Policy", options: ["Free plastic bags", "No bags provided", "Selling canvas bags"], ans: "Selling canvas bags" },
+            { type: 'gap', text: "The Staff Room is located on the ________ floor.", ans: "third / 3rd" },
+            { type: 'gap', text: "In case of fire, the meeting point is the ________.", ans: "park / park across street" }
+        ]
+    },
+    {
+        id: 3,
+        title: "Charity Run Logistics",
+        topic: "An event organizer explains details for a charity run.",
+        script: `Thanks for coming. I'm Andrew, the race director. I have some updates for the 'Run for Health' event.
+
+        First, the date. We originally scheduled it for the 12th of June. However, due to roadworks in the city center, we have had to postpone it by two weeks. The new date is the 26th of June. 
+
+        The starting point has also changed. We usually start at the stadium, but this year we will start at the University Campus. It has better parking facilities. The finish line is still at the City Park.
+
+        Regarding the entry pack. All runners will receive a race number, which must be pinned to the front of their shirt. We are also including a timing chip, which attaches to the shoe. Please tell runners not to lose this, or they won't get a time.
+
+        We need volunteers at the water stations. Specifically, we are short of people at the 10km mark. It's a difficult spot to reach, so you'll need a car if you are assigned there. Finally, instead of medals this year, all finishers will receive a commemorative t-shirt.`,
+        questions: [
+            { type: 'gap', text: "The new date for the race is the ________ of June.", ans: "26th / 26" },
+            { type: 'mcq', text: "Why was the starting point changed?", options: ["To avoid roadworks.", "For better parking.", "The stadium was booked."], ans: "B" },
+            { type: 'match', text: "Race Number Position", options: ["On the back", "On the front of shirt", "On the shoe"], ans: "On the front of shirt" },
+            { type: 'match', text: "Timing Chip Position", options: ["On the wrist", "On the shoe", "On the shirt"], ans: "On the shoe" },
+            { type: 'gap', text: "Volunteers with a car are needed at the ________ mark.", ans: "10km / 10 km" },
+            { type: 'gap', text: "Finishers will receive a ________ instead of a medal.", ans: "t-shirt / tshirt" }
+        ]
+    },
+    {
+        id: 4,
+        title: "Office Rules & Regulations",
+        topic: "An office manager briefs new staff members.",
+        script: `Welcome to the team, I'm Ava. I'll cover some essential office protocols.
+
+        Security is our top priority. You must wear your ID badge visibly at all times. If you forget your badge, you can get a temporary one from reception, but you must return it by 5 pm. If you lose your permanent badge, there is a £15 replacement fee.
+
+        Working hours are flexible. Our core hours are 10 am to 3 pm. You can arrive anytime between 8 am and 10 am, as long as you complete your 8 hours. 
+
+        Regarding IT. You can use the internet for personal reasons during your lunch hour. However, accessing social media sites on company computers is blocked to ensure productivity. You can use your own phones for that.
+
+        The kitchen is for everyone. Please label your food in the fridge. The cleaners empty the fridge every Friday evening, so anything left behind will be thrown away. 
+
+        Dress code. We have a 'Dress Down' day on Fridays, where jeans are allowed. For the rest of the week, it is business casual.`,
+        questions: [
+            { type: 'gap', text: "If a permanent badge is lost, the fee is £________.", ans: "15" },
+            { type: 'gap', text: "Core working hours are from 10 am to ________ pm.", ans: "3" },
+            { type: 'mcq', text: "Which websites are blocked on company computers?", options: ["News sites", "Social media", "Shopping sites"], ans: "B" },
+            { type: 'gap', text: "The fridge is emptied every ________ evening.", ans: "Friday" },
+            { type: 'mcq', text: "When are jeans permitted?", options: ["Any day", "Mondays", "Fridays"], ans: "C" }
+        ]
+    },
+    {
+        id: 5,
+        title: "Hotel Renovation Plans",
+        topic: "A hotel manager explains renovations to staff.",
+        script: `I'm Brian, the general manager. I want to walk you through the renovation of the Grand Hotel.
+
+        We are focusing on the lobby area. Currently, the reception desk faces the door. We are moving it to the left wall to create more space for a seating area in the center. 
+
+        The old bar, which is currently next to the lifts, will be converted into a Business Centre with computers and printers. A new, larger bar will be built on the roof terrace, which will offer great views of the city.
+
+        We are also upgrading the guest rooms. All carpets are being replaced with wooden flooring, which is more hygienic. We are also removing the bathtubs in the standard rooms and replacing them with walk-in showers to save water.
+
+        Finally, the gym. It's currently in the basement. We are moving it to the first floor, where the old conference room was. The basement will then be used for storage.`,
+        questions: [
+            { type: 'gap', text: "The Reception Desk will move to the ________ wall.", ans: "left" },
+            { type: 'gap', text: "The Business Centre will be located next to the ________.", ans: "lifts" },
+            { type: 'mcq', text: "Where will the new bar be located?", options: ["In the lobby", "In the basement", "On the roof terrace"], ans: "C" },
+            { type: 'gap', text: "Standard rooms will now have ________ instead of bathtubs.", ans: "showers / walk-in showers" },
+            { type: 'gap', text: "The gym is moving to the ________ floor.", ans: "first / 1st" }
+        ]
+    },
+    {
+        id: 6,
+        title: "Campsite Orientation",
+        topic: "A campsite owner welcomes new guests.",
+        script: `Hi, I'm Emma. Welcome to Forest Camp. A few rules to keep everyone safe.
+
+        First, vehicles. Please drive very slowly. The speed limit on the site is 5 miles per hour. We have lots of children playing, so this is strictly enforced.
+
+        Fires. You are allowed to have campfires, but they must be raised off the ground in a fire pit. You cannot have fires directly on the grass as it burns the turf. You can rent fire pits from the shop for £5.
+
+        The shop is open from 8 am to 8 pm. We sell basic groceries, but for fresh meat and vegetables, we recommend the farm shop in the village, about a mile down the road.
+
+        Quiet hours are from 11 pm to 7 am. Please respect your neighbours. If you want to listen to music after 11 pm, please use headphones.
+
+        Finally, trash. We have recycling bins near the entrance. Please separate glass and paper. Do not leave food bags outside your tent at night as foxes will tear them open.`,
+        questions: [
+            { type: 'gap', text: "The speed limit on the site is ________ mph.", ans: "5" },
+            { type: 'mcq', text: "What is the rule about campfires?", options: ["They are banned.", "They must be off the ground.", "They are only allowed in the village."], ans: "B" },
+            { type: 'gap', text: "The shop closes at ________ pm.", ans: "8" },
+            { type: 'gap', text: "Quiet hours start at ________ pm.", ans: "11" },
+            { type: 'mcq', text: "Why should food not be left outside?", options: ["It attracts insects.", "It spoils quickly.", "Foxes will eat it."], ans: "C" }
+        ]
+    },
+    {
+        id: 7,
+        title: "University Library Tour",
+        topic: "A librarian guides new students.",
+        script: `I'm Andrew, welcome to the University Library. Let me guide you through the zones.
+
+        We are currently in the Foyer. To your right are the Self-Service Kiosks. You can check books out here using your ID card. You don't need to go to the main desk unless you have a fine to pay.
+
+        Straight ahead is the Main Collection. This contains all the course books. Please note that books marked with a yellow sticker are 'Short Loan' only. This means you can borrow them for 24 hours max.
+
+        On the second floor, we have the Silent Study Zone. This is strictly for individual work. No talking and no phones. If you want to do group work, please go to the Group Study Rooms on the first floor. You need to book these in advance online.
+
+        Printing. There are printers on every floor. It costs 5 pence per sheet for black and white, and 20 pence for colour. You can top up your print credit at the machine near the entrance.`,
+        questions: [
+            { type: 'mcq', text: "What are the Self-Service Kiosks for?", options: ["Paying fines", "Checking out books", "Booking rooms"], ans: "B" },
+            { type: 'gap', text: "Books with a ________ sticker are Short Loan items.", ans: "yellow" },
+            { type: 'match', text: "Silent Study Zone", options: ["First Floor", "Second Floor", "Foyer"], ans: "Second Floor" },
+            { type: 'match', text: "Group Study Rooms", options: ["First Floor", "Second Floor", "Foyer"], ans: "First Floor" },
+            { type: 'gap', text: "Colour printing costs ________ pence per sheet.", ans: "20" }
+        ]
+    },
+    {
+        id: 8,
+        title: "Historical House Tour",
+        topic: "A guide describes a historical property.",
+        script: `Welcome to Greystone Manor, I'm Ava. I'll give you a brief history before you explore.
+
+        The house was built in 1750 by the Earl of Greystone. Originally, the main entrance faced North, but in 1820, the family rebuilt the front so it now faces South to capture the sunlight.
+
+        The most famous room is the Library on the ground floor. It contains over 5,000 books. Interestingly, many of the 'books' on the top shelves are actually fake wooden blocks painted to look like books, just to make the collection look larger!
+
+        The Kitchens are located in the basement. They have been restored to look exactly as they did in the Victorian era. You can see the original coal range cooker there.
+
+        Outside, the Gardens were designed by Capability Brown. The highlight is the Maze. It is quite difficult, so we recommend you allow at least 20 minutes to solve it. Please don't climb the hedges.
+
+        The house is said to be haunted by a 'Grey Lady', who is usually seen on the main staircase at midnight. But don't worry, we close at 5 pm!`,
+        questions: [
+            { type: 'gap', text: "The house was originally built in the year ________.", ans: "1750" },
+            { type: 'mcq', text: "What is unusual about the Library?", options: ["It faces North.", "It has fake books.", "It is in the basement."], ans: "B" },
+            { type: 'match', text: "Kitchens", options: ["Ground Floor", "Basement", "Garden"], ans: "Basement" },
+            { type: 'gap', text: "The maze takes about ________ minutes to complete.", ans: "20" },
+            { type: 'gap', text: "The 'Grey Lady' ghost is often seen on the ________.", ans: "staircase / stairs" }
+        ]
+    }
+];
+
+// --- LOGIC ---
+
+function startApp() {
+    document.getElementById('overlay').style.display = 'none';
+    if ('speechSynthesis' in window) {
+        // Need to wait for voices to load
+        if (speechSynthesis.getVoices().length === 0) {
+            speechSynthesis.onvoiceschanged = () => {
+                initVoices();
+                renderTabs();
+            };
+        } else {
+            initVoices();
+            renderTabs();
+        }
+    } else {
+        alert("Text-to-Speech not supported.");
+    }
+}
+
+function initVoices() {
+    const allVoices = synth.getVoices();
+    
+    // Map preferred names to voice objects
+    ["Brian", "Emma", "Andrew", "Ava"].forEach(name => {
+        // 1. Exact Microsoft Online Natural
+        let v = allVoices.find(v => v.name.includes(`Microsoft ${name}`) && v.name.includes("Natural"));
+        // 2. Any Microsoft Natural
+        if (!v) v = allVoices.find(v => v.name.includes("Microsoft") && v.name.includes("Natural") && v.name.includes(name));
+        // 3. Fallback: Any voice with the name
+        if (!v) v = allVoices.find(v => v.name.includes(name));
+        // 4. Ultimate Fallback: Google US English or Default
+        if (!v) v = allVoices.find(v => v.lang === 'en-US');
+        
+        voiceMap[name] = v;
+    });
+}
+
+function renderTabs() {
+    const container = document.getElementById('navGrid');
+    container.innerHTML = '';
+    tests.forEach((test, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `nav-btn ${idx === 0 ? 'active' : ''}`;
+        btn.innerText = `Test ${test.id}: ${test.title}`;
+        btn.onclick = () => loadTest(idx);
+        container.appendChild(btn);
+    });
+}
+
+function loadTest(idx) {
+    stopAudio();
+    currentTestIdx = idx;
+    checkMode = false; // Reset check mode
+    
+    // Reset Check Button
+    const checkBtn = document.getElementById('checkBtn');
+    if(checkBtn) {
+        checkBtn.classList.remove('active');
+        checkBtn.innerText = "Check Answers";
+        checkBtn.style.display = "inline-block"; // Show button now
+    }
+    
+    // Show transcript button
+    const scriptBtn = document.getElementById('scriptBtn');
+    if(scriptBtn) scriptBtn.style.display = "inline-block";
+
+    // Hide Grid when test loads
+    document.getElementById('navGrid').style.display = 'none';
+    
+    // Show Back Button Context
+    // (Implied by UI design)
+
+    const test = tests[idx];
+    const container = document.getElementById('testContainer');
+    container.style.display = 'block';
+    
+    let html = `
+        <div class="test-section active">
+            <div class="topic-header">
+                <div class="topic-title">
+                    <h2>Unit ${test.id}: ${test.title}</h2>
+                    <p>${test.topic}</p>
+                </div>
+                <div class="controls-area">
+                    <!-- Buttons are in header, this is supplementary or can be removed if strictly header only -->
+                </div>
+            </div>
+            
+            <form id="quizForm">`;
+
+    test.questions.forEach((q, i) => {
+        html += `<div class="question-block" id="q-${i}">
+            <span class="q-header">Q${i+1}</span>`;
+        
+        if (q.type === 'mcq') {
+            html += `<span class="q-text" style="display:block;margin-bottom:5px;font-weight:600">${q.text}</span><div class="options">`;
+            q.options.forEach((opt, oi) => {
+                const val = String.fromCharCode(65 + oi);
+                html += `<label><input type="radio" name="q${i}" value="${val}"> ${val}. ${opt}</label>`;
+            });
+            html += `</div>`;
+        } else if (q.type === 'gap' || q.type === 'map') {
+            const parts = q.text.split('________');
+            if(parts.length > 1) {
+                html += `<div class="gap-text">${parts[0]}<input type="text" class="input-gap" name="q${i}" autocomplete="off">${parts[1]}</div>`;
+            } else {
+                html += `<div class="gap-text"><input type="text" class="input-gap" name="q${i}" autocomplete="off"></div>`;
+            }
+        } else if (q.type === 'match') {
+            html += `<span class="q-text" style="display:block;margin-bottom:5px;font-weight:600">${q.text}</span>
+            <select class="match-select" name="q${i}">
+                <option value="">Select...</option>
+                ${q.options.map(o => `<option value="${o}">${o}</option>`).join('')}
+            </select>`;
+        }
+        
+        html += `<div class="correct-ans">Correct Answer: ${q.ans}</div></div>`;
+    });
+
+    html += `</form>
+            <div class="transcript-box" id="scriptBox">${test.script}</div>
+        </div>`;
+
+    container.innerHTML = html;
+    
+    // Auto-play audio on tab switch
+    playAudio();
+}
+
+function goHome() {
+    stopAudio();
+    document.getElementById('testContainer').style.display = 'none';
+    document.getElementById('navGrid').style.display = 'grid';
+    // Hide header buttons when on home
+    document.getElementById('checkBtn').style.display = 'none';
+    document.getElementById('scriptBtn').style.display = 'none';
+}
+
+function playAudio() {
+    const test = tests[currentTestIdx];
+    const voiceName = preferredOrder[currentTestIdx];
+    const voice = voiceMap[voiceName] || voiceMap['Brian']; // Fallback
+    
+    stopAudio();
+    
+    currentUtterance = new SpeechSynthesisUtterance(test.script);
+    if(voice) currentUtterance.voice = voice;
+    currentUtterance.rate = 1.0;
+    
+    const playBtn = document.getElementById('headerPlayBtn');
+    
+    currentUtterance.onstart = () => {
+        isPlaying = true;
+        if(playBtn) { playBtn.innerText = "❚❚"; playBtn.title = "Pause"; }
+    };
+    
+    currentUtterance.onend = () => {
+        isPlaying = false;
+        if(playBtn) { playBtn.innerText = "▶"; playBtn.title = "Play"; }
+    };
+    
+    synth.speak(currentUtterance);
+}
+
+function toggleAudio() {
+    const playBtn = document.getElementById('headerPlayBtn');
+    
+    if (synth.paused) {
+        synth.resume();
+        if(playBtn) playBtn.innerText = "❚❚";
+        isPlaying = true;
+    } else if (synth.speaking) {
+        synth.pause();
+        if(playBtn) playBtn.innerText = "▶";
+        isPlaying = false;
+    } else {
+        if(document.getElementById('testContainer').style.display !== 'none') {
+            playAudio();
+        }
+    }
+}
+
+function restartAudio() {
+    if(document.getElementById('testContainer').style.display !== 'none') {
+        stopAudio();
+        playAudio();
+    }
+}
+
+function stopAudio() {
+    synth.cancel();
+    isPlaying = false;
+    const playBtn = document.getElementById('headerPlayBtn');
+    if(playBtn) playBtn.innerText = "▶";
+}
+
+function toggleCheckAnswers() {
+    const container = document.getElementById('testContainer');
+    const btn = document.getElementById('checkBtn');
+    
+    checkMode = !checkMode;
+    
+    if (checkMode) {
+        container.classList.add('show-keys');
+        btn.classList.add('active');
+        btn.innerText = "Hide Answers";
+        checkAnswers();
+    } else {
+        container.classList.remove('show-keys');
+        btn.classList.remove('active');
+        btn.innerText = "Check Answers";
+        clearMarks();
+    }
+}
+
+function clearMarks() {
+    const test = tests[currentTestIdx];
+    test.questions.forEach((q, i) => {
+        const block = document.getElementById(`q-${i}`);
+        block.classList.remove('correct', 'incorrect');
+    });
+}
+
+function checkAnswers() {
+    const test = tests[currentTestIdx];
+    const form = document.getElementById('quizForm');
+    
+    test.questions.forEach((q, i) => {
+        const block = document.getElementById(`q-${i}`);
+        let userAns = "";
+        
+        if (q.type === 'mcq') {
+            const el = form.querySelector(`input[name="q${i}"]:checked`);
+            userAns = el ? el.value : "";
+        } else {
+            userAns = form.querySelector(`[name="q${i}"]`).value;
+        }
+        
+        // Simple check
+        const isCorrect = checkMatch(userAns, q.ans);
+        block.classList.remove('correct', 'incorrect');
+        block.classList.add(isCorrect ? 'correct' : 'incorrect');
+    });
+}
+
+function checkMatch(user, correct) {
+    if(!user) return false;
+    user = user.toLowerCase().trim();
+    correct = correct.toLowerCase().trim();
+    
+    if(correct.includes('/')) {
+        const alts = correct.split('/').map(s => s.trim());
+        return alts.includes(user);
+    }
+    return user === correct;
+}
+
+function toggleScript() {
+    const box = document.getElementById('scriptBox');
+    box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+}
+
+</script>
+
+</body>
+</html>
