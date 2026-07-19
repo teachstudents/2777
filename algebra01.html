@@ -362,6 +362,9 @@
             volume: 0.8, // 0 to 1
             ttsSpeed: 1.0 // 0.5 to 2.0
         };
+        
+        // Define global difficulty for the generation algorithms
+        let difficulty = settings.difficulty;
 
         // Game State
         let currentTopicIdx = -1;
@@ -950,6 +953,7 @@
         // Difficulty Selector
         function setDifficulty(level) {
             settings.difficulty = level;
+            difficulty = level; // Keep the global reference in sync
             document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('diff' + level.charAt(0).toUpperCase() + level.slice(1)).classList.add('active');
             
@@ -1212,7 +1216,11 @@
                         tooltip.style.left = (px + 15) + 'px';
                         tooltip.style.top = (py - 30) + 'px';
                         tooltip.classList.remove('hidden');
-                        katex.render(`(${rx.toFixed(1)}, ${ry.toFixed(1)})`, tooltip, { throwOnError: false });
+                        
+                        // Clean up decimal points: removes trailing .0 for whole numbers
+                        let cleanX = parseFloat(rx.toFixed(1));
+                        let cleanY = parseFloat(ry.toFixed(1));
+                        katex.render(`(${cleanX}, ${cleanY})`, tooltip, { throwOnError: false });
                         return; 
                     }
                 }
@@ -1271,11 +1279,23 @@
             const q = t._questions[currentQuestionIdx];
             TTSEngine.speak("Hint: " + q.hint);
             
+            // Remove existing hint if the user clicks multiple times
+            const existingHint = document.getElementById('activeHintToast');
+            if (existingHint) existingHint.remove();
+
             const ht = document.createElement('div');
-            ht.className = 'fixed top-20 left-1/2 transform -translate-x-1/2 bg-[#ff0000] text-white px-4 py-2 rounded shadow-lg font-bold z-50 animate-pop border-2 border-white';
-            ht.textContent = q.hint;
+            ht.id = 'activeHintToast';
+            ht.className = 'fixed top-24 left-1/2 transform -translate-x-1/2 bg-[#ff0000] text-white px-6 py-3 rounded-lg shadow-[4px_4px_0px_#000] font-extrabold text-sm md:text-base z-50 animate-pop border-2 border-black max-w-sm text-center';
+            ht.textContent = '💡 ' + q.hint;
             document.body.appendChild(ht);
-            setTimeout(() => { ht.style.opacity=0; ht.style.transition='opacity 0.5s'; setTimeout(()=>ht.remove(),500); }, 3000);
+            
+            setTimeout(() => { 
+                if (ht && ht.parentNode) {
+                    ht.style.opacity = 0; 
+                    ht.style.transition = 'opacity 0.5s'; 
+                    setTimeout(() => { if(ht.parentNode) ht.remove(); }, 500); 
+                }
+            }, 4000);
         }
 
         function checkAnswer(selected, btnEl) {
