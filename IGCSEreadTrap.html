@@ -73,6 +73,9 @@
 
         <!-- Right: Controls & Score -->
         <div class="flex items-center gap-2 shrink-0">
+            <button id="btn-tts" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-sm font-bold transition-transform active:scale-95 shadow-sm" title="Toggle Auto-TTS">
+                <i class="fa-solid fa-volume-xmark"></i>
+            </button>
             <button id="btn-prev" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-md text-sm font-bold transition-transform active:scale-95 shadow-sm" title="Previous Passage">
                 <i class="fa-solid fa-chevron-left"></i>
             </button>
@@ -819,6 +822,7 @@
         let score = 0;
         let totalAttempted = 0;
         let synth = window.speechSynthesis;
+        let autoTtsEnabled = false;
         
         // Allowed TTS Voices
         const targetVoiceNames = ["Remy", "Giuseppe", "Vivienne", "Florian", "Seraphina", "Emma", "Brian", "Andrew"];
@@ -832,6 +836,7 @@
             passageText: document.getElementById('passage-text'),
             questionText: document.getElementById('question-text'),
             optionsContainer: document.getElementById('options-container'),
+            btnTts: document.getElementById('btn-tts'),
             btnPrev: document.getElementById('btn-prev'),
             btnCheck: document.getElementById('btn-check'),
             btnNext: document.getElementById('btn-next'),
@@ -848,6 +853,7 @@
             DOM.btnCheck.addEventListener('click', handleCheck);
             DOM.btnNext.addEventListener('click', loadNextGlobal);
             DOM.btnPrev.addEventListener('click', loadPrevGlobal);
+            DOM.btnTts.addEventListener('click', toggleTts);
             
             if (speechSynthesis.onvoiceschanged !== undefined) {
                 speechSynthesis.onvoiceschanged = setPreferredVoice;
@@ -859,7 +865,7 @@
         function setPreferredVoice() {
             const voices = synth.getVoices();
             allowedVoices = voices.filter(v => 
-                (v.name.includes('Online') || v.name.includes('Natural') || v.name.includes('Multilingual')) && 
+                (v.name.includes('Microsoft') || v.name.includes('Online') || v.name.includes('Natural') || v.name.includes('Multilingual')) && 
                 targetVoiceNames.some(name => v.name.includes(name))
             );
             if (allowedVoices.length === 0) {
@@ -888,11 +894,26 @@
             
             if (allowedVoices.length > 0) {
                 // Cycle through voices based on current exercise
-                const trapIndex = trapDatabase.findIndex(t => t.id === currentExercise.id);
-                utterance.voice = allowedVoices[trapIndex % allowedVoices.length];
+                const trapIndex = trapDatabase.findIndex(t => t.id === currentExercise?.id);
+                utterance.voice = allowedVoices[Math.max(0, trapIndex) % allowedVoices.length];
             }
             
             synth.speak(utterance);
+        }
+
+        function toggleTts() {
+            autoTtsEnabled = !autoTtsEnabled;
+            if (autoTtsEnabled) {
+                DOM.btnTts.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+                DOM.btnTts.classList.remove('text-slate-700');
+                DOM.btnTts.classList.add('text-blue-600');
+                if (currentExercise) speakPassage(currentExercise.passage);
+            } else {
+                DOM.btnTts.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+                DOM.btnTts.classList.remove('text-blue-600');
+                DOM.btnTts.classList.add('text-slate-700');
+                synth.cancel();
+            }
         }
 
         function loadFilteredCategory() {
@@ -935,6 +956,10 @@
                 optBtn.onclick = () => selectMcqOption(idx, optBtn);
                 DOM.optionsContainer.appendChild(optBtn);
             });
+            
+            if (autoTtsEnabled) {
+                setTimeout(() => speakPassage(currentExercise.passage), 100);
+            }
         }
 
         function selectMcqOption(index, btnElement) {
@@ -998,7 +1023,9 @@
             DOM.feedbackTitle.textContent = isCorrect ? "Scan Clear!" : "Trap Triggered!";
             DOM.feedbackMessage.innerHTML = `<span class="${isCorrect ? 'text-emerald-900' : 'text-red-900'}">${feedbackText}</span>`;
             
-            speakPassage(feedbackText);
+            if (autoTtsEnabled) {
+                speakPassage(feedbackText);
+            }
         }
 
         function loadNextGlobal() {
