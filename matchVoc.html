@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Memory Match</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap');
+
+        :root {
+            --bg-color-1: #0f172a;
+            --bg-color-2: #1e1b4b;
+            --bg-color-3: #312e81;
+            --orb-1: #818cf8;
+            --orb-2: #c084fc;
+            --orb-3: #38bdf8;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background: #0f172a;
+            color: white;
+            touch-action: none; /* Prevent scroll on touch */
+        }
+
+        /* Animated Gradient Background */
+        .bg-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(45deg, var(--bg-color-1), var(--bg-color-2), var(--bg-color-3), var(--bg-color-1));
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            z-index: -3;
+            transition: background 1s ease;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Floating Orbs */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -2;
+            opacity: 0.6;
+            animation: orbFloat 20s infinite alternate;
+        }
+
+        .orb-1 { width: 300px; height: 300px; background: var(--orb-1); top: 10%; left: 10%; animation-delay: 0s; transition: background 1s ease; }
+        .orb-2 { width: 400px; height: 400px; background: var(--orb-2); bottom: 10%; right: 10%; animation-delay: -5s; transition: background 1s ease; }
+        .orb-3 { width: 250px; height: 250px; background: var(--orb-3); top: 50%; left: 50%; animation-delay: -10s; transition: background 1s ease; }
+
+        @keyframes orbFloat {
+            0% { transform: translate(0, 0) scale(1) rotate(0deg); filter: hue-rotate(0deg) blur(80px); }
+            50% { transform: translate(100px, 100px) scale(1.2) rotate(180deg); filter: hue-rotate(90deg) blur(100px); }
+            100% { transform: translate(-50px, -150px) scale(0.9) rotate(360deg); filter: hue-rotate(180deg) blur(80px); }
+        }
+
+        /* Ambient Particles */
+        .particle {
+            position: fixed;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            z-index: -1;
+            animation: floatUp linear infinite;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(100vh) scale(0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-20vh) scale(1); opacity: 0; }
+        }
+
+        /* UI Elements */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        /* Timer Bar */
+        .timer-container {
+            position: relative;
+            width: 100%;
+            height: 24px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .timer-bar {
+            height: 100%;
+            width: 100%;
+            background: #4ade80;
+            transition: width 0.1s linear, background-color 0.3s;
+        }
+
+        #timer-text {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            z-index: 2;
+        }
+
+        .timer-warning { background: #facc15; }
+        .timer-danger { background: #ef4444; animation: pulseRed 0.5s infinite alternate; }
+
+        @keyframes pulseRed {
+            0% { opacity: 1; box-shadow: 0 0 10px #ef4444; }
+            100% { opacity: 0.5; box-shadow: 0 0 0px #ef4444; }
+        }
+
+        /* Card Grid & Cards */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+            perspective: 1000px;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        @media (max-width: 640px) {
+            .card-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 0.5rem;
+            }
+        }
+         @media (max-width: 400px) {
+            .card-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .card-scene {
+            aspect-ratio: 3/4;
+            cursor: pointer;
+            position: relative;
+            animation: bobbing 4s ease-in-out infinite;
+        }
+
+        @keyframes bobbing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .card {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            transform-style: preserve-3d;
+            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            border-radius: 12px;
+        }
+
+        .card.is-flipped {
+            transform: rotateY(180deg);
+        }
+        
+        .card.is-matched {
+            transform: rotateY(180deg) scale(0.95);
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        
+        .card.is-popped {
+            transform: rotateY(180deg) scale(1.5) rotate(15deg);
+            opacity: 0;
+            pointer-events: none;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease-out;
+        }
+
+        @keyframes floatUpFade {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.2); opacity: 0; }
+        }
+
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .card-front {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02));
+            border: 2px solid rgba(255,255,255,0.2);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        /* Shimmer effect for card front */
+        .card-front::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(
+                to bottom right,
+                rgba(255,255,255,0) 0%,
+                rgba(255,255,255,0) 40%,
+                rgba(255,255,255,0.2) 50%,
+                rgba(255,255,255,0) 60%,
+                rgba(255,255,255,0) 100%
+            );
+            transform: rotate(30deg);
+            transition: transform 0.5s;
+        }
+        
+        .card-scene:hover .card-front::after {
+            transform: rotate(30deg) translate(50%, 50%);
+        }
+
+        .card-front-logo {
+            font-size: 2rem;
+            opacity: 0.5;
+        }
+
+        .card-back {
+            background: linear-gradient(135deg, #1e1b4b, #312e81);
+            border: 2px solid #818cf8;
+            transform: rotateY(180deg);
+            box-shadow: inset 0 0 20px rgba(129, 140, 248, 0.3);
+        }
+
+        .card-emoji {
+            font-size: 3rem;
+            filter: drop-shadow(0 2px 5px rgba(0,0,0,0.5));
+            margin-bottom: 0.2rem;
+        }
+        
+        @media (max-width: 640px) {
+             .card-emoji { font-size: 2rem; }
+        }
+
+        .card-text {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-align: center;
+            color: #e0e7ff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+        }
+
+        /* Screens */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+
+        .hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        
+        /* Buttons */
+        .btn {
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            color: white;
+            padding: 1rem 2.5rem;
+            border-radius: 999px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+        }
+        
+        .btn:active {
+            transform: translateY(1px) scale(0.95);
+        }
+
+        /* Top Bar */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 5;
+        }
+        
+        @media (max-width: 640px) {
+            .top-bar { padding: 1rem; }
+        }
+
+        .stat-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .stat-label { font-size: 0.75rem; color: #a5b4fc; text-transform: uppercase; letter-spacing: 1px;}
+        .stat-value { font-size: 1.5rem; font-weight: 800; color: white; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+
+        /* Icon Buttons */
+        .header-controls {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .icon-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(5px);
+            transition: all 0.2s;
+        }
+        
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+        
+        .icon-btn:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <!-- Visuals -->
+    <div class="bg-gradient"></div>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div id="particles-container"></div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="screen glass-panel">
+        <h1 class="text-5xl md:text-7xl font-extrabold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400 drop-shadow-lg text-center leading-tight">
+            NEON<br>MATCH
+        </h1>
+        <p class="text-indigo-200 mb-6 text-center max-w-md px-4">
+            Match pairs before time runs out. Choose a topic to begin!
+        </p>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 w-full max-w-2xl px-4">
+            <button class="topic-btn btn" data-topic="space" style="padding: 0.75rem 1rem; font-size: 1rem; background: linear-gradient(90deg, #312e81, #6b21a8);">🌌 Space</button>
+            <button class="topic-btn btn" data-topic="food" style="padding: 0.75rem 1rem; font-size: 1rem; background: linear-gradient(90deg, #991b1b, #c2410c);">🍔 Food</button>
+            <button class="topic-btn btn" data-topic="sports" style="padding: 0.75rem 1rem; font-size: 1rem; background: linear-gradient(90deg, #065f46, #1d4ed8);">⚽ Sports</button>
+            <button class="topic-btn btn" data-topic="nature" style="padding: 0.75rem 1rem; font-size: 1rem; background: linear-gradient(90deg, #064e3b, #4d7c0f);">🌳 Nature</button>
+            <button class="topic-btn btn" data-topic="animals" style="padding: 0.75rem 1rem; font-size: 1rem; background: linear-gradient(90deg, #78350f, #ea580c);">🦁 Animals</button>
+            <button class="topic-btn btn" data-topic="music" style="padding: 0.75rem 1rem; font-size: 1rem; background: linear-gradient(90deg, #4c1d95, #be185d);">🎸 Music</button>
+            <button class="topic-btn btn" data-topic="travel" style="padding: 0.75rem 1rem; font-size: 1rem; background: linear-gradient(90deg, #0c4a6e, #0284c7);">✈️ Travel</button>
+            <button class="topic-btn btn" data-topic="magic" style="padding: 0.75rem 1rem; font-size: 1rem; background: linear-gradient(90deg, #831843, #e11d48);">🔮 Magic</button>
+        </div>
+
+        <div class="text-sm text-indigo-300">
+            High Score: <span id="high-score-display" class="font-bold text-white">0</span>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen hidden" style="justify-content: center; padding-top: 60px;">
+        <div class="top-bar">
+            <div class="stat-box">
+                <span class="stat-label">Level</span>
+                <span id="level-display" class="stat-value">1</span>
+            </div>
+             <div class="stat-box">
+                <span class="stat-label">Score</span>
+                <span id="score-display" class="stat-value">0</span>
+            </div>
+            <div class="header-controls">
+                <button id="btn-pause" class="icon-btn" title="Pause Game">⏸️</button>
+                <button id="btn-home" class="icon-btn" title="Return to Menu">🏠</button>
+            </div>
+        </div>
+
+        <div class="w-full max-w-3xl px-4 flex flex-col items-center">
+            <div class="timer-container">
+                <div id="timer-bar" class="timer-bar"></div>
+                <div id="timer-text">70.0s</div>
+            </div>
+            
+            <div id="card-grid" class="card-grid">
+                <!-- Cards injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="screen hidden glass-panel" style="background: rgba(15, 23, 42, 0.9);">
+        <h2 class="text-4xl md:text-6xl font-extrabold mb-2 text-red-400 drop-shadow-md">OUT OF TIME</h2>
+        <div class="text-2xl mb-6 text-white">
+            Final Score: <span id="final-score" class="font-bold text-indigo-400">0</span>
+        </div>
+        <p id="new-highscore-msg" class="text-green-400 font-bold mb-6 hidden">🏆 New High Score! 🏆</p>
+        <button id="btn-restart" class="btn">Play Again</button>
+    </div>
+    
+    <!-- Pause Screen -->
+    <div id="pause-screen" class="screen hidden glass-panel" style="background: rgba(15, 23, 42, 0.95); z-index: 50;">
+        <h2 class="text-4xl md:text-6xl font-extrabold mb-8 text-white drop-shadow-md tracking-widest">PAUSED</h2>
+        <div class="flex gap-4">
+            <button id="btn-resume" class="btn" style="background: linear-gradient(90deg, #10b981, #059669);">▶️ Resume</button>
+            <button id="btn-pause-home" class="btn" style="background: linear-gradient(90deg, #ef4444, #b91c1c);">🏠 Quit</button>
+        </div>
+    </div>
+
+    <!-- Level Complete Screen (Temporary overlay) -->
+    <div id="level-complete-overlay" class="screen hidden" style="background: rgba(0,0,0,0.6); z-index: 20;">
+         <h2 class="text-4xl md:text-6xl font-extrabold text-green-400 drop-shadow-lg scale-0 transition-transform duration-500" id="level-up-text">
+            LEVEL UP!
+        </h2>
+    </div>
+
+    <script>
+        // --- 1. Sound Design (Tone.js) ---
+        let audioContextStarted = false;
+        
+        // Synths
+        const flipSynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.01, decay: 0.1, sustain: 0, release: 0.1 }
+        }).toDestination();
+        flipSynth.volume.value = -10;
+
+        const matchSynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.05, decay: 0.2, sustain: 0.2, release: 1 }
+        }).toDestination();
+        matchSynth.volume.value = -5;
+
+        const errorSynth = new Tone.Synth({
+            oscillator: { type: "sawtooth" },
+            envelope: { attack: 0.05, decay: 0.1, sustain: 0.1, release: 0.2 }
+        }).toDestination();
+        errorSynth.volume.value = -12;
+
+        const tickSynth = new Tone.MembraneSynth().toDestination();
+        tickSynth.volume.value = -15;
+        
+        const winSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+        winSynth.volume.value = -8;
+
+        const warningSynth = new Tone.Synth({
+            oscillator: { type: "square" },
+            envelope: { attack: 0.1, decay: 0.2, sustain: 0.1, release: 0.5 }
+        }).toDestination();
+        warningSynth.volume.value = -12;
+        
+        const uiSynth = new Tone.Synth({
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.05, decay: 0.1, sustain: 0.1, release: 0.5 }
+        }).toDestination();
+        uiSynth.volume.value = -10;
+
+        const gameOverSynth = new Tone.FMSynth({
+            harmonicity: 0.5,
+            modulationIndex: 10,
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.1, decay: 2, sustain: 0.5, release: 2 }
+        }).toDestination();
+        gameOverSynth.volume.value = -5;
+
+        // Ambient Drone
+        const drone = new Tone.FMSynth({
+            harmonicity: 0.5,
+            modulationIndex: 1.2,
+            oscillator: { type: "sine" },
+            envelope: { attack: 2, decay: 1, sustain: 1, release: 4 }
+        }).toDestination();
+        drone.volume.value = -25;
+        let droneLoop;
+
+        const sfx = {
+            flip: () => { if(audioContextStarted) flipSynth.triggerAttackRelease(["C5", "E5"], "32n"); },
+            match: () => { 
+                if(!audioContextStarted) return;
+                const now = Tone.now();
+                matchSynth.triggerAttackRelease("C4", "8n", now);
+                matchSynth.triggerAttackRelease("E4", "8n", now + 0.1);
+                matchSynth.triggerAttackRelease("G4", "8n", now + 0.2);
+                matchSynth.triggerAttackRelease("C5", "4n", now + 0.3);
+            },
+            mismatch: () => { if(audioContextStarted) errorSynth.triggerAttackRelease("G2", "8n"); },
+            tick: () => { if(audioContextStarted) tickSynth.triggerAttackRelease("C2", "32n"); },
+            warning: (level) => { 
+                if(audioContextStarted) {
+                    if (level === 1) warningSynth.triggerAttackRelease("E3", "8n");
+                    if (level === 2) {
+                        const now = Tone.now();
+                        warningSynth.triggerAttackRelease("C3", "16n", now);
+                        warningSynth.triggerAttackRelease("C3", "16n", now + 0.15);
+                    }
+                }
+            },
+            pause: () => { if(audioContextStarted) uiSynth.triggerAttackRelease("A4", "16n"); },
+            resume: () => { if(audioContextStarted) uiSynth.triggerAttackRelease("C5", "16n"); },
+            levelComplete: () => {
+                 if(!audioContextStarted) return;
+                 const now = Tone.now();
+                 winSynth.triggerAttackRelease(["C4", "E4", "G4", "B4"], "2n", now);
+                 winSynth.triggerAttackRelease(["D4", "F#4", "A4", "C5"], "2n", now + 0.5);
+                 winSynth.triggerAttackRelease(["G4", "B4", "D5", "G5"], "1m", now + 1);
+            },
+            gameOver: () => { if(audioContextStarted) gameOverSynth.triggerAttackRelease("C2", "2m"); },
+            startDrone: () => {
+                if(!audioContextStarted) return;
+                Tone.Transport.start();
+                if(droneLoop) droneLoop.dispose();
+                droneLoop = new Tone.Loop(time => {
+                    drone.triggerAttackRelease("C2", "2m", time);
+                }, "4m").start(0);
+            },
+            stopDrone: () => {
+                if(droneLoop) droneLoop.stop();
+            }
+        };
+
+        // --- 2. Game Data (Topics) ---
+        const topics = {
+            space: {
+                colors: { bg1: '#0f172a', bg2: '#1e1b4b', bg3: '#312e81', orb1: '#818cf8', orb2: '#c084fc', orb3: '#38bdf8' },
+                synthType: 'sine',
+                sets: [
+                    [{e: "🚀", w: "Rocket"}, {e: "🛸", w: "UFO"}, {e: "🛰️", w: "Satellite"}, {e: "🪐", w: "Planet"}, {e: "☄️", w: "Comet"}],
+                    [{e: "💎", w: "Gem"}, {e: "🔮", w: "Crystal"}, {e: "👽", w: "Alien"}, {e: "🤖", w: "Bot"}, {e: "👾", w: "Monster"}],
+                    [{e: "⚔️", w: "Swords"}, {e: "🛡️", w: "Shield"}, {e: "🏹", w: "Bow"}, {e: "💣", w: "Bomb"}, {e: "🔫", w: "Blaster"}]
+                ]
+            },
+            food: {
+                colors: { bg1: '#2a0f0f', bg2: '#4b1b1b', bg3: '#7f1d1d', orb1: '#f87171', orb2: '#fbbf24', orb3: '#facc15' },
+                synthType: 'triangle',
+                sets: [
+                    [{e: "🍔", w: "Burger"}, {e: "🍕", w: "Pizza"}, {e: "🌮", w: "Taco"}, {e: "🍣", w: "Sushi"}, {e: "🍩", w: "Donut"}],
+                    [{e: "🍎", w: "Apple"}, {e: "🍌", w: "Banana"}, {e: "🍉", w: "Melon"}, {e: "🍇", w: "Grapes"}, {e: "🍓", w: "Berry"}]
+                ]
+            },
+            sports: {
+                colors: { bg1: '#0f2a1d', bg2: '#1b4b36', bg3: '#1e3a8a', orb1: '#34d399', orb2: '#60a5fa', orb3: '#a78bfa' },
+                synthType: 'square',
+                sets: [
+                    [{e: "⚽", w: "Soccer"}, {e: "🏀", w: "Hoops"}, {e: "🎾", w: "Tennis"}, {e: "🎱", w: "Billiards"}, {e: "🎳", w: "Bowling"}],
+                    [{e: "🚗", w: "Car"}, {e: "🚒", w: "Engine"}, {e: "🚁", w: "Copter"}, {e: "⛵", w: "Boat"}, {e: "🚲", w: "Bike"}],
+                    [{e: "💻", w: "Laptop"}, {e: "📱", w: "Phone"}, {e: "⌚", w: "Watch"}, {e: "📷", w: "Camera"}, {e: "🎧", w: "Audio"}]
+                ]
+            },
+            nature: {
+                colors: { bg1: '#142a0f', bg2: '#224b1b', bg3: '#3f6212', orb1: '#a3e635', orb2: '#fef08a', orb3: '#4ade80' },
+                synthType: 'sawtooth',
+                sets: [
+                    [{e: "🦊", w: "Fox"}, {e: "🦉", w: "Owl"}, {e: "🐸", w: "Frog"}, {e: "🐙", w: "Octopus"}, {e: "🦋", w: "Butterfly"}],
+                    [{e: "🌲", w: "Pine"}, {e: "🌵", w: "Cactus"}, {e: "🍄", w: "Mushroom"}, {e: "🍁", w: "Leaf"}, {e: "🌹", w: "Rose"}],
+                    [{e: "☀️", w: "Sun"}, {e: "🌧️", w: "Rain"}, {e: "⚡", w: "Lightning"}, {e: "❄️", w: "Snow"}, {e: "🌪️", w: "Tornado"}]
+                ]
+            },
+            animals: {
+                colors: { bg1: '#2a1a0f', bg2: '#4b2a1b', bg3: '#7a3e12', orb1: '#fb923c', orb2: '#fcd34d', orb3: '#f97316' },
+                synthType: 'triangle',
+                sets: [
+                    [{e: "🐶", w: "Dog"}, {e: "🐱", w: "Cat"}, {e: "🐭", w: "Mouse"}, {e: "🐹", w: "Hamster"}, {e: "🐰", w: "Bunny"}],
+                    [{e: "🦁", w: "Lion"}, {e: "🐯", w: "Tiger"}, {e: "🐻", w: "Bear"}, {e: "🐼", w: "Panda"}, {e: "🐨", w: "Koala"}],
+                    [{e: "🐵", w: "Monkey"}, {e: "🐧", w: "Penguin"}, {e: "🐦", w: "Bird"}, {e: "🐤", w: "Chick"}, {e: "🦆", w: "Duck"}]
+                ]
+            },
+            music: {
+                colors: { bg1: '#1a0b2e', bg2: '#2d1b4e', bg3: '#452b75', orb1: '#c084fc', orb2: '#f472b6', orb3: '#e879f9' },
+                synthType: 'sine',
+                sets: [
+                    [{e: "🎸", w: "Guitar"}, {e: "🎹", w: "Piano"}, {e: "🥁", w: "Drums"}, {e: "🎷", w: "Sax"}, {e: "🎺", w: "Trumpet"}],
+                    [{e: "🎵", w: "Note"}, {e: "🎶", w: "Notes"}, {e: "🎼", w: "Score"}, {e: "🎤", w: "Mic"}, {e: "🎧", w: "Headphones"}],
+                    [{e: "📻", w: "Radio"}, {e: "🪗", w: "Accordion"}, {e: "🪕", w: "Banjo"}, {e: "🎻", w: "Violin"}, {e: "🪘", w: "Bongo"}]
+                ]
+            },
+            travel: {
+                colors: { bg1: '#0a1d2e', bg2: '#16334f', bg3: '#25507a', orb1: '#38bdf8', orb2: '#7dd3fc', orb3: '#0ea5e9' },
+                synthType: 'square',
+                sets: [
+                    [{e: "✈️", w: "Plane"}, {e: "🚆", w: "Train"}, {e: "🚢", w: "Ship"}, {e: "🚌", w: "Bus"}, {e: "🚕", w: "Taxi"}],
+                    [{e: "🗽", w: "Statue"}, {e: "🗼", w: "Tower"}, {e: "🏰", w: "Castle"}, {e: "⛩️", w: "Shrine"}, {e: "🎡", w: "Wheel"}],
+                    [{e: "🏕️", w: "Tent"}, {e: "🗺️", w: "Map"}, {e: "🧳", w: "Luggage"}, {e: "🧭", w: "Compass"}, {e: "⚓", w: "Anchor"}]
+                ]
+            },
+            magic: {
+                colors: { bg1: '#2e0b21', bg2: '#4e1136', bg3: '#7a1953', orb1: '#f43f5e', orb2: '#fb7185', orb3: '#e11d48' },
+                synthType: 'sine',
+                sets: [
+                    [{e: "🔮", w: "Orb"}, {e: "🪄", w: "Wand"}, {e: "📜", w: "Scroll"}, {e: "🧪", w: "Potion"}, {e: "🦇", w: "Bat"}],
+                    [{e: "🧙‍♂️", w: "Wizard"}, {e: "🧚‍♀️", w: "Fairy"}, {e: "🧞‍♂️", w: "Genie"}, {e: "🧜‍♀️", w: "Mermaid"}, {e: "🧝", w: "Elf"}],
+                    [{e: "🦄", w: "Unicorn"}, {e: "🐉", w: "Dragon"}, {e: "🧿", w: "Amulet"}, {e: "🃏", w: "Joker"}, {e: "🎭", w: "Masks"}]
+                ]
+            }
+        };
+
+        // --- 3. Game State ---
+        let state = {
+            currentTopic: 'space',
+            level: 1,
+            score: 0,
+            highScore: localStorage.getItem('neonMatchHighScore') || 0,
+            cards: [],
+            flippedCards: [],
+            matchedPairs: 0,
+            isPlaying: false,
+            isPaused: false,
+            timeRemaining: 0,
+            totalTimeForLevel: 0,
+            maxTimeLimit: 0,
+            timerInterval: null,
+            canFlip: true,
+            hasWarned50: false,
+            hasWarned25: false
+        };
+
+        // DOM Elements
+        const els = {
+            startScreen: document.getElementById('start-screen'),
+            gameScreen: document.getElementById('game-screen'),
+            gameOverScreen: document.getElementById('game-over-screen'),
+            pauseScreen: document.getElementById('pause-screen'),
+            levelOverlay: document.getElementById('level-complete-overlay'),
+            levelUpText: document.getElementById('level-up-text'),
+            cardGrid: document.getElementById('card-grid'),
+            timerBar: document.getElementById('timer-bar'),
+            timerText: document.getElementById('timer-text'),
+            scoreDisplay: document.getElementById('score-display'),
+            levelDisplay: document.getElementById('level-display'),
+            highScoreDisplay: document.getElementById('high-score-display'),
+            finalScore: document.getElementById('final-score'),
+            newHighMsg: document.getElementById('new-highscore-msg'),
+            topicBtns: document.querySelectorAll('.topic-btn'),
+            btnRestart: document.getElementById('btn-restart'),
+            btnPause: document.getElementById('btn-pause'),
+            btnHome: document.getElementById('btn-home'),
+            btnResume: document.getElementById('btn-resume'),
+            btnPauseHome: document.getElementById('btn-pause-home'),
+            particlesContainer: document.getElementById('particles-container')
+        };
+
+        els.highScoreDisplay.textContent = state.highScore;
+
+        // --- 4. Visual Effects ---
+        function createParticles() {
+            els.particlesContainer.innerHTML = '';
+            for (let i = 0; i < 25; i++) {
+                const p = document.createElement('div');
+                p.classList.add('particle');
+                const size = Math.random() * 6 + 2;
+                p.style.width = `${size}px`;
+                p.style.height = `${size}px`;
+                p.style.left = `${Math.random() * 100}vw`;
+                p.style.animationDuration = `${Math.random() * 10 + 10}s`;
+                p.style.animationDelay = `${Math.random() * 10}s`;
+                els.particlesContainer.appendChild(p);
+            }
+        }
+        createParticles();
+
+        function triggerConfetti() {
+            confetti({
+                particleCount: 50,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#818cf8', '#c084fc', '#38bdf8', '#4ade80']
+            });
+        }
+        
+        function showBonusText(amount, x, y) {
+            const el = document.createElement('div');
+            el.textContent = `+${amount}s`;
+            el.style.position = 'fixed';
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.style.color = '#4ade80';
+            el.style.fontSize = '2rem';
+            el.style.fontWeight = '900';
+            el.style.textShadow = '0 0 10px rgba(74, 222, 128, 0.8)';
+            el.style.pointerEvents = 'none';
+            el.style.zIndex = '100';
+            el.style.animation = 'floatUpFade 1s forwards';
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 1000);
+        }
+
+        // --- 5. Game Logic ---
+        async function initAudio() {
+            if (!audioContextStarted) {
+                await Tone.start();
+                audioContextStarted = true;
+            }
+        }
+        
+        function setTheme(topicKey) {
+            const topic = topics[topicKey];
+            state.currentTopic = topicKey;
+            
+            // Set CSS Variables for colors
+            document.documentElement.style.setProperty('--bg-color-1', topic.colors.bg1);
+            document.documentElement.style.setProperty('--bg-color-2', topic.colors.bg2);
+            document.documentElement.style.setProperty('--bg-color-3', topic.colors.bg3);
+            document.documentElement.style.setProperty('--orb-1', topic.colors.orb1);
+            document.documentElement.style.setProperty('--orb-2', topic.colors.orb2);
+            document.documentElement.style.setProperty('--orb-3', topic.colors.orb3);
+
+            // Update Audio Synths
+            flipSynth.set({ oscillator: { type: topic.synthType } });
+            matchSynth.set({ oscillator: { type: topic.synthType } });
+        }
+
+        function startGame(topicKey) {
+            initAudio();
+            setTheme(topicKey || state.currentTopic);
+            state.level = 1;
+            state.score = 0;
+            state.isPlaying = true;
+            updateUI();
+            
+            els.startScreen.classList.add('hidden');
+            els.gameOverScreen.classList.add('hidden');
+            els.gameScreen.classList.remove('hidden');
+            
+            sfx.startDrone();
+            startLevel();
+        }
+
+        function startLevel() {
+            state.matchedPairs = 0;
+            state.flippedCards = [];
+            state.canFlip = true;
+            state.hasWarned50 = false;
+            state.hasWarned25 = false;
+            
+            // Calculate time: starts at 70s, drops by 2s per level, min 20s
+            state.totalTimeForLevel = Math.max(20, 70 - ((state.level - 1) * 2));
+            state.maxTimeLimit = state.totalTimeForLevel + 30; // Allow stacking above start time
+            state.timeRemaining = state.totalTimeForLevel;
+            
+            els.levelDisplay.textContent = state.level;
+            updateTimerBar();
+            
+            generateCards();
+            startTimer();
+        }
+
+        function generateCards() {
+            els.cardGrid.innerHTML = '';
+            const topic = topics[state.currentTopic];
+            const setIndex = (state.level - 1) % topic.sets.length;
+            const currentSet = topic.sets[setIndex];
+            
+            // Create pairs
+            let deck = [];
+            currentSet.forEach((item, index) => {
+                deck.push({ id: `a${index}`, type: index, emoji: item.e, word: item.w });
+                deck.push({ id: `b${index}`, type: index, emoji: item.e, word: item.w });
+            });
+            
+            // Shuffle
+            deck.sort(() => Math.random() - 0.5);
+            state.cards = deck;
+
+            // Render
+            deck.forEach((card, i) => {
+                const scene = document.createElement('div');
+                scene.className = 'card-scene';
+                scene.style.animationDelay = `${(i % 5) * 0.2}s`; // Staggered bobbing
+                
+                const cardEl = document.createElement('div');
+                cardEl.className = 'card';
+                cardEl.dataset.index = i;
+                
+                cardEl.innerHTML = `
+                    <div class="card-face card-front">
+                        <span class="card-front-logo">✨</span>
+                    </div>
+                    <div class="card-face card-back">
+                        <span class="card-emoji">${card.emoji}</span>
+                        <span class="card-text">${card.word}</span>
+                    </div>
+                `;
+                
+                // Event listener
+                scene.addEventListener('click', () => handleCardClick(i, cardEl));
+                // Touch support
+                scene.addEventListener('touchstart', (e) => {
+                    e.preventDefault(); // Prevent double firing
+                    handleCardClick(i, cardEl);
+                }, {passive: false});
+
+                scene.appendChild(cardEl);
+                els.cardGrid.appendChild(scene);
+            });
+        }
+
+        function handleCardClick(index, cardEl) {
+            if (!state.isPlaying || !state.canFlip) return;
+            if (state.flippedCards.includes(index) || cardEl.classList.contains('is-matched')) return;
+
+            sfx.flip();
+            cardEl.classList.add('is-flipped');
+            state.flippedCards.push(index);
+
+            if (state.flippedCards.length === 2) {
+                state.canFlip = false;
+                checkMatch();
+            }
+        }
+
+        function checkMatch() {
+            const [index1, index2] = state.flippedCards;
+            const card1 = state.cards[index1];
+            const card2 = state.cards[index2];
+            
+            const el1 = els.cardGrid.children[index1].firstChild;
+            const el2 = els.cardGrid.children[index2].firstChild;
+
+            if (card1.type === card2.type) {
+                // Match
+                setTimeout(() => {
+                    sfx.match();
+                    triggerConfetti();
+                    
+                    // Popping removal graphic effect
+                    el1.classList.add('is-popped');
+                    el2.classList.add('is-popped');
+                    
+                    // Bonus Time (+10s)
+                    state.timeRemaining = Math.min(state.timeRemaining + 10, state.maxTimeLimit);
+                    if (state.timeRemaining > state.totalTimeForLevel) {
+                        state.totalTimeForLevel = state.timeRemaining; // Stretch bar to fit new total
+                    }
+
+                    // Floating +10s text in center
+                    const rect = el2.getBoundingClientRect();
+                    showBonusText(10, rect.left + rect.width/2 - 20, rect.top);
+                    
+                    // Score: Base 100 + time bonus
+                    const timeBonus = Math.floor((state.timeRemaining / state.maxTimeLimit) * 50);
+                    state.score += (100 + timeBonus);
+                    updateUI();
+                    
+                    state.matchedPairs++;
+                    state.flippedCards = [];
+                    state.canFlip = true;
+                    
+                    if (state.matchedPairs === 5) { // 5 pairs total
+                        levelComplete();
+                    }
+                }, 400); // Wait for flip animation
+            } else {
+                // Mismatch
+                setTimeout(() => {
+                    sfx.mismatch();
+                    el1.classList.remove('is-flipped');
+                    el2.classList.remove('is-flipped');
+                    state.flippedCards = [];
+                    state.canFlip = true;
+                }, 1000); // Show cards briefly
+            }
+        }
+
+        function startTimer() {
+            clearInterval(state.timerInterval);
+            let lastTick = -1;
+            
+            state.timerInterval = setInterval(() => {
+                if (!state.isPlaying || state.isPaused) return;
+                
+                state.timeRemaining -= 0.1; // Update 10 times a second for smooth bar
+                
+                const percentage = (state.timeRemaining / state.totalTimeForLevel) * 100;
+                
+                // Warning sounds at thresholds
+                if (percentage <= 50 && !state.hasWarned50) {
+                    sfx.warning(1);
+                    state.hasWarned50 = true;
+                }
+                if (percentage <= 25 && !state.hasWarned25) {
+                    sfx.warning(2);
+                    state.hasWarned25 = true;
+                }
+                
+                // Tick sound every second when under 6 seconds
+                const intTime = Math.ceil(state.timeRemaining);
+                if (intTime <= 5 && intTime > 0 && intTime !== lastTick) {
+                    sfx.tick();
+                    lastTick = intTime;
+                }
+
+                if (state.timeRemaining <= 0) {
+                    state.timeRemaining = 0;
+                    updateTimerBar();
+                    gameOver();
+                } else {
+                    updateTimerBar();
+                }
+            }, 100);
+        }
+
+        function updateTimerBar() {
+            const percentage = (state.timeRemaining / state.totalTimeForLevel) * 100;
+            els.timerBar.style.width = `${Math.min(100, Math.max(0, percentage))}%`;
+            
+            // Update Text Readout
+            els.timerText.textContent = state.timeRemaining.toFixed(1) + 's';
+            
+            // Color changing logic
+            if (percentage <= 25) {
+                els.timerBar.className = 'timer-bar timer-danger';
+                els.timerText.style.color = '#f87171'; // Red text
+            } else if (percentage <= 50) {
+                els.timerBar.className = 'timer-bar timer-warning';
+                els.timerText.style.color = 'white';
+            } else {
+                els.timerBar.className = 'timer-bar';
+                els.timerText.style.color = 'white';
+            }
+        }
+
+        function updateUI() {
+            els.scoreDisplay.textContent = state.score;
+        }
+
+        function levelComplete() {
+            clearInterval(state.timerInterval);
+            state.isPlaying = false;
+            sfx.levelComplete();
+            
+            // Show overlay
+            els.levelOverlay.classList.remove('hidden');
+            setTimeout(() => {
+                els.levelUpText.style.transform = 'scale(1)';
+            }, 50);
+
+            // Prepare next level
+            setTimeout(() => {
+                els.levelUpText.style.transform = 'scale(0)';
+                setTimeout(() => {
+                    els.levelOverlay.classList.add('hidden');
+                    state.level++;
+                    state.isPlaying = true;
+                    startLevel();
+                }, 500);
+            }, 2000);
+        }
+
+        function gameOver() {
+            clearInterval(state.timerInterval);
+            state.isPlaying = false;
+            sfx.stopDrone();
+            sfx.gameOver();
+            
+            els.timerBar.style.width = '0%';
+            els.gameScreen.classList.add('hidden');
+            els.gameOverScreen.classList.remove('hidden');
+            els.finalScore.textContent = state.score;
+            
+            if (state.score > state.highScore) {
+                state.highScore = state.score;
+                localStorage.setItem('neonMatchHighScore', state.highScore);
+                els.highScoreDisplay.textContent = state.highScore;
+                els.newHighMsg.classList.remove('hidden');
+            } else {
+                els.newHighMsg.classList.add('hidden');
+            }
+        }
+        
+        function togglePause() {
+            if (!state.isPlaying) return;
+            state.isPaused = !state.isPaused;
+            
+            if (state.isPaused) {
+                sfx.pause();
+                Tone.Transport.pause();
+                if(droneLoop) droneLoop.stop();
+                els.pauseScreen.classList.remove('hidden');
+            } else {
+                sfx.resume();
+                Tone.Transport.start();
+                if(droneLoop) droneLoop.start();
+                els.pauseScreen.classList.add('hidden');
+            }
+        }
+
+        function goHome() {
+            clearInterval(state.timerInterval);
+            state.isPlaying = false;
+            state.isPaused = false;
+            sfx.stopDrone();
+            sfx.resume(); // soft click sound
+            
+            els.gameScreen.classList.add('hidden');
+            els.pauseScreen.classList.add('hidden');
+            els.gameOverScreen.classList.add('hidden');
+            els.levelOverlay.classList.add('hidden');
+            els.startScreen.classList.remove('hidden');
+            
+            // Reset background to a default neutral or space
+            setTheme('space');
+        }
+
+        // --- 6. Event Listeners ---
+        els.topicBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const topic = e.target.dataset.topic;
+                startGame(topic);
+            });
+        });
+        
+        els.btnRestart.addEventListener('click', () => startGame(state.currentTopic));
+        
+        els.btnPause.addEventListener('click', togglePause);
+        els.btnResume.addEventListener('click', togglePause);
+        
+        els.btnHome.addEventListener('click', goHome);
+        els.btnPauseHome.addEventListener('click', goHome);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.code === 'Enter') {
+                if (!els.startScreen.classList.contains('hidden')) {
+                    startGame('space'); // Default
+                } else if (!els.gameOverScreen.classList.contains('hidden')) {
+                    startGame(state.currentTopic);
+                } else if (!els.gameScreen.classList.contains('hidden') && state.isPlaying) {
+                     // Space could act as pause/resume during gameplay
+                     togglePause();
+                }
+            }
+            if (e.code === 'Escape') {
+                if (state.isPlaying && !els.gameScreen.classList.contains('hidden')) {
+                    togglePause();
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
