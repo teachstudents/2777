@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Animal Adventure: Pro Teaching Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; 
+            overscroll-behavior: none;
+        }
+        .font-fredoka { font-family: 'Fredoka One', cursive; }
+        
+        /* Slide layout & safe padding for UI elements */
+        .slide {
+            display: none;
+            width: 100%;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 5rem 2rem 6rem 2rem; /* Mobile padding to avoid top/bottom bars */
+            box-sizing: border-box;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+        @media (min-width: 768px) {
+            .slide {
+                padding: 5rem 14rem 2rem 7rem; /* Desktop padding for sidebars */
+            }
+        }
+        .slide.active { display: flex; }
+
+        /* Custom Scrollbar for animal selector */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.5); }
+
+        .top-bar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(8px);
+            padding: 0.5rem 1rem;
+            z-index: 100;
+        }
+        
+        .game-button { transition: all 0.2s ease-in-out; }
+        .game-button:hover { transform: scale(1.05); filter: brightness(1.1); }
+        .game-button:active { transform: scale(0.98); }
+        
+        .animal-btn { transition: all 0.2s ease-in-out; cursor: pointer; }
+        .animal-btn.selected { 
+            background-color: rgba(250, 204, 21, 0.3);
+            border: 2px solid rgb(250, 204, 21);
+            transform: scale(1.1);
+        }
+
+        @keyframes floatAcross { 0% { left: -10%; } 100% { left: 110%; } }
+        .moving-animal { 
+            position: absolute; 
+            font-size: 5rem; 
+            opacity: 0.2; 
+            animation: floatAcross 30s linear infinite; 
+            z-index: -1; 
+        }
+        
+        .confetti-container { 
+            position: absolute; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            pointer-events: none; 
+            z-index: 200; 
+        }
+        .confetti { 
+            position: absolute; 
+            width: 12px; height: 12px; 
+            opacity: 0.8; 
+            animation: confetti-fall 3s linear forwards; 
+            border-radius: 2px;
+        }
+        @keyframes confetti-fall { 
+            0% { transform: translateY(-10vh) rotate(0deg); } 
+            100% { transform: translateY(110vh) rotate(720deg); } 
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-teal-400 via-sky-500 to-indigo-600 text-white flex items-center justify-center">
+
+    <div id="app-container" class="w-full h-full relative flex">
+        
+        <!-- Background Animations -->
+        <div class="moving-animal" style="top: 15%; animation-duration: 35s;">🐼</div>
+        <div class="moving-animal" style="top: 45%; animation-delay: 10s; animation-duration: 40s;">🐬</div>
+        <div class="moving-animal" style="top: 75%; animation-delay: 20s; animation-duration: 30s;">🦁</div>
+
+        <!-- Animal Selector (Bottom on mobile, Left on desktop) -->
+        <div id="animal-sidebar" class="fixed bottom-0 left-0 right-0 md:top-20 md:bottom-auto md:left-2 md:right-auto md:w-20 md:max-h-[calc(100vh-6rem)] bg-black/40 backdrop-blur-md p-2 flex flex-row md:flex-col gap-2 overflow-auto z-50 rounded-t-xl md:rounded-xl shadow-xl items-center">
+            <!-- Populated by JS -->
+        </div>
+
+        <!-- Keyword Sidebar (Hidden on mobile, Right on desktop) -->
+        <div id="keyword-sidebar" class="fixed top-20 right-2 w-48 bg-black/30 backdrop-blur-sm p-4 rounded-xl shadow-lg text-left space-y-3 text-lg font-semibold hidden md:block border border-white/10">
+        </div>
+
+        <!-- Top Navigation Bar -->
+        <div class="top-bar border-b border-white/10 shadow-lg" id="main-top-bar">
+          <div class="flex gap-2">
+            <button class="nav-btn game-button bg-slate-700/80 text-white px-3 md:px-4 py-2 rounded-lg text-sm md:text-lg border border-white/20 shadow-md" data-target="1">🏠 <span class="hidden sm:inline">Menu</span></button>
+            <button class="nav-btn game-button bg-pink-500 text-white px-3 md:px-4 py-2 rounded-lg text-sm md:text-lg shadow-md font-semibold" data-target="prev">⬅ <span class="hidden sm:inline">Back</span></button>
+            <button class="nav-btn game-button bg-emerald-500 text-white px-3 md:px-4 py-2 rounded-lg text-sm md:text-lg shadow-md font-semibold" data-target="next"><span class="hidden sm:inline">Next</span> ➡</button>
+          </div>
+          <div class="flex items-center gap-2 md:gap-4">
+            <!-- Header Action Buttons -->
+            <button id="header-generate-btn" class="game-button bg-purple-500 hover:bg-purple-400 text-white px-3 md:px-4 py-2 rounded-lg text-sm md:text-lg shadow-md font-semibold hidden items-center gap-1">
+                🎲 <span class="hidden sm:inline">New</span>
+            </button>
+            <button id="header-hear-btn" class="game-button bg-sky-500 hover:bg-sky-400 text-white px-3 md:px-4 py-2 rounded-lg text-sm md:text-lg shadow-md font-semibold hidden items-center gap-1">
+                🔊 <span class="hidden sm:inline">Hear</span>
+            </button>
+            
+            <button id="correct-btn-global" class="game-button bg-yellow-400 hover:bg-yellow-300 text-indigo-900 px-3 md:px-4 py-2 rounded-lg text-sm md:text-lg font-bold shadow-lg flex items-center gap-1">
+                <span>⭐</span> <span class="hidden sm:inline">Correct!</span>
+            </button>
+            <div id="score-container" class="bg-indigo-900/50 border border-indigo-400/30 text-yellow-300 font-fredoka text-xl md:text-2xl px-3 md:px-5 py-1 rounded-lg shadow-inner flex items-center gap-2"> 
+                🏆 <span id="score">0</span> 
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 w-full relative">
+            <div id="slide-1" class="slide active">
+                <div class="text-7xl md:text-8xl mb-4 drop-shadow-2xl animate-bounce">🌍</div>
+                <h1 class="font-fredoka text-5xl md:text-7xl lg:text-8xl text-yellow-300 drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)] mb-2 tracking-wide">Animal Adventure</h1>
+                <p class="text-xl md:text-2xl text-sky-100 font-semibold mb-10 drop-shadow-md">Select an animal from the bar to start practicing!</p>
+                
+                <h2 class="text-2xl md:text-3xl mt-4 mb-6 font-bold bg-black/20 py-2 px-6 rounded-full shadow-inner">Choose a Grammar Pattern:</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-5xl">
+                    <button class="nav-btn game-button font-fredoka bg-pink-500 border-b-4 border-pink-700 text-white px-6 md:px-8 py-4 rounded-2xl text-xl md:text-2xl shadow-lg" data-target="2">1. "I like..."</button>
+                    <button class="nav-btn game-button font-fredoka bg-sky-500 border-b-4 border-sky-700 text-white px-6 md:px-8 py-4 rounded-2xl text-xl md:text-2xl shadow-lg" data-target="4">2. "A ___ lives..."</button>
+                    <button class="nav-btn game-button font-fredoka bg-purple-500 border-b-4 border-purple-700 text-white px-6 md:px-8 py-4 rounded-2xl text-xl md:text-2xl shadow-lg" data-target="6">3. "A ___ can..."</button>
+                    <button class="nav-btn game-button font-fredoka bg-orange-500 border-b-4 border-orange-700 text-white px-6 md:px-8 py-4 rounded-2xl text-xl md:text-2xl shadow-lg" data-target="8">4. "...is the most..."</button>
+                    <button class="nav-btn game-button font-fredoka bg-red-500 border-b-4 border-red-700 text-white px-6 md:px-8 py-4 rounded-2xl text-xl md:text-2xl shadow-lg" data-target="10">5. "Which do you prefer?"</button>
+                    <button class="nav-btn game-button font-fredoka bg-teal-500 border-b-4 border-teal-700 text-white px-6 md:px-8 py-4 rounded-2xl text-xl md:text-2xl shadow-lg" data-target="12">6. "Describe a time..."</button>
+                </div>
+            </div>
+
+            <!-- Dynamic Slides Placeholder -->
+            <div id="slide-2" class="slide"></div> <div id="slide-3" class="slide"></div>
+            <div id="slide-4" class="slide"></div> <div id="slide-5" class="slide"></div>
+            <div id="slide-6" class="slide"></div> <div id="slide-7" class="slide"></div>
+            <div id="slide-8" class="slide"></div> <div id="slide-9" class="slide"></div>
+            <div id="slide-10" class="slide"></div> <div id="slide-11" class="slide"></div>
+            <div id="slide-12" class="slide"></div> <div id="slide-13" class="slide"></div>
+
+            <div id="slide-14" class="slide">
+                <div class="text-9xl mb-4 drop-shadow-2xl">🏆</div>
+                <h1 class="font-fredoka text-6xl md:text-8xl text-yellow-300 drop-shadow-lg mb-4">Amazing Job!</h1>
+                <div class="bg-white/20 backdrop-blur-md border border-white/30 p-8 rounded-3xl shadow-2xl my-8">
+                    <p class="text-3xl md:text-4xl">Your Final Score:</p>
+                    <p id="final-score" class="font-bold font-fredoka text-yellow-300 text-7xl md:text-9xl mt-2 drop-shadow-md">0</p>
+                </div>
+                <button class="nav-btn game-button bg-indigo-600 border-b-4 border-indigo-800 text-white px-10 py-4 rounded-full text-2xl font-bold shadow-xl flex items-center gap-3" data-target="1">
+                    🏠 Main Menu
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="effect-container" class="confetti-container"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Global State
+            let score = 0;
+            let currentSlide = 1;
+            let brianVoice = null;
+            let currentAnimal = { n: 'Dog', p: 'Dogs', e: '🐶' }; // Default animal
+            
+            // DOM Elements (defensively fetch)
+            const slides = document.querySelectorAll('.slide');
+            const topBar = document.getElementById('main-top-bar');
+            const scoreEl = document.getElementById('score');
+            const scoreContainer = document.getElementById('score-container');
+            const correctBtnGlobal = document.getElementById('correct-btn-global');
+            const headerHearBtn = document.getElementById('header-hear-btn');
+            const headerGenBtn = document.getElementById('header-generate-btn');
+            const animalSidebar = document.getElementById('animal-sidebar');
+            const keywordSidebar = document.getElementById('keyword-sidebar');
+
+            // Data Models
+            const allAnimals = [
+                {n:'Dog',p:'Dogs',e:'🐶'}, {n:'Cat',p:'Cats',e:'🐱'}, {n:'Rabbit',p:'Rabbits',e:'🐰'},
+                {n:'Hamster',p:'Hamsters',e:'🐹'}, {n:'Turtle',p:'Turtles',e:'🐢'}, {n:'Cow',p:'Cows',e:'🐮'},
+                {n:'Pig',p:'Pigs',e:'🐷'}, {n:'Chicken',p:'Chickens',e:'🐔'}, {n:'Sheep',p:'Sheep',e:'🐑'},
+                {n:'Horse',p:'Horses',e:'🐴'}, {n:'Lion',p:'Lions',e:'🦁'}, {n:'Tiger',p:'Tigers',e:'🐯'},
+                {n:'Panda',p:'Pandas',e:'🐼'}, {n:'Monkey',p:'Monkeys',e:'🐒'}, {n:'Fox',p:'Foxes',e:'🦊'},
+                {n:'Elephant',p:'Elephants',e:'🐘'}, {n:'Koala',p:'Koalas',e:'🐨'}, {n:'Dolphin',p:'Dolphins',e:'🐬'},
+                {n:'Shark',p:'Sharks',e:'🦈'}, {n:'Whale',p:'Whales',e:'🐳'}, {n:'Octopus',p:'Octopuses',e:'🐙'},
+                {n:'Bird',p:'Birds',e:'🐦'}, {n:'Penguin',p:'Penguins',e:'🐧'}, {n:'Owl',p:'Owls',e:'🦉'},
+                {n:'Duck',p:'Ducks',e:'🦆'}, {n:'Eagle',p:'Eagles',e:'🦅'}
+            ];
+
+            const wordBanks = { 
+                adjectives: ["friendly", "cute", "big", "fast", "graceful", "fascinating", "intelligent", "beautiful", "strong", "colorful"],
+                actions: ["run quickly", "swim well", "jump high", "fly in the sky", "hunt for food", "climb trees", "hide easily"],
+                superlatives: ["the most dangerous", "the most beautiful", "the strongest", "the most interesting", "the smartest", "the fastest"],
+                comparatives: ["friendlier", "faster", "stronger", "more beautiful", "more intelligent", "bigger", "more dangerous"]
+            };
+
+            const grammarPatterns = [ 
+                { title: "I like ___ because..." }, { title: "A ___ lives ___." }, { title: "A ___ can ___." }, 
+                { title: "The ___ is the most ___." }, { title: "I prefer ___ to ___..." }, { title: "A time I saw a ___..." } 
+            ];
+            const ieltsQuestions = [ 
+                "Do you like ___? Why/why not?", "Where does a ___ live?", "What can a ___ do?", 
+                "Which animal is the most ___?", "Which animal do you prefer?", "Describe a time when you saw a ___." 
+            ];
+            const keywords = { 
+                0: ["like", "because", "friendly", "cute", "fast", "graceful"], 
+                1: ["lives in", "lives on", "farm", "jungle", "ocean", "house"], 
+                2: ["can", "run", "swim", "fly", "hunt", "climb"], 
+                3: ["opinion", "most", "dangerous", "beautiful", "strongest"], 
+                4: ["prefer", "to", "friendlier", "faster", "stronger", "than"], 
+                5: ["firstly", "afterwards", "finally", "because", "although", "felt"] 
+            };
+
+            const praisePhrases = ["Excellent!", "Well done!", "Fantastic!", "Great job!", "Brilliant!", "Awesome!", "Perfect!"];
+
+            function setupTTS() {
+                const setVoices = () => {
+                    const voices = window.speechSynthesis.getVoices();
+                    if (voices.length === 0) return;
+                    
+                    // STRICT REQUIREMENT: Only use Microsoft multilingual online tts Brian
+                    brianVoice = voices.find(v => v.name.includes('Brian'));
+                };
+                
+                setVoices(); 
+                if (window.speechSynthesis.onvoiceschanged !== undefined) {
+                    window.speechSynthesis.onvoiceschanged = setVoices;
+                }
+            }
+            
+            function speak(text) {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    if (brianVoice) {
+                        utterance.voice = brianVoice;
+                    }
+                    utterance.rate = 0.9; 
+                    utterance.pitch = 1.0;
+                    window.speechSynthesis.speak(utterance);
+                }
+            }
+
+            function getRandom(arr) {
+                return arr[Math.floor(Math.random() * arr.length)];
+            }
+
+            // Ensures Emojis are hidden from screen readers / TTS natively on the HTML side
+            function wrapEmoji(emoji) {
+                return `<span aria-hidden="true" class="inline-block mx-1 drop-shadow-md bg-white/20 px-2 py-1 rounded-lg">${emoji}</span>`;
+            }
+
+            // Generates context-aware sentences keeping emojis out of the spoken string
+            function generateExampleText(pIndex) {
+                const e = wrapEmoji(currentAnimal.e);
+                const n = currentAnimal.n.toLowerCase();
+                const p = currentAnimal.p.toLowerCase();
+                
+                let display = "";
+                let speakStr = "";
+
+                switch(pIndex) {
+                    case 0: { 
+                        const adj = getRandom(wordBanks.adjectives);
+                        if (Math.random() > 0.5) {
+                            display = `I like ${e} ${p} because they are ${adj}.`;
+                            speakStr = `I like ${p} because they are ${adj}.`;
+                        } else {
+                            display = `I like the ${e} ${n} because it is ${adj}.`;
+                            speakStr = `I like the ${n} because it is ${adj}.`;
+                        }
+                        break;
+                    }
+                    case 1: { 
+                        let place = "in the wild";
+                        if (["Whale","Dolphin","Shark","Octopus","Penguin"].includes(currentAnimal.n)) place = "in the ocean";
+                        else if (["Cow","Pig","Horse","Sheep","Chicken"].includes(currentAnimal.n)) place = "on a farm";
+                        else if (["Dog", "Cat", "Hamster", "Rabbit", "Turtle"].includes(currentAnimal.n)) place = "in a house";
+                        else if (["Lion", "Tiger", "Monkey", "Elephant", "Panda"].includes(currentAnimal.n)) place = "in the jungle";
+                        else if (["Bird", "Owl", "Eagle"].includes(currentAnimal.n)) place = "in a forest";
+
+                        display = `A ${e} ${n} lives ${place}.`;
+                        speakStr = `A ${n} lives ${place}.`;
+                        break;
+                    }
+                    case 2: { 
+                        const act = getRandom(wordBanks.actions);
+                        display = `A ${e} ${n} can ${act}.`;
+                        speakStr = `A ${n} can ${act}.`;
+                        break;
+                    }
+                    case 3: { 
+                        const sup = getRandom(wordBanks.superlatives);
+                        display = `In my opinion, the ${e} ${n} is ${sup}.`;
+                        speakStr = `In my opinion, the ${n} is ${sup}.`;
+                        break;
+                    }
+                    case 4: { 
+                        let otherAnimal;
+                        do { otherAnimal = getRandom(allAnimals); } while (otherAnimal.n === currentAnimal.n);
+                        const otherE = wrapEmoji(otherAnimal.e);
+                        const comp = getRandom(wordBanks.comparatives);
+                        
+                        display = `I prefer ${e} ${p} to ${otherE} ${otherAnimal.p.toLowerCase()} because they are ${comp}.`;
+                        speakStr = `I prefer ${p} to ${otherAnimal.p.toLowerCase()} because they are ${comp}.`;
+                        break;
+                    }
+                    case 5: { 
+                        display = `One time I saw a ${e} ${n} at the zoo. It looked beautiful. I felt amazed because it was my first time seeing one.`;
+                        speakStr = `One time I saw a ${n} at the zoo. It looked beautiful. I felt amazed because it was my first time seeing one.`;
+                        break;
+                    }
+                }
+                return { display, speak: speakStr };
+            }
+
+            function renderAnimalSidebar() {
+                if (!animalSidebar) return;
+                animalSidebar.innerHTML = allAnimals.map(a => `
+                    <button class="animal-btn text-2xl md:text-3xl p-2 md:p-3 bg-black/30 rounded-xl hover:bg-black/50 border border-transparent ${a.n === currentAnimal.n ? 'selected' : ''}" data-name="${a.n}" title="${a.n}">
+                        <span aria-hidden="true">${a.e}</span>
+                    </button>
+                `).join('');
+
+                document.querySelectorAll('.animal-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const name = e.currentTarget.dataset.name;
+                        currentAnimal = allAnimals.find(a => a.n === name);
+                        renderAnimalSidebar();
+                        refreshCurrentSlideData(); 
+                        
+                        if (e.currentTarget) {
+                            e.currentTarget.style.transform = 'scale(0.9)';
+                            setTimeout(() => { if (e.currentTarget) e.currentTarget.style.transform = ''; }, 100);
+                        }
+                    });
+                });
+            }
+
+            function refreshCurrentSlideData() {
+                if (currentSlide === 1 || currentSlide === 14) return;
+                
+                const pIndex = Math.floor((currentSlide - 2) / 2);
+                const isPractice = (currentSlide % 2 !== 0); 
+                
+                const slideEl = document.getElementById(`slide-${currentSlide}`);
+                if (!slideEl) return;
+
+                const questionHeader = slideEl.querySelector('.dynamic-question');
+                if (questionHeader) {
+                    const e = wrapEmoji(currentAnimal.e);
+                    const q = ieltsQuestions[pIndex].replace('___', `${e} ${currentAnimal.n.toLowerCase()}`);
+                    questionHeader.innerHTML = q;
+                }
+
+                const generated = generateExampleText(pIndex);
+                slideEl.dataset.latestSpeak = generated.speak;
+
+                if (!isPractice) {
+                    const outputEl = slideEl.querySelector('.sentence-output');
+                    if (outputEl) outputEl.innerHTML = generated.display;
+                } else {
+                    const outputEl = slideEl.querySelector('.practice-prompt');
+                    if (outputEl) {
+                        outputEl.innerHTML = generated.display;
+                    }
+                }
+            }
+
+            function triggerConfetti() {
+                const container = document.getElementById('effect-container');
+                if (!container) return;
+                
+                container.innerHTML = '';
+                for (let i = 0; i < 60; i++) { 
+                    const c = document.createElement('div'); 
+                    c.className = 'confetti'; 
+                    c.style.left = `${Math.random()*100}vw`; 
+                    const colors = ['#fde047', '#38bdf8', '#ec4899', '#4ade80', '#a855f7'];
+                    c.style.backgroundColor = getRandom(colors); 
+                    c.style.animationDelay = `${Math.random()*1.5}s`; 
+                    c.style.width = `${Math.random() * 8 + 6}px`;
+                    c.style.height = c.style.width;
+                    container.appendChild(c); 
+                }
+                setTimeout(() => { if (container) container.innerHTML = ''; }, 3500);
+            }
+
+            // Text placeholders have been removed completely
+            function createLearningSlide(slideId, pIndex) {
+                const slide = document.getElementById(slideId);
+                if (!slide) return;
+                slide.innerHTML = `
+                    <div class="w-full max-w-4xl flex flex-col items-center bg-black/20 p-8 rounded-3xl shadow-xl border border-white/10 backdrop-blur-sm">
+                        <h2 class="dynamic-question font-fredoka text-3xl md:text-5xl text-white drop-shadow-md text-center leading-tight mb-4"></h2>
+                        <h1 class="font-fredoka text-4xl md:text-6xl mt-2 text-yellow-300 drop-shadow-lg text-center mb-8">${grammarPatterns[pIndex].title}</h1>
+                        <div class="sentence-output text-2xl md:text-4xl font-bold min-h-[6rem] bg-indigo-900/60 border-2 border-indigo-400 rounded-2xl flex items-center justify-center p-6 w-full text-center shadow-inner text-sky-100">
+                        </div>
+                    </div>`;
+            }
+
+            function createPracticeSlide(slideId, pIndex) {
+                const slide = document.getElementById(slideId);
+                if (!slide) return;
+                slide.innerHTML = `
+                    <div class="w-full max-w-4xl flex flex-col items-center bg-black/20 p-8 rounded-3xl shadow-xl border border-white/10 backdrop-blur-sm">
+                        <div class="practice-prompt text-3xl md:text-5xl font-bold bg-indigo-900/60 border-2 border-indigo-400 p-8 rounded-2xl min-h-[10rem] flex items-center justify-center w-full text-center shadow-inner leading-relaxed"></div>
+                    </div>`;
+            }
+
+            function showSlide(slideNumber) {
+                if (slideNumber > 13) { 
+                    const finalScoreEl = document.getElementById('final-score');
+                    if (finalScoreEl) finalScoreEl.textContent = score; 
+                    slideNumber = 14; 
+                }
+                
+                slides.forEach(slide => slide.classList.remove('active'));
+                const targetSlide = document.getElementById(`slide-${slideNumber}`);
+                
+                if (targetSlide) {
+                    targetSlide.classList.add('active'); 
+                    currentSlide = slideNumber;
+                    
+                    const isSpecialSlide = (currentSlide === 1 || currentSlide === 14);
+                    
+                    // Defensively style elements to avoid TypeError
+                    if (topBar) topBar.style.display = isSpecialSlide ? 'none' : 'flex';
+                    
+                    if (headerHearBtn && headerGenBtn) {
+                        if (isSpecialSlide) {
+                            headerHearBtn.classList.add('hidden');
+                            headerGenBtn.classList.add('hidden');
+                            headerHearBtn.classList.remove('flex');
+                            headerGenBtn.classList.remove('flex');
+                        } else {
+                            headerHearBtn.classList.remove('hidden');
+                            headerGenBtn.classList.remove('hidden');
+                            headerHearBtn.classList.add('flex');
+                            headerGenBtn.classList.add('flex');
+                        }
+                    }
+
+                    if (keywordSidebar) {
+                        const pIndex = Math.floor((currentSlide - 2) / 2);
+                        if (!isSpecialSlide && keywords[pIndex]) {
+                            keywordSidebar.innerHTML = `
+                                <div class="text-yellow-300 border-b border-white/20 pb-2 mb-2 font-fredoka uppercase text-sm tracking-wider">Keywords</div>
+                                ` + keywords[pIndex].map(k => `<div class="flex items-center gap-2"><div class="w-2 h-2 bg-pink-400 rounded-full"></div>${k}</div>`).join("");
+                            keywordSidebar.style.display = window.innerWidth >= 768 ? "block" : "none";
+                        } else {
+                            keywordSidebar.style.display = "none";
+                        }
+                    }
+
+                    refreshCurrentSlideData();
+                }
+            }
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    let target = btn.dataset.target;
+                    if (target === "next") showSlide(currentSlide + 1);
+                    else if (target === "prev") { if (currentSlide > 1) showSlide(currentSlide - 1); }
+                    else showSlide(parseInt(target));
+                });
+            });
+
+            if (headerHearBtn) {
+                headerHearBtn.addEventListener('click', () => {
+                    const slide = document.getElementById(`slide-${currentSlide}`);
+                    if (slide && slide.dataset.latestSpeak) {
+                        speak(slide.dataset.latestSpeak);
+                    }
+                });
+            }
+
+            if (headerGenBtn) {
+                headerGenBtn.addEventListener('click', () => {
+                    refreshCurrentSlideData();
+                });
+            }
+
+            if (correctBtnGlobal) {
+                correctBtnGlobal.addEventListener('click', () => {
+                    score += 1; 
+                    if (scoreEl) scoreEl.textContent = score;
+                    triggerConfetti();
+                    speak(getRandom(praisePhrases));
+                    
+                    if (scoreContainer) {
+                        scoreContainer.style.transform = 'scale(1.2)';
+                        scoreContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.4)';
+                        setTimeout(() => {
+                            if (scoreContainer) {
+                                scoreContainer.style.transform = '';
+                                scoreContainer.style.backgroundColor = '';
+                            }
+                        }, 300);
+                    }
+                });
+            }
+
+            window.addEventListener('resize', () => {
+                if(currentSlide !== 1 && currentSlide !== 14 && keywordSidebar) {
+                    const pIndex = Math.floor((currentSlide - 2) / 2);
+                    keywordSidebar.style.display = (window.innerWidth >= 768 && keywords[pIndex]) ? "block" : "none";
+                }
+            });
+
+            // Start up sequence
+            grammarPatterns.forEach((p, i) => {
+                createLearningSlide(`slide-${2 + i*2}`, i);
+                createPracticeSlide(`slide-${3 + i*2}`, i);
+            });
+            
+            renderAnimalSidebar();
+            setupTTS();
+            showSlide(1);
+        });
+    </script>
+</body>
+</html>
