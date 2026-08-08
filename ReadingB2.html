@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B2 Practice Tests</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f1f1; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    .topic-btn.active {
+      background-color: #e0f2fe;
+      color: #0369a1;
+      border-left: 4px solid #0284c7;
+      font-weight: 600;
+    }
+    
+    .option-label {
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .option-label:hover:not(.locked) {
+      background-color: #f8fafc;
+    }
+    .option-label.locked {
+      cursor: default;
+      opacity: 0.8;
+    }
+
+    @keyframes flashGreen {
+      0% { background-color: #ffffff; border-color: #e2e8f0; }
+      50% { background-color: #dcfce7; border-color: #22c55e; }
+      100% { background-color: #f0fdf4; border-color: #86efac; }
+    }
+    @keyframes shakeRed {
+      0%, 100% { transform: translateX(0); background-color: #fef2f2; border-color: #fca5a5; }
+      20%, 60% { transform: translateX(-4px); }
+      40%, 80% { transform: translateX(4px); }
+    }
+
+    .animate-correct {
+      animation: flashGreen 0.6s ease forwards;
+    }
+    .animate-incorrect {
+      animation: shakeRed 0.4s ease forwards;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+  <header class="bg-white shadow-sm z-10 py-2 px-4 border-b border-slate-200 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-2">
+    <div class="flex items-center gap-3 min-w-0">
+      <button id="toggle-menu" class="p-2 bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-800 rounded transition-colors focus:outline-none flex-shrink-0" title="Toggle Menu">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <h1 id="header-title" class="text-base md:text-lg font-bold text-slate-800 truncate">Select a Practice Test</h1>
+    </div>
+    
+    <div class="flex flex-wrap items-center gap-3 md:gap-5 text-sm font-semibold text-slate-600 flex-shrink-0">
+      <div class="bg-slate-100 px-2 py-1 rounded">Tests: <span id="hdr-tests" class="text-slate-800">25</span></div>
+      <div class="bg-slate-100 px-2 py-1 rounded hidden sm:block">Total Qs: <span id="hdr-qs" class="text-slate-800">125</span></div>
+      <div class="bg-blue-50 text-blue-700 px-3 py-1 rounded border border-blue-200 shadow-sm">
+        Score: <span id="hdr-score" class="text-xl">0</span>
+      </div>
+      <div id="global-timer" class="text-slate-700 bg-slate-100 px-3 py-1 rounded-md border border-slate-200 flex items-center gap-1.5 transition-colors duration-300">
+         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        <span id="timer-display">10:00</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex flex-1 overflow-hidden relative">
+    
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-slate-200 overflow-y-auto shrink-0 absolute inset-y-0 left-0 z-20 md:relative transform transition-transform duration-300 md:translate-x-0">
+      <div class="p-3">
+        <div class="flex justify-between items-center mb-2 md:hidden">
+            <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Menu</h2>
+            <button id="close-mobile-menu" class="text-slate-500 hover:text-slate-800 p-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <nav id="test-menu" class="space-y-0.5">
+          <!-- Menu items generated here -->
+        </nav>
+      </div>
+    </aside>
+    
+    <!-- Overlay for mobile sidebar -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-slate-800/50 z-10 hidden md:hidden"></div>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col overflow-hidden bg-white relative w-full">
+      <div id="content-container" class="w-full h-full flex flex-col overflow-hidden">
+        
+        <div id="welcome-screen" class="text-center flex-1 flex flex-col justify-center items-center py-12 block bg-slate-50">
+          <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-blue-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <h2 class="text-2xl font-bold text-slate-800 mb-2">Welcome to B2 Practice</h2>
+          <p class="text-slate-600 max-w-md mx-auto">Select a topic from the menu on the left to begin. Questions are graded instantly upon selection. You have 10 minutes per test.</p>
+        </div>
+
+        <div id="test-interface" class="hidden flex-1 flex-col lg:flex-row overflow-hidden w-full">
+            
+            <!-- Passage text (Fixed left column, no independent scroll unless overflowing small screens) -->
+            <div class="lg:w-[60%] h-full p-4 md:p-8 border-b lg:border-b-0 lg:border-r border-slate-200 bg-slate-50 overflow-y-auto lg:overflow-hidden">
+                <div class="max-w-3xl mx-auto h-full flex flex-col">
+                    <h2 id="passage-title" class="text-xl md:text-2xl font-bold text-slate-800 mb-4 flex-shrink-0"></h2>
+                    <!-- Inner container allows reading without layout shifting -->
+                    <div id="passage-content" class="prose prose-slate max-w-none text-slate-700 leading-relaxed space-y-4 text-sm md:text-base lg:overflow-y-auto lg:pr-4 pb-10">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Questions Form (40% width right column, scrolls independently) -->
+            <div class="lg:w-[40%] h-full overflow-y-auto bg-white p-3 md:p-5 shadow-inner">
+                <form id="quiz-form" class="pb-16" onsubmit="return false;">
+                   <div id="questions-container" class="space-y-4">
+                       <!-- Questions injected here -->
+                   </div>
+                </form>
+            </div>
+
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    let currentTest = null;
+    let timerValue = 10 * 60; // 10 minutes
+    let timerInterval = null;
+    let isTimerRunning = false;
+    let globalScore = 0;
+    let totalQuestionsAnswered = 0;
+    
+    // Audio Context for synthesized sounds
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      const now = audioCtx.currentTime;
+      if (type === 'correct') {
+        // Cheerful high pitched ding
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, now); // C5
+        osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.1); // C6
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.4, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      } else if (type === 'incorrect') {
+        // Low buzzing descending tone
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.2);
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(0.3, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      }
+    }
+
+    const testData = [
+      {
+        id: "test1",
+        title: "Renewable Energy and Urban Sustainability",
+        passage: `<p>In recent decades, urban centers around the world have increasingly embraced renewable energy as a key strategy to achieve sustainability. Municipal governments are investing in solar panels, wind turbines, and bioenergy systems to reduce dependency on fossil fuels and cut greenhouse gas emissions. This shift is driven not only by environmental concerns but also by the need to manage rising energy costs and build resilient infrastructures in the face of climate change.</p><p>Several European and North American cities now subsidize renewable energy installations on public buildings and private homes, leading to notable improvements in air quality and lower energy consumption levels. However, challenges persist—particularly the intermittent nature of solar and wind power, which can cause fluctuations in energy supply. Experts argue that a diversified energy portfolio, incorporating various renewable sources and energy storage technologies, is essential to overcome these obstacles and secure a stable energy future.</p><p>Overall, the transition to renewable energy represents a transformational shift in urban planning, promising significant economic and environmental benefits while also presenting new technical and logistical challenges.</p>`,
+        questions: [
+          { type: "Factual Detail", text: "According to the passage, which of the following is a direct benefit of adopting renewable energy in cities?", options: ["Improved air quality", "Increased fossil fuel usage", "Unstable power supply", "Social isolation"], correctAnswer: 0, suggestion: "Re-read the first paragraph. Notice that the passage states that subsidies for renewable energy lead to 'notable improvements in air quality.'" },
+          { type: "Vocabulary in Context", text: "In the context of the passage, the word “diversified” most nearly means:", options: ["varied", "monotonous", "scarce", "minimal"], correctAnswer: 0, suggestion: "Look at the second paragraph where 'a diversified energy portfolio' is mentioned. 'Diversified' here means varied or composed of many different elements." },
+          { type: "Inference", text: "Which inference can be made about urban governments based on the passage?", options: ["They favor fossil fuels for their reliability.", "They invest in renewable energy to reduce costs and improve public health.", "They are not willing to subsidize renewable installations.", "They rely solely on environmental concerns for energy decisions."], correctAnswer: 1, suggestion: "Consider that urban governments are depicted as investing in renewables to both lower costs and improve public health. This indicates they value both economic and environmental benefits." },
+          { type: "Main Idea", text: "What is the main purpose of the passage?", options: ["To explain the benefits and challenges of renewable energy in urban planning.", "To advocate for the exclusive use of fossil fuels.", "To describe how to install renewable energy systems.", "To discuss transportation issues in cities."], correctAnswer: 0, suggestion: "Think about the overall theme. The passage outlines both the benefits and the challenges of the renewable shift, presenting a balanced view of urban energy planning." },
+          { type: "Summary", text: "Which statement best summarizes the passage?", options: ["Urban areas are turning to renewable energy to reap both environmental and economic benefits, though technical challenges remain.", "Renewable energy is unreliable and not recommended for urban areas.", "Fossil fuels are the only viable energy source for cities.", "Urban planning mainly focuses on reducing traffic congestion."], correctAnswer: 0, suggestion: "Summarize the passage by noting that cities are embracing renewable energy to improve air quality and reduce costs, although they face technical issues like energy supply fluctuations." }
+        ]
+      },
+      {
+        id: "test2",
+        title: "Urban Gardens and Community Revitalization",
+        passage: `<p>Faced with increasing concerns over food insecurity and the environmental impact of long food supply chains, many cities are now turning to urban agriculture as a promising solution. Urban agriculture involves cultivating crops and raising livestock within city limits, in places like rooftop gardens, community plots, and vertical farms. Such initiatives not only provide fresh, locally grown produce but also reduce transportation emissions and help reconnect urban dwellers with nature.</p><p>In addition to these tangible benefits, urban agriculture fosters community engagement by creating shared spaces where people can collaborate and learn about sustainable practices. Many local governments are investing in these projects to promote self-sufficiency and encourage environmentally friendly practices. However, challenges remain, including limited space, initial setup costs, and the need for technical expertise to maintain these systems.</p><p>Overall, urban agriculture is emerging as a pioneering model for sustainable city living, balancing economic, social, and environmental objectives in the face of rapid urbanization.</p>`,
+        questions: [
+          { type: "Factual Detail", text: "According to the passage, which of the following is a direct benefit of urban gardens?", options: ["Access to fresh produce", "Increased urban pollution", "Higher energy costs", "Decline in community interaction"], correctAnswer: 0, suggestion: "Review the passage’s second paragraph: it clearly states that community gardens provide fresh produce to residents." },
+          { type: "Vocabulary in Context", text: "In this passage, the word “integrating” most nearly means:", options: ["combining", "separating", "avoiding", "delaying"], correctAnswer: 0, suggestion: "Look at the phrase 'integrating community gardens' in the first paragraph; 'integrate' means to combine or bring together." },
+          { type: "Inference", text: "Which inference can be made about the effects of community gardens?", options: ["They guarantee a complete resolution to urban problems.", "They likely contribute to lower stress levels and better public health.", "They cause urban decay and increased maintenance costs.", "They reduce the amount of available public space."], correctAnswer: 1, suggestion: "Consider the benefits mentioned – improved public health and reduced stress. This implies that community gardens positively impact well-being." },
+          { type: "Main Idea", text: "What is the primary purpose of the passage?", options: ["To describe how urban gardens are used to revitalize communities.", "To explain the technical details of building a community garden.", "To argue against investing in renewable energy.", "To detail the history of urban agriculture."], correctAnswer: 0, suggestion: "Reflect on the overall passage—it presents both the benefits and challenges of urban gardens. The main idea is that they are used to revitalize communities." },
+          { type: "Summary", text: "Which statement best summarizes the passage?", options: ["Urban gardens provide food, social, and health benefits while facing challenges related to funding and maintenance.", "Only a few select cities benefit from urban agriculture due to high costs.", "Urban gardening has resolved all issues of food insecurity worldwide.", "Community gardens are simply an aesthetic improvement with little practical benefit."], correctAnswer: 0, suggestion: "Summarize the passage by noting that urban gardens offer multiple benefits (food access, social, and health) but also face challenges like funding and maintenance." }
+        ]
+      },
+      {
+        id: "test3",
+        title: "Global Water Scarcity and Innovative Solutions",
+        passage: `<p>Water scarcity has emerged as one of the most pressing challenges of the 21st century. Rapid population growth, industrial pollution, and changing climatic conditions have strained water resources worldwide, leaving many regions facing acute shortages of clean water. Both urban and rural communities are compelled to find sustainable ways to secure adequate water supplies for drinking, agriculture, and industry.</p><p>In response to these challenges, governments and private organizations have increasingly turned to innovative technologies and sustainable practices. Projects such as desalination plants, rainwater harvesting systems, and advanced irrigation techniques have been implemented in an effort to increase water availability. Although these technologies offer promising solutions, high costs and complex technical issues remain significant barriers to their broader adoption.</p><p>Moreover, community-led initiatives and policy reforms are beginning to drive a more efficient and equitable distribution of water resources. Experts argue that integrating modern technology with traditional water management practices is crucial to achieving long-term water security and ensuring that communities can thrive even under adverse environmental conditions.</p>`,
+        questions: [
+          { type: "Factual Detail", text: "According to the passage, which of the following is directly mentioned as a factor contributing to water scarcity?", options: ["Rapid population growth", "Extensive deforestation", "Overuse of renewable energy", "Reduced agricultural activity"], correctAnswer: 0, suggestion: "Re-read the first paragraph. Notice the mention of 'rapid population growth' and 'industrial pollution'. This factor is directly linked to water scarcity." },
+          { type: "Vocabulary in Context", text: "In the passage, the word “desalination” most nearly means:", options: ["Removing salt from seawater", "Conserving rainwater for use", "Filtering pollution from freshwater", "Reusing wastewater in agriculture"], correctAnswer: 0, suggestion: "Look at the solutions mentioned in the second paragraph. 'Desalination' typically means removing salt from seawater." },
+          { type: "Inference", text: "Which inference about water management is most supported by the passage?", options: ["Technological solutions alone will completely solve water scarcity.", "Both technological innovations and community action are needed to address water scarcity.", "Water scarcity is solely a result of environmental pollution.", "Water management requires no government intervention."], correctAnswer: 1, suggestion: "Consider the descriptions provided. The passage stresses both technological solutions and community initiatives, indicating that neither alone is sufficient." },
+          { type: "Main Idea", text: "What is the primary purpose of the passage?", options: ["To describe the causes of water scarcity and discuss innovative solutions.", "To argue against the use of modern technology in water management.", "To explain in detail how rainwater harvesting systems work.", "To compare urban and rural water consumption patterns."], correctAnswer: 0, suggestion: "Think about the overall discussion. The passage covers both the causes of water scarcity and a range of responses to it, highlighting a balanced view." },
+          { type: "Summary", text: "Which statement best summarizes the passage?", options: ["Rising water scarcity due to population growth and pollution calls for a combination of innovative technology and community action, despite high costs and technical challenges.", "Water scarcity is only a minor issue that can be resolved by cutting down on industrial activity.", "Technological advancements have completely eliminated water shortages in urban areas.", "Governments should stop investing in renewable water technologies due to high cost."], correctAnswer: 0, suggestion: "Summarize by noting the main issues—water scarcity from growth and pollution—and the combined approaches (technology and community actions) aimed at addressing it." }
+        ]
+      },
+      {
+        id: "test4",
+        title: "Digital Connectivity and Cultural Exchange",
+        passage: `<p>In contemporary society, digital connectivity has revolutionized how people across the globe communicate and share cultural experiences. With the advent of social media platforms, streaming services, and online communities, individuals can now learn about traditions, art, and cuisine from distant cultures at the click of a button. This widespread access has fostered a dynamic environment in which cultural exchange is not only possible but actively encouraged.</p><p>For example, virtual museum tours and online cultural festivals allow users to experience art and heritage that were once confined to far-off places. Such innovations have bridged geographical divides, making it easier for people to engage with and appreciate diversity. However, this digital revolution has also raised concerns about the possible homogenization of cultures, as dominant cultural trends might overshadow unique local traditions.</p><p>Overall, while digital connectivity opens avenues for rich and diverse cultural interactions, it also challenges communities to balance global access with the preservation of local cultural identities.</p>`,
+        questions: [
+          { type: "Factual Detail", text: "According to the passage, which of the following is mentioned as a way for people to experience art and heritage?", options: ["Virtual museum tours", "Printed guides", "In-person art classes", "Postal postcards"], correctAnswer: 0, suggestion: "In the first paragraph, the passage states that digital platforms like virtual museum tours allow people to experience art and heritage." },
+          { type: "Vocabulary in Context", text: "In the passage, the word “homogenization” most nearly means:", options: ["uniformity", "diversity", "fragmentation", "amplification"], correctAnswer: 0, suggestion: "Compare the word 'homogenization' with the idea that distinct cultures might become too similar. The correct meaning is 'uniformity'." },
+          { type: "Inference", text: "Which of the following inferences about digital connectivity is most supported by the passage?", options: ["It solely benefits popular cultures at the expense of local traditions.", "While it allows a wide cultural exchange, it may also diminish local distinctiveness.", "It completely replaces traditional cultural practices.", "It has no real impact on cultural understanding."], correctAnswer: 1, suggestion: "Notice that the passage points to both benefits (access and exchange) and challenges (risk of erasure of local cultures). Thus, the inference should reflect both sides." },
+          { type: "Author's Perspective", text: "What is the author’s attitude toward the effects of digital connectivity on culture?", options: ["It is positive overall but comes with challenges.", "It is entirely beneficial with no downsides.", "It is mostly harmful and should be discouraged.", "It is irrelevant to cultural preservation."], correctAnswer: 0, suggestion: "Revisit the overall tone of the passage. It presents both advantages and disadvantages of digital connectivity in culture, suggesting a balanced view." },
+          { type: "Summary", text: "Which of the following statements best summarizes the passage?", options: ["Digital connectivity has transformed cultural exchange by providing unprecedented access to global art and heritage, though it raises concerns about cultural uniformity.", "Digital platforms have replaced all traditional cultures with a single global trend.", "The passage argues that traditional cultural practices are no longer relevant in the digital age.", "Urban communities are resisting digital connectivity due to its negative effects on social interactions."], correctAnswer: 0, suggestion: "Summarize the passage by noting that while digital connectivity offers new ways to experience global culture, it may also lead to cultural uniformity if not managed carefully." }
+        ]
+      },
+      {
+        id: "test5",
+        title: "Artificial Intelligence and Its Role in Modern Healthcare",
+        passage: `<p>In recent years, Artificial Intelligence (AI) has revolutionized the healthcare industry. Technologies such as machine learning, natural language processing, and advanced data analytics are increasingly being used to improve diagnostic accuracy and optimize treatment protocols. Hospitals across the globe now integrate AI-powered systems to help physicians swiftly analyze patient records and predict health outcomes.</p><p>One notable application of AI is in medical imaging. Algorithms analyze X-rays, MRIs, and CT scans to detect abnormalities that might be challenging for the human eye. This not only speeds up diagnoses but also reduces the margin of error, enabling early interventions. Moreover, AI is paving the way for personalized medicine by considering genetic factors and lifestyle data to tailor treatments to individual patients.</p><p>Despite these advances, significant challenges remain. Issues like data privacy, high initial costs, and the need for robust digital infrastructure hinder the broad adoption of AI in healthcare. Nonetheless, experts are optimistic that with proper regulation and ongoing technological improvements, AI will continue to enhance the efficiency and quality of healthcare worldwide.</p>`,
+        questions: [
+          { type: "Factual Detail", text: "According to the passage, which of the following is a direct application of AI in healthcare?", options: ["Analyzing medical images for abnormalities", "Replacing physicians entirely", "Managing hospital finances", "Scheduling patient appointments manually"], correctAnswer: 0, suggestion: "In the second paragraph, the passage mentions that algorithms analyze X-rays and MRIs to detect abnormalities." },
+          { type: "Vocabulary in Context", text: "In the passage, “optimize” most nearly means:", options: ["improve", "ignore", "reduce", "complicate"], correctAnswer: 0, suggestion: "Notice the phrase 'optimize treatment protocols' in the first paragraph. 'Optimize' relates to making something as effective as possible, so 'improve' is the best match." },
+          { type: "Inference", text: "Which of the following can be inferred about AI in healthcare based on the passage?", options: ["AI will soon replace human doctors.", "AI has potential to improve patient outcomes, though challenges persist.", "AI is currently too expensive to be of any use.", "AI is only useful in research settings and not in clinical practice."], correctAnswer: 1, suggestion: "The passage highlights both the promising improvements and the challenges. Thus, it can be inferred that while AI offers benefits in patient care, issues like privacy and cost are still concerns." },
+          { type: "Author's Perspective", text: "What is the author’s tone regarding the use of AI in modern healthcare?", options: ["Cautiously optimistic, acknowledging both benefits and challenges.", "Overly critical, focusing only on the drawbacks.", "Indifferent and neutral.", "Unconditionally enthusiastic without mentioning any limitations."], correctAnswer: 0, suggestion: "The author’s tone is balanced; while acknowledging the benefits, the passage also points out challenges. This suggests a cautiously optimistic viewpoint." },
+          { type: "Summary", text: "Which statement best summarizes the passage?", options: ["AI is transforming healthcare by improving diagnostic and treatment processes while facing challenges such as data privacy and high costs.", "AI has completely replaced the traditional role of doctors in healthcare.", "Healthcare will not benefit from AI until all technical challenges are resolved.", "The primary focus of modern healthcare remains solely on patient care without any use of technology."], correctAnswer: 0, suggestion: "A good summary should mention that AI is revolutionizing healthcare by enhancing diagnostics and personalized treatment, even though it faces hurdles like cost and privacy issues." }
+        ]
+      },
+      {
+        id: "test6",
+        title: "The Rise of E‑Commerce and Its Impact on Global Trade",
+        passage: `<p>In the past two decades, the emergence of advanced online platforms and digital payment systems has revolutionized the way businesses interact with consumers. Companies are no longer confined to local markets; they can now reach customers across the globe with ease. This global expansion has not only broadened consumer bases but also reshaped trade routes and supply chains, giving rise to a more interconnected economic world.</p><p>As e‑commerce continues to flourish, it influences consumer behavior through greater convenience and competitive pricing. At the same time, it poses challenges including cybersecurity risks, complex logistics, and the need for effective digital infrastructure. Despite these challenges, many experts view the overall impact of e‑commerce on global trade as overwhelmingly positive, as it creates new opportunities for businesses large and small.</p><p>Ultimately, the rise of e‑commerce marks a transformative change in global trade dynamics, blending technological innovation with significant economic possibilities while also introducing new complexities.</p>`,
+        questions: [
+          { type: "Factual Detail", text: "According to the passage, which of the following is a direct effect of e‑commerce on businesses?", options: ["It enables companies to reach customers globally.", "It confines companies to local markets.", "It eliminates the need for digital payment systems.", "It reduces the number of supply chains."], correctAnswer: 0, suggestion: "Look in the first paragraph. The passage clearly notes that technological platforms allow companies to reach customers globally." },
+          { type: "Vocabulary in Context", text: "In the passage, the word “advanced” most nearly means:", options: ["sophisticated", "outdated", "ordinary", "simple"], correctAnswer: 0, suggestion: "The passage describes 'advanced online platforms' which suggests sophistication. 'Advanced' equates to 'sophisticated, high-level,' so choose 'sophisticated'." },
+          { type: "Inference", text: "Which inference about global trade is best supported by the passage?", options: ["Global trade is shrinking due to increased competition.", "E‑commerce has transformed global trade by expanding market access and reconfiguring supply networks.", "Traditional retail is completely obsolete in the digital age.", "Digital payment systems have eliminated the need for physical stores."], correctAnswer: 1, suggestion: "Notice that while the passage emphasizes the positive expansion of markets, it also mentions reshaped supply chains. This suggests that e‑commerce has had a transformative effect." },
+          { type: "Author's Perspective", text: "How does the author view the impact of e‑commerce on global trade?", options: ["Optimistic, acknowledging both its benefits and challenges.", "Entirely negative, citing only its drawbacks.", "Indifferent, with no clear opinion.", "Uncertain, as it suggests that more research is needed before drawing conclusions."], correctAnswer: 0, suggestion: "The author highlights both the benefits (global reach, efficiency) and the challenges (cybersecurity, logistics). This balanced view indicates an overall optimistic outlook." },
+          { type: "Summary", text: "Which statement best summarizes the passage?", options: ["E‑commerce has revolutionized global trade by expanding market reach and reconfiguring supply chains, although it also introduces challenges such as cybersecurity and logistic complexities.", "E‑commerce is a minor development that has little effect on traditional global trade.", "Only large companies can benefit from e‑commerce, leaving small businesses behind.", "The rise of e‑commerce has completely replaced all conventional ways of doing business."], correctAnswer: 0, suggestion: "A proper summary should capture that e‑commerce has revolutionized global trade by extending market access and restructuring trade logistics, despite facing challenges." }
+        ]
+      },
+      {
+        id: "test7",
+        title: "Smart Mobility: The Future of Urban Transportation",
+        passage: `<p>As urban congestion and environmental concerns intensify, many cities are turning to smart mobility solutions to revolutionize public transportation. By integrating real‑time data, IoT sensors, and digital route optimization, municipalities are transforming traditional transit systems into dynamic networks. These smart systems can adjust bus routes on the fly, coordinate traffic signals to prioritize mass transit, and even deploy electric and autonomous vehicles to reduce emissions.</p><p>Investments in smart mobility not only promise reduced travel times and lower environmental impact but also seek to improve overall commuter experiences. However, the rapid integration of technology in urban transport also brings challenges—high initial costs, technical complexities, and issues around data privacy. Despite these hurdles, many city officials remain optimistic that smart mobility will build a more efficient and sustainable urban transportation network.</p><p>Overall, the advent of smart mobility is set to reshape the way cities move, offering a blend of innovation and practicality while confronting significant technical and logistical challenges.</p>`,
+        questions: [
+          { type: "Factual Detail", text: "According to the passage, which of the following is a direct benefit of smart mobility?", options: ["Reduced travel times", "Increased fossil fuel consumption", "Longer commute durations", "Greater traffic congestion"], correctAnswer: 0, suggestion: "In paragraph 2, the passage highlights that smart systems promise reduced travel times. Revisit that section." },
+          { type: "Vocabulary in Context", text: "In the passage, the word \"dynamic\" most nearly means:", options: ["flexible", "static", "outdated", "discontinuous"], correctAnswer: 0, suggestion: "Notice how the passage describes transit systems as 'dynamic'—indicating they are flexible and responsive. Think of 'dynamic' as synonymous with 'flexible'." },
+          { type: "Inference", text: "Which inference about smart mobility can best be drawn from the passage?", options: ["It only benefits a few select commuters.", "It may face challenges such as high costs and complex technical requirements.", "It instantly eliminates urban traffic congestion without any drawbacks.", "It relies solely on traditional transportation methods."], correctAnswer: 1, suggestion: "The passage mentions high costs and technical challenges alongside benefits. This implies that while there are advantages, implementation is not without hurdles." },
+          { type: "Author's Perspective", text: "How does the author view smart mobility?", options: ["Optimistic, yet aware of its challenges.", "Entirely pessimistic, focusing solely on its drawbacks.", "Indifferent, providing no clear opinion.", "Unconditionally positive, ignoring any potential issues."], correctAnswer: 0, suggestion: "The author outlines both benefits and challenges (such as cost and privacy issues), suggesting a cautiously optimistic tone." },
+          { type: "Summary", text: "Which statement best summarizes the passage?", options: ["Smart mobility uses advanced digital technology to improve urban transportation by reducing travel times and emissions, even though it faces high costs and technical challenges.", "Urban transportation remains unchanged because traditional methods are more reliable.", "Smart mobility has entirely eliminated all problems associated with urban transit.", "Only private car ownership can solve urban transportation issues."], correctAnswer: 0, suggestion: "A summary should mention that smart mobility leverages technology to enhance transit efficiency while facing practical challenges like high costs." }
+        ]
+      },
+      {
+        id: "test8",
+        title: "Urban Green Spaces and Quality of Life",
+        passage: `<p>With rapid urbanization transforming cities into concrete jungles, urban green spaces—such as parks, community gardens, and green corridors—have become essential oases amid the urban sprawl. These natural sanctuaries provide residents with much-needed areas for relaxation, physical activity, and social interaction. Studies indicate that access to green spaces significantly enhances mental health and reduces the stress associated with urban living.</p><p>Municipal authorities are increasingly prioritizing the development and preservation of these green areas by converting abandoned lots into parks and designing green rooftops. Such initiatives not only contribute to improved aesthetics and air quality but also promote community cohesion by offering venues for cultural and recreational activities.</p><p>Despite these benefits, urban green spaces face challenges, including limited funding, competing demands for land, and maintenance difficulties. Nevertheless, experts believe that with strategic planning and strong community involvement, these natural areas will continue to play a critical role in enhancing the overall quality of urban life.</p>`,
+        questions: [
+          { type: "Factual Detail", text: "According to the passage, which of the following is a direct benefit of urban green spaces?", options: ["They enhance mental health and reduce stress.", "They increase urban sprawl.", "They promote industrial activities.", "They restrict social interaction."], correctAnswer: 0, suggestion: "Review the first paragraph. The passage clearly states that urban green spaces improve mental health and reduce stress." },
+          { type: "Vocabulary in Context", text: "In the passage, the term “oases” most nearly means:", options: ["havens or sanctuaries", "deserts", "permanent fixtures", "commercial zones"], correctAnswer: 0, suggestion: "The word 'oases' is used to describe these natural areas in the middle of concrete jungles. Think of them as safe havens or sanctuaries." },
+          { type: "Inference", text: "Which inference about urban green spaces is most strongly supported by the passage?", options: ["Urban green spaces are primarily for aesthetic purposes.", "They contribute significantly to social cohesion and improved well-being.", "They are easy to maintain without significant effort.", "They reduce the need for urban infrastructure completely."], correctAnswer: 1, suggestion: "Consider that the passage highlights benefits that include improved community cohesion and well-being, implying they help people interact positively." },
+          { type: "Author's Perspective", text: "What is the author’s attitude toward urban green spaces?", options: ["Optimistic, while acknowledging certain challenges.", "Entirely pessimistic, focusing only on the difficulties.", "Indifferent, neither praising nor criticizing them.", "Overly idealistic, ignoring practical issues."], correctAnswer: 0, suggestion: "The author presents a balanced view—acknowledging significant benefits while noting challenges like funding. This indicates an optimistic attitude tempered by realism." },
+          { type: "Summary", text: "Which statement best summarizes the passage?", options: ["Urban green spaces improve the quality of life by offering mental, social, and environmental benefits, despite facing funding and maintenance challenges.", "Urban green spaces are mostly decorative and serve little other function.", "The passage argues that urban development should stop to preserve natural areas.", "City planning should focus exclusively on commercial growth rather than recreational spaces."], correctAnswer: 0, suggestion: "A good summary should mention that urban green spaces enhance well-being and social interaction but also face financial and maintenance challenges." }
+        ]
+      },
+      {
+        id: "test9",
+        title: "Sustainable Tourism and Its Impact on Local Communities",
+        passage: `<p>Tourism has long served as a vital source of revenue for many regions; however, the rapid increase in visitor numbers has raised concerns over environmental degradation and cultural dilution. In response, numerous destinations are embracing sustainable tourism strategies that aim to minimize adverse impacts while maximizing economic and social benefits.</p><p>These initiatives include enforcing visitor limits, promoting eco‑friendly practices among service providers, and investing in infrastructure that safeguards natural resources. By doing so, local governments and communities secure funding necessary to preserve both their environmental assets and cultural heritage.</p><p>Nonetheless, challenges persist. Over‑tourism can strain local resources and erode traditional customs if not properly managed. Experts maintain that the success of sustainable tourism depends on effective planning and active community engagement. When executed well, sustainable tourism strikes a promising balance between fostering economic growth and protecting the natural and cultural assets essential to local quality of life.</p>`,
+        questions: [
+          { type: "Factual Detail", text: "According to the passage, which of the following is a direct benefit of sustainable tourism?", options: ["It provides funding to preserve cultural heritage.", "It always leads to environmental degradation.", "It restricts economic growth completely.", "It reduces the number of tourists."], correctAnswer: 0, suggestion: "Review the second paragraph. The passage states that sustainable tourism provides communities with funds needed for cultural preservation." },
+          { type: "Vocabulary in Context", text: "In the passage, the term “sustainable” most nearly means:", options: ["Capable of being maintained without depleting resources", "Temporary and short-lived", "Rapidly changing", "Economically unfeasible"], correctAnswer: 0, suggestion: "In this context, 'sustainable' means practices that can be maintained—implying they are designed to avoid depleting resources." },
+          { type: "Inference", text: "Which inference about challenges in tourism can be drawn from the passage?", options: ["Unregulated tourism always improves local culture.", "Over‑tourism can lead to resource strain and loss of cultural traditions if not managed properly.", "There are no challenges associated with tourism in any region.", "Tourism only benefits the environment and culture."], correctAnswer: 1, suggestion: "Notice that the passage warns about over‑tourism leading to resource strain and cultural erosion if not managed properly." },
+          { type: "Author's Perspective", text: "How does the author appear to feel about sustainable tourism?", options: ["Cautiously optimistic, as it offers economic and cultural benefits despite managing challenges.", "Entirely negative, stating that tourism always harms the environment and culture.", "Indifferent, providing no clear viewpoint on tourism.", "Overly enthusiastic without acknowledging any limitations."], correctAnswer: 0, suggestion: "The author presents both benefits (economic, cultural) and challenges (over‑tourism), which indicates a cautiously optimistic attitude." },
+          { type: "Summary", text: "Which statement best summarizes the passage?", options: ["Sustainable tourism attempts to balance economic benefits with the conservation of local cultural and environmental resources, though it requires careful management to combat over‑tourism.", "Tourism inevitably depletes local resources and should be discouraged at all costs.", "Economic growth from tourism occurs without any effects on local culture or the environment.", "Only traditional tourism models are effective in generating local revenue."], correctAnswer: 0, suggestion: "A thorough summary should mention that sustainable tourism aims to balance economic benefits with environmental conservation, although it faces management challenges." }
+        ]
+      },
+      {
+        id: "test10",
+        title: "The Digital Transformation of Public Libraries",
+        passage: `<p>In the era of digital information, public libraries have undergone a significant transformation. Once regarded solely as repositories of physical books, modern libraries now offer a wide array of digital services – including e-books, online databases, interactive multimedia resources, and virtual community programs. This evolution has expanded access to knowledge and made libraries key centers for lifelong learning.</p><p>By integrating advanced technology such as automated systems, digital catalogs, and free internet access, libraries have repositioned themselves as dynamic community hubs. They now bridge the digital divide by providing essential services like digital literacy workshops and remote research tools, making them not only centers of information but also crucial assets for community development.</p><p>Despite these remarkable advances, challenges persist. Limited funding, ongoing staff training needs, and issues surrounding data privacy can hinder the full potential of digital services. Nonetheless, experts remain optimistic that with continuous investment and community support, public libraries will continue to innovate and reinforce their role as vital institutions in the digital age.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one new service offered by modern public libraries?", options: ["Online databases and e-books", "Exclusive paper catalogs", "Private book clubs", "Handwritten archives only"], correctAnswer: 0, suggestion: "In Paragraph 1, notice that modern libraries now offer services such as online databases and e-books."},
+            {type: "Vocabulary in Context", text: "In the passage, the word “repositioned” most nearly means:", options: ["redefined", "removed", "demolished", "neglected"], correctAnswer: 0, suggestion: "'Repositioned' here means that libraries have changed their role – they are now redefined as dynamic community hubs."},
+            {type: "Inference", text: "Based on the passage, which inference about digital transformation in libraries is most supported?", options: ["Digital services have reduced the need for libraries.", "Digital transformation has enhanced community access to knowledge.", "Libraries have become obsolete in the digital age.", "Only wealthy communities benefit from online services."], correctAnswer: 1, suggestion: "The passage explains how digital services have expanded access and made libraries central to learning; this implies enhanced community access."},
+            {type: "Author's Perspective", text: "What is the author’s overall attitude toward the digital transformation of public libraries?", options: ["Optimistic but realistic about the challenges.", "Completely negative and dismissive.", "Indifferent and unengaged.", "Excited without any concern for limitations."], correctAnswer: 0, suggestion: "The author discusses both the benefits and the challenges, suggesting an optimistic yet realistic viewpoint."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Public libraries have evolved to offer diverse digital services that enhance community access to information, though challenges like funding and privacy issues remain.", "Public libraries have abandoned traditional services in favor of digital technology, making physical books obsolete.", "The digital transformation has rendered public libraries unnecessary in the modern era.", "Modern public libraries now focus solely on technology, ignoring community needs."], correctAnswer: 0, suggestion: "A proper summary should stress that public libraries now provide diverse digital services while also facing ongoing challenges."}
+        ]
+      },
+      {
+        id: "test11",
+        title: "The Evolution of Remote Work: Transforming the Modern Workplace",
+        passage: `<p>In recent years, remote work has transitioned from a rare perk to a mainstream mode of employment. Powered by technological advances like high-speed internet, communication platforms, and cloud computing, employees are no longer bound to a traditional office. Instead, many companies have adopted flexible work arrangements that allow individuals to collaborate from virtually anywhere.</p><p>This shift has led to notable changes in workplace dynamics. For example, employees report improved work-life balance and a reduction in daily commuting stress. Cost savings on transportation and office maintenance have also positively impacted businesses. However, the move toward remote work introduces challenges such as potential communication gaps, the need for robust digital infrastructure, and difficulties in maintaining team cohesion.</p><p>Experts predict that the future of work will likely evolve into hybrid models that combine remote and in-person work environments. Such models aim to capitalize on the benefits of flexibility while mitigating the challenges associated with entirely remote setups. As organizations continue to adapt, the modern workplace is undergoing a transformative evolution that reflects broader social and technological shifts.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, which of the following is a direct benefit of remote work?", options: ["Enhanced work-life balance", "Increased daily commuting", "Higher office maintenance costs", "Limited access to technology"], correctAnswer: 0, suggestion: "Re-read paragraph 2 where the benefits of remote work are discussed, including the enhanced work-life balance."},
+            {type: "Vocabulary in Context", text: "In the passage, the word “bound” (as in “no longer bound to a traditional office”) most nearly means:", options: ["restricted", "connected", "elevated", "afforded"], correctAnswer: 0, suggestion: "The sentence 'employees are no longer bound to a traditional office' shows that 'bound' means restricted or confined. Choose 'restricted'."},
+            {type: "Inference", text: "Which inference about remote work is best supported by the passage?", options: ["Remote work has completely eliminated communication challenges.", "Remote work offers benefits but also poses challenges that may require hybrid solutions.", "Remote work is only beneficial for tech companies.", "Remote work does not impact business costs in any way."], correctAnswer: 1, suggestion: "Notice how the passage acknowledges notable benefits (like reduced commuting stress) along with challenges (such as communication gaps). Your inference should reflect both sides."},
+            {type: "Author's Perspective", text: "How does the author seem to feel about the evolution of remote work?", options: ["Optimistic but realistic, recognizing both its benefits and its challenges.", "Completely negative, believing remote work is detrimental.", "Indifferent, presenting no clear opinion on the matter.", "Overly enthusiastic, with no regard for any challenges."], correctAnswer: 0, suggestion: "The author presents positive changes alongside challenges, suggesting a balanced, cautiously optimistic view of remote work."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Remote work has transformed the modern workplace by enhancing work-life balance and reducing commute times, while also posing challenges that may be addressed through hybrid models.", "Remote work is a temporary trend that offers no substantial benefits to employers or employees.", "All companies should abandon remote work and return to traditional office settings immediately.", "Remote work has eliminated the need for any physical office space."], correctAnswer: 0, suggestion: "A good summary should mention that remote work has transformed workplace dynamics by improving work-life balance and reducing commute stress, but also brings challenges that may lead to hybrid work models."}
+        ]
+      },
+      {
+        id: "test12",
+        title: "Urban Agriculture: A New Frontier for Sustainable Cities",
+        passage: `<p>Faced with increasing concerns over food insecurity and the environmental impact of long food supply chains, many cities are now turning to urban agriculture as a promising solution. Urban agriculture involves cultivating crops and raising livestock within city limits, in places like rooftop gardens, community plots, and vertical farms. Such initiatives not only provide fresh, locally grown produce but also reduce transportation emissions and help reconnect urban dwellers with nature.</p><p>In addition to these tangible benefits, urban agriculture fosters community engagement by creating shared spaces where people can collaborate and learn about sustainable practices. Many local governments are investing in these projects to promote self-sufficiency and encourage environmentally friendly practices. However, challenges remain, including limited space, initial setup costs, and the need for technical expertise to maintain these systems.</p><p>Overall, urban agriculture is emerging as a pioneering model for sustainable city living, balancing economic, social, and environmental objectives in the face of rapid urbanization.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct benefit of urban agriculture?", options: ["It provides fresh, locally grown produce.", "It increases the size of the urban population.", "It reduces the need for local community gardens.", "It forces residents to move to suburban areas."], correctAnswer: 0, suggestion: "Look at the first paragraph. It states that urban agriculture provides fresh, locally grown produce."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “pioneering” most nearly means:", options: ["innovative", "obsolete", "traditional", "risky"], correctAnswer: 0, suggestion: "The word 'pioneering' is used to describe urban agriculture as an innovative approach."},
+            {type: "Inference", text: "Which inference about urban agriculture can best be drawn from the passage?", options: ["Urban agriculture is mainly for aesthetic purposes.", "Urban agriculture can help reduce transportation emissions by localizing food production.", "Urban agriculture is only feasible in large metropolitan areas.", "Urban agriculture eliminates all challenges of food supply chains."], correctAnswer: 1, suggestion: "The passage explains that urban agriculture can reduce transportation emissions by producing food locally."},
+            {type: "Author's Perspective", text: "How does the author appear to feel about urban agriculture?", options: ["Optimistic, yet realistic about the challenges.", "Entirely pessimistic, disregarding its benefits.", "Indifferent, with no clear stance.", "Unqualifiedly enthusiastic, ignoring any drawbacks."], correctAnswer: 0, suggestion: "The author highlights both benefits and challenges, indicating an optimistic but realistic view."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Urban agriculture offers a sustainable alternative for city living by providing fresh produce, reducing emissions, and fostering community, despite challenges like space and cost limitations.", "Urban agriculture is a costly experiment that benefits very few people and is not sustainable in the long term.", "Urban agriculture is solely an aesthetic trend with no practical benefits.", "Urban agriculture replaces traditional supermarkets and eliminates the need for food imports."], correctAnswer: 0, suggestion: "A comprehensive summary should mention that urban agriculture offers local produce, reduces emissions, and promotes community involvement while facing challenges such as space and cost limitations."}
+        ]
+      },
+      {
+        id: "test13",
+        title: "The Evolution of the Gig Economy: Opportunities and Challenges",
+        passage: `<p>In recent years, digital platforms have fueled a rapid expansion of the gig economy. This new model of short-term, freelance, or contract work offers workers unprecedented flexibility, allowing them to choose projects and set their own schedules. Many individuals value the autonomy that gig work provides, as it enables them to balance their professional and personal lives more effectively.</p><p>However, the gig economy is not without its challenges. While it opens up new opportunities for entrepreneurship and innovation, many gig workers face income instability and insufficient legal protections. The absence of traditional benefits, such as health insurance and retirement plans, has raised concerns about the long-term security of those relying on gig work. Additionally, critics argue that the erosion of stable, full-time employment may undermine conventional employment standards.</p><p>Despite these challenges, industry advocates believe that the gig economy represents a transformative shift in how people work. As companies and governments explore regulatory frameworks to address worker protections while preserving flexibility, the future of work may well depend on striking a careful balance between innovation and security.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct benefit of gig work?", options: ["It offers unprecedented flexibility in choosing projects.", "It guarantees a stable, full-time income.", "It provides extensive traditional employee benefits.", "It ensures lifetime job security."], correctAnswer: 0, suggestion: "The first paragraph mentions that gig work offers 'unprecedented flexibility' – this is a direct benefit."},
+            {type: "Vocabulary in Context", text: "In the passage, the word “erosion” (as in “erosion of stable, full-time employment”) most nearly means:", options: ["gradual weakening or wearing away", "rapid expansion", "permanent strengthening", "unexpected improvement"], correctAnswer: 0, suggestion: "In the context 'erosion of stable, full-time employment', 'erosion' means a gradual weakening or wearing away."},
+            {type: "Inference", text: "Which inference about the gig economy is best supported by the passage?", options: ["Gig work is completely without risk.", "Gig work fosters innovation but also brings challenges like income instability.", "Gig work is universally preferred over traditional employment.", "Gig work completely replaces the need for full-time roles."], correctAnswer: 1, suggestion: "Notice that while the gig economy offers flexibility and autonomy, the passage also highlights challenges like income instability – your inference should reflect both sides."},
+            {type: "Author's Perspective", text: "How does the author seem to view the future of the gig economy?", options: ["With cautious optimism, acknowledging both opportunities and challenges.", "With complete pessimism, arguing that gig work undermines worker security.", "Indifferently, suggesting gig work has little impact on overall employment.", "With unbridled enthusiasm, ignoring the potential risks."], correctAnswer: 0, suggestion: "The author acknowledges both opportunities (flexibility, innovation) and challenges (lack of benefits) which suggests a cautiously optimistic view."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["The gig economy offers flexible work opportunities that empower workers but also pose significant challenges concerning income security and traditional employment benefits, prompting the need for balanced regulatory solutions.", "The gig economy guarantees stable employment and benefits similar to traditional jobs.", "Gig work is an insignificant trend that will soon disappear.", "Only companies benefit from the gig economy while workers receive little advantage."], correctAnswer: 0, suggestion: "A comprehensive summary should state that the gig economy provides flexible work while also presenting challenges to job stability, thereby prompting calls for regulatory reforms."}
+        ]
+      },
+      {
+        id: "test14",
+        title: "Nanotechnology in Medicine: Revolutionizing Drug Delivery",
+        passage: `<p>Nanotechnology has emerged as a groundbreaking field in modern medicine, particularly in the area of drug delivery. By engineering materials at the nanoscale—typically smaller than 100 nanometers—scientists can create nanoparticles designed to carry drugs directly to specific cells. This targeted approach not only increases the effectiveness of the treatment but also minimizes side effects often associated with conventional therapies.</p><p>One key advantage of nanotechnology in drug delivery is its enhancement of a drug’s <em>bioavailability</em>, meaning a higher proportion of the administered dose becomes available for therapeutic action. Moreover, nanoparticles can penetrate biological barriers that would otherwise block the active ingredients from reaching affected areas, thereby promising more precise and efficient treatments.</p><p>Despite these promising attributes, the application of nanotechnology in medicine is not without challenges. Concerns regarding toxicity, long-term stability, and manufacturing costs continue to spur debate among researchers and regulatory bodies. Nonetheless, ongoing advances and controlled clinical trials suggest that nanotechnology could play a pivotal role in the evolution of personalized medicine over the coming decades.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct benefit of using nanotechnology in drug delivery?", options: ["It increases a drug’s bioavailability.", "It completely eliminates side effects.", "It makes conventional therapies obsolete.", "It prevents any absorption of drugs."], correctAnswer: 0, suggestion: "Re-read the first paragraph, which states that nanotechnology in drug delivery increases a drug’s bioavailability, ensuring a higher proportion of the drug is absorbed."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “bioavailability” most nearly means:", options: ["The proportion of a drug that is absorbed by the body.", "The speed at which a drug acts in the body.", "The potential side effects of a drug.", "The total cost of administering a drug."], correctAnswer: 0, suggestion: "In the second paragraph, 'bioavailability' refers to how much of the drug is available to act in the body. Choose the option that explains this concept."},
+            {type: "Inference", text: "Which inference about nanotechnology in medicine is best supported by the passage?", options: ["Nanotechnology guarantees 100% effective treatments without side effects.", "Although promising, nanotechnology faces significant challenges like toxicity and high production costs.", "Nanotechnology is already the standard method for drug delivery worldwide.", "Nanotechnology eliminates the need for any future advances in conventional medicine."], correctAnswer: 1, suggestion: "Notice that while the passage emphasizes the benefits of nanotechnology, it also mentions challenges (toxicity, high cost). This implies that despite its promise, there are obstacles to overcome."},
+            {type: "Author's Perspective", text: "How does the author appear to view the use of nanotechnology in medicine?", options: ["Optimistic overall, while realistically acknowledging its challenges.", "Completely enthusiastic without considering any drawbacks.", "Entirely negative, dismissing its potential benefits.", "Unconcerned and indifferent about its long-term impact."], correctAnswer: 0, suggestion: "The passage presents nanotechnology as a transformative tool in medicine but also discusses its challenges. This balanced view reflects an optimistically realistic attitude."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Nanotechnology in medicine enhances drug bioavailability and targeted delivery while offering promising, though still challenging, prospects for personalized treatment.", "Nanotechnology has completely replaced conventional methods of drug delivery with no remaining challenges.", "The passage argues that nanotechnology is too dangerous to be used in medicine.", "Nanotechnology is a minor development with little impact on modern medicine."], correctAnswer: 0, suggestion: "A good summary must mention that nanotechnology improves targeted drug delivery and increases bioavailability, even while facing issues like toxicity and high costs."}
+        ]
+      },
+      {
+        id: "test15",
+        title: "CRISPR Gene Editing: Promising Advances and Ethical Debates",
+        passage: `<p>CRISPR, a groundbreaking gene‐editing technology discovered from a natural bacterial defense mechanism, has transformed the landscape of modern biotechnology. By precisely altering DNA sequences, scientists can now target and modify specific genes with remarkable precision—a development that holds the promise of curing genetic disorders, enhancing crop yields, and even combating emerging diseases.</p><p>Beyond its practical applications, CRISPR raises significant ethical questions. The prospect of making permanent changes to an organism’s genetic makeup, particularly in human embryos, has sparked a heated debate among researchers, policymakers, and ethicists. Concerns about unintended consequences, such as off‐target effects and long-term impacts on human evolution, underscore the need for stringent regulatory frameworks.</p><p>Despite these challenges, many experts remain optimistic about CRISPR’s potential. They argue that—with careful oversight and further research—the benefits of CRISPR, such as personalized medicine and improved agricultural practices, can be harnessed while mitigating its risks. As the technology evolves, it is poised to become a pivotal tool in both medicine and environmental science.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one potential application of CRISPR technology?", options: ["Curing genetic disorders", "Increasing fossil fuel extraction", "Enhancing automobile performance", "Reducing water purification needs"], correctAnswer: 0, suggestion: "Re-read paragraph 2, which explains that targeted drug delivery using nanoparticles helps cure genetic disorders or improve treatments."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “precision” most nearly means:", options: ["exactness", "randomness", "speed", "simplicity"], correctAnswer: 0, suggestion: "The term 'precision' in the passage emphasizes exactness in gene targeting. Choose the option that reflects 'exactness'."},
+            {type: "Inference", text: "Which inference about CRISPR’s ethical concerns is best supported by the passage?", options: ["That CRISPR’s risks have been completely resolved.", "That careful regulation is needed to avoid harmful unintended consequences.", "That CRISPR should never be used in human applications.", "That ethical debates surrounding CRISPR are purely theoretical."], correctAnswer: 1, suggestion: "The passage notes ethical debates—such as concerns over off-target effects—implying that while CRISPR is promising, careful regulation is necessary."},
+            {type: "Author's Perspective", text: "How does the author appear to view CRISPR gene editing?", options: ["With cautious optimism, recognizing its transformative benefits alongside significant ethical challenges.", "With unreserved enthusiasm, dismissing all potential risks.", "With deep skepticism, arguing that its risks outweigh any benefits.", "Indifferently, offering no clear opinion on its future."], correctAnswer: 0, suggestion: "The author presents transformative potential alongside ethical challenges, suggesting a cautiously optimistic stance toward CRISPR."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["CRISPR gene editing possesses the potential to revolutionize medicine and agriculture by enabling targeted treatments, although it also raises ethical concerns that demand careful oversight.", "CRISPR has completely eradicated all ethical dilemmas in genetic research and is universally beneficial.", "The passage dismisses the utility of CRISPR due to its high risks and limited applications.", "CRISPR is an outdated technology with no significant role in modern medicine."], correctAnswer: 0, suggestion: "A good summary should cover that CRISPR can revolutionize fields like medicine and agriculture by enhancing targeted drug delivery, but it faces ethical and regulatory challenges."}
+        ]
+      },
+      {
+        id: "test16",
+        title: "Fusion Energy: A Hope for Clean, Boundless Power",
+        passage: `<p>Fusion energy – the process that powers the sun – offers the promise of nearly limitless and environmentally friendly power. By fusing light atomic nuclei under extreme conditions, scientists aim to create a reaction that releases vast amounts of energy without the greenhouse gas emissions associated with fossil fuels. Unlike nuclear fission, which splits heavy atoms and produces long-lasting radioactive waste, fusion produces only minimal amounts of short-lived byproducts.</p><p>Despite its tremendous potential, significant challenges persist. Achieving the high temperatures and pressures necessary for a sustained fusion reaction requires advanced technologies, such as magnetic confinement, to contain the plasma. Researchers around the world, including international collaborations like ITER, are investing heavily in fusion research. While breakthroughs are on the horizon, experts caution that widespread commercial use of fusion energy may still be decades away.</p><p>Overall, fusion energy represents one of the most promising avenues toward a clean energy future, offering the possibility of safe, abundant power—if scientists can overcome the formidable technical hurdles.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is a direct benefit of fusion energy?", options: ["It produces vast amounts of power with minimal greenhouse gas emissions.", "It generates long-lasting high-level radioactive waste.", "It relies on fossil fuels to sustain the reaction.", "It only works at room temperature."], correctAnswer: 0, suggestion: "In the first paragraph, the benefit of fusion energy is highlighted as providing vast amounts of clean power with minimal greenhouse gas emissions."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “confinement,” as seen in “magnetic confinement,” most nearly means:", options: ["restriction or containment", "liberation", "dispersion", "acceleration"], correctAnswer: 0, suggestion: "In the context of 'magnetic confinement', the term 'confinement' refers to the process of restricting or containing the plasma."},
+            {type: "Inference", text: "Which inference about fusion energy is best supported by the passage?", options: ["Fusion energy is already widely available and commercially viable.", "Significant technological breakthroughs are still needed before fusion energy can be widely adopted.", "Fusion energy is less promising than fossil fuels in reducing environmental damage.", "Fusion energy completely eliminates all risks associated with nuclear processes."], correctAnswer: 1, suggestion: "The passage outlines both the promising potential and the technical challenges, implying that further breakthroughs are needed before fusion energy is commercially viable."},
+            {type: "Author's Perspective", text: "How does the author appear to view the future of fusion energy?", options: ["With cautious optimism, acknowledging both its transformative potential and the technical hurdles ahead.", "With excessive skepticism, suggesting it will never become practical.", "With unreserved enthusiasm, ignoring any challenges.", "With indifference, implying that fusion energy has little future impact."], correctAnswer: 0, suggestion: "The author acknowledges the promise of fusion energy while noting its challenges, suggesting a cautiously optimistic viewpoint."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Fusion energy offers the potential for nearly limitless, clean power by fusing light nuclei, but it faces formidable technical challenges that may delay its commercial adoption.", "Fusion energy is already a mature, commercial technology that has replaced fossil fuels.", "Fusion energy produces excessive radioactive waste and is not environmentally friendly.", "Fusion energy works at room temperature and requires no advanced technology."], correctAnswer: 0, suggestion: "A good summary should mention that fusion energy has the potential to deliver nearly limitless clean power by fusing light nuclei but still faces significant technical obstacles before widespread adoption."}
+        ]
+      },
+      {
+        id: "test17",
+        title: "Quantum Computing: Harnessing the Power of the Subatomic World",
+        passage: `<p>Quantum computing leverages principles of quantum mechanics—such as superposition and entanglement—to process information in ways that classical computers cannot. Unlike traditional bits that exist distinctly as 0 or 1, quantum bits (qubits) can exist in multiple states simultaneously, potentially enabling exponential increases in computing speed for certain tasks. This innovative approach promises to solve complex problems in fields such as cryptography, optimization, and drug discovery.</p><p>However, technical challenges like error correction and decoherence—where quantum information is lost due to interactions with the environment—present significant hurdles. Researchers are investing heavily in developing technologies such as advanced cooling systems and magnetic traps to counteract these issues. While breakthroughs are being achieved gradually, experts caution that practical, widespread application of quantum computers may still be decades away.</p><p>Overall, quantum computing represents a bold step towards revolutionizing computational power, offering transformative potential for solving problems deemed intractable by classical machines, though its development is fraught with significant technical obstacles.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct advantage of quantum computing?", options: ["It can solve complex problems with unprecedented speed.", "It operates using classical binary logic exclusively.", "It relies entirely on mechanical calculations.", "It is limited to basic arithmetic operations."], correctAnswer: 0, suggestion: "Look in the first paragraph; the passage states that quantum computing can solve complex problems with unprecedented speed."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “decoherence” most nearly means:", options: ["The loss or disruption of quantum information.", "A process that increases qubit stability.", "The acceleration of computational speed.", "The simplification of quantum algorithms."], correctAnswer: 0, suggestion: "The term 'decoherence' is mentioned in association with the technical challenges of quantum computing. It refers to the loss of quantum information due to environmental interference."},
+            {type: "Inference", text: "Which inference about quantum computing is best supported by the passage?", options: ["Quantum computers have already replaced classical computers entirely.", "Quantum computing holds great promise for solving complex problems, but significant technical challenges remain.", "The benefits of quantum computing are exaggerated and unproven.", "Quantum computing is only applicable to simple, everyday tasks."], correctAnswer: 1, suggestion: "The passage explains both the potential and the challenges of quantum computing; thus, it implies that while it holds promise, significant technical hurdles remain."},
+            {type: "Author's Perspective", text: "How does the author appear to view the development of quantum computing?", options: ["With cautious optimism, acknowledging its transformative potential while noting significant obstacles.", "With unreserved enthusiasm, dismissing all challenges.", "With blunt skepticism, doubting its practical usefulness altogether.", "Indifferently, as if it were no more than a fleeting trend."], correctAnswer: 0, suggestion: "The author presents quantum computing as transformative yet acknowledges major challenges, indicating a cautiously optimistic perspective."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Quantum computing harnesses quantum mechanics to solve complex problems rapidly, though its full potential is limited by technical challenges like decoherence, and researchers are still working toward practical implementation.", "Quantum computing is already a fully mature technology that has rendered classical computers obsolete.", "The passage argues that quantum computing is a minor development with little impact on future technology.", "Quantum computing is only useful for performing simple calculations quickly."], correctAnswer: 0, suggestion: "A good summary should capture that quantum computing uses quantum mechanics to enable rapid solutions to complex problems, yet technical challenges like decoherence remain a barrier to practical use."}
+        ]
+      },
+      {
+        id: "test18",
+        title: "Mars Exploration: Unveiling the Secrets of the Red Planet",
+        passage: `<p>Over the past few decades, Mars has captivated scientists and space enthusiasts alike. Space agencies from around the world have launched a series of missions to explore the Red Planet, employing advanced rovers and orbiters to collect critical data. Recent missions have provided unprecedented insights into Mars’ geology, revealing evidence of ancient water flows, sedimentary rocks, and mineral deposits that suggest the planet may have once been habitable.</p><p>Modern rovers, equipped with high-resolution cameras and sophisticated sensors, are able to traverse Martian terrain and analyze soil samples in situ. These technological marvels have not only deepened our understanding of Mars’ climatic past but also paved the way for future manned missions. International collaborations and continuous technological innovations further enhance the prospects of unlocking Mars’ many secrets and possibly establishing a future human presence on the planet.</p><p>Despite these impressive strides, challenges remain in ensuring the longevity and efficiency of missions. Harsh environmental conditions, communication delays, and limited budget allocations underscore the difficulties inherent in interplanetary exploration. Nevertheless, the accumulated data is transforming our perception of Mars, fueling optimism that ongoing research will eventually answer some of the fundamental questions about the early solar system.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, which of the following discoveries has been made by recent Mars missions?", options: ["Evidence of ancient water flows", "The complete absence of any minerals", "Persistent human settlements", "An atmosphere identical to Earth’s"], correctAnswer: 0, suggestion: "Re-read the first paragraph. It clearly states that recent missions have revealed evidence of ancient water flows along with other geological findings."},
+            {type: "Vocabulary in Context", text: "In the passage, the word “unprecedented” most nearly means:", options: ["never before seen", "fairly common", "completely predictable", "modestly expected"], correctAnswer: 0, suggestion: "The term 'unprecedented' implies something that has never been seen before—choose 'never before seen'."},
+            {type: "Inference", text: "Which inference about Mars exploration is best supported by the passage?", options: ["Mars exploration has already answered all questions about the planet.", "Although recent missions have yielded important discoveries, significant challenges remain for future manned missions.", "Only one country is responsible for all Mars exploration efforts.", "Mars is completely inhospitable and offers no promise for future research."], correctAnswer: 1, suggestion: "While the passage highlights major discoveries, it also notes ongoing challenges for manned missions, indicating that significant hurdles remain."},
+            {type: "Author's Perspective", text: "How does the author seem to view the advances in Mars exploration?", options: ["With cautious optimism, appreciating the advances but acknowledging future challenges.", "With complete skepticism, dismissing the potential of future missions.", "With unbridled enthusiasm that ignores any technical difficulties.", "Indifferently, as if Mars exploration is irrelevant."], correctAnswer: 0, suggestion: "The author appreciates the groundbreaking progress in Mars exploration but remains realistic about the difficulties ahead, which reflects cautious optimism."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Recent Mars missions have used advanced robotic technology to uncover evidence of ancient water and complex geology, yet ongoing challenges remind us that fully understanding Mars will require further effort and international collaboration.", "Mars has been completely mapped and understood, making future exploration unnecessary.", "Only one aspect of Mars, its lack of atmosphere, is of interest to scientists.", "Mars exploration has so far failed to produce any useful scientific data."], correctAnswer: 0, suggestion: "A solid summary should mention that advanced robotic missions on Mars have uncovered evidence of ancient water and geological complexity, although challenges persist in fully understanding the planet."}
+        ]
+      },
+      {
+        id: "test19",
+        title: "Ocean Acidification: A Growing Threat to Marine Ecosystems",
+        passage: `<p>The rapid increase in atmospheric CO₂ over the past century has not only contributed to global warming but has also led to a phenomenon known as ocean acidification. As more carbon dioxide dissolves into seawater, the pH of the ocean declines, creating a more acidic environment. This shift in ocean chemistry can severely affect marine organisms, particularly those that rely on calcium carbonate to build shells and skeletons—such as corals, mollusks, and some species of plankton.</p><p>Numerous studies have shown that as ocean acidity increases, the ability of these organisms to form and maintain their structures diminishes, which in turn threatens entire ecosystems. Coral reefs, for example, are especially vulnerable; their degradation not only reduces biodiversity but also impacts coastal communities that depend on them for food, tourism, and coastal protection.</p><p>Scientists are actively researching mitigation strategies—from reducing carbon emissions at their source to exploring methods that might enhance the natural buffering capacity of seawater. While significant uncertainties remain about the long-term impacts, there is a growing consensus on the urgent need to address ocean acidification as part of a broader strategy for environmental sustainability.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct effect of increased CO₂ levels on the oceans?", options: ["A decline in the pH of seawater.", "A significant rise in seawater temperature.", "An increase in the salinity of the ocean.", "A complete cessation of marine currents."], correctAnswer: 0, suggestion: "Re-read the first paragraph. It states that increased CO₂ results in a decline in the ocean's pH, which is a direct effect."},
+            {type: "Vocabulary in Context", text: "In the passage, the word “vulnerable” (used to describe coral reefs) most nearly means:", options: ["susceptible to damage.", "extremely resilient.", "completely protected.", "inherently dangerous."], correctAnswer: 0, suggestion: "In the passage, 'vulnerable' is used to describe coral reefs that are susceptible to damage from acidification. Choose the meaning 'susceptible to damage.'"},
+            {type: "Inference", text: "Which inference about ocean acidification is best supported by the passage?", options: ["Ocean acidification has no significant impact on marine life.", "It adversely affects organisms that require calcium carbonate and can degrade vital ecosystems like coral reefs.", "All marine organisms are able to adapt easily to changes in ocean pH.", "Ocean acidification is solely a temporary phenomenon with limited consequences."], correctAnswer: 1, suggestion: "The passage points out that acidification undermines the ability to build shells and skeletons, implying that organisms that require calcium carbonate are negatively affected."},
+            {type: "Author's Perspective", text: "How does the author appear to feel about the problem of ocean acidification?", options: ["With concern and urgency, yet hopeful that research can mitigate its effects.", "Completely dismissive of its impact, considering it insignificant.", "Unconcerned, as if it is a natural and unchangeable process.", "Overly optimistic, ignoring any potential negative effects."], correctAnswer: 0, suggestion: "The author discusses the urgent need to address acidification while outlining ongoing research efforts, showing concern and hope. This reflects a view of cautious concern and optimism."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Rising CO₂ levels lead to ocean acidification, which lowers the pH of seawater and threatens marine organisms and coral reefs, while scientists work urgently on mitigation strategies.", "Ocean acidification is a minor issue that has little effect on marine life and does not require any significant scientific attention.", "Marine organisms are capable of adapting to any changes in ocean acidity, making the problem irrelevant.", "Ocean acidification only affects the temperature of the water, not the organisms living in it."], correctAnswer: 0, suggestion: "A complete summary should mention that rising CO₂ leads to ocean acidification, which harms marine organisms and ecosystems like coral reefs, and that scientists are working on ways to mitigate these impacts."}
+        ]
+      },
+      {
+        id: "test20",
+        title: "Electric Vehicles: Driving a Sustainable Future",
+        passage: `<p>In an era marked by rising fuel costs and increasing concerns about environmental degradation, electric vehicles (EVs) have emerged as a game-changing solution for sustainable urban transportation. Unlike traditional vehicles, EVs produce zero tailpipe emissions, thereby contributing to improved air quality and reduced reliance on fossil fuels.</p><p>Recent advancements in battery technology have significantly increased the driving range and energy efficiency of EVs. Consequently, many cities are now promoting EV adoption by offering government incentives and developing extensive charging infrastructures. These initiatives have not only made EVs more accessible to a broad spectrum of consumers but also highlighted their potential to transform urban mobility.</p><p>However, the transition to electric mobility is not without challenges. High initial vehicle costs, limited charging networks in some regions, and concerns over battery disposal continue to hinder widespread adoption. To help address these issues, policymakers and industry leaders are working together to mitigate these challenges through technological innovation and targeted subsidies.</p><p>Looking ahead, market trends and evolving governmental policies suggest a promising future for electric vehicles. As investments in research and infrastructure continue to grow, experts predict that EVs will play an increasingly vital role in reducing urban pollution and shaping a more sustainable energy economy.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, which of the following is a direct benefit of electric vehicles?", options: ["They produce zero tailpipe emissions.", "They increase fossil fuel consumption.", "They require no charging infrastructure.", "They emit more greenhouse gases."], correctAnswer: 0, suggestion: "Re-read paragraph 1, where it is stated that EVs produce zero tailpipe emissions, contributing to improved urban air quality."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “mitigate” most nearly means:", options: ["to lessen or reduce", "to ignore completely", "to worsen", "to complicate"], correctAnswer: 0, suggestion: "In paragraph 4, the term 'mitigate' refers to reducing the severity of challenges; therefore, it means 'to lessen or reduce.'"},
+            {type: "Inference", text: "Which inference about electric vehicles is best supported by the passage?", options: ["EV technology is fully mature and requires no further government support.", "Although EVs offer significant environmental benefits, challenges like high costs and limited charging networks require ongoing support and innovation.", "EVs do not contribute to reduced emissions in urban areas.", "The only drawback of EVs is their high maintenance cost."], correctAnswer: 1, suggestion: "The passage highlights both benefits (e.g., reduced emissions) and challenges (e.g., high costs, limited charging infrastructure), implying that although EVs are beneficial, continued support and innovation are needed."},
+            {type: "Author’s Perspective", text: "How does the author appear to view the future impact of electric vehicles?", options: ["With cautious optimism, acknowledging both benefits and challenges.", "With complete skepticism, emphasizing all the drawbacks.", "Indifferently, as if EVs will have little impact.", "With unbridled enthusiasm that ignores any obstacles."], correctAnswer: 0, suggestion: "The author presents a balanced view—acknowledging the environmental advantages of EVs while noting existing challenges, which reflects cautious optimism."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Electric vehicles, by producing zero tailpipe emissions and improving energy efficiency, offer a sustainable alternative to fossil fuel–powered cars; however, challenges such as high costs and limited charging networks persist, prompting governments and industries to support further innovation.", "Electric vehicles have completely replaced traditional cars and require no further development.", "The only focus for the future of transportation is on reducing maintenance expenses.", "Electric vehicles are solely responsible for eliminating urban pollution with no associated challenges."], correctAnswer: 0, suggestion: "A strong summary should capture that EVs offer a cleaner alternative by eliminating tailpipe emissions and improving energy efficiency, though obstacles like cost and infrastructure remain, warranting further governmental and technological intervention."}
+        ]
+      },
+      {
+        id: "test21",
+        title: "3D Printing: Revolutionizing Modern Manufacturing",
+        passage: `<p>3D printing, also known as additive manufacturing, is rapidly transforming how products are designed and produced. By building objects layer by layer from digital models, 3D printing allows manufacturers to create highly customizable items on demand. This innovative process reduces material waste and shortens production time compared to traditional subtractive methods.</p><p>Among its many benefits, 3D printing enables manufacturers to streamline production processes—making it possible to produce complex, bespoke items without the need for expensive tooling. In addition, the technology facilitates rapid prototyping, allowing companies to quickly test and modify designs. However, challenges in scalability, material limitations, and production speed still need to be addressed before 3D printing can fully replace conventional mass manufacturing techniques.</p><p>Looking ahead, experts believe that as research and development continue to drive improvements, 3D printing will become an even more integral part of the manufacturing landscape, potentially leading to more sustainable and efficient production models on a global scale.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct benefit of 3D printing?", options: ["It creates highly customizable products on demand while reducing material waste.", "It completely replaces all traditional manufacturing techniques immediately.", "It requires no digital modeling or design process at all.", "It increases material waste through inefficient processes."], correctAnswer: 0, suggestion: "In the first paragraph, the passage states that 3D printing allows manufacturers to produce highly customizable products on demand while reducing material waste."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “streamline” most nearly means:", options: ["to make more efficient or simpler", "to slow down or complicate", "to completely eliminate", "to recycle or reuse"], correctAnswer: 0, suggestion: "In the second paragraph, 'streamline production processes' means to make them more efficient or simpler. So, 'to make more efficient' is the best choice."},
+            {type: "Inference", text: "Which inference about 3D printing is best supported by the passage?", options: ["3D printing has no applications beyond prototyping.", "Although 3D printing offers significant advantages, its current limitations suggest it may complement rather than completely replace traditional manufacturing for the time being.", "3D printing is already the sole method for mass production in all industries.", "The technology is so new that it has not yet demonstrated any practical benefits."], correctAnswer: 1, suggestion: "The passage explains that while 3D printing offers benefits such as reduced waste and customization, challenges like material limitations and production speed remain. This implies that the technology may complement traditional methods rather than replace them entirely at present."},
+            {type: "Author's Perspective", text: "How does the author appear to view the impact of 3D printing on modern manufacturing?", options: ["With cautious optimism—acknowledging both its transformative benefits and current limitations.", "With unbridled enthusiasm, ignoring any potential drawbacks.", "With complete pessimism, believing the technology will never be practically useful.", "Indifferently, as if it has minimal impact on production methods."], correctAnswer: 0, suggestion: "The author acknowledges both the transformative benefits and the current limitations of 3D printing, reflecting a cautiously optimistic perspective."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["3D printing is revolutionizing modern manufacturing by enabling highly customizable, on-demand production that reduces waste and streamlines processes, though it currently faces challenges in scalability and material limitations.", "3D printing has completely replaced traditional manufacturing and poses no challenges.", "The passage solely focuses on the drawbacks of 3D printing, such as high costs and slow production speeds.", "3D printing is not significantly different from conventional manufacturing methods."], correctAnswer: 0, suggestion: "A good summary should capture that 3D printing is revolutionizing manufacturing by enabling customized, on-demand production with reduced waste, though it still faces challenges regarding scalability and materials."}
+        ]
+      },
+      {
+        id: "test22",
+        title: "Lab-Grown Meat: A Sustainable Alternative",
+        passage: `<p>Lab‑grown meat—also known as cultured meat—is produced by cultivating animal cells in a controlled, sterile environment instead of raising and slaughtering livestock. Proponents argue that this innovative process could dramatically reduce the environmental footprint of meat production by minimizing land use, lowering water consumption, and cutting greenhouse gas emissions. In addition, by bypassing traditional animal farming, lab‑grown meat addresses ethical concerns related to animal welfare.</p><p>The production of lab‑grown meat offers significant advantages. Notably, it enables the creation of fresh, locally produced meat with reduced risk of foodborne pathogens, thanks to the controlled conditions in which it is manufactured. However, scaling up production to meet consumer demand remains a challenge due to high initial costs and technological hurdles. Researchers continue to improve efficiency with the hope that, over time, the process will become both cost‑effective and widely acceptable.</p><p>Overall, lab‑grown meat represents a transformative shift in the way we think about food production. As further innovations drive down costs and enhance production methods, this technology could revolutionize the agricultural industry, offering a sustainable alternative to conventional animal farming while promoting environmental and ethical benefits.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct benefit of lab‑grown meat?", options: ["It reduces the environmental footprint by lowering resource consumption and emissions.", "It guarantees lower production costs than all conventional meat.", "It completely eliminates all ethical concerns in food production.", "It requires no technological investment for scaling production."], correctAnswer: 0, suggestion: "Re-read the first paragraph where the passage explains that lab‑grown meat drastically reduces the environmental footprint by lowering resource use and emissions compared to conventional farming."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “transformative” most nearly means:", options: ["revolutionary", "inconsequential", "temporary", "conventional"], correctAnswer: 0, suggestion: "In the passage, 'transformative' describes the revolutionary shift in food production. Here, 'revolutionary' is the closest meaning."},
+            {type: "Inference", text: "Which inference about lab‑grown meat is best supported by the passage?", options: ["Lab‑grown meat will immediately replace all traditional meat production without challenges.", "Although lab‑grown meat offers environmental and ethical advantages, high costs and scalability issues suggest that it may initially complement rather than completely replace conventional meat.", "Consumers have already fully embraced lab‑grown meat as the sole source of protein.", "Lab‑grown meat is unlikely to ever be produced in sufficiently large quantities."], correctAnswer: 1, suggestion: "The passage notes clear benefits alongside challenges like production costs. This implies that while lab‑grown meat is promising, its challenges will likely slow complete replacement of conventional methods."},
+            {type: "Author's Perspective", text: "How does the author appear to view lab‑grown meat?", options: ["With cautious optimism, recognizing its revolutionary potential while acknowledging current production challenges.", "With unbridled enthusiasm that ignores any production difficulties.", "With complete skepticism, dismissing its potential benefits outright.", "Indifferently, offering no clear opinion on its future impact."], correctAnswer: 0, suggestion: "The author presents lab‑grown meat as an exciting innovation but also details current scalability and cost issues—indicating a cautiously optimistic view."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Lab‑grown meat is an innovative, transformative approach to food production that can reduce environmental impacts and address ethical concerns, although challenges like high production costs and scalability remain.", "Lab‑grown meat has replaced all traditional meat production methods and is free of any challenges.", "The passage argues that lab‑grown meat is economically unviable and offers no environmental benefits.", "Traditional meat production remains superior in every way compared to lab‑grown meat."], correctAnswer: 0, suggestion: "A strong summary should capture the innovative nature of lab‑grown meat and its potential to reduce environmental impact and ethical concerns, while also acknowledging current production challenges."}
+        ]
+      },
+      {
+        id: "test23",
+        title: "Vertical Farming: A Sustainable Innovation",
+        passage: `<p>Vertical farming is an innovative method of growing crops in stacked layers within controlled indoor environments. Utilizing technologies such as LED lighting, hydroponics, and climate control systems, vertical farms can produce high-quality, fresh produce directly in urban settings. This approach not only conserves water and minimizes land usage compared to traditional agriculture but also reduces the need for long-distance transportation.</p><p>One of the standout benefits of vertical farming is its ability to dramatically cut water consumption and reduce environmental pollution. Additionally, the controlled environment allows for year‑round production independent of unpredictable weather. Despite these advantages, vertical farming currently faces challenges such as high initial capital outlay, substantial energy demands for lighting and climate control, and questions about its scalability in meeting mass-market demands.</p><p>Overall, vertical farming offers a promising solution for urban food production, merging technological innovation with environmental sustainability. While further advancements are needed to make these systems more cost‑effective and scalable, experts remain cautiously optimistic about its role in the future of agriculture.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct benefit of vertical farming?", options: ["It significantly reduces water consumption and land usage.", "It completely eliminates the need for any energy input.", "It ensures crops are grown only seasonally.", "It increases the overall land needed for agriculture."], correctAnswer: 0, suggestion: "Re-read the first paragraph. It states that vertical farming reduces water consumption and land usage compared to traditional agriculture."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “scalable” most nearly means:", options: ["able to be expanded effectively", "difficult to maintain", "producing inconsistent results", "limited in capacity"], correctAnswer: 0, suggestion: "In this context, 'scalable' means that the system is able to be expanded effectively to meet increased demand."},
+            {type: "Inference", text: "Which inference about vertical farming is best supported by the passage?", options: ["Vertical farming currently has no technological challenges.", "Even though vertical farming promotes sustainability by saving resources, high energy costs and scalability issues suggest its adoption may initially be limited to niche urban applications.", "Vertical farming completely replaces traditional agriculture in all scenarios.", "Vertical farming offers no tangible environmental benefits."], correctAnswer: 1, suggestion: "The passage notes the benefits along with challenges such as high energy costs and scalability issues, implying that vertical farming may initially be used in niche applications rather than completely replacing conventional methods."},
+            {type: "Author's Perspective", text: "How does the author appear to view vertical farming?", options: ["With cautious optimism, recognizing its innovative potential while acknowledging current challenges.", "With unreserved enthusiasm that ignores any drawbacks.", "With complete skepticism about its future viability.", "Indifferently, suggesting it is not significantly different from conventional farming."], correctAnswer: 0, suggestion: "The author acknowledges both the innovative advantages and the current limitations of vertical farming, which reflects a cautiously optimistic viewpoint."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Vertical farming is an innovative method of urban agriculture that reduces water and land usage and offers year‑round production, though it faces challenges such as high energy consumption and scalability issues.", "Vertical farming has completely resolved all issues related to traditional agriculture.", "The passage argues that vertical farming is too expensive to be considered sustainable.", "Vertical farming is identical to conventional farming methods in every aspect."], correctAnswer: 0, suggestion: "A comprehensive summary should mention that vertical farming offers an innovative, resource-efficient approach to urban agriculture, but still faces challenges like high energy consumption and scalability concerns."}
+        ]
+      },
+      {
+        id: "test24",
+        title: "Bio‑Based Plastics: The Future of Packaging",
+        passage: `<p>In response to growing concerns over plastic pollution and the depletion of fossil fuels, researchers have turned their attention to bio‑based plastics. Derived from renewable biomass sources such as corn, sugarcane, and algae, these materials offer an eco‑friendly alternative to conventional, petroleum‑based plastics. Bio‑based plastics are designed to be biodegradable, reducing their impact on landfills and waterways when disposed of properly.</p><p>A significant benefit of these innovative materials is their potential to cut greenhouse gas emissions during production, as they rely on renewable resources that can be replenished naturally. In addition, the controlled manufacturing processes often result in a lower overall environmental footprint, as less energy is required compared to traditional plastic production.</p><p>Despite their many advantages, bio‑based plastics face challenges. High production costs, inconsistencies in material properties, and the need for specialized recycling infrastructures currently limit their widespread use. However, ongoing research and technological advancements continue to improve their scalability and performance.</p><p>Overall, bio‑based plastics represent a transformative shift in packaging technology, merging sustainability with innovation. While economic and technical hurdles must still be overcome, experts remain cautiously optimistic that these materials will play a pivotal role in reducing the environmental impact of plastics in the near future.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct benefit of bio‑based plastics?", options: ["They are derived from renewable biomass and are biodegradable.", "They are made exclusively from fossil fuels.", "They cannot be recycled under any circumstances.", "They produce higher carbon emissions during production."], correctAnswer: 0, suggestion: "The passage’s first paragraph highlights that bio‑based plastics reduce water and land usage and lower emissions by being derived from renewable sources and are biodegradable."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “renewable” most nearly means:", options: ["able to be replenished naturally", "finite and quickly exhausted", "artificially produced", "extremely rare"], correctAnswer: 0, suggestion: "In this context, 'renewable' refers to resources that can be naturally replenished. 'Able to be replenished naturally' is the best fit."},
+            {type: "Inference", text: "Which inference about bio‑based plastics is best supported by the passage?", options: ["They have no environmental benefits over conventional plastics.", "While they offer reduced emissions and biodegradability, current high costs and technical challenges mean they may initially serve niche markets.", "They are already cost‑competitive with all conventional plastics.", "Their production requires more energy than traditional plastic manufacturing."], correctAnswer: 1, suggestion: "The text explains that while these plastics offer environmental benefits, challenges such as high production costs and technical limitations remain. This indicates that they may initially be applied in niche markets."},
+            {type: "Author's Perspective", text: "How does the author appear to view the future of bio‑based plastics?", options: ["With cautious optimism, recognizing both their transformative potential and current limitations.", "With unbridled enthusiasm, dismissing any economic or technical challenges.", "With complete pessimism, seeing no hope for large-scale application.", "Indifferently, as if bio‑based plastics make no real difference in sustainability."], correctAnswer: 0, suggestion: "The author outlines both the benefits and the challenges in a balanced way, which reflects a cautiously optimistic view about their future."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Bio‑based plastics, made from renewable biomass and designed to be biodegradable, offer an environmentally friendly alternative to conventional plastics. Despite challenges such as high costs and technical limitations, ongoing research continues to improve their scalability and overall viability in sustainable packaging.", "Bio‑based plastics are identical to conventional plastics in both production methods and environmental impact.", "The passage argues that bio‑based plastics have no future in modern packaging due to insurmountable challenges.", "The primary focus of bio‑based plastics is to increase profit margins rather than address environmental sustainability."], correctAnswer: 0, suggestion: "A comprehensive summary should mention that bio‑based plastics are an eco‑friendly alternative produced from renewable resources, though they currently face economic and technical challenges that research is addressing."}
+        ]
+      },
+      {
+        id: "test25",
+        title: "Hydrogen Fuel Cells: Pioneering a Clean Energy Future",
+        passage: `<p>Hydrogen fuel cells convert hydrogen and oxygen into electricity through a chemical reaction that produces water as the only byproduct. This process results in zero harmful emissions at the point of use, making fuel cells a clean and renewable energy source. Employed in applications ranging from vehicles to stationary power systems, hydrogen fuel cells have the potential to greatly reduce our reliance on fossil fuels.</p><p>Despite their clear environmental benefits, hydrogen fuel cells currently face several challenges. High production costs, difficulties with hydrogen storage, and the need for significant infrastructure investments are among the main obstacles hindering widespread adoption. However, ongoing research and development efforts are steadily improving efficiency and reducing expenses, fueling cautious optimism about their future role in sustainable energy.</p><p>Overall, hydrogen fuel cells offer a promising pathway toward a cleaner energy landscape. Although technological and economic hurdles remain, continued advancements may soon enable this innovative technology to become a key component of a sustainable energy infrastructure.</p>`,
+        questions: [
+            {type: "Factual Detail", text: "According to the passage, what is one direct benefit of hydrogen fuel cells?", options: ["They generate electricity with water as the only byproduct, resulting in zero harmful emissions.", "They rely solely on fossil fuels for operation.", "They produce significant amounts of greenhouse gases.", "They are incapable of powering any practical devices."], correctAnswer: 0, suggestion: "Re-read the first paragraph. It explains that hydrogen fuel cells produce electricity with water as the only byproduct, ensuring zero harmful emissions."},
+            {type: "Vocabulary in Context", text: "In the passage, the term “byproduct” most nearly means:", options: ["A secondary product produced as a result of a process.", "The primary output of a production process.", "A waste material that must be discarded.", "A substitute energy source used to complement the main product."], correctAnswer: 0, suggestion: "In this context, 'byproduct' refers to a secondary product produced during a process. Choose the definition that reflects this meaning."},
+            {type: "Inference", text: "Which inference about hydrogen fuel cells is best supported by the passage?", options: ["Hydrogen fuel cells are already widespread and free of any challenges.", "Although hydrogen fuel cells offer an environmentally clean energy source, high production costs and infrastructure challenges may initially limit their use.", "Hydrogen fuel cells do not produce any beneficial energy and are obsolete.", "The technology behind hydrogen fuel cells is so simple that it requires no further research."], correctAnswer: 1, suggestion: "The passage highlights the benefits of clean energy while noting challenges like high production costs and infrastructure issues. This implies that although promising, the technology may initially be adopted in limited applications."},
+            {type: "Author's Perspective", text: "How does the author appear to view hydrogen fuel cells?", options: ["With cautious optimism, recognizing their clean energy benefits while acknowledging current technical and economic challenges.", "With outright enthusiasm, ignoring any existing obstacles.", "With complete skepticism, asserting that they have no future in energy production.", "Indifferently, as if they offer no meaningful advantages over conventional energy sources."], correctAnswer: 0, suggestion: "The author presents hydrogen fuel cells as a promising clean energy solution but also notes current challenges. This reflects a view of cautious optimism."},
+            {type: "Summary", text: "Which statement best summarizes the passage?", options: ["Hydrogen fuel cells generate clean energy by converting hydrogen and oxygen into electricity with water as the sole byproduct. Despite offering significant environmental benefits, high production costs and infrastructure challenges currently limit their widespread use, though ongoing research shows promise for the future.", "Hydrogen fuel cells have completely replaced fossil fuels and are used universally without any challenges.", "The passage claims that hydrogen fuel cells are inefficient and cause significant pollution.", "Hydrogen fuel cells are only suitable for powering small electronic devices."], correctAnswer: 0, suggestion: "A complete summary should state that hydrogen fuel cells generate clean energy with water as the only byproduct, but face obstacles such as high costs and the need for supportive infrastructure, even as ongoing research shows promise."}
+        ]
+      }
+    ];
+
+    const testMenu = document.getElementById('test-menu');
+    const contentContainer = document.getElementById('content-container');
+    const welcomeScreen = document.getElementById('welcome-screen');
+    const testInterface = document.getElementById('test-interface');
+    
+    // Side by side elements
+    const passageTitle = document.getElementById('passage-title');
+    const passageContent = document.getElementById('passage-content');
+    const questionsContainer = document.getElementById('questions-container');
+    const quizForm = document.getElementById('quiz-form');
+    
+    // Header elements
+    const headerTitle = document.getElementById('header-title');
+    const hdrScore = document.getElementById('hdr-score');
+    const timerDisplay = document.getElementById('timer-display');
+    const hdrTests = document.getElementById('hdr-tests');
+    const hdrQs = document.getElementById('hdr-qs');
+    
+    // Sidebar elements
+    const toggleMenuBtn = document.getElementById('toggle-menu');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    const closeMobileMenuBtn = document.getElementById('close-mobile-menu');
+
+    function init() {
+      // Set initial counts
+      hdrTests.innerText = testData.length;
+      let totalQs = 0;
+      testData.forEach(t => totalQs += t.questions.length);
+      hdrQs.innerText = totalQs;
+
+      renderMenu();
+      setupMenuToggle();
+      setupInteractiveGrading();
+    }
+
+    function renderMenu() {
+      let menuHtml = '';
+      testData.forEach((test, index) => {
+        const itemHtml = `
+          <a href="#" data-testid="${test.id}" class="topic-btn block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 border-l-4 border-transparent transition-colors truncate" title="${test.title}">
+            <span class="font-medium text-slate-500 mr-1">${index + 1}.</span> 
+            ${test.title}
+          </a>
+        `;
+        menuHtml += itemHtml;
+      });
+      testMenu.innerHTML = menuHtml;
+
+      document.querySelectorAll('.topic-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          const testId = this.getAttribute('data-testid');
+          loadTest(testId);
+          
+          document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          hideSidebar();
+        });
+      });
+    }
+
+    function setupMenuToggle() {
+      toggleMenuBtn.addEventListener('click', () => {
+         if (sidebar.classList.contains('-translate-x-full') || sidebar.classList.contains('hidden')) {
+             showSidebar();
+         } else {
+             hideSidebar();
+         }
+      });
+      closeMobileMenuBtn.addEventListener('click', hideSidebar);
+      sidebarOverlay.addEventListener('click', hideSidebar);
+    }
+    
+    function showSidebar() {
+        sidebar.classList.remove('hidden', '-translate-x-full');
+        sidebarOverlay.classList.remove('hidden');
+    }
+    
+    function hideSidebar() {
+        sidebar.classList.add('hidden', '-translate-x-full');
+        sidebarOverlay.classList.add('hidden');
+    }
+
+    function loadTest(testId) {
+      currentTest = testData.find(t => t.id === testId);
+      if (!currentTest) return;
+
+      welcomeScreen.classList.add('hidden');
+      welcomeScreen.classList.remove('flex');
+      
+      // Ensure test interface is displayed and flexible
+      testInterface.classList.remove('hidden');
+      testInterface.classList.add('flex');
+      
+      // Update Header with Title
+      headerTitle.textContent = currentTest.title;
+      
+      // Set Passage Content 
+      passageTitle.textContent = currentTest.title;
+      passageContent.innerHTML = currentTest.passage;
+      
+      renderQuestions(currentTest.questions);
+      quizForm.reset(); // clear radio buttons visually
+      startTimer();
+      
+      // Reset scroll positions 
+      const rightCol = document.querySelector('.lg\\:w-\\[40\\%\\]');
+      if (rightCol) rightCol.scrollTop = 0;
+      
+      const leftCol = document.querySelector('.lg\\:w-\\[60\\%\\]');
+      if (leftCol) leftCol.scrollTop = 0;
+    }
+
+    function renderQuestions(questions) {
+      let html = '';
+      questions.forEach((q, index) => {
+        // Reduced space-y margins inside question block
+        html += `
+          <div class="question-block bg-white p-3 md:p-4 rounded-lg border border-slate-200 shadow-sm transition-colors duration-300" data-question-index="${index}">
+            <div class="font-semibold text-slate-800 mb-2 text-sm md:text-base leading-tight">
+              <span class="text-blue-500 block mb-1 text-[10px] md:text-xs uppercase tracking-wider font-bold">${q.type}</span>
+              <span class="text-blue-600 mr-1">Q${index + 1}:</span>
+              ${q.text}
+            </div>
+            <div class="space-y-0.5"> 
+        `;
+        
+        q.options.forEach((opt, optIndex) => {
+          // Reduced padding for options
+          html += `
+              <label class="option-label flex items-start py-1 px-2 rounded-md border border-slate-100 cursor-pointer" data-opt="${optIndex}">
+                <div class="flex-shrink-0 mt-0.5">
+                  <input type="radio" name="q${index}" value="${optIndex}" class="w-3.5 h-3.5 text-blue-600 bg-slate-100 border-slate-300 focus:ring-blue-500">
+                </div>
+                <div class="ml-2 text-slate-700 text-xs md:text-sm leading-snug">
+                  ${opt}
+                </div>
+              </label>
+          `;
+        });
+        
+        html += `
+            </div>
+            <div id="feedback-q${index}" class="mt-2 p-2 rounded-md text-xs hidden leading-relaxed"></div>
+          </div>
+        `;
+      });
+      
+      questionsContainer.innerHTML = html;
+    }
+
+    function setupInteractiveGrading() {
+       questionsContainer.addEventListener('change', (e) => {
+           if(e.target.type === 'radio') {
+               const questionIndex = parseInt(e.target.name.replace('q', ''));
+               const selectedVal = parseInt(e.target.value);
+               handleAnswerSelection(questionIndex, selectedVal, e.target);
+           }
+       });
+    }
+
+    function handleAnswerSelection(qIndex, selectedVal, inputElement) {
+        if (!currentTest) return;
+        
+        const question = currentTest.questions[qIndex];
+        const qBlock = document.querySelector(`.question-block[data-question-index="${qIndex}"]`);
+        const feedbackEl = document.getElementById(`feedback-q${qIndex}`);
+        const allRadios = document.getElementsByName(`q${qIndex}`);
+        const isCorrect = (selectedVal === question.correctAnswer);
+        
+        // Ensure not already answered (prevent multiple grading)
+        if(qBlock.hasAttribute('data-answered')) return;
+        qBlock.setAttribute('data-answered', 'true');
+
+        // Play Sound and trigger effect
+        playSound(isCorrect ? 'correct' : 'incorrect');
+        
+        if (isCorrect) {
+            globalScore++;
+            hdrScore.innerText = globalScore;
+            
+            // Visuals
+            qBlock.classList.add('border-green-300', 'bg-green-50', 'animate-correct');
+            feedbackEl.classList.add('bg-green-100', 'text-green-800');
+            feedbackEl.innerHTML = `<strong>Correct!</strong> <span class="ml-1 text-slate-600">${question.suggestion}</span>`;
+            
+            // Highlight selected option correctly
+            inputElement.closest('label').classList.add('bg-green-100', 'border-green-400');
+        } else {
+            // Visuals
+            qBlock.classList.add('border-red-300', 'bg-red-50', 'animate-incorrect');
+            feedbackEl.classList.add('bg-red-100', 'text-red-800');
+            feedbackEl.innerHTML = `<strong>Incorrect.</strong> The correct answer was: <em>${question.options[question.correctAnswer]}</em>. <br><span class="mt-1 block text-slate-700">${question.suggestion}</span>`;
+            
+            // Highlight selected option incorrectly, highlight correct option
+            inputElement.closest('label').classList.add('bg-red-100', 'border-red-400');
+            
+            const correctLabel = document.querySelector(`label[data-opt="${question.correctAnswer}"] input[name="q${qIndex}"]`).closest('label');
+            correctLabel.classList.add('bg-green-50', 'border-green-300', 'border-dashed');
+        }
+        
+        feedbackEl.classList.remove('hidden');
+
+        // Lock all options for this question
+        allRadios.forEach(opt => {
+            opt.disabled = true;
+            opt.closest('label').classList.add('locked');
+        });
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timerValue = 10 * 60; // 10 minutes
+      updateTimerDisplay();
+      
+      isTimerRunning = true;
+      timerInterval = setInterval(() => {
+        timerValue--;
+        updateTimerDisplay();
+        
+        if (timerValue <= 0) {
+          clearInterval(timerInterval);
+          isTimerRunning = false;
+          handleTimeout();
+        }
+      }, 1000);
+    }
+    
+    function updateTimerDisplay() {
+      let minutes = Math.floor(timerValue / 60);
+      let seconds = timerValue % 60;
+      timerDisplay.innerText = `${minutes < 10 ? "0" + minutes : minutes}:${seconds < 10 ? "0" + seconds : seconds}`;
+      
+      if(timerValue <= 60 && isTimerRunning) {
+          document.getElementById('global-timer').classList.add('text-red-600', 'bg-red-100', 'border-red-200', 'animate-pulse', 'font-bold');
+      } else {
+          document.getElementById('global-timer').classList.remove('text-red-600', 'bg-red-100', 'border-red-200', 'animate-pulse', 'font-bold');
+      }
+    }
+
+    function handleTimeout() {
+        // Lock any unanswered questions and show answers
+        if(!currentTest) return;
+        
+        currentTest.questions.forEach((q, i) => {
+            const qBlock = document.querySelector(`.question-block[data-question-index="${i}"]`);
+            if(!qBlock.hasAttribute('data-answered')) {
+                // Manually trigger incorrect state for unanswered
+                qBlock.setAttribute('data-answered', 'true');
+                const feedbackEl = document.getElementById(`feedback-q${i}`);
+                const allRadios = document.getElementsByName(`q${i}`);
+                
+                qBlock.classList.add('border-amber-300', 'bg-amber-50');
+                feedbackEl.classList.add('bg-amber-100', 'text-amber-800');
+                feedbackEl.innerHTML = `<strong>Time's up! Unanswered.</strong> The correct answer was: <em>${q.options[q.correctAnswer]}</em>. <br><span class="mt-1 block text-slate-700">${q.suggestion}</span>`;
+                feedbackEl.classList.remove('hidden');
+                
+                const correctLabel = document.querySelector(`label[data-opt="${q.correctAnswer}"] input[name="q${i}"]`).closest('label');
+                correctLabel.classList.add('bg-green-50', 'border-green-300');
+                
+                allRadios.forEach(opt => {
+                    opt.disabled = true;
+                    opt.closest('label').classList.add('locked');
+                });
+            }
+        });
+    }
+
+    // Run init on load
+    window.onload = init;
+
+  </script>
+</body>
+</html>
