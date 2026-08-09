@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Multiplayer Spelling Race</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            touch-action: manipulation; /* Prevent double-tap zoom on mobile */
+            overflow-x: hidden;
+        }
+
+        .timer-bar-container {
+            width: 100%;
+            height: 12px;
+            background-color: #334155;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .timer-bar {
+            height: 100%;
+            background-color: #10b981;
+            width: 100%;
+            transition: width 1s linear, background-color 0.3s;
+        }
+
+        .timer-warning { background-color: #f59e0b; }
+        .timer-critical { background-color: #ef4444; }
+
+        .keyboard-key {
+            background-color: #334155;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.1s, transform 0.1s;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .keyboard-key:active {
+            background-color: #475569;
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+
+        .player-zone {
+            transition: all 0.3s ease;
+            border: 4px solid transparent;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .player-zone.winner {
+            border-color: #10b981;
+            background-color: rgba(16, 185, 129, 0.1);
+            animation: pulse-green 1s infinite;
+        }
+
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .no-select {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .players-1 { grid-template-columns: 1fr; }
+        .players-2 { grid-template-columns: repeat(2, 1fr); }
+        .players-3 { grid-template-columns: repeat(3, 1fr); }
+
+        @media (max-width: 768px) {
+            .players-2, .players-3 {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto;
+            }
+        }
+
+        /* 1-Player Huge Keyboard Overrides */
+        .players-1 .keyboard-key {
+            font-size: 2.5rem; /* Huge text */
+            border-radius: 12px;
+            margin: 2px;
+        }
+        .players-1 .kb-row {
+            flex: 1; 
+        }
+        .players-1 .player-zone {
+            padding: 1rem;
+        }
+        .players-1 #input-display-0 {
+            height: 5rem;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        /* 2-Player Big Keyboard Overrides */
+        .players-2 .keyboard-key {
+            font-size: 1.5rem; /* Big text */
+            border-radius: 8px;
+            margin: 2px;
+        }
+        .players-2 .kb-row {
+            flex: 1; 
+        }
+        .players-2 .player-zone {
+            padding: 0.75rem;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <div id="setup-screen" class="flex-1 flex flex-col items-center justify-center p-6 z-10 relative">
+        <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl max-w-md w-full border border-slate-700">
+            <h1 class="text-3xl font-extrabold text-center mb-6 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                Spelling Race
+            </h1>
+            
+            <div class="mb-6">
+                <label class="block text-slate-300 font-semibold mb-2">Number of Players</label>
+                <div class="flex gap-2">
+                    <button class="player-btn flex-1 py-3 rounded-lg bg-blue-600 font-bold text-white shadow hover:bg-blue-500 transition border-2 border-blue-400" data-players="1">1 Player</button>
+                    <button class="player-btn flex-1 py-3 rounded-lg bg-slate-700 font-bold text-slate-300 shadow hover:bg-slate-600 transition border-2 border-transparent" data-players="2">2 Players</button>
+                    <button class="player-btn flex-1 py-3 rounded-lg bg-slate-700 font-bold text-slate-300 shadow hover:bg-slate-600 transition border-2 border-transparent" data-players="3">3 Players</button>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-slate-300 font-semibold mb-2">Word Order</label>
+                <div class="flex gap-2">
+                    <button class="mode-btn flex-1 py-3 rounded-lg bg-slate-700 font-bold text-slate-300 shadow hover:bg-slate-600 transition border-2 border-transparent" data-mode="shuffle">Shuffle</button>
+                    <button class="mode-btn flex-1 py-3 rounded-lg bg-purple-600 font-bold text-white shadow hover:bg-purple-500 transition border-2 border-purple-400" data-mode="alpha">Alphabetical</button>
+                </div>
+            </div>
+
+            <div class="mb-8">
+                <label class="block text-slate-300 font-semibold mb-2">Select Game Set (25 words each)</label>
+                <select id="game-select" class="w-full p-3 rounded-lg bg-slate-900 text-white font-bold border-2 border-slate-600 outline-none focus:border-blue-500 cursor-pointer">
+                    <!-- Options injected by JS -->
+                </select>
+            </div>
+
+            <button id="start-game-btn" class="w-full py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 font-extrabold text-xl shadow-lg hover:from-emerald-400 hover:to-teal-400 transition transform hover:scale-105 active:scale-95">
+                START GAME
+            </button>
+            <p class="text-center text-slate-400 text-sm mt-4">Make sure your sound is on!</p>
+        </div>
+    </div>
+
+    <div id="game-screen" class="hidden flex-col h-screen w-full relative">
+        
+        <!-- Header / Game Info -->
+        <div class="bg-slate-900 p-4 shadow-md z-10 flex flex-col">
+            <div class="flex justify-between items-center mb-2">
+                <div class="text-lg font-bold text-slate-300" id="word-counter">Word 1 / 25</div>
+                <button id="quit-btn" class="bg-red-500/20 text-red-400 hover:bg-red-500/40 px-4 py-1 rounded-full font-semibold transition text-sm">Quit</button>
+            </div>
+            
+            <div class="text-center">
+                <div id="status-text" class="text-2xl sm:text-3xl font-extrabold text-blue-400 min-h-[2.5rem]">Get Ready...</div>
+            </div>
+
+            <div class="flex items-center gap-4 mt-2">
+                <div class="font-mono text-xl font-bold w-12 text-center" id="countdown-text">45</div>
+                <div class="timer-bar-container flex-1">
+                    <div id="timer-bar" class="timer-bar"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Players Grid -->
+        <div id="players-container" class="flex-1 grid gap-4 p-4 overflow-y-auto no-select">
+            <!-- Player zones injected by JS -->
+        </div>
+    </div>
+
+    <script>
+        const rawWords = [
+            // Block 1 & 11
+            { word: "afternoon", clue: "Time after lunch" },
+            { word: "airplane", clue: "A flying vehicle" },
+            { word: "apple", clue: "A common red or green fruit" },
+            { word: "april", clue: "A month known for spring showers" },
+            { word: "architect", clue: "A professional who designs buildings" },
+            { word: "arm", clue: "A limb connected to your shoulder" },
+            { word: "artist", clue: "A creative person who paints or draws" },
+            { word: "asteroid", clue: "A small rocky body orbiting the sun" },
+            { word: "august", clue: "A hot summer month" },
+            { word: "aunt", clue: "Your parent's sister or sister-in-law" },
+            { word: "autumn", clue: "A season when leaves fall" },
+            { word: "back", clue: "The rear part of your body" },
+            { word: "banana", clue: "A long, yellow fruit" },
+            { word: "bank", clue: "A place where money is kept" },
+            { word: "bar", clue: "A counter where drinks are served" },
+            { word: "bathroom", clue: "A room with a sink and a toilet" },
+            { word: "beach", clue: "A sandy shore by the sea" },
+            { word: "bed", clue: "A piece of furniture for sleeping" },
+            { word: "bedroom", clue: "A room where you sleep" },
+            { word: "beer", clue: "A popular alcoholic beverage" },
+            { word: "belt", clue: "A strip used to hold up your pants" },
+            { word: "bicycle", clue: "A two-wheeled vehicle powered by pedaling" },
+            { word: "bird", clue: "A creature that often has the ability to fly" },
+            { word: "black", clue: "A very dark color" },
+            { word: "blender", clue: "An appliance to mix or purée food" },
+            { word: "blue", clue: "A color like the ocean or sky" },
+            { word: "boat", clue: "A small vessel for traveling on water" },
+            { word: "book", clue: "A collection of pages bound together" },
+            { word: "boots", clue: "Footwear that covers your ankles" },
+            { word: "bottle", clue: "A container used for holding liquids" },
+            // Block 2 & 12
+            { word: "breakfast", clue: "The first meal of the day" },
+            { word: "brother", clue: "A male sibling" },
+            { word: "brown-us", clue: "Color: Brown (US pronunciation)" },
+            { word: "brown", clue: "A common color" },
+            { word: "brush", clue: "An object used for cleaning or painting" },
+            { word: "builder", clue: "A person who constructs buildings" },
+            { word: "bus", clue: "A vehicle that carries many passengers" },
+            { word: "cake", clue: "A sweet baked dessert" },
+            { word: "cap", clue: "A type of hat" },
+            { word: "car", clue: "A four-wheeled vehicle" },
+            { word: "carpenter", clue: "A craftsman who works with wood" },
+            { word: "carrot", clue: "A crunchy, orange vegetable" },
+            { word: "cat", clue: "A small domesticated feline" },
+            { word: "cheese", clue: "A dairy product from milk" },
+            { word: "chef", clue: "A professional cook" },
+            { word: "chocolate", clue: "A sweet treat from cocoa" },
+            { word: "cloud", clue: "A visible mass of condensed water vapor" },
+            { word: "coffee", clue: "A popular caffeinated beverage" },
+            { word: "comet", clue: "A celestial body with a tail" },
+            { word: "cooker", clue: "An appliance used for cooking" },
+            { word: "cookie", clue: "A sweet baked treat." },
+            { word: "cousin", clue: "A relative: child of your aunt or uncle." },
+            { word: "cow", clue: "A large domesticated bovine animal." },
+            { word: "crayons", clue: "Colored sticks used for drawing." },
+            { word: "cup", clue: "A small container for drinking liquids." },
+            { word: "dancer", clue: "A person who performs dance." },
+            { word: "daughter", clue: "A female child." },
+            { word: "dawn", clue: "The first light of day." },
+            { word: "december", clue: "The twelfth month of the year." },
+            { word: "desert", clue: "A dry, sandy region." },
+            // Block 3 & 13
+            { word: "dining", clue: "Relating to the meal area in a home." },
+            { word: "dinner", clue: "The main meal of the day, often in the evening." },
+            { word: "doctor", clue: "A professional who treats patients." },
+            { word: "dog", clue: "A loyal pet; man's best friend." },
+            { word: "door", clue: "An entry or exit barrier." },
+            { word: "dress", clue: "A garment typically worn by women." },
+            { word: "driver", clue: "A person who operates a vehicle." },
+            { word: "dusk", clue: "The period just after sunset." },
+            { word: "ears", clue: "Organs used for hearing." },
+            { word: "egg", clue: "A food produced by chickens." },
+            { word: "elephant", clue: "A large gray mammal with a trunk." },
+            { word: "evening", clue: "The time period at the end of the day." },
+            { word: "ewe", clue: "A female sheep" },
+            { word: "eyes", clue: "Organs used for seeing." },
+            { word: "face", clue: "The front part of a person's head." },
+            { word: "farmer", clue: "A person who works on a farm." },
+            { word: "father", clue: "Your male parent." },
+            { word: "february", clue: "The second month of the year." },
+            { word: "fingers", clue: "Digits on your hand." },
+            { word: "firefighter", clue: "A person who fights fires." },
+            { word: "fish", clue: "An aquatic animal." },
+            { word: "flower", clue: "The colorful part of a plant." },
+            { word: "folder", clue: "A tool for holding papers." },
+            { word: "foot", clue: "The body part used for walking." },
+            { word: "forest", clue: "A large area full of trees." },
+            { word: "fork", clue: "Utensil used for eating." },
+            { word: "friday", clue: "A day of the week." },
+            { word: "galaxy", clue: "A system of stars like our Milky Way." },
+            { word: "garage", clue: "A place where vehicles are kept." },
+            { word: "garden", clue: "A plot where plants are grown." },
+            { word: "glass", clue: "A transparent material often used for windows." },
+            { word: "glue", clue: "A sticky substance used to bond items." },
+            { word: "granddaughter", clue: "The daughter of your child" },
+            { word: "grandfather", clue: "The father of your parent" },
+            { word: "grandmother", clue: "The mother of your parent" },
+            { word: "grandson", clue: "The son of your child." },
+            { word: "grass", clue: "The green plant covering lawns." },
+            { word: "green", clue: "The color of grass and leaves." },
+            { word: "hairdresser", clue: "A person whose job is to cut hair." },
+            { word: "hand", clue: "The body part at the end of your arm." },
+            { word: "head", clue: "The top part of the body." },
+            { word: "may", clue: "The fifth month of the year." },
+            { word: "meat", clue: "Food that comes from animal flesh." },
+            { word: "mechanic", clue: "A person who repairs vehicles." },
+            { word: "microwave", clue: "A kitchen appliance that heats food quickly." },
+            { word: "milk", clue: "A white liquid produced by cows." },
+            { word: "milkshake", clue: "A sweet blended drink made with milk." },
+            { word: "monday", clue: "The first day of the workweek." },
+            { word: "monkey", clue: "A playful primate found in jungles." },
+            { word: "moon", clue: "Earth's natural satellite." },
+            { word: "morning", clue: "The early part of the day." },
+            { word: "mother", clue: "Your female parent." },
+            { word: "motorbike", clue: "A two-wheeled motor vehicle." },
+            { word: "mountain", clue: "A large natural elevation of the earth." },
+            { word: "mouth", clue: "The opening in your face used for eating and speaking." },
+            { word: "mushroom", clue: "An edible fungus found in nature." },
+            { word: "night", clue: "The dark period after sunset." },
+            { word: "noon", clue: "Midday, when the sun is at its highest." },
+            { word: "nose", clue: "The facial feature used for smelling." },
+            { word: "notebook", clue: "A book for writing notes." },
+            { word: "november", clue: "The eleventh month of the year." },
+            { word: "october", clue: "The tenth month of the year." },
+            { word: "onion", clue: "A vegetable known for its strong flavor." },
+            { word: "orange", clue: "A citrus fruit and a color." },
+            { word: "orbit", clue: "The path of a celestial body around a star or planet." },
+            { word: "pan", clue: "A cooking utensil used on the stove." },
+            { word: "paper", clue: "A sheet of material used for writing." },
+            { word: "park", clue: "A public area for recreation." },
+            { word: "pen", clue: "A writing tool that uses ink." },
+            { word: "pencil", clue: "A writing instrument made of graphite." },
+            { word: "pepper", clue: "A spice often used in cooking." },
+            { word: "photographer", clue: "One who takes pictures" },
+            { word: "pig", clue: "A farm animal that oinks" },
+            { word: "pilot", clue: "One who flies an aircraft" },
+            { word: "pink", clue: "A light red color" },
+            { word: "planet", clue: "A celestial body orbiting a star" },
+            { word: "plant", clue: "A living organism that grows in soil" },
+            { word: "plate", clue: "A dish on which food is served" },
+            { word: "plumber", clue: "A professional who fixes pipes" },
+            { word: "pool", clue: "A small body of still water" },
+            { word: "pork", clue: "Meat from a pig" },
+            { word: "postman", clue: "One who delivers mail" },
+            { word: "pot", clue: "A container for cooking" },
+            { word: "potato", clue: "A starchy tuber" },
+            { word: "purple", clue: "A color between red and blue" },
+            { word: "rabbit", clue: "A small, furry animal with long ears" },
+            { word: "rainbow", clue: "A multi-colored arc in the sky" },
+            { word: "red", clue: "A primary color" },
+            { word: "refrigerator", clue: "An appliance to keep food cold" },
+            { word: "reporter", clue: "A journalist covering news" },
+            { word: "restaurant", clue: "A place where meals are served" },
+            { word: "rice", clue: "A staple food grain" },
+            { word: "river", clue: "A large natural stream of water" },
+            { word: "room", clue: "An enclosed section of a building" },
+            { word: "ruler", clue: "A tool for measuring; also a sovereign" },
+            { word: "salad", clue: "A mix of raw vegetables" },
+            { word: "saturday", clue: "A weekend day" },
+            { word: "school", clue: "A place for learning" },
+            { word: "scissors", clue: "A tool used for cutting" },
+            { word: "september", clue: "A fall month" },
+            { word: "shirt", clue: "A garment worn on the upper body" },
+            { word: "shorts", clue: "Casual, knee-length trousers" },
+            { word: "singer", clue: "A person who sings" },
+            { word: "sister", clue: "A female sibling" },
+            { word: "sky", clue: "The expanse above" },
+            { word: "snack", clue: "A small bite to eat" },
+            { word: "snake", clue: "A legless reptile" },
+            { word: "socks", clue: "Items worn on your feet" },
+            { word: "son", clue: "A male child" },
+            { word: "spoon", clue: "A utensil for eating soup" },
+            { word: "spring", clue: "A season or a coil" },
+            { word: "stairs", clue: "Steps in a building" },
+            { word: "star", clue: "A bright point in the sky" },
+            { word: "stone", clue: "A small rock" },
+            { word: "store", clue: "A place to shop" },
+            { word: "strawberry", clue: "A red, sweet fruit" },
+            { word: "summer", clue: "A warm season" },
+            { word: "sun", clue: "The star at the center of our system" },
+            { word: "sunday", clue: "A weekend day" },
+            { word: "sunset", clue: "When the sun goes down" },
+            { word: "supermarket", clue: "A large grocery store" },
+            { word: "sweater", clue: "A knitted garment for warmth" },
+            { word: "t-shirt", clue: "A casual short-sleeve shirt" },
+            { word: "table", clue: "A flat-topped piece of furniture" },
+            { word: "tea", clue: "A hot brewed beverage" },
+            { word: "teacher", clue: "One who educates" },
+            { word: "thursday", clue: "The day after Wednesday" },
+            { word: "tie", clue: "A neck accessory" },
+            { word: "tiger", clue: "A large striped feline" },
+            { word: "toaster", clue: "A device to toast bread" },
+            { word: "tomato", clue: "A red fruit often used as a vegetable" },
+            { word: "tongue", clue: "An organ for tasting and speaking" },
+            { word: "tooth", clue: "A hard structure in your mouth" },
+            { word: "train", clue: "A mode of transport on rails" },
+            { word: "trainers", clue: "Athletic shoes (UK) or sneakers" },
+            { word: "tree", clue: "A perennial plant with a trunk" },
+            { word: "trousers", clue: "Full-length pants" },
+            { word: "truck", clue: "A large vehicle for carrying goods" },
+            { word: "tuesday", clue: "The day after Monday" },
+            { word: "umbrella", clue: "A device for protection from rain" },
+            { word: "uncle", clue: "Your parent's brother, or brother-in-law" },
+            { word: "underground", clue: "Below the Earth’s surface" },
+            { word: "universe", clue: "Everything that exists in space" },
+            { word: "veterinarian", clue: "A doctor for animals" },
+            { word: "violet", clue: "A purple-blue color or small flower" },
+            { word: "volcano", clue: "A mountain that periodically erupts lava" },
+            { word: "waiter", clue: "A person who serves in a restaurant" },
+            { word: "wall", clue: "A vertical structure dividing spaces" },
+            { word: "water", clue: "A clear, tasteless liquid essential for life" },
+            { word: "waterfall", clue: "A cascade of falling water" },
+            { word: "wednesday", clue: "The midweek day (between Tuesday and Thursday)" },
+            { word: "whale", clue: "A very large marine mammal" },
+            { word: "white", clue: "The color of snow" },
+            { word: "wife", clue: "A married woman" },
+            { word: "window", clue: "An opening in a wall with glass" },
+            { word: "wine", clue: "An alcoholic drink made from grapes" },
+            { word: "winter", clue: "The coldest season" },
+            { word: "yellow", clue: "A bright, sunny color" }
+        ];
+
+        // Deduplicate and Sort
+        const uniqueMap = new Map();
+        rawWords.forEach(w => uniqueMap.set(w.word.toLowerCase(), w));
+        const allUniqueWords = Array.from(uniqueMap.values());
+        
+        // Default Alphabetical Sort
+        allUniqueWords.sort((a, b) => a.word.localeCompare(b.word));
+
+        let currentDictionary = [...allUniqueWords];
+        let gameWords = []; // The 25 words for the active game
+
+        const WORDS_PER_GAME = 25;
+        const totalGames = Math.ceil(allUniqueWords.length / WORDS_PER_GAME);
+
+        let numPlayers = 1;
+        let gameMode = 'alpha'; // 'alpha' or 'shuffle'
+        let currentWordIndex = 0;
+        let currentWordObj = null;
+        
+        let scores = [0, 0, 0];
+        let inputs = ["", "", ""];
+        
+        let roundTimer;
+        let speechRepeatInterval;
+        let roundActive = false;
+        let timeLeft = 45;
+        const TOTAL_TIME = 45;
+
+        // Explicitly define DOM Elements to prevent ReferenceErrors
+        const gameSelect = document.getElementById('game-select');
+        const setupScreen = document.getElementById('setup-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const playersContainer = document.getElementById('players-container');
+        const wordCounter = document.getElementById('word-counter');
+        const statusText = document.getElementById('status-text');
+        const countdownText = document.getElementById('countdown-text');
+        const timerBar = document.getElementById('timer-bar');
+
+        // Define the keyboard layout
+        const qwertyLayout = [
+            ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+            ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+            ['z', 'x', 'c', 'v', 'b', 'n', 'm', '-', 'BACK']
+        ];
+
+        let preferredVoice = null;
+        let voicesLoaded = false;
+        let allVoices = [];
+
+        function loadVoices() {
+            allVoices = window.speechSynthesis.getVoices();
+            if (allVoices.length > 0) {
+                const targetNames = ['microsoft brian', 'microsoft emma', 'microsoft andrew'];
+                preferredVoice = allVoices.find(v => targetNames.some(name => v.name.toLowerCase().includes(name)));
+                
+                if (!preferredVoice) {
+                    preferredVoice = allVoices.find(v => v.lang.startsWith('en-GB') || v.lang.startsWith('en-US'));
+                }
+                voicesLoaded = true;
+            }
+        }
+
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+            loadVoices();
+            // Polling fallback for Chrome/Safari sometimes missing the event
+            setTimeout(loadVoices, 500);
+            setTimeout(loadVoices, 1000);
+        }
+
+        function speak(text, rate = 0.9) {
+            if (!('speechSynthesis' in window)) return;
+            
+            // Resume suspended context and clear any stuck queues
+            window.speechSynthesis.resume();
+            window.speechSynthesis.cancel(); 
+            
+            // Final fallback check if voices delayed
+            if (!voicesLoaded || allVoices.length === 0) loadVoices();
+
+            // Slight timeout fixes Safari queueing bugs
+            setTimeout(() => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                if (preferredVoice) utterance.voice = preferredVoice;
+                utterance.lang = 'en-US';
+                utterance.rate = rate;
+                
+                // Chrome long-utterance bug keep-alive
+                utterance.onstart = () => { window.speechSynthesis.resume(); };
+
+                window.speechSynthesis.speak(utterance);
+            }, 50);
+        }
+
+        function speakCurrentWordSequence() {
+            if (!currentWordObj) return;
+            // Read definition FIRST, then say word
+            const text = `${currentWordObj.clue}. The word is, ${currentWordObj.word}.`;
+            speak(text);
+        }
+
+        function speakWordOnly() {
+            if (!currentWordObj) return;
+            speak(currentWordObj.word, 0.8);
+        }
+
+        function populateGameSelect() {
+            gameSelect.innerHTML = '';
+            for (let i = 0; i < totalGames; i++) {
+                const startIdx = i * WORDS_PER_GAME;
+                const endIdx = Math.min(startIdx + WORDS_PER_GAME, currentDictionary.length);
+                const option = document.createElement('option');
+                option.value = i;
+                // Show a preview of the span to help user see what's in the set
+                const firstWord = currentDictionary[startIdx].word;
+                const lastWord = currentDictionary[endIdx - 1].word;
+                option.textContent = `Game ${i + 1} of ${totalGames} (${firstWord} - ${lastWord})`;
+                gameSelect.appendChild(option);
+            }
+        }
+
+        function updateDictionaryMode() {
+            currentDictionary = [...allUniqueWords];
+            if (gameMode === 'shuffle') {
+                // Fisher-Yates shuffle
+                for (let i = currentDictionary.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [currentDictionary[i], currentDictionary[j]] = [currentDictionary[j], currentDictionary[i]];
+                }
+            } else {
+                currentDictionary.sort((a, b) => a.word.localeCompare(b.word));
+            }
+            populateGameSelect();
+        }
+
+        // Init setup menu
+        updateDictionaryMode();
+
+        document.querySelectorAll('.player-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.player-btn').forEach(b => {
+                    b.classList.remove('bg-blue-600', 'text-white', 'border-blue-400');
+                    b.classList.add('bg-slate-700', 'text-slate-300', 'border-transparent');
+                });
+                const target = e.target;
+                target.classList.remove('bg-slate-700', 'text-slate-300', 'border-transparent');
+                target.classList.add('bg-blue-600', 'text-white', 'border-blue-400');
+                numPlayers = parseInt(target.dataset.players);
+            });
+        });
+
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.mode-btn').forEach(b => {
+                    b.classList.remove('bg-purple-600', 'text-white', 'border-purple-400');
+                    b.classList.add('bg-slate-700', 'text-slate-300', 'border-transparent');
+                });
+                const target = e.target;
+                target.classList.remove('bg-slate-700', 'text-slate-300', 'border-transparent');
+                target.classList.add('bg-purple-600', 'text-white', 'border-purple-400');
+                gameMode = target.dataset.mode;
+                updateDictionaryMode();
+            });
+        });
+
+        document.getElementById('start-game-btn').addEventListener('click', () => {
+            // WARM-UP HACK: Unlock iOS/Safari audio context on user interaction
+            if ('speechSynthesis' in window) {
+                const warmup = new SpeechSynthesisUtterance('');
+                warmup.volume = 0;
+                window.speechSynthesis.speak(warmup);
+            }
+
+            const selectedSetIndex = parseInt(gameSelect.value);
+            const startIdx = selectedSetIndex * WORDS_PER_GAME;
+            const endIdx = startIdx + WORDS_PER_GAME;
+            
+            // Extract the 25 words for this specific game
+            gameWords = currentDictionary.slice(startIdx, endIdx);
+
+            setupScreen.classList.add('hidden');
+            gameScreen.classList.remove('hidden');
+            gameScreen.classList.add('flex');
+            
+            initGameUI();
+            currentWordIndex = 0;
+            scores = [0, 0, 0];
+            
+            setTimeout(startRound, 1000);
+        });
+
+        document.getElementById('quit-btn').addEventListener('click', () => {
+            window.speechSynthesis.cancel();
+            clearInterval(roundTimer);
+            clearInterval(speechRepeatInterval);
+            gameScreen.classList.add('hidden');
+            gameScreen.classList.remove('flex');
+            setupScreen.classList.remove('hidden');
+        });
+
+        function initGameUI() {
+            playersContainer.className = `flex-1 grid gap-4 p-4 overflow-hidden no-select players-${numPlayers}`;
+            playersContainer.innerHTML = '';
+            
+            const colors = [
+                { border: 'border-blue-500', bg: 'bg-blue-900/30', text: 'text-blue-300' },
+                { border: 'border-rose-500', bg: 'bg-rose-900/30', text: 'text-rose-300' },
+                { border: 'border-amber-500', bg: 'bg-amber-900/30', text: 'text-amber-300' }
+            ];
+
+            for (let i = 0; i < numPlayers; i++) {
+                const pDiv = document.createElement('div');
+                pDiv.id = `player-zone-${i}`;
+                pDiv.className = `player-zone flex flex-col bg-slate-800 rounded-xl p-3 ${colors[i].border} border-2 shadow-lg h-full max-h-full`;
+                
+                // Player Header
+                const header = document.createElement('div');
+                header.className = `flex justify-between items-center mb-2 font-bold ${colors[i].text}`;
+                header.innerHTML = `<span>Player ${i+1}</span><span id="score-${i}" class="bg-slate-700 px-3 py-1 rounded-full text-white">Score: 0</span>`;
+                pDiv.appendChild(header);
+
+                // Input Display
+                const inputDisplay = document.createElement('div');
+                inputDisplay.id = `input-display-${i}`;
+                inputDisplay.className = 'bg-slate-900 rounded-lg h-14 flex items-center justify-center text-2xl font-mono text-white tracking-widest border border-slate-700 mb-3 overflow-hidden px-2 shrink-0';
+                pDiv.appendChild(inputDisplay);
+
+                // Keyboard
+                const kbContainer = document.createElement('div');
+                kbContainer.className = 'kb-container flex-1 flex flex-col gap-1 justify-end';
+                
+                qwertyLayout.forEach(row => {
+                    const rowDiv = document.createElement('div');
+                    rowDiv.className = 'kb-row flex justify-center gap-1 w-full h-12';
+                    row.forEach(key => {
+                        const keyBtn = document.createElement('button');
+                        keyBtn.className = 'keyboard-key flex-1 text-sm sm:text-lg max-w-[2.5rem] sm:max-w-[3rem] text-slate-200';
+                        if (numPlayers <= 2) keyBtn.classList.remove('max-w-[2.5rem]', 'sm:max-w-[3rem]'); // Let them grow big in 1P/2P mode
+
+                        if (key === 'BACK') {
+                            keyBtn.innerHTML = '&#9003;';
+                            keyBtn.classList.add('bg-slate-700', 'flex-[1.5]', 'max-w-[4rem]');
+                            if (numPlayers <= 2) keyBtn.classList.remove('max-w-[4rem]');
+                            keyBtn.onpointerdown = (e) => { e.preventDefault(); handleInput(i, 'BACK'); };
+                        } else {
+                            keyBtn.textContent = key.toUpperCase();
+                            keyBtn.onpointerdown = (e) => { e.preventDefault(); handleInput(i, key); };
+                        }
+                        
+                        rowDiv.appendChild(keyBtn);
+                    });
+                    kbContainer.appendChild(rowDiv);
+                });
+                
+                pDiv.appendChild(kbContainer);
+                playersContainer.appendChild(pDiv);
+            }
+        }
+
+        function handleInput(playerIndex, key) {
+            if (!roundActive) return;
+
+            let currentInput = inputs[playerIndex];
+            
+            if (key === 'BACK') {
+                currentInput = currentInput.slice(0, -1);
+            } else {
+                if (currentInput.length < 20) { 
+                    currentInput += key.toLowerCase();
+                }
+            }
+            
+            inputs[playerIndex] = currentInput;
+            updateInputDisplay(playerIndex);
+            
+            // Check win
+            if (currentInput === currentWordObj.word.toLowerCase()) {
+                handleWin(playerIndex);
+            }
+        }
+
+        function updateInputDisplay(playerIndex) {
+            const display = document.getElementById(`input-display-${playerIndex}`);
+            if (display) {
+                display.textContent = inputs[playerIndex].toUpperCase();
+            }
+        }
+
+        function startRound() {
+            if (currentWordIndex >= gameWords.length) {
+                endGame();
+                return;
+            }
+
+            // Reset state
+            inputs = ["", "", ""];
+            for (let i = 0; i < numPlayers; i++) {
+                updateInputDisplay(i);
+                const zone = document.getElementById(`player-zone-${i}`);
+                if (zone) zone.classList.remove('winner');
+            }
+
+            currentWordObj = gameWords[currentWordIndex];
+            wordCounter.textContent = `Word ${currentWordIndex + 1} / ${gameWords.length}`;
+            statusText.textContent = "Listen and Spell!";
+            statusText.classList.remove('text-emerald-400', 'text-rose-400', 'text-amber-400');
+            statusText.classList.add('text-blue-400');
+            
+            timeLeft = TOTAL_TIME;
+            updateTimerVisuals();
+            
+            roundActive = true;
+            
+            // Speak Sequence
+            speakCurrentWordSequence();
+
+            // Set up repeat interval (repeat word every 10 seconds if no answer)
+            clearInterval(speechRepeatInterval);
+            speechRepeatInterval = setInterval(() => {
+                if (roundActive && window.speechSynthesis.speaking === false) {
+                    speakWordOnly();
+                }
+            }, 10000);
+
+            // Timer countdown
+            clearInterval(roundTimer);
+            roundTimer = setInterval(() => {
+                timeLeft--;
+                updateTimerVisuals();
+                
+                if (timeLeft <= 0) {
+                    handleTimeUp();
+                }
+            }, 1000);
+        }
+
+        function updateTimerVisuals() {
+            countdownText.textContent = timeLeft;
+            const percent = (timeLeft / TOTAL_TIME) * 100;
+            timerBar.style.width = `${percent}%`;
+            
+            timerBar.classList.remove('timer-warning', 'timer-critical');
+            if (percent < 25) {
+                timerBar.classList.add('timer-critical');
+            } else if (percent < 50) {
+                timerBar.classList.add('timer-warning');
+            }
+        }
+
+        function handleWin(winnerIndex) {
+            roundActive = false;
+            clearInterval(roundTimer);
+            clearInterval(speechRepeatInterval);
+            window.speechSynthesis.cancel();
+            
+            // Update Score
+            scores[winnerIndex]++;
+            document.getElementById(`score-${winnerIndex}`).textContent = `Score: ${scores[winnerIndex]}`;
+            
+            // Visuals
+            const zone = document.getElementById(`player-zone-${winnerIndex}`);
+            zone.classList.add('winner');
+            
+            const displayWord = currentWordObj.word;
+            statusText.innerHTML = `Player ${winnerIndex + 1} got it! Answer: <span class="text-white">${displayWord.toUpperCase()}</span>`;
+            statusText.classList.remove('text-blue-400');
+            statusText.classList.add('text-emerald-400');
+            
+            speak(`Player ${winnerIndex + 1} wins. The word was ${displayWord}`);
+
+            // Next round after 3 seconds break
+            setTimeout(() => {
+                currentWordIndex++;
+                startRound();
+            }, 3000);
+        }
+
+        function handleTimeUp() {
+            roundActive = false;
+            clearInterval(roundTimer);
+            clearInterval(speechRepeatInterval);
+            window.speechSynthesis.cancel();
+            
+            statusText.innerHTML = `Time's up! Answer: <span class="text-white">${currentWordObj.word.toUpperCase()}</span>`;
+            statusText.classList.remove('text-blue-400');
+            statusText.classList.add('text-rose-400');
+            
+            speak(`Time is up. The word was ${currentWordObj.word}.`);
+
+            // Next round after 3 seconds
+            setTimeout(() => {
+                currentWordIndex++;
+                startRound();
+            }, 3000);
+        }
+
+        function endGame() {
+            statusText.textContent = "Game Over!";
+            statusText.classList.remove('text-blue-400', 'text-emerald-400', 'text-rose-400');
+            statusText.classList.add('text-amber-400');
+            wordCounter.textContent = "Complete!";
+            
+            let maxScore = Math.max(...scores.slice(0, numPlayers));
+            let winners = [];
+            for (let i = 0; i < numPlayers; i++) {
+                if (scores[i] === maxScore) winners.push(`Player ${i + 1}`);
+            }
+            
+            let resultText = winners.length > 1 ? `It's a tie! (${maxScore} points)` : `${winners[0]} Wins with ${maxScore} points!`;
+            speak(`Game over. ${resultText}`);
+            
+            setTimeout(() => {
+                alert(`Final Results:\n${resultText}`);
+                document.getElementById('quit-btn').click();
+            }, 1000);
+        }
+
+        // Global Physical Keyboard Support for 1 Player
+        document.addEventListener('keydown', (e) => {
+            if (!roundActive) return;
+            if (numPlayers === 1) {
+                const key = e.key.toLowerCase();
+                if (/^[a-z]$/.test(key) || key === '-' || key === ' ') {
+                    handleInput(0, key);
+                } else if (key === 'backspace') {
+                    handleInput(0, 'BACK');
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
