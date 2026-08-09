@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloze Exercise Quiz - Gamified</title>
+  <style>
+    :root {
+      --primary: #005bb5;
+      --primary-hover: #004494;
+      --success: #16a34a;
+      --error: #dc2626;
+      --bg: #f5f8fa;
+      --surface: #ffffff;
+      --text: #1e293b;
+      --border: #cbd5e1;
+    }
+
+    /* Removing margins and doubling base text size per requirements */
+    * { box-sizing: border-box; }
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden; /* Prevent whole page scrolling */
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      /* Doubled text size relative to standard desktop defaults */
+      font-size: 24px; 
+      line-height: 1.6;
+    }
+
+    /* Application Container */
+    #app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    /* Header & Navigation */
+    header {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      z-index: 10;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5em 1em;
+      gap: 0.5em;
+    }
+
+    .header-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-grow: 1;
+    }
+
+    .nav-buttons { display: flex; gap: 0.5em; align-items: center; }
+    
+    header button {
+      font-size: 0.8em;
+      padding: 0.4em 0.8em;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 0.3em;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s, transform 0.1s;
+    }
+    
+    header button:hover { background: var(--primary-hover); }
+    header button:active { transform: scale(0.95); }
+    header button:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    header h1 {
+      font-size: 1.2em;
+      margin: 0;
+      color: var(--primary);
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    #header-ex-title {
+      font-size: 0.8em;
+      color: #64748b;
+      font-weight: bold;
+    }
+
+    /* Timer and Progress Bar */
+    #status-bar {
+      display: none;
+      align-items: center;
+      padding: 0.3em 1em;
+      gap: 1em;
+      background: #f8fafc;
+      border-bottom: 2px solid var(--border);
+      font-size: 0.9em;
+      font-weight: bold;
+    }
+    
+    .progress-container {
+      flex-grow: 1;
+      height: 12px;
+      background: #e2e8f0;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    #time-bar {
+      height: 100%;
+      background: var(--success);
+      width: 100%;
+      transition: width 1s linear, background 0.3s;
+    }
+
+    /* Main Content Area */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 1em;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      overflow-y: auto; /* Internal scrolling if content is too long */
+    }
+
+    /* Screens */
+    .screen { display: none; width: 100%; animation: fadeIn 0.4s ease-out; }
+    .screen.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Start Screen */
+    #start-screen { text-align: center; margin-top: 2em; }
+    #playerName {
+      font-size: 1.2em;
+      padding: 0.5em;
+      width: 80%;
+      max-width: 400px;
+      border: 3px solid var(--border);
+      border-radius: 0.4em;
+      margin: 1em 0;
+      text-align: center;
+    }
+    .btn-large {
+      font-size: 1.2em;
+      padding: 0.8em 2em;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 0.4em;
+      cursor: pointer;
+      font-weight: bold;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    /* Exercise Styling */
+    .exercise-text {
+      background: var(--surface);
+      padding: 1.5em;
+      border-radius: 0.5em;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1em;
+      margin-top: 1em;
+      font-size: 1.25em;    }
+
+    input.gap {
+      font-size: 1em;
+      padding: 0.2em;
+      border: 3px solid var(--border);
+      border-radius: 0.3em;
+      margin: 0 0.2em;
+      text-align: center;
+      transition: all 0.3s;
+      background: #f8fafc;
+      min-width: 3ch;
+    }
+    input.gap:focus { outline: none; border-color: var(--primary); background: #fff;}
+    input.gap.correct { border-color: var(--success); background: #f0fdf4; color: #166534; pointer-events: none;}
+    input.gap.incorrect { border-color: var(--error); background: #fef2f2; color: #991b1b; }
+
+    .hint-text {
+      font-size: 0.7em;
+      color: #64748b;
+      display: block;
+      text-align: center;
+      font-style: italic;
+    }
+
+    /* Feedback & Controls */
+    #feedback {
+      min-height: 2.5em;
+      margin: 1em 0;
+      font-weight: bold;
+      text-align: center;
+      padding: 0.5em;
+      border-radius: 0.3em;
+      font-size: 1.2em;
+    }
+    .feedback-success { background: #dcfce7; color: #166534; }
+    .feedback-error { background: #fee2e2; color: #991b1b; }
+    .feedback-neutral { background: #e0e7ff; color: #3730a3; display: none; /* Hidden per request */ }
+
+    /* Custom Message Modal (Replacing Alert) */
+    #custom-modal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.6); display: none; 
+      justify-content: center; align-items: center; z-index: 100;
+    }
+    .modal-content {
+      background: white; padding: 2em; border-radius: 0.5em;
+      text-align: center; max-width: 500px; width: 90%;
+    }
+
+    @media (max-width: 768px) {
+      body { font-size: 20px; }
+      .header-top { flex-wrap: wrap; justify-content: center; }
+      .header-center { width: 100%; order: -1; margin-bottom: 0.5em; }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="app-container">
+    <header>
+      <div class="header-top">
+        <button type="button" onclick="goHome()" id="btn-home" aria-label="Go Home">🏠 Home</button>
+        <div class="header-center">
+          <h1 id="header-title">Cloze Mastery</h1>
+          <span id="header-ex-title" style="display: none;">Exercise 1 of 50</span>
+        </div>
+        <div class="nav-buttons" id="header-controls" style="display: none;">
+           <div id="score-display" style="font-weight: bold; color: var(--primary);">Score: 0</div>
+           <button type="button" id="btn-submit-header" onclick="submitCurrentExercise()">Submit</button>
+        </div>
+      </div>
+      <div id="status-bar">
+        <div id="remaining-display">Remaining: 50</div>
+        <div class="progress-container">
+          <div id="time-bar"></div>
+        </div>
+        <div id="timer-display">03:00</div>
+      </div>
+    </header>
+
+    <main>
+      <!-- Start Screen -->
+      <section id="start-screen" class="screen active">
+        <h2>Welcome to the Gamified Cloze Challenge!</h2>
+        <p>Complete 50 unique exercises. Watch the clock and build your score!</p>
+        <label for="playerName" style="display:block; margin-top:1em; font-weight:bold;">Enter your name:</label>
+        <input type="text" id="playerName" autocomplete="off" placeholder="Your Name" onkeypress="handleEnter(event)" />
+        <button type="button" class="btn-large" onclick="startGame()">Start Learning</button>
+      </section>
+
+      <!-- Exercise Screen -->
+      <section id="exercise-screen" class="screen">
+        <div id="exercise-content" class="exercise-text">
+          <!-- Dynamically injected exercise text -->
+        </div>
+        <div id="feedback"></div>
+      </section>
+
+      <!-- End Screen -->
+      <section id="end-screen" class="screen">
+        <h2>Challenge Complete!</h2>
+        <p id="final-greeting" style="font-size: 1.5em; font-weight: bold;"></p>
+        <p>Your Final Score: <span id="final-score" style="color:var(--primary); font-weight:bold; font-size: 2em;">0</span></p>
+        <button type="button" class="btn-large" onclick="goHome()">Play Again</button>
+      </section>
+    </main>
+  </div>
+
+  <!-- Custom Alert Modal -->
+  <div id="custom-modal">
+    <div class="modal-content">
+      <h3 id="modal-title">Message</h3>
+      <p id="modal-body">Text goes here</p>
+      <button type="button" class="btn-large" onclick="closeModal()">OK</button>
+    </div>
+  </div>
+
+  <script>
+    // Format: {answer|ROOT_WORD|Hint text}
+    const rawExercises = [
+      "In our school library, silence is {required|REQUIRE|Think of a rule: silence is absolutely ___} to maintain an effective learning environment. Every student is expected to remain {quiet|QUIET|Not noisy} while studying. The librarian is responsible for {maintaining|MAINTAIN|Keeping things in order} the peaceful atmosphere. Students are regularly {warned|WARN|To be told in advance} not to break the rules, and talking loudly is strictly {forbidden|FORBID|Not allowed}.",
+      "During our annual school picnic, every student is {prepared|PREPARE|Ready and organized} to contribute by bringing a dish. The event is known for its {joyful|JOY|Full of happiness} atmosphere, with teachers {encouraging|ENCOURAGE|Giving support} everyone to join in. We are always {impressed|IMPRESS|Feeling admiration} by the level of {participation|PARTICIPATE|Taking part} from all students.",
+      "In our science classroom, safety is {prioritized|PRIORITIZE|Put first in importance} above all else. All experiments are carried out following {strict|STRICT|Very careful rule-following} protocols to ensure all activities are properly {supervised|SUPERVISE|Watched over}. Wearing goggles is {crucial|CRUCIAL|Absolutely necessary} to keep our eyes {secure|SECURE|Safe from harm}.",
+      "In our history class debate, every student is encouraged to present {factual|FACT|Based on facts} evidence to support their views. The teacher values {respectful|RESPECT|Showing consideration} arguments and {considered|CONSIDER|Thoughtful and careful} opinions. The most {civil|CIVIL|Polite and courteous} debaters are often the most {engaged|ENGAGE|Fully involved}.",
+      "In our technology class, it is {essential|ESSENTIAL|Absolutely necessary} to understand the basics of coding. The teacher provides a {clear|CLEAR|Easy to understand} explanation of every topic. Students are encouraged to work {collaboratively|COLLABORATE|Working together} on projects and develop {innovative|INNOVATE|New and creative} solutions to real-world problems. The skills learned here will undoubtedly prove {valuable|VALUABLE|Very useful} in future endeavors.",
+      "In our school art class, creativity is highly {encouraged|ENCOURAGE|Given support}. Every student is given {free|FREE|Without restriction} rein to express their ideas. The teacher admires the {inventive|INVENT|Creative, full of new ideas} approaches taken in each project and offers critiques in a {constructive|CONSTRUCT|Helpful and positive} manner. This open atmosphere makes every lesson truly {inspiring|INSPIRATION|Motivating, uplifting}.",
+      "During our annual sports day, participation is {mandatory|MANDATE|Required, not optional} for every student. The events are {scheduled|SCHEDULE|Planned at set times} to ensure smooth transitions, making the competitions {seamless|SEAM|Without interruption}. Athletes are continuously {encouraged|ENCOURAGE|Motivated} to give their best performance, and the overall atmosphere is incredibly {exciting|EXCITE|Full of energy}.",
+      "In our drama class, imagination is {fueled|FUEL|Powered or driven by} every performance. Students are {inspired|INSPIRE|Motivated to do something creative} to explore different characters. The acting exercises are designed to be both {challenging|CHALLENGE|Difficult but interesting} and {enjoyable|ENJOY|Fun and pleasing}, which helps boost creativity. Teachers often remark that the students' portrayals are strikingly {authentic|AUTHENTIC|Realistic and genuine}.",
+      "In our mathematics class, solving problems is {encouraged|ENCOURAGE|Motivated or supported} to develop critical thinking skills. Lessons are presented in a {structured|STRUCTURE|Well-organized} format, making complex topics easier to understand. Students are often amazed by how a difficult equation can be {simplified|SIMPLIFY|Made easier} with the right strategy, and the teacher emphasizes a {practical|PRACTICE|Useful and realistic} approach.",
+      "During our community service event, participation is {voluntary|VOLUNTEER|Based on free will} and deeply appreciated. The organizers ensure that every activity is {coordinated|COORDINATE|Organized to work well together} to address community needs effectively. Volunteers work {passionately|PASSION|With enthusiasm} to assist those in need, often leaving the event feeling {fulfilled|FULFILL|Satisfied and happy} and eager to participate again. This work is highly {beneficial|BENEFIT|Good or helpful}.",
+      "In our language class, {supervised|SUPERVISE|Watched over} practice is required to maintain an effective environment. {Constructive|CONSTRUCT|Helpful and positive} feedback is essential to ensure smooth operations. Complex ideas are {simplified|SIMPLIFY|Made easier to understand}. Every opinion is {considered|CONSIDER|Thoughtfully taken into account}, and clear communication is {crucial|CRUCIAL|Absolutely necessary}.",
+      "In our advanced language class, activities are {scheduled|SCHEDULE|Planned at certain times} to maintain structure. Discussions are {enriching|ENRICH|Making something better} by diverse perspectives. Rules are {strict|STRICT|Demanding obedience} to ensure fairness. Participation is {voluntary|VOLUNTEER|Optional} but highly encouraged. Students often leave feeling {fulfilled|FULFILL|Happy because they succeeded}.",
+      "At the alumni reunion, behavior is {strictly|STRICT|In a strict manner} monitored. Attendance is {mandatory|MANDATE|Required, not optional} for honorees. Guests are given {free|FREE|Without restriction} time to mingle. The venue is kept {secure|SECURE|Safe from harm}. Planning is {prioritized|PRIORITIZE|Given special importance} months in advance.",
+      "In our volunteer program, everyone is {prepared|PREPARE|Ready and organized} to help. Participation is {voluntary|VOLUNTEER|Optional, not required} and appreciated. Arguments must be backed by {factual|FACT|Based on facts} evidence. Ideas are welcomed when they are {inventive|INVENT|Creative}. Organizers are often {impressed|IMPRESS|Filled with admiration} by the dedication.",
+      "At the fundraising event, energy is {fueled|FUEL|Powered by} by passion. Volunteers leave feeling {fulfilled|FULFILL|Feeling satisfied}. Performances are {authentic|AUTHENTIC|Genuine or real} and heartfelt. Contributions are {valuable|VALUABLE|Very useful} to the cause. Feedback is always {constructive|CONSTRUCT|Helpful and positive}.",
+      "In geography class, maps are {required|REQUIRE|Absolutely necessary} for every lesson. Students are {inspired|INSPIRE|Motivated} to explore. The atmosphere is {joyful|JOY|Full of happiness}. Safety is {secure|SECURE|Safe from harm} during field trips. Opinions are {considered|CONSIDER|Thoughtfully taken into account} respectfully.",
+      "At the language exchange, students are {encouraged|ENCOURAGE|Motivated} to speak freely. Rules are {strict|STRICT|Demanding obedience} to maintain order. Sessions are {enriching|ENRICH|Making something better} with cultural insights. Everyone is {prepared|PREPARE|Ready in advance} to learn. Participants often feel {fulfilled|FULFILL|Happy and successful}.",
+      "At the environmental campaign, plastic use is {forbidden|FORBID|Not allowed at all}. Volunteers are {inspired|INSPIRE|Motivated} by nature. Organizers are {impressed|IMPRESS|Filled with admiration} by turnout. Safety is {crucial|CRUCIAL|Absolutely necessary}. {Participation|PARTICIPATE|Taking part} is open to all.",
+      "In literature class, ideas are {considered|CONSIDER|Thoughtfully taken into account} deeply. Teachers are often {impressed|IMPRESS|Filled with admiration} by insights. Attendance is {mandatory|MANDATE|Required}. Notes are {maintained|MAINTAIN|Kept in order} regularly. Lessons are {inspiring|INSPIRATION|Motivating, uplifting}.",
+      "At the drama performance, silence is {required|REQUIRE|Absolutely necessary}. Teachers are {impressed|IMPRESS|Filled with admiration} by talent. Scripts are {structured|STRUCTURE|Well-organized} carefully. The venue is kept {secure|SECURE|Safe from harm}. Students are given {free|FREE|Without restriction} expression.",
+      "In our music class, students are {encouraged|ENCOURAGE|Given support} to explore different instruments. The teacher provides {guidance|GUIDE|Help or advice} on how to play each one. Practice sessions are {structured|STRUCTURE|Well-organized} to ensure everyone gets a chance to play. The atmosphere is {supportive|SUPPORT|Giving help} and {collaborative|COLLABORATE|Working together}.",
+      "At the science fair, projects are {displayed|DISPLAY|Shown to others} for everyone to see. Students are {proud|PROUD|Feeling pleased} of their work and eager to explain their experiments. Judges are {impressed|IMPRESS|Feeling admiration} by the level of {innovation|INNOVATE|A new idea} and creativity. The event is {organized|ORGANIZE|Arranged properly} to ensure a smooth experience.",
+      "In our cooking class, recipes are {provided|PROVIDE|Given or supplied} by the instructor. Students are {required|REQUIRE|Absolutely necessary} to follow the steps carefully. The kitchen is {equipped|EQUIP|Having the necessary tools} with all necessary tools. Safety is {prioritized|PRIORITIZE|Given special importance} to prevent accidents. The final dishes are {tasted|TASTE|Sampled for flavor} and evaluated.",
+      "At the art exhibition, paintings are {showcased|SHOWCASE|Displayed to see} for visitors. Artists are {available|AVAILABLE|Ready to be reached} to discuss their work. The gallery is {designed|DESIGN|Planned for a purpose} to highlight each piece. The atmosphere is {inspiring|INSPIRE|Motivating} and {peaceful|PEACE|Calm and quiet}.",
+      "In our debate club, arguments are {formulated|FORMULATE|Created or developed} based on research. Members are {encouraged|ENCOURAGE|Given support} to present their views. Discussions are {moderated|MODERATE|Controlled or managed} to ensure fairness. The environment is {respectful|RESPECT|Showing politeness} and {intellectual|INTELLECT|Related to thinking}.",
+      "At the robotics competition, teams are {challenged|CHALLENGE|Given difficult tasks} to build functional robots. The event is {organized|ORGANIZE|Arranged in a certain way} to test various skills. Judges are {impressed|IMPRESS|Feeling admiration} by the level of {innovation|INNOVATE|New ideas}. The atmosphere is {exciting|EXCITE|Full of energy} and {competitive|COMPETE|Involving rivalry}.",
+      "In our literature club, books are {discussed|DISCUSS|Talked about in detail} in detail. Members are {encouraged|ENCOURAGE|Given support} to share their interpretations. Meetings are {structured|STRUCTURE|Well-organized} to cover various themes. The atmosphere is {intellectual|INTELLECT|Related to thinking} and {engaging|ENGAGE|Holding attention}.",
+      "At the environmental workshop, topics are {presented|PRESENT|Shown or explained} by experts. Participants are {involved|INVOLVE|Taking part} in hands-on activities. The goal is to {raise|RAISE|Bring to higher awareness} awareness about sustainability. The workshop is {organized|ORGANIZE|Arranged} to be {informative|INFORM|Providing useful info} and {engaging|ENGAGE|Interesting}.",
+      "In our drama club, scripts are {written|WRITE|Composed in writing} by members. Rehearsals are {scheduled|SCHEDULE|Planned at times} regularly. Performances are {critiqued|CRITIQUE|Judged or evaluated} to improve. The atmosphere is {supportive|SUPPORT|Giving help} and {creative|CREATIVE|Having original ideas}.",
+      "At the math olympiad, problems are {solved|SOLVE|Found the answer to} by participants. The competition is {designed|DESIGN|Planned for a purpose} to test various skills. Winners are {awarded|AWARD|Given as a prize} medals. The event is {organized|ORGANIZE|Arranged} to be {challenging|CHALLENGE|Difficult but interesting} and {rewarding|REWARD|Giving satisfaction}.",
+      "In our history club, events are {researched|RESEARCH|Studied in detail} thoroughly. Members are {encouraged|ENCOURAGE|Given support} to present their findings. Discussions are {moderated|MODERATE|Controlled or managed} to ensure fairness. The atmosphere is {intellectual|INTELLECT|Thinking deeply} and {engaging|ENGAGE|Holding attention}.",
+      "At the coding bootcamp, lessons are {taught|TEACH|Given as instruction} by experts. Participants are {required|REQUIRE|Absolutely necessary} to complete projects. The curriculum is {designed|DESIGN|Planned} to be {intense|INTENSE|Very serious} and {practical|PRACTICE|Useful}. The goal is to {develop|DEVELOP|Grow} practical skills.",
+      "In our photography club, techniques are {taught|TEACH|Given as instruction} by professionals. Members are {encouraged|ENCOURAGE|Given support} to experiment with styles. Photos are {critiqued|CRITIQUE|Judged} to improve. The atmosphere is {supportive|SUPPORT|Helpful} and {creative|CREATIVE|Original}.",
+      "At the science workshop, experiments are {demonstrated|DEMONSTRATE|Shown or explained} by instructors. Participants are {involved|INVOLVE|Taking part} in hands-on activities. The goal is to {inspire|INSPIRE|Give the urge to do} curiosity. The workshop is {organized|ORGANIZE|Arranged} to be {informative|INFORM|Providing info} and {engaging|ENGAGE|Interesting}.",
+      "In our chess club, strategies are {discussed|DISCUSS|Talked about} in detail. Members are {encouraged|ENCOURAGE|Given support} to play regularly. Tournaments are {organized|ORGANIZE|Arranged} to test skills. The atmosphere is {competitive|COMPETE|Involving rivalry} and {intellectual|INTELLECT|Related to thinking}.",
+      "At the writing workshop, techniques are {taught|TEACH|Given as instruction} by authors. Participants are {encouraged|ENCOURAGE|Given support} to write daily. Feedback is {provided|PROVIDE|Given} to improve. The atmosphere is {supportive|SUPPORT|Helpful} and {creative|CREATIVE|Original}.",
+      "In our robotics club, projects are {built|BUILD|Constructed} by teams. Members are {encouraged|ENCOURAGE|Supported} to innovate. Competitions are {organized|ORGANIZE|Arranged} to test skills. The atmosphere is {exciting|EXCITE|Full of energy} and {collaborative|COLLABORATE|Working together}.",
+      "At the film festival, movies are {screened|SCREEN|Shown to an audience} for audiences. Directors are {available|AVAILABLE|Ready to be reached} for Q&A sessions. Awards are {given|GIVE|Handed out} for the best films. The event is {organized|ORGANIZE|Arranged} to be {entertaining|ENTERTAIN|Enjoyable} and {inspirational|INSPIRATION|Motivating}.",
+      "In our debate team, arguments are {prepared|PREPARE|Created in advance} based on research. Members are {encouraged|ENCOURAGE|Supported} to present their views. Competitions are {organized|ORGANIZE|Arranged} to test skills. The atmosphere is {respectful|RESPECT|Polite} and {intellectual|INTELLECT|Thoughtful}.",
+      "At the career fair, companies are {invited|INVITE|Asked to come} to present opportunities. Students are {encouraged|ENCOURAGE|Supported} to network. Workshops are {organized|ORGANIZE|Arranged} to provide guidance. The event is {designed|DESIGN|Planned} to be {informative|INFORM|Useful info} and {beneficial|BENEFIT|Helpful}.",
+      "In our advanced science class, experiments are {supervised|SUPERVISE|Watched over} closely. Safety protocols are {strictly|STRICT|In a strict manner} followed. Results are {analyzed|ANALYZE|Examined in detail} thoroughly. Students are {encouraged|ENCOURAGE|Supported} to ask questions. The atmosphere is {collaborative|COLLABORATE|Working together}.",
+      "In our advanced math class, problem-solving is {prioritized|PRIORITIZE|Given special importance}. Concepts are {explained|EXPLAIN|Made clear} clearly. Students are {challenged|CHALLENGE|Given difficult tasks} to think critically. Homework is {reviewed|REVIEW|Looked at again} regularly. The learning environment is {supportive|SUPPORT|Helpful}.",
+      "In our advanced history class, discussions are {encouraged|ENCOURAGE|Supported}. Facts are {verified|VERIFY|Checked for correctness} carefully. Opinions are {respected|RESPECT|Treated with respect}. Assignments are {graded|GRADE|Scored} fairly. The atmosphere is {engaging|ENGAGE|Interesting}.",
+      "In our advanced art class, creativity is {nurtured|NURTURE|Helped to grow}. Techniques are {taught|TEACH|Instructed} effectively. Projects are {displayed|DISPLAY|Shown} proudly. Feedback is {constructive|CONSTRUCT|Helpful}. The environment is {inspiring|INSPIRATION|Motivating}.",
+      "In our advanced music class, practice is {required|REQUIRE|Absolutely necessary}. Skills are {developed|DEVELOP|Grown over time} gradually. Performances are {enjoyed|ENJOY|Found pleasurable} by all. Instruments are {maintained|MAINTAIN|Kept in good condition} carefully. The atmosphere is {harmonious|HARMONY|Forming a pleasing whole}.",
+      "In physical education class, fitness is {promoted|PROMOTE|Encouraged}. Activities are {organized|ORGANIZE|Arranged} efficiently. Teamwork is {encouraged|ENCOURAGE|Supported}. Equipment is {checked|CHECK|Examined} regularly. The environment is {energetic|ENERGY|Full of energy}.",
+      "In our computer science class, coding is {taught|TEACH|Instructed} systematically. Projects are {developed|DEVELOP|Created} collaboratively. Errors are {debugged|DEBUG|Found and removed} carefully. Innovations are {encouraged|ENCOURAGE|Supported}. The atmosphere is highly {technological|TECHNOLOGY|Relating to technology}.",
+      "In our economics class, theories are {explained|EXPLAIN|Made clear} clearly. Data is {analyzed|ANALYZE|Examined} thoroughly. Discussions are {encouraged|ENCOURAGE|Supported}. Assignments are {graded|GRADE|Scored} fairly. The atmosphere is {intellectual|INTELLECT|Thoughtful}.",
+      "In our sociology class, social issues are {discussed|DISCUSS|Talked about} openly. Research is {conducted|CONDUCT|Performed} rigorously. Opinions are {respected|RESPECT|Treated with respect}. Assignments are {graded|GRADE|Scored} fairly. The atmosphere is {inclusive|INCLUSIVE|Including everyone}.",
+      "In our philosophy class, ideas are {explored|EXPLORE|Looked at deeply} deeply. Arguments are {analyzed|ANALYZE|Examined} critically. Discussions are {encouraged|ENCOURAGE|Supported}. Assignments are {graded|GRADE|Scored} fairly. The atmosphere is incredibly {thoughtful|THOUGHT|Full of careful thinking}."
+    ];
+
+    let exercises = [];
+    let currentExIndex = 0;
+    let playerName = "";
+    let score = 0;
+    
+    // Timer settings updated to 3 minutes
+    const TIME_PER_EXERCISE = 180; // 3 minutes (180 seconds)
+    let timeLeft = TIME_PER_EXERCISE;
+    let timerInterval = null;
+
+    const encouragingPhrases = [
+      "Outstanding!", "You're a genius!", "Keep up the great work!",
+      "Amazing job!", "Spot on!", "Fantastic!", "Brilliant!", "You nailed it!"
+    ];
+
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new AudioContext();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playTone(frequency, type, duration, vol=0.1) {
+      if (!audioCtx) return;
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.type = type;
+      oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + duration);
+    }
+
+    function playSuccessSound() {
+      initAudio();
+      playTone(523.25, 'sine', 0.15, 0.2); // C5
+      setTimeout(() => playTone(659.25, 'sine', 0.3, 0.2), 100); // E5
+    }
+
+    function playErrorSound() {
+      initAudio();
+      playTone(300, 'sawtooth', 0.2, 0.1);
+      setTimeout(() => playTone(250, 'sawtooth', 0.3, 0.1), 150);
+    }
+
+    function parseExercises() {
+      exercises = rawExercises.map((textStr, index) => {
+        let htmlParts = [];
+        let answers = [];
+        
+        // Regex to find {answer|ROOT|hint} blocks
+        const regex = /\{([^|]+)\|([^|]+)\|([^}]+)\}/g;
+        let lastIndex = 0;
+        let match;
+        
+        let gapIndex = 0;
+        while ((match = regex.exec(textStr)) !== null) {
+          // Push text before match
+          htmlParts.push(textStr.substring(lastIndex, match.index));
+          
+          const correctAns = match[1];
+          const rootWord = match[2];
+          const hint = match[3];
+          
+          answers.push({ answer: correctAns, hint: hint });
+          
+          // Generate gap input
+          const inputId = `ex${index}_gap${gapIndex}`;
+          htmlParts.push(`
+            <span style="display:inline-block; text-align:center;">
+              <input type="text" class="gap" id="${inputId}" data-index="${gapIndex}" data-answer="${correctAns}" autocomplete="off" oninput="adjustInputWidth(this)" />
+              <br><span class="hint-text">(${rootWord})</span>
+            </span>
+          `);
+          
+          lastIndex = regex.lastIndex;
+          gapIndex++;
+        }
+        // Push remaining text
+        htmlParts.push(textStr.substring(lastIndex));
+        
+        return {
+          id: index,
+          title: `Exercise ${index + 1} of ${rawExercises.length}`,
+          html: htmlParts.join(''),
+          answers: answers,
+          completed: false
+        };
+      });
+    }
+
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    function showModal(title, message) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-body').textContent = message;
+      document.getElementById('custom-modal').style.display = 'flex';
+    }
+    
+    function closeModal() {
+      document.getElementById('custom-modal').style.display = 'none';
+    }
+
+    function handleEnter(e) {
+      if (e.key === 'Enter') startGame();
+    }
+
+    function goHome() {
+      clearInterval(timerInterval);
+      document.getElementById('playerName').value = '';
+      document.getElementById('status-bar').style.display = 'none';
+      document.getElementById('header-controls').style.display = 'none';
+      document.getElementById('header-ex-title').style.display = 'none';
+      document.getElementById('header-title').textContent = "Cloze Mastery";
+      showScreen('start-screen');
+    }
+
+    function startGame() {
+      const nameInput = document.getElementById('playerName').value.trim();
+      if (!nameInput) {
+        showModal("Wait!", "Please enter your name to start learning.");
+        return;
+      }
+      playerName = nameInput;
+      score = 0;
+      currentExIndex = 0;
+      
+      parseExercises(); // Reset exercise data
+      updateScoreDisplay();
+      updateRemainingDisplay();
+      
+      document.getElementById('status-bar').style.display = 'flex';
+      document.getElementById('header-controls').style.display = 'flex';
+      document.getElementById('header-ex-title').style.display = 'block';
+      
+      initAudio(); // Required due to browser autoplay policies
+      loadExercise(currentExIndex);
+      showScreen('exercise-screen');
+    }
+
+    function adjustInputWidth(el) {
+      // Set width dynamically based on content length or minimum
+      const len = Math.max(el.value.length, 3);
+      el.style.width = `${len + 2}ch`;
+    }
+
+    function loadExercise(index) {
+      const ex = exercises[index];
+      document.getElementById('header-title').textContent = `${playerName}'s Journey`;
+      document.getElementById('header-ex-title').textContent = ex.title;
+      document.getElementById('exercise-content').innerHTML = ex.html;
+      
+      // Clear Feedback
+      const fb = document.getElementById('feedback');
+      fb.textContent = "";
+      fb.className = "";
+      
+      // Auto-focus first empty input
+      const firstInput = document.querySelector('.gap:not(.correct)');
+      if(firstInput) firstInput.focus();
+
+      // Setup Inputs Width
+      document.querySelectorAll('.gap').forEach(adjustInputWidth);
+      
+      // If completed previously, lock it down
+      if (ex.completed) {
+        document.querySelectorAll('.gap').forEach(inp => {
+          inp.value = inp.dataset.answer;
+          inp.classList.add('correct');
+        });
+        fb.textContent = "You've already mastered this exercise!";
+        fb.className = "feedback-success";
+        document.getElementById('btn-submit-header').style.display = 'none';
+      } else {
+        document.getElementById('btn-submit-header').style.display = 'inline-block';
+        startTimer();
+      }
+    }
+
+    function navigateExercise(direction) {
+      const newIndex = currentExIndex + direction;
+      if (newIndex >= 0 && newIndex < exercises.length) {
+        currentExIndex = newIndex;
+        loadExercise(currentExIndex);
+      }
+    }
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timeLeft = TIME_PER_EXERCISE;
+      updateTimerDisplay();
+      
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        updateTimerDisplay();
+        
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          timeLeft = 0;
+          updateTimerDisplay();
+          handleTimeUp();
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay() {
+      const m = String(Math.floor(timeLeft / 60)).padStart(2, '0');
+      const s = String(timeLeft % 60).padStart(2, '0');
+      document.getElementById('timer-display').textContent = `${m}:${s}`;
+      
+      const pct = (timeLeft / TIME_PER_EXERCISE) * 100;
+      const tBar = document.getElementById('time-bar');
+      tBar.style.width = `${pct}%`;
+      
+      if (pct > 50) tBar.style.background = 'var(--success)';
+      else if (pct > 20) tBar.style.background = '#f59e0b'; // warning orange
+      else tBar.style.background = 'var(--error)';
+    }
+
+    function handleTimeUp() {
+      score = Math.max(0, score - 10);
+      updateScoreDisplay();
+      playErrorSound();
+      const fb = document.getElementById('feedback');
+      fb.textContent = "Time's up! -10 points. Submitting...";
+      fb.className = "feedback-error";
+      
+      // Auto-submit or move on when time is up
+      setTimeout(() => {
+          if (currentExIndex < exercises.length - 1) {
+            navigateExercise(1);
+            updateRemainingDisplay();
+          } else {
+            finishGame();
+          }
+      }, 1500);
+    }
+
+    function updateScoreDisplay() {
+      document.getElementById('score-display').textContent = `Score: ${score}`;
+    }
+    
+    function updateRemainingDisplay() {
+        const remaining = exercises.length - currentExIndex;
+        document.getElementById('remaining-display').textContent = `Remaining: ${remaining}`;
+    }
+
+    function submitCurrentExercise() {
+      clearInterval(timerInterval);
+      const ex = exercises[currentExIndex];
+      if (ex.completed) return;
+
+      const inputs = document.querySelectorAll('.gap');
+      let allCorrect = true;
+      let firstErrorHint = "";
+
+      inputs.forEach(input => {
+        const userAns = input.value.trim().toLowerCase();
+        const correctAns = input.dataset.answer.toLowerCase();
+        const hint = exercises[currentExIndex].answers[input.dataset.index].hint;
+
+        if (userAns === correctAns) {
+          input.classList.remove('incorrect');
+          input.classList.add('correct');
+        } else {
+          input.classList.remove('correct');
+          input.classList.add('incorrect');
+          allCorrect = false;
+          if (!firstErrorHint) firstErrorHint = hint;
+        }
+      });
+
+      const fb = document.getElementById('feedback');
+
+      if (allCorrect) {
+        ex.completed = true;
+        
+        // Calculate points based on time left (max 100 per exercise)
+        const timeBonus = Math.floor((timeLeft / TIME_PER_EXERCISE) * 50);
+        const pointsEarned = 50 + timeBonus;
+        score += pointsEarned;
+        updateScoreDisplay();
+        
+        const randomPhrase = encouragingPhrases[Math.floor(Math.random() * encouragingPhrases.length)];
+        fb.textContent = `${randomPhrase} +${pointsEarned} points!`;
+        fb.className = "feedback-success";
+        
+        playSuccessSound();
+        document.getElementById('btn-submit-header').style.display = 'none';
+
+        setTimeout(() => {
+          if (currentExIndex < exercises.length - 1) {
+            navigateExercise(1);
+            updateRemainingDisplay();
+          } else {
+            finishGame();
+          }
+        }, 2000);
+      } else {
+        score = Math.max(0, score - 5); // Small penalty
+        updateScoreDisplay();
+        fb.innerHTML = `Not quite right. <br><small>Hint: ${firstErrorHint}</small>`;
+        fb.className = "feedback-error";
+        playErrorSound();
+        startTimer(); // Resume timer
+      }
+    }
+
+    function finishGame() {
+      clearInterval(timerInterval);
+      document.getElementById('status-bar').style.display = 'none';
+      document.getElementById('header-controls').style.display = 'none';
+      document.getElementById('header-ex-title').style.display = 'none';
+      
+      document.getElementById('final-greeting').textContent = `Fantastic dedication, ${playerName}!`;
+      document.getElementById('final-score').textContent = score;
+      showScreen('end-screen');
+      
+      // Final celebration sound
+      playSuccessSound();
+      setTimeout(playSuccessSound, 400);
+      setTimeout(playSuccessSound, 800);
+    }
+  </script>
+</body>
+</html>
