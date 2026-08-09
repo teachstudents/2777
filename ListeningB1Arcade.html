@@ -206,6 +206,7 @@
 
         let score = 0;
         let currentGroupIndex = 0;
+        let currentTestIndex = 0;
         let activeTestGroups = [];
         let playerName = '';
         let speechKeepAliveInterval;
@@ -478,19 +479,30 @@
             const setVoices = () => {
                 const allVoices = speechSynthesis.getVoices();
                 if (allVoices.length > 0) {
-                    const desiredNames = ['brian', 'emma', 'andrew'];
-                    availableVoices = allVoices.filter(v => 
-                        v.lang.startsWith('en') && 
-                        desiredNames.some(name => v.name.toLowerCase().includes(name)) &&
-                        (v.name.toLowerCase().includes('online') || v.name.toLowerCase().includes('multilingual'))
-                    );
+                    // Filter specifically for USA, UK, Canada, and New Zealand English voices
+                    const allowedLocales = ['en-us', 'en-gb', 'en-ca', 'en-nz'];
+                    let enVoices = allVoices.filter(v => {
+                        const lang = v.lang.toLowerCase();
+                        return allowedLocales.some(loc => lang.startsWith(loc));
+                    });
                     
-                    if (availableVoices.length === 0) {
-                        availableVoices = allVoices.filter(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('neural') || v.name.toLowerCase().includes('google') || v.name.toLowerCase().includes('natural')));
-                    }
-                    if (availableVoices.length === 0) { 
-                        availableVoices = allVoices.filter(v => v.lang.startsWith('en'));
-                    }
+                    // 1. Top Priority: Microsoft Edge Premium "Natural" Online voices
+                    let premium = enVoices.filter(v => v.name.toLowerCase().includes('natural') && v.name.toLowerCase().includes('online'));
+                    
+                    // 2. Second Priority: Brian, Emma, Andrew (Multilingual/Online)
+                    const specificNames = ['brian', 'emma', 'andrew'];
+                    let specific = enVoices.filter(v => specificNames.some(name => v.name.toLowerCase().includes(name)));
+                    
+                    // 3. Third Priority: Any Neural/Google/Online fallback
+                    let neural = enVoices.filter(v => v.name.toLowerCase().includes('neural') || v.name.toLowerCase().includes('google'));
+
+                    // Combine them uniquely, prioritizing the best ones, then falling back to standard local voices (e.g., Apple's voices)
+                    let combinedVoices = [...new Set([...premium, ...specific, ...neural, ...enVoices])];
+                    
+                    // Take exactly the top 9 distinct voices available (or fewer if 9 aren't available on the device)
+                    availableVoices = combinedVoices.slice(0, 9);
+                    
+                    console.log("Loaded 9 Distinct Voices for Tests:", availableVoices.map(v => v.name).join(", "));
                 }
             };
             setVoices();
@@ -536,7 +548,10 @@
             playAudioText.textContent = "Playing Audio...";
             
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.voice = availableVoices[currentGroupIndex % availableVoices.length];
+            
+            // Assign 1 specific voice per Test Module based on the test index (0-17).
+            // This ensures the 18 tests share the 9 available voices (each voice is used exactly twice).
+            utterance.voice = availableVoices[currentTestIndex % availableVoices.length];
             utterance.rate = 0.95; // Slightly slower for listening test
             
             utterance.onend = () => {
@@ -575,6 +590,7 @@
             
             startSpeechKeepAlive();
 
+            currentTestIndex = Object.keys(allTestsData).indexOf(testName);
             activeTestGroups = [...allTestsData[testName]];
             score = 0;
             currentGroupIndex = 0;
