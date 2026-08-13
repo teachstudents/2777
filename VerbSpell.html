@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Joel Mitchell's Verb Practice Ultimate</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fredoka+One&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #1e3a8a, #4c1d95);
+            color: white;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .heading-font {
+            font-family: 'Fredoka One', cursive;
+        }
+
+        /* Shake animation for incorrect answers */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .shake {
+            animation: shake 0.4s ease-in-out;
+        }
+
+        /* Pop animation for correct answers */
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        .pop {
+            animation: pop 0.3s ease-out;
+        }
+
+        /* Timer bar transition */
+        .timer-bar {
+            transition: width 1s linear, background-color 0.3s;
+        }
+
+        /* Split screen styling */
+        .split-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+        .player-zone {
+            flex: 1;
+            padding: 15px; /* Reduced padding */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-radius: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            margin: 0 10px;
+            transition: all 0.3s;
+        }
+        .player-zone.active {
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+            border: 2px solid white;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 1rem;
+        }
+
+        /* Input styling */
+        input[type="text"] {
+            color: #333;
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+
+        /* Confetti canvas */
+        #confettiCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center p-4 relative">
+
+    <canvas id="confettiCanvas"></canvas>
+
+    <!-- Main Menu -->
+    <div id="mainMenu" class="glass-panel p-8 max-w-2xl w-full text-center shadow-2xl z-10">
+        <h1 class="heading-font text-5xl mb-8 text-yellow-300 drop-shadow-lg">Verb Master</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+            <!-- Mode Selection -->
+            <div class="bg-white/10 p-4 rounded-xl">
+                <h2 class="text-2xl font-bold mb-4 text-white">Players</h2>
+                <div class="flex flex-col gap-3">
+                    <label class="flex items-center space-x-3 cursor-pointer">
+                        <input type="radio" name="mode" value="single" class="w-5 h-5" checked>
+                        <span class="text-lg">Single Player</span>
+                    </label>
+                    <label class="flex items-center space-x-3 cursor-pointer">
+                        <input type="radio" name="mode" value="multi" class="w-5 h-5">
+                        <span class="text-lg">Two Player</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Category Selection -->
+            <div class="bg-white/10 p-4 rounded-xl">
+                <h2 class="text-2xl font-bold mb-4 text-white">Topic</h2>
+                <select id="categorySelect" class="w-full p-3 rounded text-gray-800 font-semibold text-lg">
+                    <option value="past">Past Tenses</option>
+                    <option value="present_perfect">Present Perfect</option>
+                    <option value="future">Future Tenses</option>
+                    <option value="irregular">Irregular Verbs</option>
+                    <option value="mixed">Mixed Random</option>
+                </select>
+            </div>
+            
+            <!-- Settings -->
+            <div class="bg-white/10 p-4 rounded-xl md:col-span-2">
+                <h2 class="text-2xl font-bold mb-4 text-white">Settings</h2>
+                <label class="flex items-center justify-center space-x-3 cursor-pointer">
+                    <input type="checkbox" id="adaptiveToggle" class="w-6 h-6" checked>
+                    <span class="text-lg">Enable Adaptive Difficulty</span>
+                </label>
+                <div class="mt-4 flex justify-center items-center gap-4">
+                     <span class="text-lg">Starting Level:</span>
+                     <select id="startLevelSelect" class="p-2 rounded text-gray-800 font-semibold">
+                         <option value="1">Level 1 (A1)</option>
+                         <option value="2">Level 2 (A2)</option>
+                         <option value="3">Level 3 (B1)</option>
+                         <option value="4">Level 4 (B2)</option>
+                     </select>
+                </div>
+            </div>
+        </div>
+
+        <button id="startBtn" class="mt-8 bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 text-white font-bold py-4 px-10 rounded-full text-2xl shadow-xl transform transition hover:scale-105">
+            START GAME
+        </button>
+    </div>
+
+    <!-- Game Container (Hidden initially) -->
+    <div id="gameContainer" class="w-full max-w-6xl hidden flex-col h-full z-10">
+        
+        <!-- Header: Stats & Timers -->
+        <div class="glass-panel p-2 mb-2 flex justify-between items-center text-sm md:text-base">
+            
+            <!-- Left: P1 Score & Info -->
+            <div class="flex flex-col items-start w-1/4 pl-2">
+                <div class="font-bold text-blue-300">Player 1: <span id="p1ScoreHead" class="text-white text-lg bg-blue-900/50 px-2 rounded">0</span></div>
+                <div id="roundDisplay" class="text-gray-300 mt-1 font-semibold">Round 1/3</div>
+            </div>
+
+            <!-- Center: Game Info & Timer -->
+            <div class="flex flex-col items-center w-2/4">
+                <div class="flex items-center gap-3">
+                     <div id="levelBadge" class="heading-font text-lg text-white bg-blue-600 px-3 py-0.5 rounded-full shadow border border-white">
+                        Lvl 1
+                    </div>
+                    <div id="adaptiveStatus" class="text-green-300 font-semibold text-xs">Adapt: ON</div>
+                </div>
+                <div class="mt-1 font-bold">
+                    <span class="text-gray-300">Time:</span> <span id="overallTimerDisplay" class="text-yellow-300">10:00</span>
+                </div>
+            </div>
+
+            <!-- Right: P2 Score (if active) & Controls -->
+            <div class="flex flex-col items-end w-1/4 pr-2">
+                <div id="p2ScoreContainer" class="font-bold text-pink-300 hidden">Player 2: <span id="p2ScoreHead" class="text-white text-lg bg-pink-900/50 px-2 rounded">0</span></div>
+                <div class="flex items-center gap-2 mt-1">
+                    <div id="questionCountDisplay" class="text-gray-300 font-semibold mr-2">Q: 1/10</div>
+                    <button id="quitBtn" class="bg-red-500 hover:bg-red-600 px-2 py-1 rounded text-xs font-bold transition">Quit</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timer Bar -->
+        <div class="w-full bg-gray-700 h-2 rounded-full mb-4 overflow-hidden border border-gray-500">
+            <div id="timerBar" class="timer-bar h-full bg-green-400 w-full"></div>
+        </div>
+
+        <!-- The Question -->
+        <div class="glass-panel p-10 mb-4 text-center relative overflow-hidden min-h-[160px] flex items-center justify-center">
+            <h2 id="questionDisplay" class="text-4xl md:text-5xl font-bold leading-tight drop-shadow-md">Loading question...</h2>
+            
+            <!-- Review Overlay (Hidden initially) -->
+            <div id="reviewOverlay" class="absolute inset-0 bg-blue-900/95 flex flex-col justify-center items-center hidden z-20">
+                <h3 id="reviewTitle" class="heading-font text-3xl mb-2"></h3>
+                <p id="reviewSentence" class="text-3xl md:text-4xl mb-2 font-bold"></p>
+                <p class="text-base text-gray-300">Next in <span id="reviewCountdown">5</span>s...</p>
+            </div>
+        </div>
+
+        <!-- Players Area (Scores removed from here, just inputs and feedback) -->
+        <div id="playersArea" class="flex flex-col md:flex-row gap-4 w-full flex-grow">
+            <!-- Player 1 Zone -->
+            <div id="p1Zone" class="player-zone">
+                <input type="text" id="p1Input" class="w-full p-4 md:p-6 rounded-lg text-center shadow-inner focus:outline-none focus:ring-4 focus:ring-blue-400 text-xl md:text-2xl" placeholder="P1: Type & Enter">
+                <div id="p1Feedback" class="mt-2 text-xl font-bold h-8"></div>
+                <div id="p1Badges" class="mt-2 flex flex-wrap gap-2 text-2xl h-10"></div>
+            </div>
+
+            <!-- Player 2 Zone (Only visible in multi mode) -->
+            <div id="p2Zone" class="player-zone hidden">
+                <input type="text" id="p2Input" class="w-full p-4 md:p-6 rounded-lg text-center shadow-inner focus:outline-none focus:ring-4 focus:ring-pink-400 text-xl md:text-2xl" placeholder="P2: Type & Enter">
+                <div id="p2Feedback" class="mt-2 text-xl font-bold h-8"></div>
+                <div id="p2Badges" class="mt-2 flex flex-wrap gap-2 text-2xl h-10"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Screen -->
+    <div id="summaryScreen" class="glass-panel p-8 max-w-2xl w-full text-center shadow-2xl hidden z-10">
+        <h1 class="heading-font text-5xl mb-6 text-yellow-300">Time's Up!</h1>
+        <div id="summaryContent" class="text-2xl mb-8 space-y-4">
+            <!-- Populated by JS -->
+        </div>
+        <button id="menuBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-xl shadow-lg transition">Back to Menu</button>
+    </div>
+
+    <script>
+        // --- STREAMING_CHUNK: Question Database (Consolidated) ---
+        const questionBank = {
+            'past': {
+                1: [
+                    { template: "Last night, I ___ a letter to my friend. (write)", answer: "wrote" },
+                    { template: "Yesterday, he ___ his bicycle to work. (ride)", answer: "rode" },
+                    { template: "They ___ an interesting article last week. (read)", answer: "read" },
+                    { template: "She ___ a beautiful song at the concert last Sunday. (sing)", answer: "sang" },
+                    { template: "I ___ coffee this morning before leaving the house. (drink)", answer: "drank" },
+                    { template: "He ___ a new car two years ago. (buy)", answer: "bought" },
+                    { template: "They ___ a marathon last weekend. (run)", answer: "ran" },
+                    { template: "She ___ her favorite dress to the party yesterday. (wear)", answer: "wore" },
+                    { template: "I ___ an inspiring movie yesterday evening. (see)", answer: "saw" },
+                    { template: "He ___ his homework quickly yesterday afternoon. (do)", answer: "did" }
+                ],
+                2: [
+                    { template: "At 8 PM yesterday, I ___ an audiobook. (listen)", answer: "was listening" },
+                    { template: "While she ___ in the garden, clouds gathered. (work)", answer: "was working" },
+                    { template: "They ___ in the park when it suddenly started to snow. (jog)", answer: "were jogging" },
+                    { template: "He ___ a letter when I walked by his desk. (write)", answer: "was writing" },
+                    { template: "We ___ dinner when the power went out. (have)", answer: "were having" },
+                    { template: "The children ___ in the schoolyard all afternoon yesterday. (play)", answer: "were playing" },
+                    { template: "I ___ a novel while waiting for the bus yesterday. (read)", answer: "was reading" },
+                    { template: "She ___ on the phone during the entire break. (talk)", answer: "was talking" },
+                    { template: "They ___ to their teacher attentively when the bell rang. (listen)", answer: "were listening" },
+                    { template: "He ___ at his computer all evening last night. (work)", answer: "was working" }
+                ],
+                3: [
+                    { template: "By the time the movie started, I ___ my popcorn. (finish)", answer: "had finished" },
+                    { template: "She ___ the letter before she left the house. (write)", answer: "had written" },
+                    { template: "They ___ the project long before the deadline arrived. (complete)", answer: "had completed" },
+                    { template: "He ___ his homework before his friend came over. (do)", answer: "had done" },
+                    { template: "We ___ the news by the time you called us. (hear)", answer: "had heard" },
+                    { template: "I ___ all the instructions before starting the quiz. (read)", answer: "had read" },
+                    { template: "She ___ her suitcase before the train departed. (pack)", answer: "had packed" },
+                    { template: "They ___ the meeting before lunch even began. (start)", answer: "had started" },
+                    { template: "He realized he ___ his keys before reaching the car. (lose)", answer: "had lost" },
+                    { template: "We ___ the cake before the guests finally arrived. (bake)", answer: "had baked" }
+                ],
+                4: [
+                    { template: "By the time the meeting began, I ___ my notes down. (take)", answer: "had taken" },
+                    { template: "Yesterday, while I ___ for work, I received a call. (run)", answer: "was running" },
+                    { template: "Last night, I ___ a fantastic movie on TV. (watch)", answer: "watched" },
+                    { template: "At 10 AM yesterday, we ___ a meeting. (attend)", answer: "were attending" },
+                    { template: "By the time the presentation started, I ___ all my notes. (prepare)", answer: "had prepared" },
+                    { template: "Yesterday, while I ___ in the street, I bumped into an old friend. (stroll)", answer: "was strolling" },
+                    { template: "At 10 AM this morning, we ___ with our colleagues. (meet)", answer: "were meeting" },
+                    { template: "By the time the professor arrived, she ___ her lecture notes. (review)", answer: "had reviewed" },
+                    { template: "Yesterday, while I ___ in the garden, the phone rang. (tend)", answer: "was tending" },
+                    { template: "They ___ outside when the earthquake struck last year. (run)", answer: "were running" }
+                ]
+            },
+            'present_perfect': {
+                1: [
+                    { template: "She has ___ a challenging puzzle just now. (complete)", answer: "completed" },
+                    { template: "He has already ___ the rules clearly. (explain)", answer: "explained" },
+                    { template: "We have recently ___ the ancient ruins. (visit)", answer: "visited" },
+                    { template: "They have ___ the new museum so far. (explore)", answer: "explored" },
+                    { template: "I have ___ an important lesson today. (learn)", answer: "learned" },
+                    { template: "She has never ___ a secret garden before. (discover)", answer: "discovered" },
+                    { template: "He has greatly ___ his painting skills since last year. (improve)", answer: "improved" },
+                    { template: "They have ___ to several countries this year. (travel)", answer: "traveled" },
+                    { template: "I have ___ every moment of the tour so far. (enjoy)", answer: "enjoyed" },
+                    { template: "We have already ___ a traditional meal together. (cook)", answer: "cooked" }
+                ],
+                2: [
+                    { template: "I ___ this novel before. (read)", answer: "have read" },
+                    { template: "She ___ in three different countries in her lifetime. (live)", answer: "has lived" },
+                    { template: "They ___ their homework already. (finish)", answer: "have finished" },
+                    { template: "He ___ a famous novel recently. (write)", answer: "has written" },
+                    { template: "We ___ a new restaurant in town this week. (discover)", answer: "have discovered" },
+                    { template: "I ___ that movie twice so far. (see)", answer: "have seen" },
+                    { template: "She ___ a beautiful song recently. (sing)", answer: "has sung" },
+                    { template: "They ___ to many concerts this year. (go)", answer: "have gone" },
+                    { template: "He ___ his keys again today. (lose)", answer: "has lost" },
+                    { template: "We ___ already. (arrive)", answer: "have arrived" }
+                ],
+                3: [
+                    { template: "I ___ that documentary before. (see)", answer: "have seen" },
+                    { template: "She ___ her assignment already. (finish)", answer: "has finished" },
+                    { template: "They ___ in this city for three years now. (live)", answer: "have lived" },
+                    { template: "He ___ his car keys and still can't find them. (lose)", answer: "has lost" },
+                    { template: "We ___ significant progress so far this semester. (make)", answer: "have made" },
+                    { template: "I ___ an important email today. (send)", answer: "have sent" },
+                    { template: "She ___ many books in her lifetime. (read)", answer: "has read" },
+                    { template: "They ___ the project successfully already. (complete)", answer: "have completed" },
+                    { template: "He ___ his decision regarding the job recently. (change)", answer: "has changed" },
+                    { template: "We ___ every step of the process so far. (follow)", answer: "have followed" }
+                ],
+                4: [
+                    { template: "The scientist ___ a breakthrough recently. (achieve)", answer: "has achieved" },
+                    { template: "After months of training, the athlete ___ the record today. (break)", answer: "has broken" },
+                    { template: "The director ___ a new approach recently. (introduce)", answer: "has introduced" },
+                    { template: "In the final match so far, the player ___ every opponent. (beat)", answer: "has beaten" },
+                    { template: "The author ___ several drafts before finalizing the novel today. (write)", answer: "has written" },
+                    { template: "During the debate today, the politician ___ his critics. (counter)", answer: "has countered" },
+                    { template: "After a long discussion, she ___ her stance and apologized just now. (change)", answer: "has changed" },
+                    { template: "The technician ___ the system thoroughly already. (inspect)", answer: "has inspected" },
+                    { template: "He ___ his previous errors completely since then. (forget)", answer: "has forgotten" },
+                    { template: "The musician ___ a timeless melody recently. (compose)", answer: "has composed" }
+                ]
+            },
+            'future': {
+                1: [
+                    { template: "Tomorrow, I ___ to the market. (go)", answer: "will go" },
+                    { template: "Next week, she ___ a new book. (buy)", answer: "will buy" },
+                    { template: "In the morning, he ___ a cup of coffee. (drink)", answer: "will drink" },
+                    { template: "Tomorrow night, we ___ a movie. (watch)", answer: "will watch" },
+                    { template: "Next year, they ___ a trip to Paris. (take)", answer: "will take" },
+                    { template: "Soon, I ___ my friend at the park. (meet)", answer: "will meet" },
+                    { template: "On Sunday, she ___ her homework. (do)", answer: "will do" },
+                    { template: "Later today, he ___ with his colleagues. (talk)", answer: "will talk" },
+                    { template: "Tomorrow, we ___ for the test. (study)", answer: "will study" },
+                    { template: "At noon tomorrow, they ___ lunch together. (have)", answer: "will have" }
+                ],
+                2: [
+                    { template: "At 9 AM tomorrow, I ___ at the office. (work)", answer: "will be working" },
+                    { template: "This time tomorrow, she ___ in the garden. (plant)", answer: "will be planting" },
+                    { template: "At noon tomorrow, he ___ a meeting. (attend)", answer: "will be attending" },
+                    { template: "Next evening, we ___ a new show on TV. (watch)", answer: "will be watching" },
+                    { template: "At 8 PM tonight, they ___ dinner. (eat)", answer: "will be eating" },
+                    { template: "Tomorrow afternoon, I ___ with my family. (travel)", answer: "will be traveling" },
+                    { template: "At this moment tomorrow, he ___ on his project. (work)", answer: "will be working" },
+                    { template: "Next week at 10 AM, she ___ a presentation. (give)", answer: "will be giving" },
+                    { template: "In a few minutes, we ___ outside. (play)", answer: "will be playing" },
+                    { template: "At 10 AM tomorrow, they ___ the new exhibit. (view)", answer: "will be viewing" }
+                ],
+                3: [
+                    { template: "By next month, I ___ the entire book. (read)", answer: "will have read" },
+                    { template: "By the time you arrive, she ___ dinner. (prepare)", answer: "will have prepared" },
+                    { template: "Before the semester ends, they ___ the project. (complete)", answer: "will have completed" },
+                    { template: "By tomorrow night, he ___ the assignment. (finish)", answer: "will have finished" },
+                    { template: "By next year, we ___ the new building. (construct)", answer: "will have constructed" },
+                    { template: "By the time the show starts, I ___ my homework. (do)", answer: "will have done" },
+                    { template: "Before the morning, she ___ the report. (write)", answer: "will have written" },
+                    { template: "By tomorrow, they ___ their exam. (pass)", answer: "will have passed" },
+                    { template: "By next weekend, he ___ the results. (analyze)", answer: "will have analyzed" },
+                    { template: "By the end of the day, we ___ the meeting. (conclude)", answer: "will have concluded" }
+                ],
+                4: [
+                    { template: "Next week, I ___ a conference. (attend)", answer: "will attend" },
+                    { template: "At 3 PM tomorrow, I ___ in a webinar. (join)", answer: "will be joining" },
+                    { template: "By the end of the year, I ___ my training program. (complete)", answer: "will have completed" },
+                    { template: "Tomorrow, she ___ a gift for her friend. (choose)", answer: "will choose" },
+                    { template: "This time next week, he ___ for his exams. (study)", answer: "will be studying" },
+                    { template: "By next week, he ___ all the necessary tests. (finish)", answer: "will have finished" },
+                    { template: "Soon, they ___ a decision. (make)", answer: "will make" },
+                    { template: "On Saturday evening, she ___ over the phone. (chat)", answer: "will be chatting" },
+                    { template: "By tomorrow morning, she ___ on the proposal. (review)", answer: "will have reviewed" },
+                    { template: "Next month, we ___ a new car. (buy)", answer: "will buy" }
+                ]
+            },
+            'irregular': {
+                1: [
+                    { template: "Yesterday, Tim ___ to the store. (go)", answer: "went" },
+                    { template: "Last night, Emma ___ a letter. (write)", answer: "wrote" },
+                    { template: "Yesterday, Sam ___ his bike in the park. (ride)", answer: "rode" },
+                    { template: "This morning, Lily ___ breakfast early. (eat)", answer: "ate" },
+                    { template: "Yesterday, Mark ___ a movie at the cinema. (watch)", answer: "watched" },
+                    { template: "Last evening, John ___ about the accident. (speak)", answer: "spoke" },
+                    { template: "Yesterday, Ian ___ home after work. (come)", answer: "came" },
+                    { template: "Last night, Jenny ___ to her favorite song. (sing)", answer: "sang" },
+                    { template: "Yesterday, Paul ___ his homework diligently. (do)", answer: "did" },
+                    { template: "Last morning, Ava ___ quietly in class. (sit)", answer: "sat" }
+                ],
+                2: [
+                    { template: "He has ___ the city many times in his life. (see)", answer: "seen" },
+                    { template: "They have already ___ the meeting on time. (begin)", answer: "begun" },
+                    { template: "We have recently ___ an important discovery. (find)", answer: "found" },
+                    { template: "She has successfully ___ a challenging puzzle. (solve)", answer: "solved" },
+                    { template: "I have always ___ the gift you sent. (appreciate)", answer: "appreciated" },
+                    { template: "She has ___ her favorite book more than once. (read)", answer: "read" },
+                    { template: "He has already ___ the assignment thoroughly. (complete)", answer: "completed" },
+                    { template: "They have recently ___ a delicious meal together. (make)", answer: "made" },
+                    { template: "I have ___ to many countries this year. (travel)", answer: "traveled" },
+                    { template: "We have recently ___ a new method for solving problems. (develop)", answer: "developed" }
+                ],
+                3: [
+                    { template: "He has securely ___ the truth despite all odds. (hide)", answer: "hidden" },
+                    { template: "She has temporarily ___ her plans. (freeze)", answer: "frozen" },
+                    { template: "They have completely ___ down barriers. (break)", answer: "broken" },
+                    { template: "He has finally ___ a difficult obstacle during his journey. (overcome)", answer: "overcome" },
+                    { template: "She has already ___ many opportunities by acting boldly. (seize)", answer: "seized" },
+                    { template: "They have strictly ___ the proposal after thorough discussion. (forbid)", answer: "forbidden" },
+                    { template: "I have steadfastly ___ to my principles through tough times. (stick)", answer: "stuck" },
+                    { template: "They have unfortunately ___ many chances to succeed. (miss)", answer: "missed" },
+                    { template: "She has recently ___ in a competitive tournament. (win)", answer: "won" },
+                    { template: "He has completely ___ his decision, leaving everyone surprised. (tear)", answer: "torn" }
+                ],
+                4: [
+                    { template: "In his memoir, he revealed he had deliberately ___ info. (withhold)", answer: "withheld" },
+                    { template: "She insisted he had intentionally ___ his performance. (embellish)", answer: "embellished" },
+                    { template: "They have permanently ___ the proposal. (forbid)", answer: "forbidden" },
+                    { template: "After the conference, the committee admitted they had accidentally ___ an error. (overlook)", answer: "overlooked" },
+                    { template: "The director has recently ___ a new approach to storytelling. (introduce)", answer: "introduced" },
+                    { template: "In the project presentation today, the team has clearly ___ their innovative ideas. (convey)", answer: "conveyed" },
+                    { template: "The committee has already ___ a number of proposals before reaching a consensus. (review)", answer: "reviewed" },
+                    { template: "The engineer has successfully ___ a safer design after extensive testing. (develop)", answer: "developed" },
+                    { template: "The artist has noticeably ___ her style over the years. (evolve)", answer: "evolved" },
+                    { template: "After the interview, the manager admitted she had completely ___ the candidate's abilities. (misjudge)", answer: "misjudged" }
+                ]
+            }
+        };
+
+        // --- STREAMING_CHUNK: Game State Initialization ---
+        let gameState = {
+            mode: 'single',
+            category: 'past',
+            isAdaptive: true,
+            currentLevel: 1,
+            overallTime: 600,
+            questionTime: 20,
+            timerInterval: null,
+            overallInterval: null,
+            currentQ: null,
+            isReviewing: false,
+            
+            // Round Tracking
+            currentRound: 1,
+            maxRounds: 3,
+            currentQInRound: 0,
+            
+            // Dynamic Question calculation
+            totalQuestionsAvailableForCategory: 0,
+            maxQsPerRound: 10,
+            
+            drawPiles: {},
+            
+            p1: { name: 'Player 1', score: 0, streak: 0, badges: [] },
+            p2: { name: 'Player 2', score: 0, streak: 0, badges: [] }
+        };
+
+        const timeLimits = { 1: 20, 2: 30, 3: 40, 4: 50 };
+        const praisePhrases = ["Great job!", "Excellent!", "You got it!", "Fantastic!", "Brilliant!", "Spot on!"];
+        
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playTone(freq, type, duration, vol=0.1) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        function playCorrectSound() {
+            playTone(600, 'sine', 0.1);
+            setTimeout(() => playTone(800, 'sine', 0.2), 100);
+        }
+
+        function playIncorrectSound() {
+            playTone(300, 'sawtooth', 0.3, 0.2);
+            setTimeout(() => playTone(250, 'sawtooth', 0.4, 0.2), 150);
+        }
+
+        // --- STREAMING_CHUNK: TTS Setup with Microsoft Emma Priority ---
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Cancel ongoing speech
+                const utterance = new SpeechSynthesisUtterance(text);
+                const voices = window.speechSynthesis.getVoices();
+                
+                // Prioritize Microsoft Emma Online Multilingual
+                let selectedVoice = voices.find(v => 
+                    v.name.toLowerCase().includes('emma') && 
+                    v.name.toLowerCase().includes('online')
+                );
+                
+                // Fallback to local Emma or other good English voices
+                if (!selectedVoice) selectedVoice = voices.find(v => v.name.toLowerCase().includes('emma'));
+                if (!selectedVoice) selectedVoice = voices.find(v => v.lang.includes('en-') && (v.name.includes('Microsoft') || v.name.includes('Google')));
+
+                if(selectedVoice) utterance.voice = selectedVoice;
+                utterance.rate = 1.05; // Natural pacing
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+        window.speechSynthesis.onvoiceschanged = () => {};
+
+        const UI = {
+            mainMenu: document.getElementById('mainMenu'),
+            gameContainer: document.getElementById('gameContainer'),
+            summaryScreen: document.getElementById('summaryScreen'),
+            
+            overallTimer: document.getElementById('overallTimerDisplay'),
+            levelBadge: document.getElementById('levelBadge'),
+            timerBar: document.getElementById('timerBar'),
+            questionDisplay: document.getElementById('questionDisplay'),
+            
+            reviewOverlay: document.getElementById('reviewOverlay'),
+            reviewTitle: document.getElementById('reviewTitle'),
+            reviewSentence: document.getElementById('reviewSentence'),
+            reviewCountdown: document.getElementById('reviewCountdown'),
+            
+            roundDisplay: document.getElementById('roundDisplay'),
+            questionCountDisplay: document.getElementById('questionCountDisplay'),
+            p1ScoreHead: document.getElementById('p1ScoreHead'),
+            p2ScoreHead: document.getElementById('p2ScoreHead'),
+            p2ScoreContainer: document.getElementById('p2ScoreContainer'),
+
+            p1Zone: document.getElementById('p1Zone'),
+            p2Zone: document.getElementById('p2Zone'),
+            p1Input: document.getElementById('p1Input'),
+            p2Input: document.getElementById('p2Input'),
+            p1Feedback: document.getElementById('p1Feedback'),
+            p2Feedback: document.getElementById('p2Feedback'),
+            p1Badges: document.getElementById('p1Badges'),
+            p2Badges: document.getElementById('p2Badges'),
+        };
+
+        // --- STREAMING_CHUNK: Start Game & Logic ---
+        document.getElementById('startBtn').addEventListener('click', () => {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+
+            gameState.mode = document.querySelector('input[name="mode"]:checked').value;
+            gameState.category = document.getElementById('categorySelect').value;
+            gameState.isAdaptive = document.getElementById('adaptiveToggle').checked;
+            gameState.currentLevel = parseInt(document.getElementById('startLevelSelect').value);
+            
+            gameState.overallTime = 600;
+            gameState.currentRound = 1;
+            gameState.currentQInRound = 0;
+            gameState.p1 = { name: 'Player 1', score: 0, streak: 0, badges: [] };
+            gameState.p2 = { name: 'Player 2', score: 0, streak: 0, badges: [] };
+            
+            // Setup Draw Piles
+            gameState.drawPiles = {};
+            let totalQsForSelected = 0;
+
+            for (const cat in questionBank) {
+                gameState.drawPiles[cat] = {};
+                for (const lvl in questionBank[cat]) {
+                    gameState.drawPiles[cat][lvl] = [...questionBank[cat][lvl]].sort(() => Math.random() - 0.5);
+                    
+                    if (gameState.category === cat || gameState.category === 'mixed') {
+                        totalQsForSelected += gameState.drawPiles[cat][lvl].length;
+                    }
+                }
+            }
+            
+            // Calculate how many questions per round based on available questions
+            // Assuming 3 rounds, let's distribute evenly, or cap at 10 per round.
+            // If total questions are less than 30, we reduce maxQsPerRound
+            gameState.totalQuestionsAvailableForCategory = totalQsForSelected;
+            gameState.maxQsPerRound = Math.min(10, Math.ceil(totalQsForSelected / gameState.maxRounds));
+            
+            // Fallback if somehow there are very few questions
+            if (gameState.maxQsPerRound === 0) gameState.maxQsPerRound = 5;
+
+            UI.mainMenu.classList.add('hidden');
+            UI.gameContainer.classList.remove('hidden');
+            UI.summaryScreen.classList.add('hidden');
+            
+            if (gameState.mode === 'multi') {
+                UI.p2Zone.classList.remove('hidden');
+                UI.p2ScoreContainer.classList.remove('hidden');
+            } else {
+                UI.p2Zone.classList.add('hidden');
+                UI.p2ScoreContainer.classList.add('hidden');
+            }
+            
+            document.getElementById('adaptiveStatus').innerText = gameState.isAdaptive ? "Adapt: ON" : "Adapt: OFF";
+            
+            updateScores();
+            startOverallTimer();
+            loadNextQuestion();
+        });
+
+        document.getElementById('quitBtn').addEventListener('click', endGame);
+        document.getElementById('menuBtn').addEventListener('click', () => {
+            UI.summaryScreen.classList.add('hidden');
+            UI.mainMenu.classList.remove('hidden');
+        });
+
+        function getQuestion() {
+            let cat = gameState.category;
+            if (cat === 'mixed') {
+                const cats = ['past', 'present_perfect', 'future', 'irregular'];
+                cat = cats[Math.floor(Math.random() * cats.length)];
+            }
+            
+            let pile = gameState.drawPiles[cat][gameState.currentLevel];
+            
+            // If pile is empty, find another level or reshuffle
+            if (!pile || pile.length === 0) {
+                pile = [...questionBank[cat][gameState.currentLevel]].sort(() => Math.random() - 0.5);
+                gameState.drawPiles[cat][gameState.currentLevel] = pile;
+            }
+            
+            return pile.pop();
+        }
+
+        function loadNextQuestion() {
+            gameState.isReviewing = false;
+            UI.reviewOverlay.classList.add('hidden');
+            
+            gameState.currentQInRound++;
+            
+            // Check for end of round
+            if (gameState.currentQInRound > gameState.maxQsPerRound) {
+                gameState.currentQInRound = 1;
+                gameState.currentRound++;
+                if (gameState.currentRound > gameState.maxRounds) {
+                    endGame(); 
+                    return;
+                }
+            }
+            
+            UI.roundDisplay.innerText = `Round ${gameState.currentRound}/${gameState.maxRounds}`;
+            UI.questionCountDisplay.innerText = `Q: ${gameState.currentQInRound}/${gameState.maxQsPerRound}`;
+
+            gameState.currentQ = getQuestion();
+            UI.questionDisplay.innerHTML = gameState.currentQ.template.replace('___', '<span class="inline-block w-24 border-b-4 border-dashed border-gray-400 mx-2"></span>');
+            
+            UI.levelBadge.innerText = `Lvl ${gameState.currentLevel}`;
+            
+            UI.p1Input.value = '';
+            UI.p2Input.value = '';
+            UI.p1Input.disabled = false;
+            UI.p2Input.disabled = false;
+            UI.p1Feedback.innerText = '';
+            UI.p2Feedback.innerText = '';
+            
+            UI.p1Input.focus();
+
+            gameState.questionTime = timeLimits[gameState.currentLevel];
+            startQuestionTimer();
+        }
+
+        // --- STREAMING_CHUNK: Timers ---
+        function startOverallTimer() {
+            clearInterval(gameState.overallInterval);
+            gameState.overallInterval = setInterval(() => {
+                gameState.overallTime--;
+                const m = Math.floor(gameState.overallTime / 60);
+                const s = gameState.overallTime % 60;
+                UI.overallTimer.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+                if (gameState.overallTime <= 0) endGame();
+            }, 1000);
+        }
+
+        function startQuestionTimer() {
+            clearInterval(gameState.timerInterval);
+            
+            UI.timerBar.style.transition = 'none';
+            UI.timerBar.style.width = '100%';
+            UI.timerBar.style.backgroundColor = '#4ade80';
+            
+            void UI.timerBar.offsetWidth; 
+            
+            UI.timerBar.style.transition = `width ${gameState.questionTime}s linear, background-color 0.3s`;
+            UI.timerBar.style.width = '0%';
+
+            let timeLeft = gameState.questionTime;
+            gameState.timerInterval = setInterval(() => {
+                timeLeft--;
+                
+                if (timeLeft === Math.floor(gameState.questionTime / 2)) {
+                    UI.timerBar.style.backgroundColor = '#facc15';
+                } else if (timeLeft === Math.floor(gameState.questionTime / 4)) {
+                    UI.timerBar.style.backgroundColor = '#ef4444';
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(gameState.timerInterval);
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        // --- STREAMING_CHUNK: Interactions & Review ---
+        function attachInputListeners(inputEl, playerKey) {
+            inputEl.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !gameState.isReviewing) {
+                    evaluateAnswer(playerKey, inputEl.value.trim());
+                }
+            });
+        }
+        attachInputListeners(UI.p1Input, 'p1');
+        attachInputListeners(UI.p2Input, 'p2');
+
+        function evaluateAnswer(player, answer) {
+            if (gameState.isReviewing) return;
+
+            const isCorrect = answer.toLowerCase() === gameState.currentQ.answer.toLowerCase();
+            const inputEl = player === 'p1' ? UI.p1Input : UI.p2Input;
+            const feedbackEl = player === 'p1' ? UI.p1Feedback : UI.p2Feedback;
+            
+            if (isCorrect) {
+                playCorrectSound();
+                inputEl.classList.add('pop');
+                setTimeout(() => inputEl.classList.remove('pop'), 300);
+                
+                gameState[player].score++;
+                gameState[player].streak++;
+                
+                const otherPlayer = player === 'p1' ? 'p2' : 'p1';
+                gameState[otherPlayer].streak = 0;
+
+                const phrase = praisePhrases[Math.floor(Math.random() * praisePhrases.length)];
+                speakText(`${phrase} ${gameState[player].name}`);
+                
+                checkBadges(player);
+                triggerReviewPhase(player);
+
+            } else {
+                playIncorrectSound();
+                inputEl.classList.add('shake');
+                setTimeout(() => inputEl.classList.remove('shake'), 400);
+                inputEl.value = ''; 
+                
+                gameState.p1.streak = 0; 
+                if(gameState.mode === 'multi') gameState.p2.streak = 0;
+                
+                feedbackEl.innerText = "Incorrect!";
+                feedbackEl.classList.add('text-red-400');
+                
+                gameState.wrongStreak = (gameState.wrongStreak || 0) + 1;
+                handleAdaptiveDifficulty();
+            }
+        }
+
+        function handleTimeout() {
+            if (gameState.isReviewing) return;
+            playIncorrectSound();
+            gameState.p1.streak = 0;
+            gameState.p2.streak = 0;
+            gameState.wrongStreak = (gameState.wrongStreak || 0) + 1;
+            speakText("Time's up! Let's review.");
+            triggerReviewPhase(null);
+        }
+
+        function triggerReviewPhase(winnerId) {
+            gameState.isReviewing = true;
+            clearInterval(gameState.timerInterval);
+            
+            UI.p1Input.disabled = true;
+            UI.p2Input.disabled = true;
+
+            handleAdaptiveDifficulty();
+            updateScores();
+
+            UI.reviewOverlay.classList.remove('hidden');
+            
+            if (winnerId) {
+                const winnerName = gameState[winnerId].name;
+                UI.reviewTitle.innerHTML = `<span class="text-green-400">${winnerName} got it!</span>`;
+            } else {
+                UI.reviewTitle.innerHTML = `<span class="text-red-400">Time's Up!</span>`;
+            }
+
+            const fullSentence = gameState.currentQ.template.replace('___', `<span class="text-yellow-400 underline">${gameState.currentQ.answer}</span>`);
+            UI.reviewSentence.innerHTML = fullSentence;
+
+            const cleanSentence = gameState.currentQ.template.replace('___', gameState.currentQ.answer).replace(/\(.*?\)/g, '');
+            
+            // Read answer using Emma immediately after praise finishes (approx 1s delay)
+            setTimeout(() => {
+                if(winnerId) speakText(cleanSentence);
+            }, 1000); 
+
+            let countdown = 5;
+            UI.reviewCountdown.innerText = countdown;
+            const reviewInterval = setInterval(() => {
+                countdown--;
+                UI.reviewCountdown.innerText = countdown;
+                if (countdown <= 0) {
+                    clearInterval(reviewInterval);
+                    loadNextQuestion();
+                }
+            }, 1000);
+        }
+
+        function handleAdaptiveDifficulty() {
+            if (!gameState.isAdaptive) return;
+            
+            if (gameState.p1.streak >= 3 || gameState.p2.streak >= 3) {
+                if (gameState.currentLevel < 4) {
+                    gameState.currentLevel++;
+                    speakText(`Level Up! Level ${gameState.currentLevel}`);
+                    fireConfetti(100);
+                }
+                gameState.p1.streak = 0;
+                gameState.p2.streak = 0;
+                gameState.wrongStreak = 0;
+            }
+            
+            if (gameState.wrongStreak >= 3) {
+                if (gameState.currentLevel > 1) {
+                    gameState.currentLevel--;
+                    speakText(`Difficulty decreased to Level ${gameState.currentLevel}`);
+                }
+                gameState.wrongStreak = 0;
+            }
+        }
+
+        function checkBadges(player) {
+            const score = gameState[player].score;
+            let earned = false;
+            
+            if (score === 5 && !gameState[player].badges.includes('⭐')) { gameState[player].badges.push('⭐'); earned = true; }
+            if (score === 10 && !gameState[player].badges.includes('🔥')) { gameState[player].badges.push('🔥'); earned = true; }
+            if (score === 20 && !gameState[player].badges.includes('🏆')) { gameState[player].badges.push('🏆'); earned = true; }
+            
+            if (gameState[player].streak === 3 && !gameState[player].badges.includes('⚡')) { gameState[player].badges.push('⚡'); earned = true; }
+
+            if (earned) {
+                fireConfetti(50);
+                const badgeEl = player === 'p1' ? UI.p1Badges : UI.p2Badges;
+                badgeEl.innerHTML = gameState[player].badges.join(' ');
+                badgeEl.classList.add('pop');
+                setTimeout(() => badgeEl.classList.remove('pop'), 300);
+            }
+        }
+
+        function updateScores() {
+            if(UI.p1ScoreHead) UI.p1ScoreHead.innerText = gameState.p1.score;
+            if(UI.p2ScoreHead) UI.p2ScoreHead.innerText = gameState.p2.score;
+        }
+
+        // --- STREAMING_CHUNK: Final Screens & Confetti ---
+        function endGame() {
+            clearInterval(gameState.overallInterval);
+            clearInterval(gameState.timerInterval);
+            
+            UI.gameContainer.classList.add('hidden');
+            UI.summaryScreen.classList.remove('hidden');
+            
+            let html = '';
+            if (gameState.mode === 'single') {
+                html = `<p>Final Score: <span class="font-bold text-green-400">${gameState.p1.score}</span></p>
+                        <p>Badges Earned: ${gameState.p1.badges.join(' ') || 'None yet!'}</p>`;
+                if (gameState.p1.score > 0) speakText(`Great practice! You scored ${gameState.p1.score} points.`);
+            } else {
+                let winnerText = '';
+                if (gameState.p1.score > gameState.p2.score) winnerText = "Player 1 Wins!";
+                else if (gameState.p2.score > gameState.p1.score) winnerText = "Player 2 Wins!";
+                else winnerText = "It's a Tie!";
+                
+                html = `<h2 class="text-3xl font-bold text-green-400 mb-4">${winnerText}</h2>
+                        <div class="flex justify-around">
+                            <div><p>Player 1</p><p class="text-2xl font-bold">${gameState.p1.score}</p></div>
+                            <div><p>Player 2</p><p class="text-2xl font-bold">${gameState.p2.score}</p></div>
+                        </div>`;
+                speakText(winnerText);
+            }
+            
+            document.getElementById('summaryContent').innerHTML = html;
+            fireConfetti(200);
+        }
+
+        const canvas = document.getElementById('confettiCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        let particles = [];
+        
+        function fireConfetti(amount = 100) {
+            const colors = ['#facc15', '#4ade80', '#3b82f6', '#ec4899', '#a855f7'];
+            for(let i=0; i<amount; i++) {
+                particles.push({
+                    x: canvas.width / 2,
+                    y: canvas.height / 2,
+                    r: Math.random() * 6 + 2,
+                    dx: Math.random() * 10 - 5,
+                    dy: Math.random() * -10 - 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    tilt: Math.floor(Math.random() * 10) - 10,
+                    tiltAngle: 0,
+                    tiltAngleInc: (Math.random() * 0.07) + 0.05
+                });
+            }
+        }
+
+        function animateConfetti() {
+            requestAnimationFrame(animateConfetti);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            for(let i = 0; i < particles.length; i++) {
+                let p = particles[i];
+                p.tiltAngle += p.tiltAngleInc;
+                p.y += (Math.cos(p.tiltAngle) + 1 + p.r / 2) / 2;
+                p.x += Math.sin(p.tiltAngle) * 2;
+                p.dy += 0.1;
+                p.x += p.dx;
+                p.y += p.dy;
+                
+                ctx.beginPath();
+                ctx.lineWidth = p.r;
+                ctx.strokeStyle = p.color;
+                ctx.moveTo(p.x + p.tilt + p.r, p.y);
+                ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r);
+                ctx.stroke();
+                
+                if (p.y > canvas.height) {
+                    particles.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+        animateConfetti();
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+    </script>
+</body>
+</html>
