@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Interactive IELTS Speaking Dashboard">
+  <title>IELTS Speaking Practice Dashboard</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --secondary: #7c3aed;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --warning: #f97316;
+      --danger: #ef4444;
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 12px;
+      --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* Translation Styles - Permanently Visible in Purple */
+    .zh-trans { 
+      color: #9333ea; 
+      font-size: 0.9em; 
+      font-weight: 500; 
+      margin-left: 4px; 
+      display: inline;
+    }
+    
+    /* Organized Left/Right Navigation */
+    nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      flex: 1;
+    }
+    .nav-left {
+      justify-content: flex-start;
+    }
+    .nav-right {
+      justify-content: flex-end;
+    }
+    nav button {
+      background: transparent;
+      border: 1px solid var(--border);
+      padding: 0.4rem 0.8rem;
+      font-size: 0.85rem;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    nav button:hover, nav button.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+
+    /* Expanded Width to fit more on the page */
+    main {
+      max-width: 98%; /* Expanded from 1200px */
+      margin: 1rem auto 2rem;
+      padding: 0 1.5rem;
+    }
+    .section { display: none; animation: fadeIn 0.4s ease; }
+    .section.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+    .card h2 { font-size: 1.4rem; margin-bottom: 1rem; color: var(--primary-dark); }
+    .card h3 { font-size: 1.1rem; margin: 1rem 0 0.5rem; }
+    .grid { display: grid; gap: 1rem; }
+    .grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      min-height: 100px;
+      margin: 0.5rem 0;
+      transition: background 0.2s;
+    }
+    .draggable {
+      display: inline-block;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      padding: 0.4rem 0.8rem;
+      margin: 0.25rem;
+      border-radius: 6px;
+      cursor: grab;
+      user-select: none;
+    }
+    .draggable:active { cursor: grabbing; }
+    
+    .timer-display {
+      font-size: 2.5rem;
+      font-weight: bold;
+      text-align: center;
+      margin: 1rem 0;
+      font-variant-numeric: tabular-nums;
+    }
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: var(--primary-dark); }
+    .btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+    .btn-outline:hover { background: #eff6ff; }
+    
+    .progress-bar { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin: 0.5rem 0; }
+    .progress-fill { height: 100%; background: var(--success); width: 0%; transition: width 0.3s; }
+    
+    .feedback { padding: 0.75rem; border-radius: 8px; margin-top: 0.5rem; display: none; }
+    .feedback.success { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
+    .feedback.warning { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; }
+    
+    .recorder-ui { text-align: center; padding: 1rem; background: #f1f5f9; border-radius: 8px; margin: 1rem 0; }
+    .rec-status { font-weight: 500; margin-bottom: 0.5rem; }
+    .rec-controls { display: flex; justify-content: center; gap: 0.5rem; }
+    
+    /* Clickable Model Answer Box */
+    .model-box {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      padding: 1.25rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .model-box:hover {
+      background: #eff6ff;
+      border-color: var(--primary);
+    }
+    .model-box strong {
+      display: block;
+      color: var(--primary-dark);
+      margin-bottom: 0.5rem;
+    }
+    .model-text {
+      font-size: 0.95rem;
+      font-style: normal;
+      color: #334155;
+      line-height: 1.5;
+    }
+
+    ul.custom-list { padding-left: 1.5rem; margin-bottom: 1rem; }
+    ul.custom-list li { margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+
+  <nav aria-label="Dashboard Navigation">
+    <div class="nav-group nav-left">
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="unit1">Unit 1: People</button>
+      <button class="tab-btn" data-tab="unit2">Unit 2: Health</button>
+      <button class="tab-btn" data-tab="unit3">Unit 3: Studies</button>
+      <button class="tab-btn" data-tab="unit4">Unit 4: World</button>
+      <button class="tab-btn" data-tab="unit5">Unit 5: Comm.</button>
+      <button class="tab-btn" data-tab="unit6">Unit 6: Tech</button>
+      <button class="tab-btn" data-tab="unit7">Unit 7: Hobbies</button>
+      <button class="tab-btn" data-tab="unit8">Unit 8: Youth</button>
+      <button class="tab-btn" data-tab="unit9">Unit 9: Home</button>
+      <button class="tab-btn" data-tab="unit10">Unit 10: Culture</button>
+    </div>
+    <div class="nav-group nav-right">
+      <button class="tab-btn" data-tab="unit11">Unit 11: On the Move</button>
+      <button class="tab-btn" data-tab="unit12">Unit 12: Media</button>
+      <button class="tab-btn" data-tab="unit13">Unit 13: Shopping</button>
+      <button class="tab-btn" data-tab="unit14">Unit 14: Routine</button>
+      <button class="tab-btn" data-tab="unit15">Unit 15: Goals</button>
+      <button class="tab-btn" data-tab="unit16">Unit 16: Food</button>
+      <button class="tab-btn" data-tab="unit17">Unit 17: Rules</button>
+      <button class="tab-btn" data-tab="unit18">Unit 18: Art</button>
+      <button class="tab-btn" data-tab="unit19">Unit 19: Animals</button>
+      <button class="tab-btn" data-tab="unit20">Unit 20: Science</button>
+      <button class="tab-btn" data-tab="practice">Practice</button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- OVERVIEW -->
+    <section id="overview" class="section active">
+      <div class="card">
+        <h2>🎯 Test Format & Assessment Criteria</h2>
+        <div class="grid grid-2">
+          <div>
+            <h3>IELTS Speaking Structure</h3>
+            <ul>
+              <li><strong>Part 1 (4–5 mins):</strong> Introductions & familiar topics</li>
+              <li><strong>Part 2 (3–4 mins):</strong> Individual long turn (1 min prep, 1–2 min talk)</li>
+              <li><strong>Part 3 (4–5 mins):</strong> Two-way discussion on abstract issues</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Scoring Dimensions</h3>
+            <p>Examiners award equal weight to:</p>
+            <ul>
+              <li>Fluency & Coherence</li>
+              <li>Lexical Resource</li>
+              <li>Grammatical Range & Accuracy</li>
+              <li>Pronunciation & Intelligibility</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📊 CEFR ↔ IELTS Equivalencies</h2>
+        <div class="grid grid-3">
+          <div class="card" style="margin:0; border:1px solid var(--border); background:#f8fafc;">
+            <h3>B1 (Independent)</h3>
+            <p>Band 4–5</p>
+          </div>
+          <div class="card" style="margin:0; border:1px solid var(--border); background:#f8fafc;">
+            <h3>B2 (Upper Int.)</h3>
+            <p>Band 5–6.5</p>
+          </div>
+          <div class="card" style="margin:0; border:1px solid var(--border); background:#f8fafc;">
+            <h3>C1 (Advanced)</h3>
+            <p>Band 7–8</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 1 -->
+    <section id="unit1" class="section">
+      <div class="card">
+        <h2>👥 Vocabulary: Character & Personality</h2>
+        <ul class="custom-list">
+          <li><strong>Character and personality:</strong> ambitious, blunt, clever, creative, good fun, hard-working, impatient, judgemental, nosy, open-minded, outgoing, over-sensitive, reliable, self-assured, and stingy. <span class="zh-trans">(积极/消极特质)</span></li>
+          <li><strong>Relationships:</strong> get on with, look up to, be in touch with, fall out with, grow apart from, take after, grow up together, and be close to.</li>
+          <li><strong>Informal & old-fashioned words:</strong> mate, beau, bloke, folks, kinsfolk, in-laws, other half, and sibling.</li>
+        </ul>
+
+        <h3 style="margin-top:1rem;">Interactive Sorting: Positive vs. Negative Traits</h3>
+        <p>Drag words into the correct category. (Touch-friendly)</p>
+        <div id="vocab-source" class="drop-zone" style="background:#f1f5f9;">
+          <span class="draggable" draggable="true">ambitious</span>
+          <span class="draggable" draggable="true">blunt</span>
+          <span class="draggable" draggable="true">clever</span>
+          <span class="draggable" draggable="true">impatient</span>
+          <span class="draggable" draggable="true">open-minded</span>
+          <span class="draggable" draggable="true">nosy</span>
+          <span class="draggable" draggable="true">reliable</span>
+          <span class="draggable" draggable="true">stingy</span>
+        </div>
+        <div class="grid grid-2">
+          <div class="drop-zone" id="positive-zone">
+            <h4>✅ Positive Traits <span class="zh-trans">(积极特质)</span></h4>
+          </div>
+          <div class="drop-zone" id="negative-zone">
+            <h4>⚠️ Negative Traits <span class="zh-trans">(消极特质)</span></h4>
+          </div>
+        </div>
+        <button class="btn" style="margin-top:0.5rem;" onclick="checkSort()">Check Answers</button>
+        <div id="sort-feedback" class="feedback"></div>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Pronunciation: Weak vs. Strong Forms</h2>
+        <p>Using weak and strong forms correctly helps you sound more fluent and native-like.</p>
+        
+        <h3>Weak Forms <span class="zh-trans">(弱读形式)</span></h3>
+        <p>In normal speech, small function words like prepositions (to, of, at, from, for) are usually unstressed and pronounced using their weak forms.</p>
+        <ul class="custom-list">
+          <li>"at" becomes /ət/ — <em>"We met at uni" <span class="zh-trans">(我们在大学认识)</span></em></li>
+          <li>"for" becomes /fə/ — <em>"I've known him for ten years" <span class="zh-trans">(我认识他十年了)</span></em></li>
+        </ul>
+
+        <h3>Strong Forms <span class="zh-trans">(重读形式)</span></h3>
+        <p>Even in fast speech, you must use the strong, stressed form of a word in three specific situations:</p>
+        <ol class="custom-list">
+          <li>If you want to <strong>emphasise or contrast</strong> it <br><em>(e.g., "The present's not <strong>from</strong> Mark, it's <strong>for</strong> Mark" <span class="zh-trans">(礼物不是马克送的，是给马克的)</span>).</em></li>
+          <li>If it comes <strong>before a pause</strong>.</li>
+          <li>If it comes at the <strong>end of a sentence</strong> <br><em>(e.g., "What are you looking <strong>at</strong>?" <span class="zh-trans">(你在看什么？)</span>).</em></li>
+        </ol>
+        <p><em>Note: Other function words like positive auxiliary verbs (can, must), pronouns (you, them), conjunctions (and, but), and articles also follow these weak/strong pronunciation rules.</em></p>
+        
+        <div class="model-box" onclick="playText(this)">
+          <strong>Click here to listen to pronunciation practice</strong>
+          <p class="model-text">In high school, I usually go to the library to study from three to four. We met at the tennis court, and I have known him for three years. The present is not from Mark, it is for Mark.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Family Matters & Friends</h2>
+        <p>Click any box below to hear the model answer spoken at 85% speed.</p>
+        
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Tell me something about your family. Who are you close to?</strong>
+          <p class="model-text">"Although I'm quite busy with my high school studies, I always make time for my family. We are quite close-knit. I am particularly close to my older brother. He helps me a lot with my difficult homework assignments, and we often play video games together on weekends."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a close friend. (How long you've known them, how you met, what kind of person they are).</strong>
+          <p class="model-text">"I’d like to talk about my close friend, Daniel, someone I’ve known for almost fifteen years. We first met when we were in middle school. At that time, we were both quite ambitious and joined the same English club, so we naturally spent a lot of time together. What really brought us closer was a group project where we had to design a small magazine. I remember staying up late at his house, drinking cheap soda, and laughing at our terrible drawings. Since then, we’ve stayed in touch and our friendship has grown stronger year by year. In terms of personality, Daniel is honestly one of the most reliable people I’ve ever met. If he promises to do something, he will definitely follow through. He’s also extremely hard‑working; even when we were teenagers, he was the kind of person who would finish his homework before playing games. At the same time, he’s very open‑minded, which makes him easy to talk to. Actually, he’s the opposite of judgemental; he listens first and gives thoughtful advice later. Another thing I appreciate is that he’s quite outgoing and sociable. I like him mainly because he’s self‑assured without being arrogant. He knows who he is and what he wants, and that confidence inspires me. Whenever I face a difficult decision, he’s the first person I call. So overall, Daniel is a close friend I deeply value, not only because of his personality, but because of the shared experiences that connect us."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: In what ways have families changed in the last hundred years? Do you think friendships change as we get older?</strong>
+          <p class="model-text">"I would argue that families spend significantly less time together nowadays. Students are overwhelmed with homework, and parents work long hours. Regarding friendships, I definitely believe they evolve. When you are younger, you bond over simple hobbies, but as adults, you tend to value friends who are reliable and open-minded, rather than just sociable."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 2 -->
+    <section id="unit2" class="section">
+      <div class="card">
+        <h2>💪 Health & Diet Vocabulary</h2>
+        <ul class="custom-list">
+            <li><strong>Sports:</strong> contact sports, water sports, extreme sports, team sports, and individual sports.</li>
+            <li><strong>Health and diet:</strong> malnourished <span class="zh-trans">(营养不良)</span>, metabolism <span class="zh-trans">(新陈代谢)</span>, carbohydrates / vitamins / calories <span class="zh-trans">(碳水化合物 / 维生素 / 卡路里)</span>, crash diet <span class="zh-trans">(节食速瘦法)</span>, put on weight, lose weight, obese, and underweight <span class="zh-trans">(肥胖 / 过瘦)</span>.</li>
+        </ul>
+        
+        <div style="background:#fef3c7; padding: 1rem; border-left:4px solid var(--accent); margin-top: 1rem;">
+          <h4>The two distinct meanings of "diet":</h4>
+          <ol class="custom-list" style="margin-bottom:0; margin-top:0.5rem;">
+              <li>The type and range of food you regularly eat (e.g., <em>"I have a balanced diet"</em> or <em>"I have quite a poor diet"</em>). <span class="zh-trans">(日常饮食)</span></li>
+              <li>Eating special food or less food to lose weight (e.g., <em>"I plan to go on a diet"</em>). <span class="zh-trans">(节食)</span></li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🔗 Vocabulary: Collocations</h2>
+        <p>Collocations are words that naturally group together, and using them correctly will make your English sound much more natural. Instead of learning isolated words, you should learn these word combinations:</p>
+        <ul class="custom-list">
+            <li><strong>Verb + adjective:</strong> keep fit <span class="zh-trans">(保持健康)</span>, keep active <span class="zh-trans">(保持活跃)</span>.</li>
+            <li><strong>Verb + noun:</strong> play volleyball <span class="zh-trans">(打排球)</span>.</li>
+            <li><strong>Verb + adjective + noun:</strong> set a good example <span class="zh-trans">(树立好榜样)</span>, lead healthy lives <span class="zh-trans">(过健康的生活)</span>.</li>
+            <li><strong>Noun + noun:</strong> form of exercise <span class="zh-trans">(锻炼方式)</span>, sense of achievement <span class="zh-trans">(成就感)</span>.</li>
+            <li><strong>Adjective + noun:</strong> balanced diet <span class="zh-trans">(均衡饮食)</span>, passive smoking <span class="zh-trans">(吸二手烟)</span>, public places <span class="zh-trans">(公共场所)</span>.</li>
+        </ul>
+
+        <h3 style="margin-top: 1.5rem;">Gap-Fill Practice</h3>
+        <div id="gapfill-container">
+          <p>1. The best way to <input type="text" data-answer="keep" placeholder="verb" class="gap-input" style="padding:4px; width:70px; border:1px solid #ccc; border-radius:4px;"> fit is to raise your heart rate.</p>
+          <p>2. Parents should <input type="text" data-answer="set" placeholder="verb" class="gap-input" style="padding:4px; width:70px; border:1px solid #ccc; border-radius:4px;"> a good example to children.</p>
+          <p>3. Schools can teach children about eating a <input type="text" data-answer="balanced" placeholder="adj" class="gap-input" style="padding:4px; width:70px; border:1px solid #ccc; border-radius:4px;"> diet.</p>
+          <p>4. Even if you don't smoke, <input type="text" data-answer="passive" placeholder="adj" class="gap-input" style="padding:4px; width:70px; border:1px solid #ccc; border-radius:4px;"> smoking can harm your health.</p>
+        </div>
+        <button class="btn" style="margin-top:1rem;" onclick="checkGaps()">Check Answers</button>
+        <div id="gap-feedback" class="feedback"></div>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Expressing Opinions</h2>
+        <p>To express your views clearly and achieve a higher mark in the Speaking exam, you should use a wide range of phrases instead of always relying on basic phrases like "I think".</p>
+        
+        <ul class="custom-list">
+            <li><strong>For basic personal opinions:</strong> Use phrases like <em>"If you ask me,..."</em>, <em>"In my view,..."</em>, <em>"I would argue that..."</em>, or <em>"I would say..."</em>. <span class="zh-trans">(表达基本个人观点)</span></li>
+            <li><strong>For controversial topics (especially in Part 3):</strong> Use stronger phrases such as <em>"I (strongly) believe that..."</em>, <em>"As far as I'm concerned,..."</em>, <em>"I'm (strongly) in favour of / against..."</em>, <em>"I'm convinced / not convinced that would work because..."</em>, <em>"I'm sceptical of the idea that..."</em>, or <em>"I must admit, I think..."</em>. <span class="zh-trans">(表达对于争议话题的强烈观点)</span></li>
+        </ul>
+        <div style="background:#f1f5f9; padding: 1rem; border-radius: 8px;">
+          <p><em>Example:</em> "I'm <strong>strongly in favour of</strong> making all children do at least one hour of sport a day" to combat obesity.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: A Healthy Body</h2>
+        <p>Click any box below to hear the model answer spoken at 85% speed.</p>
+        
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: What do you do to keep fit? Are you good at sport?</strong>
+          <p class="model-text">"To keep fit, I participate in my high school's track and field team. We practice three times a week. I wouldn't say I am a natural athlete, but I try my best. I prefer individual sports like running over team sports because I don't like the pressure of letting my teammates down."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe an exciting competition or sporting event you have witnessed.</strong>
+          <p class="model-text">"I'd like to describe the regional basketball finals that took place at our high school last year. Our varsity team had made it to the finals for the first time in ten years, so the gymnasium was absolutely packed with students and parents. The opposing team was much taller, so everyone thought we would lose. However, there was a dramatic turnaround in the second half. Our point guard suddenly seemed to find some self-belief and started scoring incredible three-pointers. The atmosphere was absolutely electric. The crowd went wild every time we scored. In the end, we won by just two points. It was breathtaking because it proved that determination and teamwork are just as important as physical size."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Do you think people are less healthy than they used to be? Should governments intervene?</strong>
+          <p class="model-text">"Yes, definitely. Teenagers today lead a much more sedentary lifestyle because of video games, social media, and endless hours studying at a desk. However, I am highly sceptical of the idea that governments should force citizens to be healthy. Instead, schools should set a good example by serving a balanced diet in the cafeteria and encouraging daily physical activity."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 3 -->
+    <section id="unit3" class="section">
+      <div class="card">
+        <h2>🎓 Studies & Work Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Studies:</strong> arts subjects, qualifications, tuition fees <span class="zh-trans">(学费)</span>, lectures <span class="zh-trans">(讲座)</span>, seminars <span class="zh-trans">(研讨会)</span>, fail, retake, pass, and coursework <span class="zh-trans">(课程作业)</span>.</li>
+          <li><strong>Work:</strong> job security <span class="zh-trans">(工作稳定性)</span>, dream job, earn a wage <span class="zh-trans">(挣工资)</span>, job satisfaction, own boss, long hours, made redundant <span class="zh-trans">(被裁员)</span>, sacked, self-employed, responsible, workaholic, volunteer work, breadwinner <span class="zh-trans">(养家糊口的人)</span>, stay-at-home mum, career-minded, overtime, appraisals <span class="zh-trans">(绩效评估)</span>, laid off, problematic, and inexperienced.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🎓 Speculation & Conditionals</h2>
+        <h3>Stem Builder Practice</h3>
+        <select id="spec-stem" style="padding:0.5rem; margin-bottom:0.5rem; width:100%; border:1px solid var(--border); border-radius:8px;">
+          <option value="">Choose a speculation stem...</option>
+          <option value="I imagine the job would involve">I imagine the job would involve...</option>
+          <option value="I'd hazard a guess that">I'd hazard a guess that...</option>
+          <option value="It is highly likely that">It is highly likely that...</option>
+          <option value="I suspect that">I suspect that...</option>
+        </select>
+        <input type="text" id="spec-input" placeholder="Complete the sentence..." style="padding:0.5rem; width:100%; border:1px solid var(--border); border-radius:8px; margin-bottom:0.5rem;">
+        <button class="btn" onclick="addSpecSentence()">Add to Practice Log</button>
+        <ul id="spec-log" style="margin-top:1rem; padding-left:1.2rem;"></ul>
+      </div>
+
+      <div class="card">
+        <h2>🔊 Word Stress Rules</h2>
+        <div class="grid grid-3">
+          <div>
+            <h4>Rule 1: Nouns/Adj</h4>
+            <p>Stress on <strong>first</strong> syllable: <strong>lea</strong>der, <strong>des</strong>ert, <strong>bor</strong>ing</p>
+          </div>
+          <div>
+            <h4>Rule 2: Noun/Verb Shift</h4>
+            <p>Noun: <strong>pro</strong>gress → Verb: pro<strong>gress</strong></p>
+          </div>
+          <div>
+            <h4>Rule 3: -tion/-sion</h4>
+            <p>Penultimate stress: pro<strong>duc</strong>tion, re<strong>cog</strong>nition</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Studies & Work</h2>
+        
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Do you work or are you a student? What is the most difficult thing about your studies?</strong>
+          <p class="model-text">"I am currently a student in my final year of secondary school, preparing for my university entrance exams. The most difficult thing about my studies is definitely chemistry. I struggle to memorize all the complex formulas and equations, so I have to put in a lot of extra hours of coursework."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe your dream job.</strong>
+          <p class="model-text">"My dream job would be to work as an environmental software engineer. To do this, I would need a strong bachelor's degree in computer science, which is exactly what I plan to study at university next year. I imagine the job would involve writing code to analyze climate data and finding solutions to reduce carbon footprints. The most difficult thing would probably be the long hours staring at a computer screen, which can be quite taxing. However, it is my dream job because it perfectly combines my fascination with technology with my desire to make a positive impact on the planet."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Do you think science subjects are more useful than arts subjects?</strong>
+          <p class="model-text">"I am in two minds about this. On the one hand, science subjects are incredibly useful because they drive technological advances and solve practical problems. However, arts subjects like history and literature are equally vital. They teach us critical thinking and help us understand human nature, which is essential for any future leader."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 4 -->
+    <section id="unit4" class="section">
+      <div class="card">
+        <h2>🌍 The World Around Us Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>The environment:</strong> boycott, recycle, reduce, carbon footprint <span class="zh-trans">(碳足迹)</span>, organic foods <span class="zh-trans">(有机食品)</span>, and toxic waste <span class="zh-trans">(有毒废弃物)</span>.</li>
+          <li><strong>Climate:</strong> sweltering <span class="zh-trans">(闷热的)</span>, arid <span class="zh-trans">(干旱的)</span>, precipitation, drizzling, damp, pouring down, lush, temperate, changeable, mild, rainy season, humidity, torrential rain <span class="zh-trans">(倾盆大雨)</span>, severe flooding, unbearable, bitterly cold, biting winds, snowdrifts, soaked to the skin <span class="zh-trans">(浑身湿透)</span>, dehydrated, drenched, chattering, and frozen to the bone.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Cleft Sentences:</strong> Used to emphasize information. e.g., instead of "I want to go to the beach," say <em>"What I want is to go to the beach"</em>. Or, <em>"It is torrential rain that is the main cause of flooding"</em>.</li>
+          <li><strong>Complex Sentences:</strong> Link ideas using adverbial subordinating conjunctions like <em>although, since, whereas, whenever, or rather than</em>.</li>
+          <li><strong>Long and Short Vowel Sounds:</strong> Clearly differentiate between short vowels (like /ɪ/ in <em>slip</em>) and long vowels (like /i:/ in <em>sleep</em>).</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Using News Articles</h3>
+        <p>To add depth to your Part 3 answers and avoid running out of things to say, regularly read news articles. This builds your awareness of current affairs and helps you develop strong opinions on global topics like conservation and resource depletion.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: The Environment</h2>
+        
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Tell me about your country's climate. What's your favourite kind of weather?</strong>
+          <p class="model-text">"My country has a fairly temperate climate, but the summers can get quite sweltering. My favorite weather is actually when it's crisp and cool in the autumn. I find it much easier to concentrate on my schoolwork when it isn't too humid."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe your favourite season.</strong>
+          <p class="model-text">"My absolute favourite season is autumn, which usually occurs between September and November. The weather becomes delightfully mild, and the humidity drops significantly. During this time, my classmates and I love to go hiking in the nearby hills to see the leaves changing colors. I enjoy it so much because it signals the start of a new school year, which always feels like a fresh, vibrant beginning."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Are people in your country concerned about protecting the environment?</strong>
+          <p class="model-text">"Yes, environmental awareness is growing, especially among young people. At my school, students are very proactive about recycling and reducing our carbon footprint. I strongly believe that while governments must pass strict laws against toxic waste, individuals also share the responsibility to make greener daily choices."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 5 -->
+    <section id="unit5" class="section">
+      <div class="card">
+        <h2>💬 Communication Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Languages:</strong> mother tongue <span class="zh-trans">(母语)</span>, multilingual <span class="zh-trans">(多语言的)</span>, fluent, get by, rusty <span class="zh-trans">(生疏的)</span>, pick up, global language, minority language, foreign language, dialects, dubbed <span class="zh-trans">(配音的)</span>, subtitled, and loanwords.</li>
+          <li><strong>Keeping in touch:</strong> keep in touch, lose touch, and get back in touch.</li>
+          <li><strong>Globalisation:</strong> integration <span class="zh-trans">(融合)</span>, commonly, working, remarkable, largely, technological, recognisable, creates, global, and speaking.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Making Comparisons:</strong> Modify comparative forms with words like <em>much, a bit, significantly, marginally, by far, easily</em>. Use <em>the + comparative, the + comparative</em> (e.g., "The sooner, the better").</li>
+          <li><strong>Expressing Attitude:</strong> Modify a whole sentence with attitude markers: <em>admittedly, all things considered, arguably, as luck would have it, ideally, undoubtedly</em>.</li>
+          <li><strong>Consonants:</strong> Practice voiced vs. unvoiced pairs (/p/ vs /b/) and consonant clusters without adding extra vowels between them.</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Buying Time</h3>
+        <p>Native speakers naturally use filler phrases, so do not sit in silence. Say things like: <em>"That's a tough question,"</em> <em>"That's an interesting question,"</em> or <em>"Let me just think about that for a moment"</em>.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Communication</h2>
+        
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: What's your mother tongue? What is the best way to keep in touch with friends?</strong>
+          <p class="model-text">"My mother tongue is Chinese, but I have been studying English since primary school. To keep in touch with my classmates after school, I usually rely on social networking sites and messaging apps, as it's the fastest way to arrange study groups."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a language other than English you would like to learn.</strong>
+          <p class="model-text">"I would absolutely love to learn Spanish. It is spoken by millions of people across Europe and South America. I imagine the most difficult part would be mastering the verb conjugations, which seem quite complex. However, picking up the pronunciation might be easier since it is highly phonetic. I want to learn it because I hope to participate in a university exchange program in Spain, which would be a fantastic way to experience a new culture firsthand."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: How do people feel about English being the world language?</strong>
+          <p class="model-text">"Most students see English as an essential tool for future success, as it opens doors to global universities and careers. However, some older generations worry that the remarkable pace of globalization might cause minority languages and local dialects to slowly fade away."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 6 -->
+    <section id="unit6" class="section">
+      <div class="card">
+        <h2>💻 Technology Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Technology & The Internet:</strong> technophile <span class="zh-trans">(技术爱好者)</span>, gadgets, state-of-the-art, cutting-edge <span class="zh-trans">(尖端的)</span>, technophobe, outdated, obsolete <span class="zh-trans">(过时的)</span>, Artificial Intelligence (AI), identity theft, viruses, cyber bullying <span class="zh-trans">(网络欺凌)</span>, and Internet addiction.</li>
+          <li><strong>Phrasal verbs:</strong> break down <span class="zh-trans">(出故障)</span>, turn down, set off, turn up, blow up, turn over, log on <span class="zh-trans">(登录)</span>, step away, jot down <span class="zh-trans">(草草记下)</span>, eat out, slow down, rush off, keep on, key in, bring on, speak up, and locked out.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Sentence Stress:</strong> In a neutral sentence, stress content words (verbs, nouns, adjectives) and leave function words (pronouns, prepositions, articles) unstressed. This gives English its rhythm.</li>
+          <li><strong>The Schwa (/ə/):</strong> The most common vowel sound in English, occurring in unstressed syllables and weak forms. Relax your mouth to pronounce it.</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Coherence</h3>
+        <p>Coherence involves ordering points logically using 'signposting' (<em>Firstly, Secondly, Last but not least</em>). Connect opposing ideas with <em>On the one hand... But then again</em>. Use pronouns (he, she, they, it) to avoid repetitive nouns.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Technology</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: What do you use the Internet for? Do you think older people are scared of new technology?</strong>
+          <p class="model-text">"I primarily use the internet to research information for my school essays and to submit my coursework. While some elderly people might be considered technophobes because they find modern gadgets confusing, many of them are actually quite eager to learn how to use smartphones to stay in touch with their grandchildren."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a piece of electronic equipment that you find useful.</strong>
+          <p class="model-text">"The most useful piece of equipment I own is my tablet. My parents bought it for me last year as a reward for passing my exams. I use it constantly for my studies—taking digital notes, reading e-books, and logging on to online seminars. It is incredibly useful because it is lightweight and portable, allowing me to carry all my textbooks in one sleek, state-of-the-art device without hurting my back."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Are people nostalgic about life before technology? Is scientific progress always good?</strong>
+          <p class="model-text">"Occasionally, people do romanticize the past, claiming life was simpler before smartphones. While technological advances have massively improved education and healthcare, I would argue progress isn't always purely positive. Issues like internet addiction and cyber bullying are serious challenges that my generation has to navigate."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 7 -->
+    <section id="unit7" class="section">
+      <div class="card">
+        <h2>🎨 Hobbies Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Likes and dislikes:</strong> keen on <span class="zh-trans">(热衷于)</span>, can't stand <span class="zh-trans">(无法忍受)</span>, crazy about, don't mind, fanatical about <span class="zh-trans">(对...狂热)</span>, can take it or leave it, and not my kind of thing.</li>
+          <li><strong>Hobbies:</strong> page-turner <span class="zh-trans">(引人入胜的书)</span>, exhibition <span class="zh-trans">(展览)</span>, hype, original, representational, abstract, live performances, gigs, lyrics, tunes, charts, genre, rom-com, star-studded, slow-moving, predictable <span class="zh-trans">(可预测的/老套的)</span>, and rave reviews <span class="zh-trans">(极高的评价)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Frequency:</strong> Use phrases to impress the examiner (e.g., <em>once a fortnight, every other day, several times a year</em> instead of just often or sometimes).</li>
+          <li><strong>Present Perfect:</strong> Use the present perfect continuous (<em>has been doing</em>) to emphasize how long an activity has been going on, and the simple form (<em>has done</em>) to focus on the result.</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Sounding Polite</h3>
+        <p>If you need the examiner to repeat a question, pair polite phrasing (<em>"Could you say that again, please?"</em>) with polite intonation (high and soft voice). If you don't understand a word, explicitly say so: <em>"I'm afraid I don't know what [word] means"</em>.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Hobbies</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: What are your hobbies? Do you prefer action films or comedies?</strong>
+          <p class="model-text">"I am really keen on reading science fiction novels; I love finding a real page-turner to relax with after finishing my homework. When it comes to movies, I definitely prefer comedies. High school can be quite stressful, so I enjoy having a good laugh rather than watching intense action scenes."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a hobby you enjoy.</strong>
+          <p class="model-text">"A hobby I am absolutely fanatical about is playing the guitar. I have been playing for about four years now, practicing almost every other day. Playing music provides an amazing creative outlet and allows me to relieve the pressure from my academic studies. I enjoy it immensely because there is a huge sense of achievement when I finally master a complex piece of music."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Should people feel a duty to do something constructive in their free time?</strong>
+          <p class="model-text">"I don't believe free time always needs to be strictly 'constructive'. While learning a new language or skill is great, teenagers also need unstructured time simply to decompress and recharge their batteries after a demanding week of exams and assignments."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 8 -->
+    <section id="unit8" class="section">
+      <div class="card">
+        <h2>🧸 Youth Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Remembering:</strong> takes me back, vivid <span class="zh-trans">(生动的)</span>, lasting impression, fresh in my mind <span class="zh-trans">(记忆犹新)</span>, barely, vague, escapes me, tip of my tongue, reminisce <span class="zh-trans">(回忆)</span>, sentimental, rose-tinted glasses, forgotten, flooding back <span class="zh-trans">(涌上心头)</span>, and time fly.</li>
+          <li><strong>Childhood:</strong> bump into, happy childhood, child-friendly, only child, child's play, child benefit, child labour, latchkey child, childish, well brought up, upbringing <span class="zh-trans">(教养)</span>, parenting, obey your elders <span class="zh-trans">(顺从长辈)</span>, do as you're told, good manners, tell someone off <span class="zh-trans">(责骂某人)</span>, and help around the house.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Past Habits:</strong> Use <em>used to</em> for past habits or states that are finished. Use <em>would</em> for past habits (but not states).</li>
+          <li><strong>Past Tenses:</strong> Use past continuous to give background, past simple for completed actions, and past perfect for something that happened before another past action.</li>
+          <li><strong>Pronunciation:</strong> Pronounce regular -ed endings as /t/, /d/, or /id/ depending on the final sound of the verb.</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Fluency</h3>
+        <p>Fluency means speaking continuously at a good rate. Improve it by practicing frequently, building vocabulary (so you don't hesitate looking for words), and having confident body language (smiling, making eye contact, not crossing arms).</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Youth</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: What is your most vivid childhood memory? Are you still in touch with childhood friends?</strong>
+          <p class="model-text">"My most vivid memory is riding my bicycle without training wheels for the first time; the feeling of freedom is still fresh in my mind. I am actually still in touch with my best friend from primary school, and we often reminisce about the silly games we used to play."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a happy childhood memory.</strong>
+          <p class="model-text">"I would like to describe a family trip we took to the seaside when I was about eight years old. We went to a small coastal town during the summer holidays. I was with my parents and my younger brother. I vividly remember spending the entire afternoon building a massive sandcastle and then watching the tide slowly wash it away. It is a very happy memory because it was a time of pure, carefree joy, long before the pressures of high school and university applications began."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Do people idealise their childhoods? When does a child become an adult?</strong>
+          <p class="model-text">"Yes, people often look back through rose-tinted glasses, forgetting the minor frustrations of being a child. In my view, a person truly becomes an adult not just when they turn eighteen, but when they start taking full responsibility for their own choices, such as deciding their own career path and managing their own finances."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 9 -->
+    <section id="unit9" class="section">
+      <div class="card">
+        <h2>🏠 Home Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Describing places:</strong> urban regeneration, remote, easy walking distance, hustle and bustle <span class="zh-trans">(熙熙攘攘)</span>, idyllic <span class="zh-trans">(田园诗般的)</span>, high-rise flats, detached houses, middle of nowhere, backwater, picturesque, congested <span class="zh-trans">(拥挤的)</span>, cosmopolitan, destination, spacious, cramped, outskirts <span class="zh-trans">(市郊)</span>, suburbs, and heart.</li>
+          <li><strong>Comparing now and then:</strong> breakdown in the community, escalated, vibrant <span class="zh-trans">(充满活力的)</span>, new lease of life, hive of activity <span class="zh-trans">(繁忙的地方)</span>, bustling, disused <span class="zh-trans">(废弃的)</span>, and converted.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Passive Forms:</strong> Use the passive to introduce opinions impersonally: <em>"It is often argued that..."</em>.</li>
+          <li><strong>The Causative:</strong> Use <em>have/get something done</em> to describe a service arranged for you (e.g., "We're having an extension built").</li>
+          <li><strong>Silent Letters:</strong> Many English words have silent letters (e.g., half, calm, island, Wednesday). Learn pronunciation instead of guessing from spelling.</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Clarifying</h3>
+        <p>You will be judged on your ability to paraphrase. Use phrases like <em>"Let me rephrase that,"</em> <em>"What I mean is that,"</em> or <em>"In other words"</em> to clarify points.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Home</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Tell me about your hometown. Are there traffic problems where you live?</strong>
+          <p class="model-text">"I live in a fairly vibrant city. While it has great public transport, the downtown area can get heavily congested during rush hour, especially when everyone is trying to commute to work and school."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a place that you enjoy visiting.</strong>
+          <p class="model-text">"A place I love visiting is the public library located near the outskirts of my city. I go there quite often to study for my exams. It's a modern, spacious building surrounded by a small park. It used to be quite a disused area, but recent urban regeneration gave it a new lease of life. I enjoy visiting it because it provides a quiet, idyllic sanctuary away from the hustle and bustle of my noisy high school cafeteria."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Why do some people retire to the countryside? Does intense patriotism have disadvantages?</strong>
+          <p class="model-text">"I suspect many older people retire to the countryside to escape the cramped, noisy conditions of city life and enjoy a slower pace. Regarding patriotism, while being proud of your hometown is positive, intense nationalism can sometimes make people too judgemental of other cultures, rather than remaining open-minded."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 10 -->
+    <section id="unit10" class="section">
+      <div class="card">
+        <h2>🎉 Culture Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Festivals:</strong> anniversary <span class="zh-trans">(周年纪念)</span>, national anthem <span class="zh-trans">(国歌)</span>, celebrations <span class="zh-trans">(庆典)</span>, day off <span class="zh-trans">(休息日)</span>, street parties <span class="zh-trans">(街头派对)</span>, banners <span class="zh-trans">(横幅)</span>, and marks <span class="zh-trans">(标志着)</span>.</li>
+          <li><strong>Historical sites & Heritage:</strong> excavation <span class="zh-trans">(挖掘)</span>, remains <span class="zh-trans">(遗迹)</span>, unearthed <span class="zh-trans">(出土)</span>, artefacts <span class="zh-trans">(手工艺品/文物)</span>, carbon dating <span class="zh-trans">(碳年代测定)</span>, primitive <span class="zh-trans">(原始的)</span>, ornaments <span class="zh-trans">(装饰品)</span>, construct <span class="zh-trans">(建造)</span>, demolish <span class="zh-trans">(拆除)</span>, listed building <span class="zh-trans">(受保护的建筑)</span>, historical significance <span class="zh-trans">(历史意义)</span>, altered, and designated.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Future Forms:</strong> Use present continuous for fixed arrangements, <em>be going to</em> for intentions/evidence, <em>will</em> for spontaneous decisions/assumptions, and future perfect for something completed by a certain point.</li>
+          <li><strong>Linking:</strong> Do not pause between words. Link consonant sounds to vowel sounds. Link vowel sounds to vowel sounds by inserting an extra /j/, /w/, or /r/ sound.</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Predicting Questions</h3>
+        <p>Because Part 3 topics vary widely, train yourself to anticipate questions. Part 3 often asks you to: compare present to past, predict the future, speculate on issues, and talk about your own country.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Culture</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: What is the most important festival in your country? Do you think it will remain important?</strong>
+          <p class="model-text">"The Spring Festival is definitely the most important celebration in my culture. We get a few days off from school to gather with relatives. I firmly believe it will remain important because maintaining these traditions provides a sense of identity for younger generations."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a festival that you enjoy.</strong>
+          <p class="model-text">"I really enjoy the Mid-Autumn Festival, which occurs in September or October. Our family usually gathers to share a large meal and eat mooncakes while admiring the full moon. The streets are often decorated with beautiful lanterns, making it a hive of activity. I love this festival because it represents unity and gives me a wonderful excuse to take a break from my intensive studies and reconnect with my extended family."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Is preserving historical sites more important than modern development?</strong>
+          <p class="model-text">"It is a delicate balance. While we need modern infrastructure for a growing population, demolishing buildings of historical significance erases our connection to the past. I believe city planners must find ways to construct modern facilities without destroying our listed buildings."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 11 -->
+    <section id="unit11" class="section">
+      <div class="card">
+        <h2>✈️ On the Move Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Holidays:</strong> package deal, backpacking <span class="zh-trans">(背包旅行)</span>, rough it, self-catering, sightseeing <span class="zh-trans">(观光)</span>, sunbathing, excursions <span class="zh-trans">(短途旅行)</span>, relaxing, eating out, visiting museums, shopping, and hiking.</li>
+          <li><strong>Tourism:</strong> unspoilt <span class="zh-trans">(未受破坏的)</span>, employment, investment, infrastructure <span class="zh-trans">(基础设施)</span>, seasonal, footpath erosion <span class="zh-trans">(步道侵蚀)</span>, trade, and conserving.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Short Answers:</strong> Instead of abruptly saying 'yes' or 'no', use short answers like <em>"Yes, I do,"</em> or phrases like <em>"Without a doubt,"</em> or <em>"I doubt it"</em> to show grammatical grasp.</li>
+          <li><strong>Cause and Effect:</strong> Link causes and effects with advanced phrases like <em>stems from, has led to, As a result, brought about by</em>.</li>
+          <li><strong>Extra Stress:</strong> Use extra stress on a word to emphasize or correct. You can also add <em>do/does/did</em> to an affirmative sentence for strong emphasis (e.g., "I <em>do</em> think it is unfair...").</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique</h3>
+        <p><strong>Expressing yourself indirectly:</strong> If you forget a word (like <em>brochure</em>), paraphrase it: <em>"It's a kind of magazine with information about holidays."</em></p>
+        <p><strong>Evaluate your style:</strong> Decide if you focus too much on accuracy (hurting fluency), lack vocabulary, or need pronunciation work, and adjust your practice accordingly.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: On the Move</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Is your country popular with tourists? Do you enjoy active holidays?</strong>
+          <p class="model-text">"Yes, without a doubt, my country attracts millions of visitors due to its rich history. Personally, I enjoy active holidays like hiking. Sitting on a beach for a week isn't my kind of thing; I prefer to explore and learn, especially during my school holidays."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a memorable holiday.</strong>
+          <p class="model-text">"A truly memorable holiday was a school excursion we took to a mountainous national park last year. We spent three days hiking through unspoilt forests and learning about local ecology. We had to rough it a bit, staying in basic cabins and making our own meals. It was incredibly memorable because facing the physical challenges of hiking brought my classmates and me much closer together."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Does travel broaden the mind? What are the negative impacts of tourism?</strong>
+          <p class="model-text">"I strongly agree that travel broadens the mind, as it forces you out of your comfort zone and exposes you to different ways of living. However, massive influxes of tourists can put a severe strain on local infrastructure and lead to environmental damage, such as footpath erosion and littering in previously pristine areas."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 12 -->
+    <section id="unit12" class="section">
+      <div class="card">
+        <h2>📺 Media & Entertainment Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Media habits:</strong> binge-watch <span class="zh-trans">(追剧)</span>, prime-time <span class="zh-trans">(黄金时段)</span>, scrolling <span class="zh-trans">(刷手机屏幕)</span>, subscribe <span class="zh-trans">(订阅)</span>.</li>
+          <li><strong>Internet content:</strong> biased <span class="zh-trans">(有偏见的)</span>, viral <span class="zh-trans">(病毒式传播的)</span>, spoiler <span class="zh-trans">(剧透)</span>, clickbait <span class="zh-trans">(标题党)</span>, influencers <span class="zh-trans">(网红)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Intonation for Surprise:</strong> When discussing shocking news or plot twists, let your pitch rise and fall significantly to sound engaged.</li>
+          <li><strong>Adverbs of Degree:</strong> Enhance your descriptions with adverbs like <em>absolutely, completely, utterly</em> (e.g., "The movie's ending was completely unpredictable").</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Expanding on Habits</h3>
+        <p>Instead of just stating what you watch, always explain <em>why</em>. Discussing how media helps you unwind from school stress adds depth to your answer.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Media & Entertainment</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Do you prefer watching TV or reading? What kind of programs do you like?</strong>
+          <p class="model-text">"After a long, hectic day of high school classes, I usually prefer binge-watching comedy series on my tablet to unwind. I find that humorous shows are a great way to relieve academic stress without requiring too much mental effort."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a movie or TV show you recently watched.</strong>
+          <p class="model-text">"I'd like to talk about a sci-fi movie I watched last weekend with my classmates. We had just finished our midterm exams, so we went to the local cinema to celebrate. The movie was about space exploration, and the visual effects were absolutely state-of-the-art. I loved it because the plot was incredibly original and kept us on the edge of our seats. We spent the whole bus ride home discussing the unpredictable ending."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Do teenagers spend too much time on screens? How does social media affect the news?</strong>
+          <p class="model-text">"I strongly believe that excessive screen time is a major issue for my generation. Many teenagers follow online influencers and get distracted by viral videos instead of doing their coursework. Furthermore, social media often spreads clickbait and biased news, which makes it difficult for young people to find reliable information."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 13 -->
+    <section id="unit13" class="section">
+      <div class="card">
+        <h2>🛍️ Shopping & Money Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Shopping habits:</strong> window shopping <span class="zh-trans">(只逛不买)</span>, impulse buy <span class="zh-trans">(冲动消费)</span>, brand-conscious <span class="zh-trans">(追求名牌的)</span>, bargain hunting <span class="zh-trans">(寻找便宜货)</span>.</li>
+          <li><strong>Money management:</strong> pocket money / allowance <span class="zh-trans">(零花钱)</span>, rip-off <span class="zh-trans">(敲竹杠)</span>, budget <span class="zh-trans">(预算)</span>, save up <span class="zh-trans">(攒钱)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Second Conditional:</strong> Use this to talk about imaginary spending: <em>"If I had more pocket money, I would buy a new laptop."</em></li>
+          <li><strong>Linking 'r':</strong> In British and Australian English, pronounce the 'r' at the end of a word if the next word begins with a vowel (e.g., <em>far away, four apples</em>).</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Personal vs. General</h3>
+        <p>In Part 1, talk strictly about your own habits (e.g., your allowance). In Part 3, shift to general society (e.g., consumerism, global economy).</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Shopping & Money</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Do you enjoy shopping? Who do you usually go shopping with?</strong>
+          <p class="model-text">"I really enjoy window shopping with my friends at the local mall on weekends. However, since I only get a small amount of pocket money from my parents, I rarely make impulse buys and prefer to save up for things I genuinely need."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe something you bought recently that you are happy with.</strong>
+          <p class="model-text">"Recently, I bought a new, heavy-duty backpack for school. I had been bargain hunting online for weeks because I wanted something durable but affordable. I finally found one on sale. I am extremely happy with it because it has special compartments for my laptop and textbooks, making my daily commute to high school much more organized and comfortable."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Should high school students be taught financial management? Does advertising manipulate consumers?</strong>
+          <p class="model-text">"Absolutely. Learning how to budget an allowance and avoid rip-offs are essential life skills that teenagers need before moving away for university. Regarding advertising, I do think it can be manipulative. Many brands use celebrity endorsements to make teenagers feel overly brand-conscious, pressuring them into buying expensive items to fit in."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 14 -->
+    <section id="unit14" class="section">
+      <div class="card">
+        <h2>⏰ Daily Routine Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Time management:</strong> hectic <span class="zh-trans">(忙碌的)</span>, procrastinate <span class="zh-trans">(拖延)</span>, prioritize <span class="zh-trans">(优先考虑)</span>, downtime <span class="zh-trans">(休息时间)</span>.</li>
+          <li><strong>Habits:</strong> early bird <span class="zh-trans">(早起的人)</span>, night owl <span class="zh-trans">(夜猫子)</span>, routine <span class="zh-trans">(日常)</span>, punctual <span class="zh-trans">(准时的)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Present Simple & Frequency:</strong> Use adverbs of frequency correctly to describe your routine (e.g., <em>I rarely stay up late, I frequently study</em>).</li>
+          <li><strong>Compound Noun Stress:</strong> Stress the first word in compound nouns (e.g., <em>'timetable, 'lifestyle, 'homework</em>).</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Sequence Markers</h3>
+        <p>When describing a routine, use linking words to make your answer flow smoothly: <em>First of all, subsequently, after that, finally.</em></p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Daily Routine</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: What is your typical morning routine? Are you an early bird or a night owl?</strong>
+          <p class="model-text">"I am definitely an early bird. I usually wake up around six in the morning, briefly review my school notes, and pack my backpack before rushing to catch the school bus. I prefer getting things done early when my mind is fresh."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a time when you were extremely busy.</strong>
+          <p class="model-text">"I'd like to talk about last month when I was preparing for my final exams while also playing in the school basketball tournament. My schedule was incredibly hectic. I had to prioritize my tasks strictly, studying during my lunch breaks and training in the evenings. It was exhausting, but it taught me a valuable lesson about avoiding procrastination and managing my downtime effectively."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Is it important for teenagers to have a strict daily schedule? Has modern life become too fast-paced?</strong>
+          <p class="model-text">"While prioritizing tasks is important to avoid procrastinating on homework, I believe teenagers also need sufficient downtime to recharge their batteries. Modern life has undoubtedly become extremely fast-paced, and this constant pressure to be productive can lead to severe stress and burnout among students."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 15 -->
+    <section id="unit15" class="section">
+      <div class="card">
+        <h2>🚀 Future Goals Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Career & Education:</strong> pursue a career <span class="zh-trans">(追求职业)</span>, major in <span class="zh-trans">(主修)</span>, prestigious <span class="zh-trans">(有声望的)</span>, scholarship <span class="zh-trans">(奖学金)</span>.</li>
+          <li><strong>Ambition:</strong> stepping stone <span class="zh-trans">(垫脚石)</span>, long-term goal <span class="zh-trans">(长期目标)</span>, passionate about <span class="zh-trans">(对...充满热情)</span>, overcome obstacles <span class="zh-trans">(克服障碍)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Future Tenses:</strong> Use Future Continuous (<em>I will be studying</em>) or Future Perfect (<em>By the time I'm 25, I will have graduated</em>) to show advanced grammatical range.</li>
+          <li><strong>Chunking:</strong> Group words into meaningful chunks and pause slightly between them to sound more confident and natural when explaining complex future plans.</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Showing Ambition</h3>
+        <p>Examiners reward enthusiasm. Use strong verbs and passionate adjectives when describing your goals to show you are highly motivated.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Future Goals</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: What do you want to study in the future? What is your dream job?</strong>
+          <p class="model-text">"I am extremely passionate about environmental science, so I plan to major in that when I go to university. Ultimately, my dream is to pursue a career as a wildlife conservationist."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a goal you want to achieve in the next five years.</strong>
+          <p class="model-text">"My main long-term goal is to secure a scholarship and get accepted into a prestigious university overseas. To achieve this, I have to maintain excellent grades in my high school classes and participate in extracurricular volunteer work. I know it will require a lot of dedication and late nights of studying, but I view it as a crucial stepping stone toward building a successful and independent future."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: How do schools help students prepare for their careers? Is it better to have clear goals or be flexible?</strong>
+          <p class="model-text">"High schools provide essential foundational knowledge, but I think they should focus more on practical skills and career counseling to help students discover what they are truly passionate about. While having clear long-term goals is vital for motivation, students must also remain flexible, because the job market is changing rapidly due to artificial intelligence."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 16 -->
+    <section id="unit16" class="section">
+      <div class="card">
+        <h2>🍽️ Food & Cooking Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Diet & Eating:</strong> staple diet <span class="zh-trans">(主食)</span>, processed food <span class="zh-trans">(加工食品)</span>, sweet tooth <span class="zh-trans">(喜欢吃甜食)</span>, fussy eater <span class="zh-trans">(挑食的人)</span>, home-cooked <span class="zh-trans">(家常的)</span>.</li>
+          <li><strong>Cooking methods:</strong> baked, roasted, deep-fried, steamed, boiled, recipe <span class="zh-trans">(食谱)</span>, ingredients <span class="zh-trans">(原料)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Countable vs. Uncountable:</strong> Remember that words like <em>food, meat, advice, information</em> are uncountable. Use "a lot of" or "much" instead of "many" (e.g., "I eat a lot of food," not "many foods").</li>
+          <li><strong>Silent 'e':</strong> When pronouncing past tense cooking verbs like <em>baked</em> or <em>sliced</em>, the 'e' is silent (/beɪkt/, /slaɪst/).</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Using Sensory Details</h3>
+        <p>Make your answers more vivid by describing how things taste, smell, and look. Use adjectives like <em>mouth-watering, bitter, savory, or crunchy</em>.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Food & Cooking</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Do you like cooking? What is your favourite food?</strong>
+          <p class="model-text">"I really enjoy cooking. After I finish my homework, I sometimes help my parents prepare dinner. I definitely have a sweet tooth, so my absolute favourite thing to make is baked chocolate chip cookies. It's a great way to relieve the stress of high school."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a special meal you had.</strong>
+          <p class="model-text">"I would like to describe a special meal we had at the end of last term. My classmates and I had just finished our final exams, so our teacher organized a large potluck party in the school cafeteria. Everyone brought a home-cooked dish. I brought a spicy chicken dish based on my grandmother's recipe. The tables were filled with a massive variety of mouth-watering food, from deep-fried snacks to fresh fruit salads. It was a memorable meal because we were celebrating our hard work and enjoying each other's company before the summer holidays began."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Is fast food bad for teenagers? Should schools teach students how to cook?</strong>
+          <p class="model-text">"Yes, relying too heavily on processed fast food is undoubtedly bad for teenagers, as it lacks the essential vitamins needed for a growing student's concentration. I strongly believe schools should teach basic cooking skills. Knowing how to prepare a healthy, staple diet is just as important as learning math or history."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 17 -->
+    <section id="unit17" class="section">
+      <div class="card">
+        <h2>⚖️ Rules & Laws Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Following rules:</strong> strict <span class="zh-trans">(严格的)</span>, lenient <span class="zh-trans">(宽容的)</span>, obey <span class="zh-trans">(遵守)</span>, break the rules <span class="zh-trans">(违反规则)</span>, mandatory <span class="zh-trans">(强制性的)</span>.</li>
+          <li><strong>Discipline:</strong> detention <span class="zh-trans">(留堂)</span>, consequences <span class="zh-trans">(后果)</span>, uniform <span class="zh-trans">(制服)</span>, curfew <span class="zh-trans">(宵禁)</span>, peer pressure <span class="zh-trans">(同辈压力)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Modals of Obligation:</strong> Use <em>must, have to, and should</em> appropriately. Remember that <em>must not</em> means prohibited, while <em>don't have to</em> means it isn't necessary.</li>
+          <li><strong>Stress on Modals:</strong> Emphasize the modal verb to convey the strictness of a rule (e.g., "Students <em>must</em> wear their uniform").</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Structuring an Argument</h3>
+        <p>In Part 3, logically organize your thoughts with signpost words like <em>Firstly, Secondly, and Ultimately</em> to show the examiner you can build a coherent argument.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Rules & Laws</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Are you a rule follower? What rules do you have at school?</strong>
+          <p class="model-text">"Generally, I am a rule follower. At my high school, the rules are quite strict. For instance, it is mandatory to wear a school uniform, and we are absolutely forbidden from using our smartphones during class hours to prevent distractions."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a rule you disagree with.</strong>
+          <p class="model-text">"I would like to talk about the strict uniform policy at my secondary school. We are required to wear a heavy blazer and a tie, even during the sweltering summer months. While I understand that uniforms create a sense of equality among students, I disagree with this specific rule because it causes a lot of physical discomfort. When students are overheating in the classroom, it severely affects our ability to concentrate on our studies. I think the administration should be more lenient and allow a lightweight summer uniform."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Why do societies need laws? Should teenagers face the same consequences as adults?</strong>
+          <p class="model-text">"Societies need laws primarily to maintain order and protect citizens from harm; without them, there would be chaos. Regarding teenagers, I believe they should not face the exact same consequences as adults. Adolescents are still maturing and often succumb to peer pressure. Instead of harsh punishments, the focus should be on education and rehabilitation."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 18 -->
+    <section id="unit18" class="section">
+      <div class="card">
+        <h2>🎨 Art & Design Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Types of Art:</strong> masterpiece <span class="zh-trans">(杰作)</span>, abstract <span class="zh-trans">(抽象的)</span>, expressive <span class="zh-trans">(富有表现力的)</span>, visual arts <span class="zh-trans">(视觉艺术)</span>, sketch <span class="zh-trans">(素描)</span>.</li>
+          <li><strong>Appreciation:</strong> exhibition <span class="zh-trans">(展览)</span>, gallery <span class="zh-trans">(画廊)</span>, creativity <span class="zh-trans">(创造力)</span>, inspire <span class="zh-trans">(启发)</span>, subjective <span class="zh-trans">(主观的)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Relative Clauses:</strong> Add detail to your nouns using <em>which, who, and that</em> (e.g., "The painting, <em>which</em> we saw on a school trip, was massive").</li>
+          <li><strong>Linking Consonant to Vowel:</strong> Connect words naturally (e.g., say "an exhibition" as /ən_eksɪˈbɪʃn/ rather than pausing between the words).</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Paraphrasing</h3>
+        <p>If you can't remember the exact word for a type of art (like <em>sculpture</em>), describe it instead: <em>"It's a piece of art made by carving stone or clay."</em></p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Art & Design</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Do you like art? Have you ever visited an art museum?</strong>
+          <p class="model-text">"I am quite fond of the visual arts. In fact, taking art classes at my high school is one of my favorite creative outlets. We recently visited the local city gallery on a school trip, which was incredibly inspiring."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe an artwork you created.</strong>
+          <p class="model-text">"I would like to describe a charcoal sketch I created for my school's annual art fair last semester. The assignment was to draw a portrait of someone we admire, so I chose my grandfather. It took me several weeks to perfect the shading and capture his expressive wrinkles. It isn't a masterpiece by any means, but I am very proud of it because it challenged my patience and helped me develop my technical skills outside of my usual academic subjects."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Should art be a mandatory subject in secondary school? Is art purely subjective?</strong>
+          <p class="model-text">"I strongly believe art should remain a mandatory subject for younger students. It fosters creativity and critical thinking, which are skills necessary even in science and math. Furthermore, while the technical skill behind a painting can be measured, the emotional impact of art is entirely subjective, meaning everyone interprets a piece differently."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 19 -->
+    <section id="unit19" class="section">
+      <div class="card">
+        <h2>🐾 Animals & Nature Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Wildlife:</strong> wild <span class="zh-trans">(野生的)</span>, endangered species <span class="zh-trans">(濒危物种)</span>, habitat <span class="zh-trans">(栖息地)</span>, extinction <span class="zh-trans">(灭绝)</span>, ecosystem <span class="zh-trans">(生态系统)</span>.</li>
+          <li><strong>Domestic Animals:</strong> domestic <span class="zh-trans">(家养的)</span>, loyal <span class="zh-trans">(忠诚的)</span>, high-maintenance <span class="zh-trans">(难伺候的/需要多照顾的)</span>, stray <span class="zh-trans">(流浪的)</span>, companion <span class="zh-trans">(伴侣)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Conditionals (Type 1 & 2):</strong> Practice saying what will happen (<em>"If we don't protect habitats, animals will die"</em>) and what would happen in hypothetical situations (<em>"If I had more time, I would adopt a dog"</em>).</li>
+          <li><strong>Rhythm and Pace:</strong> Don't rush. Speaking too fast can make you stumble over complex words like <em>biodiversity</em> or <em>veterinarian</em>.</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Buying Time with Fillers</h3>
+        <p>It's okay to use fillers if they sound natural. Use phrases like <em>"Well, to be honest,"</em> or <em>"That's a tricky question, but I suppose..."</em> to gather your thoughts.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Animals & Nature</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Do you have a pet? What is your favourite animal?</strong>
+          <p class="model-text">"Yes, I have a golden retriever. Taking him for a walk in the evenings is the perfect way to de-stress after hours of studying. My favourite wild animals are elephants because they are highly intelligent and have strong family bonds."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a wild animal from your country.</strong>
+          <p class="model-text">"I'd like to talk about the giant panda, which is an iconic species in my country. We actually learned a lot about their eating habits and natural habitat in my high school biology class. They primarily eat bamboo and live in mountainous regions. Sadly, they have been considered an endangered species for a long time due to habitat loss. I find them fascinating not just because of their unique black-and-white appearance, but because they symbolize the importance of national wildlife conservation efforts."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Should zoos exist for educational purposes? What is the biggest threat to wildlife?</strong>
+          <p class="model-text">"That's a controversial topic. While traditional zoos can sometimes feel cruel, modern wildlife sanctuaries play a vital role in educating students and breeding endangered species. I would argue that the biggest threat to wildlife today is human expansion, which destroys natural ecosystems to make way for urban development."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- UNIT 20 -->
+    <section id="unit20" class="section">
+      <div class="card">
+        <h2>🔭 Science & Space Vocabulary</h2>
+        <ul class="custom-list">
+          <li><strong>Scientific Fields:</strong> astronomy <span class="zh-trans">(天文学)</span>, physics <span class="zh-trans">(物理学)</span>, chemistry <span class="zh-trans">(化学)</span>, genetics <span class="zh-trans">(遗传学)</span>.</li>
+          <li><strong>Discovery:</strong> universe <span class="zh-trans">(宇宙)</span>, groundbreaking <span class="zh-trans">(突破性的)</span>, experiment <span class="zh-trans">(实验)</span>, gravity <span class="zh-trans">(重力)</span>, controversial <span class="zh-trans">(有争议的)</span>, outer space <span class="zh-trans">(外太空)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>🗣️ Grammar & Pronunciation</h2>
+        <ul class="custom-list">
+          <li><strong>Passive Voice for Science:</strong> When discussing discoveries, the passive voice is often most appropriate (e.g., <em>"The telescope was invented centuries ago,"</em> or <em>"The experiment was conducted by our class"</em>).</li>
+          <li><strong>Intonation for Excitement:</strong> When talking about futuristic ideas or groundbreaking technology, raise your pitch slightly to convey enthusiasm.</li>
+        </ul>
+        <h3 style="margin-top: 1.5rem;">🎯 Exam Technique: Speculating about the Future</h3>
+        <p>Use tentative language when guessing the future of science: <em>"It is highly likely that," "We might eventually," or "I wouldn't be surprised if..."</em>.</p>
+      </div>
+
+      <div class="card">
+        <h2>📝 Model Answers: Science & Space</h2>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 1: Are you good at science? Do you enjoy looking at the stars?</strong>
+          <p class="model-text">"I wouldn't say I'm a genius, but I do quite well in my high school physics class. I absolutely love looking at the night sky. In fact, I am a member of our school's astronomy club, and we often use telescopes to observe the moon."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 2: Describe a science experiment you did.</strong>
+          <p class="model-text">"I remember a fascinating chemistry experiment we conducted during my sophomore year of high school. Our teacher showed us how to create a small chemical reaction using baking soda and vinegar to simulate a volcano. We had to carefully measure the ingredients and record our observations in a lab report. It was a very hands-on experience, and it made the theoretical concepts we read about in our textbooks come alive. It was this specific experiment that sparked my interest in pursuing the sciences at university."</p>
+        </div>
+
+        <div class="model-box" onclick="playText(this)">
+          <strong>Part 3: Should governments fund space exploration when there are problems on Earth?</strong>
+          <p class="model-text">"It is a tough debate. Many argue that billions of dollars shouldn't be spent on outer space while we face climate change and poverty here. However, I believe space exploration is essential. The groundbreaking technologies developed for space missions often lead to incredible medical and environmental advancements that eventually benefit everyone on Earth."</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRACTICE SIMULATOR -->
+    <section id="practice" class="section">
+      <div class="card">
+        <h2>🎤 IELTS Speaking Practice Simulator</h2>
+        
+        <div style="margin-bottom: 1.5rem; text-align: center;">
+          <h3>⏱️ Official IELTS Timers</h3>
+          <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
+            <button class="btn-outline" onclick="startTimer(240, 'main-timer')">Part 1 (4 Mins)</button>
+            <button class="btn-outline" onclick="startTimer(60, 'main-timer')">Part 2 Prep (1 Min)</button>
+            <button class="btn-outline" onclick="startTimer(240, 'main-timer')">Part 2 (4 Mins)</button>
+            <button class="btn-outline" style="border-color: var(--danger); color: var(--danger);" onclick="stopTimer('main-timer')">Reset</button>
+          </div>
+          <div id="main-timer" class="timer-display">00:00</div>
+        </div>
+
+        <div class="recorder-ui">
+          <p class="rec-status" id="rec-status">Ready to Record</p>
+          <div class="rec-controls">
+            <button class="btn" id="start-rec" onclick="toggleRecording()">⏺ Start</button>
+            <button class="btn-outline" id="stop-rec" onclick="toggleRecording()" disabled>⏹ Stop</button>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="rec-progress"></div></div>
+          <audio id="playback" controls style="width:100%; margin-top:0.5rem; display:none;"></audio>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    // Tab Navigation
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Drag & Drop Sorting
+    let draggedItem = null;
+    document.querySelectorAll('.draggable').forEach(item => {
+      item.addEventListener('dragstart', e => {
+        draggedItem = e.target;
+        e.target.style.opacity = '0.5';
+      });
+      item.addEventListener('dragend', e => {
+        e.target.style.opacity = '1';
+        draggedItem = null;
+      });
+      item.addEventListener('touchstart', e => { draggedItem = e.target; });
+      item.addEventListener('touchend', e => {
+        const dropZones = document.querySelectorAll('.drop-zone');
+        for(let z of dropZones) {
+          const rect = z.getBoundingClientRect();
+          if(e.changedTouches[0].clientX >= rect.left && e.changedTouches[0].clientX <= rect.right &&
+             e.changedTouches[0].clientY >= rect.top && e.changedTouches[0].clientY <= rect.bottom) {
+            z.appendChild(draggedItem);
+            draggedItem = null;
+          }
+        }
+      });
+    });
+    
+    ['positive-zone', 'negative-zone'].forEach(id => {
+      const zone = document.getElementById(id);
+      if(zone){
+        zone.addEventListener('dragover', e => e.preventDefault());
+        zone.addEventListener('drop', e => {
+          e.preventDefault();
+          if(draggedItem) zone.appendChild(draggedItem);
+        });
+      }
+    });
+
+    function checkSort() {
+      const pos = document.getElementById('positive-zone');
+      const neg = document.getElementById('negative-zone');
+      const posWords = ['ambitious', 'clever', 'open-minded', 'reliable'];
+      const negWords = ['blunt', 'impatient', 'nosy', 'stingy'];
+      
+      let correct = true;
+      pos.querySelectorAll('.draggable').forEach(el => {
+        if(!posWords.includes(el.textContent)) correct = false;
+      });
+      neg.querySelectorAll('.draggable').forEach(el => {
+        if(!negWords.includes(el.textContent)) correct = false;
+      });
+
+      const fb = document.getElementById('sort-feedback');
+      fb.style.display = 'block';
+      fb.className = 'feedback ' + (correct ? 'success' : 'warning');
+      fb.textContent = correct ? '✅ Correct! Well done.' : '⚠️ Review placement. Try again.';
+    }
+
+    // Gap Fill
+    function checkGaps() {
+      let correctCount = 0;
+      document.querySelectorAll('.gap-input').forEach(inp => {
+        if(inp.value.trim().toLowerCase() === inp.dataset.answer.toLowerCase()) {
+          inp.style.borderColor = 'var(--success)';
+          inp.style.backgroundColor = '#d1fae5';
+          correctCount++;
+        } else {
+          inp.style.borderColor = 'var(--danger)';
+          inp.style.backgroundColor = '#fee2e2';
+        }
+      });
+      const fb = document.getElementById('gap-feedback');
+      fb.style.display = 'block';
+      fb.className = 'feedback ' + (correctCount === 4 ? 'success' : 'warning');
+      fb.textContent = correctCount === 4 ? '✅ All correct!' : `⚠️ ${4-correctCount} incorrect. Try again.`;
+    }
+
+    // Timer Logic
+    let activeTimers = {};
+    function startTimer(seconds, displayId) {
+      if(activeTimers[displayId]) clearInterval(activeTimers[displayId]);
+      let remaining = seconds;
+      const display = document.getElementById(displayId);
+      display.style.color = 'var(--text)';
+      
+      const updateDisplay = () => {
+        const m = Math.floor(remaining / 60);
+        const s = remaining % 60;
+        display.textContent = `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
+      };
+      
+      updateDisplay(); 
+      
+      activeTimers[displayId] = setInterval(() => {
+        remaining--;
+        updateDisplay();
+        if(remaining <= 0) {
+          clearInterval(activeTimers[displayId]);
+          display.textContent = "Time's up! Begin speaking.";
+          display.style.color = 'var(--danger)';
+        }
+      }, 1000);
+    }
+
+    function stopTimer(displayId) {
+      if(activeTimers[displayId]) clearInterval(activeTimers[displayId]);
+      const display = document.getElementById(displayId);
+      display.style.color = 'var(--text)';
+      display.textContent = "00:00";
+    }
+
+    // Speculation Builder
+    function addSpecSentence() {
+      const stem = document.getElementById('spec-stem').value;
+      const input = document.getElementById('spec-input').value.trim();
+      if(!stem || !input) return alert('Please select a stem and complete the sentence.');
+      const li = document.createElement('li');
+      li.textContent = `${stem} ${input}.`;
+      li.style.marginBottom = '0.5rem';
+      document.getElementById('spec-log').appendChild(li);
+      document.getElementById('spec-input').value = '';
+      document.getElementById('spec-stem').value = '';
+    }
+
+    // TTS Logic - Dynamically reads clicked model boxes
+    function playText(element) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        
+        let textElement = element.querySelector('.model-text') || element;
+        let textToRead = textElement.innerText.replace(/"/g, ''); // Clean quotes
+        
+        const msg = new SpeechSynthesisUtterance(textToRead);
+        
+        // Find Microsoft Brian or Emma Online Voice
+        const voices = window.speechSynthesis.getVoices();
+        const targetNames = ['Brian', 'Emma'];
+        let selectedVoice = voices.find(voice => 
+          voice.name.includes('Microsoft') && 
+          (voice.name.includes('Multilingual') || voice.name.includes('Online')) && 
+          targetNames.some(name => voice.name.includes(name))
+        );
+        
+        if (!selectedVoice) {
+          selectedVoice = voices.find(voice => targetNames.some(name => voice.name.includes(name)));
+        }
+        if (!selectedVoice) {
+          selectedVoice = voices.find(voice => voice.lang.startsWith('en-'));
+        }
+        
+        if (selectedVoice) {
+          msg.voice = selectedVoice;
+        }
+
+        // Locked at exactly 85% speed per persistent user preference
+        msg.rate = 0.85;
+        
+        // Visual feedback during playback
+        const originalBg = element.style.backgroundColor;
+        const originalBorder = element.style.borderColor;
+        element.style.backgroundColor = '#dbeafe';
+        element.style.borderColor = '#2563eb';
+        
+        msg.onend = function() {
+          element.style.backgroundColor = originalBg;
+          element.style.borderColor = originalBorder;
+        }
+        
+        window.speechSynthesis.speak(msg);
+      } else {
+        alert("Text-to-Speech is not supported in this browser.");
+      }
+    }
+
+    // Ensure voices are loaded for Safari/Chrome bug
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+      speechSynthesis.onvoiceschanged = function() {
+        speechSynthesis.getVoices();
+      };
+    }
+
+    // MediaRecorder
+    let mediaRecorder = null;
+    let chunks = [];
+    let recording = false;
+    async function toggleRecording() {
+      const status = document.getElementById('rec-status');
+      const startBtn = document.getElementById('start-rec');
+      const stopBtn = document.getElementById('stop-rec');
+      const playback = document.getElementById('playback');
+      
+      if(!recording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          chunks = [];
+          mediaRecorder.ondataavailable = e => chunks.push(e.data);
+          mediaRecorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            const url = URL.createObjectURL(blob);
+            playback.src = url;
+            playback.style.display = 'block';
+            document.querySelectorAll('.rec-controls button')[0].disabled = false;
+            document.querySelectorAll('.rec-controls button')[1].disabled = true;
+            status.textContent = 'Recording saved. Play back & self-assess.';
+            status.style.color = 'var(--success)';
+          };
+          mediaRecorder.start();
+          recording = true;
+          status.textContent = '🔴 Recording...';
+          status.style.color = 'var(--danger)';
+          startBtn.disabled = true;
+          stopBtn.disabled = false;
+        } catch(err) {
+          status.textContent = '⚠️ Microphone access required.';
+          status.style.color = 'var(--warning)';
+        }
+      } else {
+        mediaRecorder.stop();
+        mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        recording = false;
+      }
+    }
+  </script>
+</body>
+</html>
