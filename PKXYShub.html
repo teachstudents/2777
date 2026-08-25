@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PKXYS Classroom Hub</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fredoka:wght@500;600&display=swap');
+        
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #f8fafc;
+            /* Hide scrollbar for cleaner look but keep functionality */
+            -ms-overflow-style: none;  
+            scrollbar-width: none;  
+        }
+        body::-webkit-scrollbar { 
+            display: none; 
+        }
+        
+        .font-display {
+            font-family: 'Fredoka', sans-serif;
+        }
+
+        /* Sidebar transitions */
+        #sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #main-content {
+            transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Timer pulse animation */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .timer-warning {
+            animation: pulse-ring 2s infinite;
+            color: #ef4444; /* red-500 */
+        }
+        
+        /* Shuffler card animations */
+        .student-card {
+            transition: all 0.2s ease;
+        }
+        .student-card:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Custom Table Borders */
+        .timetable-cell {
+            border: 1px solid #f1f5f9;
+        }
+
+        /* Timer Progress Bar */
+        #timer-progress-container {
+            height: 4px;
+            width: 100%;
+            background-color: #e2e8f0; /* slate-200 */
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            z-index: 30;
+        }
+        #timer-progress-bar {
+            height: 100%;
+            width: 100%;
+            background-color: #3b82f6; /* blue-500 */
+            transition: width 1s linear, background-color 0.3s ease;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col relative">
+
+    <!-- HEADER -->
+    <header class="bg-white border-b border-slate-200 h-14 flex-shrink-0 flex items-center justify-between px-3 md:px-4 shadow-sm z-20 relative">
+        
+        <!-- Left: Menu Toggle & Date & Week -->
+        <div class="flex items-center gap-3 w-auto md:w-1/3">
+            <button id="menu-toggle" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+            <div class="hidden sm:flex flex-col">
+                <div class="flex items-center gap-2">
+                    <p id="header-date" class="text-sm font-semibold text-slate-600 truncate"></p>
+                    <span id="header-week-badge" class="bg-indigo-100 text-indigo-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200 uppercase tracking-wide">
+                        Week 1
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Dynamic Class Name -->
+        <div class="w-2/4 flex justify-center flex-col items-center">
+            <h2 id="header-class-name" class="text-[13px] sm:text-[15px] md:text-[18px] font-display font-bold text-indigo-800 tracking-wide drop-shadow-sm text-center px-2 truncate leading-none">
+                PKXYS Dashboard
+            </h2>
+            <span id="header-room-name" class="text-[10px] font-bold text-slate-400 uppercase hidden"></span>
+        </div>
+
+        <!-- Right: Sounds, Clock & Timer -->
+        <div class="flex flex-row items-center justify-end gap-2 sm:gap-3 w-auto md:w-1/3">
+            
+            <!-- Compact Header Soundboard -->
+            <div class="hidden md:flex items-center gap-1 bg-slate-100/50 p-1 rounded-lg border border-slate-200/50">
+                <button onclick="playSFX('ding')" title="Correct Answer" class="p-1 rounded-md hover:bg-emerald-100 text-emerald-600 transition-colors active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" /></svg>
+                </button>
+                <button onclick="playSFX('buzz')" title="Incorrect Answer" class="p-1 rounded-md hover:bg-rose-100 text-rose-600 transition-colors active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+                <button onclick="playSFX('chime')" title="Attention" class="p-1 rounded-md hover:bg-blue-100 text-blue-600 transition-colors active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                </button>
+                <button onclick="playSFX('tada')" title="Success" class="p-1 rounded-md hover:bg-amber-100 text-amber-600 transition-colors active:scale-95">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                </button>
+            </div>
+
+            <!-- Time Display -->
+            <div class="hidden md:flex flex-row items-baseline gap-1 bg-slate-100/50 px-2 py-1 rounded-lg border border-slate-200/50">
+                <span id="header-time" class="text-sm font-bold text-slate-700"></span>
+                <span id="header-ampm" class="text-[10px] font-bold text-slate-500"></span>
+            </div>
+            
+            <!-- 40-Min Timer Button -->
+            <button id="timer-btn" onclick="toggleTimer()" class="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-lg transition-all shadow-sm active:scale-95 group relative overflow-hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span id="timer-display" class="font-display font-bold text-sm tracking-wide relative z-10">40:00</span>
+            </button>
+        </div>
+        
+        <!-- Timer Progress Bar -->
+        <div id="timer-progress-container" class="hidden">
+            <div id="timer-progress-bar"></div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden relative">
+        
+        <!-- SIDEBAR -->
+        <aside id="sidebar" class="absolute inset-y-0 left-0 w-64 bg-white border-r border-slate-200 shadow-xl z-10 overflow-y-auto transform -translate-x-full">
+            <div class="p-4">
+                <h1 class="text-xl font-display font-bold text-indigo-600 mb-6 tracking-wide flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path d="M12 14l9-5-9-5-9 5 9 5z" />
+                        <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" />
+                    </svg>
+                    PKXYS
+                </h1>
+                
+                <button onclick="loadDashboard()" class="w-full text-left px-4 py-2.5 rounded-lg mb-4 text-sm font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                    </svg>
+                    Main Dashboard
+                </button>
+
+                <p class="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">My Classes</p>
+                
+                <!-- Class Links Container -->
+                <div id="class-list-container" class="space-y-1">
+                    <!-- Classes injected by JS -->
+                </div>
+                
+                <!-- SOW Links -->
+                <hr class="my-4 border-slate-100">
+                <p class="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">G5 Scheme of Work</p>
+                <div id="sow-list-container" class="space-y-1">
+                    <!-- SOW Weeks injected by JS -->
+                </div>
+                
+                <div class="pb-6"></div>
+            </div>
+        </aside>
+
+        <!-- CONTENT AREA -->
+        <main id="main-content" class="flex-1 overflow-y-auto bg-slate-50 w-full ml-0">
+            
+            <!-- VIEW: DASHBOARD -->
+            <div id="view-dashboard" class="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+                
+                <!-- Academic Calendar Extracted Events -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-indigo-700 px-6 py-3 flex justify-between items-center">
+                        <h2 class="text-white font-display text-lg font-bold flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            2026-2027 Key Dates Overview
+                        </h2>
+                    </div>
+                    <div class="p-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Sep 1</span><span class="text-slate-600">Start of School Year</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Sep 25-26</span><span class="text-slate-600">Mid-Autumn Holiday</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Oct 1-2</span><span class="text-slate-600">National Day Holiday</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Oct 26-30</span><span class="text-slate-600 font-semibold text-amber-600">First Term Break</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Nov 20</span><span class="text-slate-600">Staff Dev Day (Student Hol)</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Dec 3-4</span><span class="text-slate-600">Sports Days (Sec & Pri)</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Dec 25-31</span><span class="text-slate-600 font-semibold text-amber-600">Second Term Break</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Jan 5-12</span><span class="text-slate-600">First Term Final Exams</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Feb 1-12</span><span class="text-slate-600 font-semibold text-amber-600">Chinese New Year Hol</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Feb 15</span><span class="text-slate-600 text-emerald-600 font-bold">Start of Second Term</span></div>
+                            <div class="flex gap-2"><span class="font-bold text-slate-700 w-14">Mar 29-2</span><span class="text-slate-600 font-semibold text-amber-600">Third Term Break</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Integrated Weekly Timetable (WITH EXACT TIMES & DUTIES) -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-slate-800 px-6 py-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                        <h2 class="text-white font-display text-xl font-bold flex items-center gap-2">
+                            Weekly Timetable (MITCHELL)
+                        </h2>
+                    </div>
+                    
+                    <div class="p-0 overflow-x-auto">
+                        <table class="w-full text-sm text-left border-collapse min-w-[700px]">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 uppercase tracking-wider text-xs border-b border-slate-200">
+                                    <th class="px-3 py-3 text-center font-bold w-[120px] border-r border-slate-200">Period & Time</th>
+                                    <th class="px-3 py-3 font-bold w-1/5 text-center">Monday<br><span class="text-[10px] text-slate-400">星期一</span></th>
+                                    <th class="px-3 py-3 font-bold w-1/5 text-center">Tuesday<br><span class="text-[10px] text-slate-400">星期二</span></th>
+                                    <th class="px-3 py-3 font-bold w-1/5 text-center">Wednesday<br><span class="text-[10px] text-slate-400">星期三</span></th>
+                                    <th class="px-3 py-3 font-bold w-1/5 text-center">Thursday<br><span class="text-[10px] text-slate-400">星期四</span></th>
+                                    <th class="px-3 py-3 font-bold w-1/5 text-center">Friday<br><span class="text-[10px] text-slate-400">星期五</span></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 bg-white">
+                                <!-- Morning Reading -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">MR</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">08:00 - 08:30</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-orange-50 border border-orange-200 text-orange-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 MR<br><span class="text-orange-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-orange-50 border border-orange-200 text-orange-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 MR<br><span class="text-orange-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-orange-50 border border-orange-200 text-orange-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 MR<br><span class="text-orange-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-orange-50 border border-orange-200 text-orange-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 MR<br><span class="text-orange-500 font-normal">RM 202</span></div></td>
+                                </tr>
+                                <!-- Row 1 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">1</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">08:30 - 09:10</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 ENG<br><span class="text-blue-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-md text-[11px] leading-tight font-bold text-center">5M1,5M2,5M3 ENG<br><span class="text-emerald-500 font-normal">RM 105</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-md text-[11px] leading-tight font-bold text-center">5M1,5M2,5M3 ENG<br><span class="text-emerald-500 font-normal">RM 105</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 ENG<br><span class="text-blue-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 ENG<br><span class="text-blue-500 font-normal">RM 202</span></div></td>
+                                </tr>
+                                <!-- Row 2 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">2</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">09:10 - 09:50</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 ENG<br><span class="text-blue-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-md text-[11px] leading-tight font-bold text-center">5M1,5M2,5M3 ENG<br><span class="text-emerald-500 font-normal">RM 105</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-md text-[11px] leading-tight font-bold text-center">5M1,5M2,5M3 ENG<br><span class="text-emerald-500 font-normal">RM 105</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 ENG<br><span class="text-blue-500 font-normal">RM 202</span></div></td>
+                                </tr>
+                                <!-- Break 1 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-100/80">
+                                        <div class="font-bold text-amber-600 text-[11px] uppercase tracking-widest">Break</div>
+                                        <div class="text-[10px] text-amber-500/80 font-semibold tracking-tighter">09:50 - 10:05</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/50 text-center" colspan="5">
+                                        <div class="w-full h-full rounded bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#f8fafc_10px,#f8fafc_20px)] border border-slate-200/50 flex items-center justify-center min-h-[20px]">
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Row 3 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">3</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">10:05 - 10:45</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 ENG<br><span class="text-blue-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-md text-[11px] leading-tight font-bold text-center">5M1,5M2,5M3 ENG<br><span class="text-emerald-500 font-normal">RM 105</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                </tr>
+                                <!-- Row 4 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">4</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">10:45 - 11:30</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 ENG<br><span class="text-blue-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-md text-[11px] leading-tight font-bold text-center">5M1,5M2,5M3 ENG<br><span class="text-emerald-500 font-normal">RM 105</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                </tr>
+                                <!-- Lunch -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-indigo-50/80">
+                                        <div class="font-bold text-indigo-500 text-[11px] uppercase tracking-widest">Lunch</div>
+                                        <div class="text-[10px] text-indigo-400/80 font-semibold tracking-tighter">11:30 - 12:35</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/50 text-center" colspan="5">
+                                        <div class="w-full h-full rounded bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#e0e7ff_10px,#e0e7ff_20px)] opacity-50 border border-indigo-100/50 flex items-center justify-center min-h-[20px]">
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Row 5 (Period 5) -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">5</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">12:35 - 13:15</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30" colspan="5"></td>
+                                </tr>
+                                <!-- Row 6 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">6</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">13:15 - 13:55</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-md text-[11px] leading-tight font-bold text-center">5M1,5M2,5M3 ENG<br><span class="text-emerald-500 font-normal">RM 105</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 ENG<br><span class="text-blue-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                </tr>
+                                <!-- Break 2 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-100/80">
+                                        <div class="font-bold text-amber-600 text-[11px] uppercase tracking-widest">Break</div>
+                                        <div class="text-[10px] text-amber-500/80 font-semibold tracking-tighter">13:55 - 14:10</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/50 text-center" colspan="5">
+                                        <div class="w-full h-full rounded bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#f8fafc_10px,#f8fafc_20px)] border border-slate-200/50 flex items-center justify-center min-h-[20px]">
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Row 7 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">7</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">14:10 - 14:50</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-2 rounded-md text-[11px] leading-tight font-bold text-center">5M1,5M2,5M3 ENG<br><span class="text-emerald-500 font-normal">RM 105</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-blue-50 border border-blue-200 text-blue-800 p-2 rounded-md text-xs leading-tight font-bold text-center">6H2 ENG<br><span class="text-blue-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                </tr>
+                                <!-- Row 8 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">8</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">14:50 - 15:30</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-purple-50 border border-purple-200 text-purple-800 p-2 rounded-md text-[11px] leading-tight font-bold text-center">6H2 CT 凌睿<br><span class="text-purple-500 font-normal">RM 202</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                </tr>
+                                <!-- Break 3 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-100/80">
+                                        <div class="font-bold text-amber-600 text-[11px] uppercase tracking-widest">Break</div>
+                                        <div class="text-[10px] text-amber-500/80 font-semibold tracking-tighter">15:30 - 15:40</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/50 text-center" colspan="5">
+                                        <div class="w-full h-full rounded bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#f8fafc_10px,#f8fafc_20px)] border border-slate-200/50 flex items-center justify-center min-h-[20px]">
+                                        </div>
+                                    </td>
+                                </tr>
+                                <!-- Row 9 -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-50/50">
+                                        <div class="font-bold text-slate-600 text-sm">9</div>
+                                        <div class="text-[10px] text-slate-400 font-semibold tracking-tighter">15:40 - 16:30</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30" colspan="5"></td>
+                                </tr>
+                                <!-- Dismissal -->
+                                <tr>
+                                    <td class="px-2 py-2 text-center border-r border-slate-100 bg-slate-100/80">
+                                        <div class="font-bold text-rose-600 text-[11px] uppercase tracking-widest">Dismissal</div>
+                                        <div class="text-[10px] text-rose-500/80 font-semibold tracking-tighter">16:30</div>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded-md text-xs leading-tight font-bold text-center">Duty<br><span class="text-rose-500 font-normal">Dismissal</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded-md text-xs leading-tight font-bold text-center">Duty<br><span class="text-rose-500 font-normal">Dismissal</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell"><div class="bg-rose-50 border border-rose-200 text-rose-800 p-2 rounded-md text-xs leading-tight font-bold text-center">Duty<br><span class="text-rose-500 font-normal">Dismissal</span></div></td>
+                                    <td class="px-1.5 py-1.5 timetable-cell bg-slate-50/30"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- VIEW: SCHEME OF WORK -->
+            <div id="view-sow" class="hidden p-4 md:p-8 max-w-7xl mx-auto space-y-6">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="bg-emerald-600 px-6 py-4 flex justify-between items-center">
+                        <h2 id="sow-title" class="text-white font-display text-xl font-bold">Grade 5 SOW - Week X</h2>
+                    </div>
+                    <div class="p-0 overflow-x-auto">
+                        <table class="w-full text-sm text-left border-collapse min-w-[900px]">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 uppercase tracking-wider text-xs border-b border-slate-200">
+                                    <th class="px-4 py-3 font-bold w-1/4 border-r border-slate-200">Objectives</th>
+                                    <th class="px-4 py-3 font-bold w-1/4 border-r border-slate-200">Activities</th>
+                                    <th class="px-4 py-3 font-bold w-[15%] text-center border-r border-slate-200">Yanka</th>
+                                    <th class="px-4 py-3 font-bold w-[15%] text-center border-r border-slate-200">Showcase</th>
+                                    <th class="px-4 py-3 font-bold w-[20%] text-center">For Collection</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sow-table-body" class="divide-y divide-slate-100 bg-white">
+                                <!-- Injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: LESSON PAGE -->
+            <div id="view-lesson" class="hidden flex flex-col h-full relative">
+                
+                <!-- Sticky Top Section -->
+                <div class="sticky top-0 bg-white/95 backdrop-blur-sm border-b border-slate-200 shadow-sm z-10 px-6 py-5">
+                    <div class="flex items-start gap-4 mb-4">
+                        <div class="bg-indigo-100 p-2.5 rounded-xl text-indigo-600 flex-shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9.5a2.5 2.5 0 00-2.5-2.5H15M9 11l3 3L22 4" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Learning Objective</h3>
+                            <p id="lesson-objective" class="text-lg md:text-xl font-medium text-slate-800 leading-snug"></p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Key Vocabulary & Structures</h3>
+                        <div id="lesson-keywords" class="flex flex-wrap gap-2"></div>
+                    </div>
+                </div>
+
+                <!-- Scrollable Practice Area -->
+                <div class="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50">
+                    <div class="max-w-4xl mx-auto">
+                        <div class="bg-white border-2 border-dashed border-slate-300 rounded-2xl p-10 text-center flex flex-col items-center justify-center min-h-[30vh]">
+                            <div class="bg-blue-50 p-4 rounded-full text-blue-400 mb-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
+                            </div>
+                            <h4 class="text-lg font-bold text-slate-600 mb-2">Presentation & Practice Space</h4>
+                            <p class="text-slate-400 text-sm max-w-md">
+                                Project interactive exercises, story reading prompts, or game rules here during the core 80% of the lesson.
+                            </p>
+                        </div>
+                        <div class="h-12"></div>
+                    </div>
+                </div>
+
+                <!-- Bottom Sticky Shuffler -->
+                <div class="bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] p-4 md:p-6 z-10 flex-shrink-0">
+                    <div class="max-w-6xl mx-auto flex flex-col md:flex-row gap-6 items-start md:items-center">
+                        <div class="w-full md:w-1/4 flex-shrink-0 space-y-3">
+                            <h3 class="text-sm font-bold text-slate-700 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-5a2 2 0 00-2-2h-3a2 2 0 00-2 2v5zM7 20H2v-5a2 2 0 012-2h3a2 2 0 012 2v5zM12 4v16m0-16V4m0 0l3 3m-3-3l-3 3" />
+                                </svg>
+                                Group Organizer
+                            </h3>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="shuffleStudents(2)" class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-lg border border-indigo-200 transition-colors active:scale-95 shadow-sm">Pairs</button>
+                                <button onclick="shuffleStudents(3)" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-lg border border-emerald-200 transition-colors active:scale-95 shadow-sm">Trios</button>
+                                <button onclick="shuffleStudents(4)" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-sm font-semibold rounded-lg border border-amber-200 transition-colors active:scale-95 shadow-sm">Quads</button>
+                            </div>
+                        </div>
+                        <div id="shuffler-display" class="w-full flex-1 flex flex-wrap gap-3 overflow-y-auto max-h-40 md:max-h-48 content-start p-1">
+                            <div class="w-full h-full flex items-center justify-center text-slate-400 text-sm italic">
+                                Select a group size to generate random groupings.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // --- DATA: ACTUAL SCHEDULE & CLASSES ---
+        const classes = [
+            {
+                id: '6h2',
+                name: '6H2 English',
+                room: 'Room 202',
+                objective: 'Module 1, Unit 1: Growing up. Students will compare past and present abilities using comparative structures.',
+                keywords: ['taller', 'heavier', 'could', 'couldn\'t', 'used to', 'centimetre', 'kilogram'],
+                students: ['Alice Chen', 'Bob Lin', 'Charlie Wang', 'Diana Zhang', 'Eva Liu', 'Frank Wu', 'Grace Li', 'Henry Zhao', 'Ivy Sun', 'Jack Zhou', 'Karen Wu', 'Leo Zheng', 'Mia Chen', 'Noah Huang', 'Olivia Xu', 'Peter Gao', 'Quinn Ma', 'Ryan Zhu', 'Sophia Hu', 'Tom Guo', 'Uma Lin', 'Victor He', 'Wendy Luo', 'Xavier Pan', 'Yara Feng', 'Zane Dong', 'Anna Shen', 'Ben Cai', 'Cora Jin', 'David Wei']
+            },
+            {
+                id: '5m123',
+                name: '5M1, 5M2, 5M3 English',
+                room: 'Room 105',
+                objective: 'Module 1, Unit 1: My Future. Students will be able to express future aspirations using "be going to".',
+                keywords: ['future', 'pilot', 'astronaut', 'writer', 'going to', 'want to be', 'routine'],
+                students: ['Aiden Li', 'Bella Wang', 'Carter Zhang', 'Daisy Chen', 'Ethan Liu', 'Fiona Yang', 'Gavin Huang', 'Hannah Wu', 'Isaac Zhao', 'Julia Zhou', 'Kevin Xu', 'Lily Sun', 'Mason Ma', 'Nora Zhu', 'Owen Hu', 'Penny Lin', 'Quincy Gao', 'Riley Zheng', 'Sam He', 'Tina Luo', 'Uri Pan', 'Violet Feng', 'Wyatt Dong', 'Xenia Shen', 'Yusuf Cai', 'Zara Jin', 'Arthur Wei', 'Brooke Jiang', 'Caleb Shi', 'Delia Ye']
+            }
+        ];
+
+        // --- DATA: SCHEME OF WORK (G5 Placeholder) ---
+        const g5SowData = [
+            {
+                id: 'week-1',
+                title: 'Week 1 (Sept 1 - Sept 4)',
+                rows: [
+                    {
+                        objective: 'Module 1, Unit 1: My Future. Introduce future aspirations (be going to).',
+                        activities: 'Icebreaker games. Vocabulary introduction: pilot, astronaut, writer. Pair work: "What are you going to be?"',
+                        yanka: 'Unit 1 Vocab Slide',
+                        showcase: 'Roleplay Presentation',
+                        collection: 'Worksheet 1 (Vocab)'
+                    },
+                    {
+                        objective: 'Students will be able to describe daily routines and transportation.',
+                        activities: 'Listening exercise: Transport sounds. Group sorting activity.',
+                        yanka: 'Transport Interactive',
+                        showcase: 'Group Sorting Board',
+                        collection: 'Workbook Pg 4-5'
+                    }
+                ]
+            },
+            {
+                id: 'week-2',
+                title: 'Week 2 (Sept 7 - Sept 11)',
+                rows: [
+                    {
+                        objective: 'Module 1, Unit 2: Going to school. Review time and transport.',
+                        activities: 'Survey activity: "How do you go to school?". Create a class bar chart on the board.',
+                        yanka: 'Bar Chart Tool',
+                        showcase: 'Class Survey Chart',
+                        collection: 'Survey Sheets'
+                    }
+                ]
+            }
+        ];
+
+        // --- STATE ---
+        let currentClassId = null;
+        let isSidebarOpen = false;
+
+        // --- UI INITIALIZATION ---
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('main-content');
+        const menuToggle = document.getElementById('menu-toggle');
+
+        menuToggle.addEventListener('click', () => {
+            isSidebarOpen = !isSidebarOpen;
+            if (isSidebarOpen) {
+                sidebar.classList.remove('-translate-x-full');
+                mainContent.classList.add('md:ml-64');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                mainContent.classList.remove('md:ml-64');
+            }
+        });
+
+        // Populate Sidebar
+        const classListContainer = document.getElementById('class-list-container');
+        classes.forEach(c => {
+            const btn = document.createElement('button');
+            btn.className = 'w-full text-left px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition-colors border border-transparent hover:border-indigo-100 flex items-center justify-between group';
+            btn.innerHTML = `
+                ${c.name}
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            `;
+            btn.onclick = () => loadClass(c.id);
+            classListContainer.appendChild(btn);
+        });
+
+        const sowListContainer = document.getElementById('sow-list-container');
+        if (sowListContainer) {
+            g5SowData.forEach(week => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 transition-colors border border-transparent hover:border-emerald-100 flex items-center justify-between group';
+                btn.innerHTML = `
+                    <span class="truncate">${week.title}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                `;
+                btn.onclick = () => loadSow(week.id);
+                sowListContainer.appendChild(btn);
+            });
+        }
+
+        // --- CLOCK & DATE & WEEK CALCULATION ---
+        function getSchoolWeek(now) {
+            const startDate = new Date('2026-09-01T00:00:00'); // Start of School Year 2026
+            
+            if (now < startDate) {
+                return "Pre-term";
+            }
+            
+            // Calculate weeks difference
+            const diffTime = Math.abs(now - startDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            
+            // Week 1 starts on Sept 1 (Tuesday). 
+            // We want Monday, Sept 7 to start Week 2.
+            // Let's adjust so Monday starts a new week relative to Sept 1st.
+            const startDayOfWeek = startDate.getDay(); // 2 (Tuesday)
+            const daysToFirstMonday = (8 - startDayOfWeek) % 7; // Days until next Monday
+            
+            if (diffDays <= daysToFirstMonday) {
+                return 1;
+            } else {
+                const daysAfterFirstMonday = diffDays - daysToFirstMonday;
+                return Math.floor((daysAfterFirstMonday - 1) / 7) + 2;
+            }
+        }
+
+        function updateDateTime() {
+            const now = new Date();
+            
+            // Format Date
+            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('header-date').innerText = now.toLocaleDateString('en-US', dateOptions);
+            
+            // Calculate Week
+            const weekNum = getSchoolWeek(now);
+            const badge = document.getElementById('header-week-badge');
+            if(weekNum === "Pre-term") {
+                badge.innerText = weekNum;
+            } else {
+                badge.innerText = `Week ${weekNum}`;
+            }
+            
+            // Format Time
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; 
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            
+            document.getElementById('header-time').innerText = `${hours}:${minutes}`;
+            document.getElementById('header-ampm').innerText = ampm;
+        }
+        setInterval(updateDateTime, 1000);
+        updateDateTime();
+
+        // --- TIMER & OFFLINE AUDIO LOGIC ---
+        let timerInterval;
+        const TIMER_TOTAL = 40 * 60; // 40 minutes
+        let timeLeft = TIMER_TOTAL;
+        let isTimerRunning = false;
+        let sfxCtx = null;
+
+        function initAudio() {
+            if (!sfxCtx) {
+                sfxCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (sfxCtx.state === 'suspended') {
+                sfxCtx.resume();
+            }
+        }
+
+        function playSFX(type) {
+            initAudio();
+            const t = sfxCtx.currentTime;
+            
+            function playOsc(freq, waveType, startTime, duration, vol=1) {
+                const osc = sfxCtx.createOscillator();
+                const gain = sfxCtx.createGain();
+                osc.type = waveType;
+                osc.frequency.value = freq;
+                
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(vol, startTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(sfxCtx.destination);
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+            }
+
+            if (type === 'ding') {
+                playOsc(880, 'sine', t, 0.6, 0.8);
+                playOsc(1760, 'sine', t, 0.4, 0.3); 
+            } else if (type === 'buzz') {
+                playOsc(150, 'sawtooth', t, 0.4, 0.5);
+                playOsc(155, 'square', t, 0.4, 0.5); 
+            } else if (type === 'chime') {
+                playOsc(523.25, 'sine', t, 0.5, 0.7); 
+                playOsc(659.25, 'sine', t + 0.15, 0.5, 0.7); 
+                playOsc(783.99, 'sine', t + 0.3, 1.0, 0.8); 
+            } else if (type === 'tada') {
+                playOsc(523.25, 'triangle', t, 0.15, 0.8); 
+                playOsc(523.25, 'triangle', t + 0.15, 0.15, 0.8); 
+                playOsc(523.25, 'triangle', t + 0.30, 0.15, 0.8); 
+                playOsc(880, 'triangle', t + 0.45, 1.2, 0.9); 
+            } else if (type === 'shuffle') {
+                playOsc(300, 'sawtooth', t, 0.05, 0.3);
+                playOsc(400, 'sawtooth', t + 0.05, 0.05, 0.3);
+                playOsc(500, 'sawtooth', t + 0.10, 0.05, 0.3);
+                playOsc(600, 'sawtooth', t + 0.15, 0.05, 0.3);
+            } else if (type === 'bell') {
+                playOsc(800, 'square', t, 2.0, 0.4);
+                playOsc(815, 'sawtooth', t, 2.0, 0.4);
+                playOsc(1200, 'sine', t, 2.0, 0.3);
+            }
+        }
+
+        function toggleTimer() {
+            if (isTimerRunning) {
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+                document.getElementById('timer-btn').classList.remove('bg-amber-100', 'text-amber-700', 'border-amber-300');
+            } else {
+                if (timeLeft === 0) timeLeft = TIMER_TOTAL; 
+                isTimerRunning = true;
+                document.getElementById('timer-btn').classList.remove('bg-red-100', 'text-red-700', 'border-red-300');
+                document.getElementById('timer-btn').classList.add('bg-amber-100', 'text-amber-700', 'border-amber-300');
+                document.getElementById('timer-progress-container').classList.remove('hidden');
+                updateTimerDisplay(); // Initial update before interval
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            document.getElementById('timer-display').innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+            
+            // Update Progress Bar
+            const percent = (timeLeft / TIMER_TOTAL) * 100;
+            const bar = document.getElementById('timer-progress-bar');
+            bar.style.width = `${percent}%`;
+            
+            // Color changing logic
+            if (percent > 20) {
+                bar.style.backgroundColor = '#3b82f6'; // blue
+            } else if (percent > 5) {
+                bar.style.backgroundColor = '#f59e0b'; // amber
+            } else {
+                bar.style.backgroundColor = '#ef4444'; // red
+            }
+
+            if (timeLeft === 60) {
+                document.getElementById('timer-btn').classList.add('timer-warning');
+            }
+        }
+
+        function updateTimer() {
+            if (timeLeft > 0) {
+                timeLeft--;
+                updateTimerDisplay();
+            } else {
+                clearInterval(timerInterval);
+                isTimerRunning = false;
+                document.getElementById('timer-display').innerText = "0:00";
+                document.getElementById('timer-btn').classList.remove('timer-warning', 'bg-amber-100', 'text-amber-700', 'border-amber-300');
+                document.getElementById('timer-btn').classList.add('bg-red-100', 'text-red-700', 'border-red-300');
+                document.getElementById('timer-progress-bar').style.width = '0%';
+                playSFX('bell');
+            }
+        }
+
+        // --- NAVIGATION LOGIC ---
+        function loadDashboard() {
+            document.getElementById('view-dashboard').classList.remove('hidden');
+            document.getElementById('view-lesson').classList.add('hidden');
+            document.getElementById('view-sow').classList.add('hidden');
+            
+            document.getElementById('header-class-name').innerText = "PKXYS Dashboard";
+            document.getElementById('header-room-name').classList.add('hidden');
+            
+            currentClassId = null;
+            
+            if (window.innerWidth < 768 && isSidebarOpen) {
+                menuToggle.click();
+            }
+        }
+
+        function loadClass(classId) {
+            const classData = classes.find(c => c.id === classId);
+            if (!classData) return;
+            
+            currentClassId = classId;
+            document.getElementById('header-class-name').innerText = classData.name;
+            
+            const roomHeader = document.getElementById('header-room-name');
+            roomHeader.innerText = classData.room;
+            roomHeader.classList.remove('hidden');
+            
+            document.getElementById('lesson-objective').innerText = classData.objective;
+            
+            const keywordsHtml = classData.keywords.map(kw => {
+                const colors = ['bg-rose-100 text-rose-700 border-rose-200', 'bg-blue-100 text-blue-700 border-blue-200', 'bg-emerald-100 text-emerald-700 border-emerald-200', 'bg-amber-100 text-amber-700 border-amber-200', 'bg-purple-100 text-purple-700 border-purple-200'];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                return `<span class="px-3 py-1 rounded-full text-sm font-semibold border shadow-sm ${color}">${kw}</span>`;
+            }).join('');
+            document.getElementById('lesson-keywords').innerHTML = keywordsHtml;
+            
+            document.getElementById('shuffler-display').innerHTML = `
+                <div class="w-full h-full flex items-center justify-center text-slate-400 text-sm italic">
+                    Select a group size to generate random groupings.
+                </div>
+            `;
+
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-lesson').classList.remove('hidden');
+            document.getElementById('view-sow').classList.add('hidden');
+            
+            if (window.innerWidth < 768 && isSidebarOpen) {
+                menuToggle.click();
+            }
+        }
+        
+        function loadSow(weekId) {
+            const weekData = g5SowData.find(w => w.id === weekId);
+            if (!weekData) return;
+            
+            document.getElementById('header-class-name').innerText = "G5 Scheme of Work";
+            document.getElementById('header-room-name').classList.add('hidden');
+            
+            document.getElementById('sow-title').innerText = weekData.title;
+            
+            const tbody = document.getElementById('sow-table-body');
+            tbody.innerHTML = '';
+            
+            weekData.rows.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="px-4 py-3 align-top text-slate-700 text-sm border-r border-slate-100 font-medium">${row.objective}</td>
+                    <td class="px-4 py-3 align-top text-slate-600 text-sm border-r border-slate-100">${row.activities}</td>
+                    <td class="px-4 py-3 align-top text-center border-r border-slate-100"><span class="inline-block bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-semibold shadow-sm">${row.yanka}</span></td>
+                    <td class="px-4 py-3 align-top text-center border-r border-slate-100"><span class="inline-block bg-purple-50 text-purple-700 px-2 py-1 rounded text-xs font-semibold shadow-sm">${row.showcase}</span></td>
+                    <td class="px-4 py-3 align-top text-center"><span class="inline-block bg-rose-50 text-rose-700 px-2 py-1 rounded text-xs font-semibold border border-rose-200 shadow-sm">${row.collection}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-lesson').classList.add('hidden');
+            document.getElementById('view-sow').classList.remove('hidden');
+            
+            currentClassId = null;
+            
+            if (window.innerWidth < 768 && isSidebarOpen) {
+                menuToggle.click();
+            }
+        }
+
+        // --- SHUFFLER LOGIC ---
+        function shuffleStudents(groupSize) {
+            if (!currentClassId) return;
+            
+            playSFX('shuffle'); 
+            
+            const classData = classes.find(c => c.id === currentClassId);
+            const display = document.getElementById('shuffler-display');
+            display.innerHTML = ''; 
+            
+            let students = [...classData.students];
+            for (let i = students.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [students[i], students[j]] = [students[j], students[i]];
+            }
+            
+            let groups = [];
+            for (let i = 0; i < students.length; i += groupSize) {
+                groups.push(students.slice(i, i + groupSize));
+            }
+
+            const cardColors = [
+                'bg-rose-50 border-rose-200', 'bg-blue-50 border-blue-200', 
+                'bg-emerald-50 border-emerald-200', 'bg-amber-50 border-amber-200', 
+                'bg-purple-50 border-purple-200', 'bg-cyan-50 border-cyan-200',
+                'bg-pink-50 border-pink-200', 'bg-indigo-50 border-indigo-200'
+            ];
+
+            groups.forEach((group, index) => {
+                const colorClass = cardColors[index % cardColors.length];
+                const card = document.createElement('div');
+                card.className = `student-card border rounded-xl p-3 shadow-sm flex flex-col justify-center min-w-[140px] flex-grow ${colorClass}`;
+                
+                const groupTitle = document.createElement('div');
+                groupTitle.className = 'text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 opacity-70 border-b border-black/5 pb-1';
+                groupTitle.innerText = `Group ${index + 1}`;
+                card.appendChild(groupTitle);
+
+                group.forEach(student => {
+                    const nameSpan = document.createElement('div');
+                    nameSpan.className = 'font-semibold text-slate-800 text-sm leading-tight';
+                    nameSpan.innerText = student;
+                    card.appendChild(nameSpan);
+                });
+                
+                display.appendChild(card);
+            });
+        }
+    </script>
+</body>
+</html>
