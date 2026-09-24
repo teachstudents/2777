@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chef Master's Interactive Cooking Class</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Comic Neue', cursive;
+            background-color: #fef08a; /* Tailwind yellow-200 */
+            background-image: url('data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23f59e0b" fill-opacity="0.1"%3E%3Cpath d="M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');
+        }
+        .chef-avatar {
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .station-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .station-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .speaking-highlight {
+            background-color: #fef08a;
+            border-left: 4px solid #eab308;
+            padding-left: 10px;
+        }
+        #recognition-indicator {
+            display: none;
+        }
+        #recognition-indicator.active {
+            display: inline-flex;
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: .5; transform: scale(1.1); }
+        }
+        .rotating-emoji {
+            animation: spinSlow 8s linear infinite;
+            z-index: -1;
+        }
+        .rotating-emoji-reverse {
+            animation: spinSlowReverse 10s linear infinite;
+            z-index: -1;
+        }
+        @keyframes spinSlow {
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes spinSlowReverse {
+            100% { transform: rotate(-360deg); }
+        }
+    </style>
+</head>
+<body class="h-screen text-gray-800 p-2 md:p-4 relative overflow-hidden">
+
+    <div class="fixed top-20 left-4 text-4xl rotating-emoji opacity-50">🍎</div>
+    <div class="fixed top-1/3 right-4 text-4xl rotating-emoji-reverse opacity-50">🥦</div>
+    <div class="fixed bottom-1/4 left-6 text-4xl rotating-emoji opacity-50">🥩</div>
+    <div class="fixed bottom-20 right-8 text-4xl rotating-emoji-reverse opacity-50">🍝</div>
+    <div class="fixed top-2/3 left-2 text-4xl rotating-emoji opacity-50">🍤</div>
+    <div class="fixed top-10 right-10 text-4xl rotating-emoji-reverse opacity-50">🥚</div>
+
+    <div class="w-full h-full max-w-[98%] xl:max-w-7xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden border-4 border-amber-400 flex flex-col">
+        
+        <!-- Header -->
+        <header class="bg-amber-400 p-2 md:p-3 flex flex-wrap items-center justify-between shrink-0 gap-2">
+            <div class="flex items-center gap-2 md:gap-4">
+                <div class="text-3xl md:text-4xl chef-avatar">👨‍🍳</div>
+                <div>
+                    <h1 class="text-xl md:text-2xl font-bold text-black drop-shadow-sm leading-tight">Chef Master's English Kitchen</h1>
+                    <p class="text-gray-900 font-semibold text-xs md:text-sm">Grade 5 Public Speaking Rotation</p>
+                </div>
+            </div>
+
+            <!-- Navigation now in Header -->
+            <nav class="flex bg-white/40 rounded-xl p-1 shadow-sm border border-white/50">
+                <button id="tab-teach" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base font-bold rounded-lg bg-amber-500 text-white shadow transition-all">📚 Teach & Learn</button>
+                <button id="tab-practice" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base font-bold rounded-lg text-gray-700 hover:bg-white/50 transition-all">🎤 Practice & Speak</button>
+                <button id="tab-class" class="px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base font-bold rounded-lg text-gray-700 hover:bg-white/50 transition-all">📝 Class List</button>
+            </nav>
+
+            <div class="flex gap-4">
+                <!-- Timer Widget -->
+                <div class="bg-white/30 p-2 rounded-xl border border-white/50 backdrop-blur-sm text-center min-w-[120px]">
+                    <div class="flex justify-between items-center mb-1">
+                        <div class="text-xs text-amber-900 font-bold uppercase tracking-wider">Timer</div>
+                        <select id="time-selector" class="text-xs bg-white text-black rounded px-1 outline-none font-bold">
+                            <option value="60">1 Min</option>
+                            <option value="120">2 Min</option>
+                            <option value="180" selected>3 Min</option>
+                            <option value="240">4 Min</option>
+                            <option value="300">5 Min</option>
+                        </select>
+                    </div>
+                    <div id="timer-display" class="text-2xl font-mono text-black font-bold tracking-widest drop-shadow-sm">03:00</div>
+                    <div class="flex justify-center gap-2 mt-1">
+                        <button id="btn-start-timer" class="text-xs bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded">▶️ Start</button>
+                        <button id="btn-reset-timer" class="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded">🔄 Reset</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="p-2 md:p-4 flex-1 h-0 overflow-hidden flex flex-col">
+            
+            <section id="section-teach" class="flex h-full flex-col space-y-2 overflow-hidden">
+                
+                <!-- Station Selector -->
+                <div class="flex overflow-x-auto gap-2 pb-1 shrink-0 scrollbar-hide">
+                    <button class="station-btn active px-4 py-2 bg-amber-500 text-white rounded-full font-bold whitespace-nowrap shadow-md hover:bg-amber-600" data-station="1">🍎 Station 1: Fruits</button>
+                    <button class="station-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full font-bold whitespace-nowrap hover:bg-gray-300" data-station="2">🥦 Station 2: Veggies</button>
+                    <button class="station-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full font-bold whitespace-nowrap hover:bg-gray-300" data-station="3">🥩 Station 3: Meats</button>
+                    <button class="station-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full font-bold whitespace-nowrap hover:bg-gray-300" data-station="4">🐟 Station 4: Seafood</button>
+                    <button class="station-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full font-bold whitespace-nowrap hover:bg-gray-300" data-station="5">🍗 Station 5: Poultry</button>
+                    <button class="station-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-full font-bold whitespace-nowrap hover:bg-gray-300" data-station="6">🍝 Station 6: Grains</button>
+                </div>
+
+                <!-- Station Visual Cues Grid -->
+                <div id="station-content" class="bg-white rounded-2xl shadow-sm border border-gray-200 flex-1 overflow-hidden flex flex-col">
+                    <!-- Populated by JS -->
+                </div>
+
+            </section>
+
+            <section id="section-practice" class="hidden h-full flex-col space-y-4 overflow-y-auto">
+                
+                <div class="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 flex flex-col gap-4 shrink-0">
+                    <div class="text-center font-bold text-blue-800 uppercase tracking-wide text-sm border-b border-blue-200 pb-2">2-Person Roleplay Practice</div>
+                    <!-- Teacher Dialogue -->
+                    <div class="flex items-start gap-4">
+                        <div class="text-5xl chef-avatar">👨‍🍳</div>
+                        <div class="bg-white p-3 rounded-2xl rounded-tl-none border border-blue-100 shadow-sm cursor-pointer hover:bg-gray-50 transition" onclick="speakText('Welcome! What will you do at your station today?')">
+                            <p class="text-xs font-bold text-gray-400 mb-1">Chef Master (Teacher)</p>
+                            <p class="text-lg font-bold text-blue-900">"Welcome! What will you do at your station today?"</p>
+                        </div>
+                    </div>
+                    <!-- Student Dialogue -->
+                    <div class="flex items-start gap-4 flex-row-reverse">
+                        <div class="text-5xl">🧑‍🎓</div>
+                        <div class="bg-green-50 p-3 rounded-2xl rounded-tr-none border border-green-200 shadow-sm cursor-pointer hover:bg-green-100 transition" onclick="speakText('To make a delicious dish, first I will use the tool!')">
+                            <p class="text-xs font-bold text-gray-400 mb-1 text-right">Student Chef</p>
+                            <div class="flex items-center gap-2">
+                                <button onclick="event.stopPropagation(); speakText('To make a delicious fruit salad, first slice the apples using a cutting knife!')" class="p-2 bg-green-200 hover:bg-green-300 rounded-full transition-colors text-sm" title="Listen to example">🔊</button>
+                                <p class="text-lg font-bold italic text-green-900">"First, I <span class="bg-yellow-200 px-1 rounded not-italic">[verb]</span> the <span class="bg-blue-200 px-1 rounded not-italic">[food]</span> using a <span class="bg-pink-200 px-1 rounded not-italic">[tool]</span>!"</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-[400px]">
+                    <!-- Dialogue Panel -->
+                    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[500px]">
+                        <div class="bg-green-500 p-4 text-white">
+                            <h2 class="text-xl font-bold flex items-center gap-2">💬 Conversation Practice</h2>
+                        </div>
+                        <div id="chat-window" class="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50">
+                            <!-- Chat messages go here -->
+                            <div class="flex items-start gap-3">
+                                <div class="text-4xl chef-avatar">👨‍🍳</div>
+                                <div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm border border-gray-100 max-w-[80%]">
+                                    <p class="font-bold text-sm text-gray-500 mb-1">Chef Master</p>
+                                    <p class="text-lg">Welcome to the kitchen! Are you ready to present your recipe? Please tell me what you will do at your station.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-white border-t border-gray-200">
+                            <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-3 text-sm text-blue-800">
+                                <strong>Your Turn:</strong> Use the sentence format: <br/>
+                                <span class="italic">"First, I [verb] the [food] with a [tool]."</span> or <br/>
+                                <span class="italic">"I [verb] the [food] in a [tool]."</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="btn-mic" class="bg-red-500 hover:bg-red-600 text-white rounded-full p-4 shadow-lg transition-transform hover:scale-105 active:scale-95 flex items-center justify-center relative w-16 h-16">
+                                    <span class="text-2xl">🎤</span>
+                                    <span id="recognition-indicator" class="absolute -top-1 -right-1 flex h-4 w-4">
+                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                        <span class="relative inline-flex rounded-full h-4 w-4 bg-red-200"></span>
+                                    </span>
+                                </button>
+                                <div class="flex-1 border-2 border-gray-300 rounded-xl px-4 py-3 bg-gray-50 flex items-center text-gray-500 italic">
+                                    <span id="speech-preview">Click the microphone and start speaking...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Builder Panel -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+                        <div class="bg-purple-500 p-4 text-white">
+                            <h2 class="text-xl font-bold">🏗️ Sentence Builder</h2>
+                        </div>
+                        <div class="p-4 space-y-4 overflow-y-auto flex-1">
+                            <p class="text-sm text-gray-600">Need help? Click words to build your sentence, then read it out loud!</p>
+                            
+                            <div>
+                                <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">1. Pick an Action & Tool</label>
+                                <select id="builder-verb" class="mt-1 w-full p-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none">
+                                    <option value="" disabled selected>Select an action...</option>
+                                    <!-- Populated by JS -->
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="text-xs font-bold text-gray-500 uppercase tracking-wide">2. Pick an Ingredient</label>
+                                <select id="builder-food" class="mt-1 w-full p-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none">
+                                    <option value="" disabled selected>Select a food...</option>
+                                    <!-- Populated by JS -->
+                                </select>
+                            </div>
+
+                            <div class="mt-4 p-4 bg-purple-50 rounded-xl border border-purple-200 min-h-[100px] flex items-center justify-center text-center">
+                                <p id="builder-output" class="text-lg font-bold text-purple-900 italic">Select options above to build a sentence.</p>
+                            </div>
+
+                            <button id="btn-read-builder" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                🔊 Listen to Sentence
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <section id="section-class" class="hidden h-full flex-col space-y-6 overflow-y-auto">
+                
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <div class="bg-gray-50 border-2 border-gray-200 rounded-xl p-6 mb-6 flex flex-col items-center justify-center min-h-[150px] relative overflow-hidden group cursor-pointer" id="random-caller-box">
+                        <div class="absolute inset-0 bg-amber-400 opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                        <p class="text-sm text-gray-500 font-bold uppercase tracking-wider mb-2">Who is presenting next?</p>
+                        <h3 id="called-student-display" class="text-4xl font-black text-gray-800 drop-shadow-sm">????</h3>
+                        <p class="mt-4 text-xs text-amber-600 font-bold hidden group-hover:block transition-all">Click to call someone!</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="student-list-container">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        // Data Structure for Stations
+        const stationsData = {
+            1: {
+                title: "Station 1: Fresh Fruits 🍎",
+                subtitle: "(Appetizers & Desserts)",
+                frame: "To make a delicious fruit salad, first [verb] the [food] using a [tool]!",
+                items: [
+                    { verb: "Slice", tool: "cutting knife", actionEmoji: "🔪", food: "Fresh Red Apples", foodEmoji: "🍎" },
+                    { verb: "Peel", tool: "fruit peeler", actionEmoji: "🥔", food: "Yellow Bananas", foodEmoji: "🍌" },
+                    { verb: "Chop", tool: "wooden cutting board", actionEmoji: "🪵", food: "Juicy Watermelon", foodEmoji: "🍉" },
+                    { verb: "Squeeze", tool: "citrus juicer", actionEmoji: "🍋", food: "Sweet Oranges", foodEmoji: "🍊" },
+                    { verb: "Mix", tool: "large glass bowl", actionEmoji: "🥣", food: "Fresh Strawberries & Blueberries", foodEmoji: "🍓🫐" },
+                    { verb: "Blend", tool: "electric blender", actionEmoji: "🍹", food: "Pineapple & Mango Smoothie", foodEmoji: "🍍🥭" }
+                ],
+                emojiLeft: "🔪", emojiRight: "🍓"
+            },
+            2: {
+                title: "Station 2: Garden Vegetables 🥦",
+                subtitle: "(Starters & Soups)",
+                frame: "For our healthy vegetable starter, we [verb] the [food] in the kitchen!",
+                items: [
+                    { verb: "Wash", tool: "water colander", actionEmoji: "🚰", food: "Crisp Green Lettuce", foodEmoji: "🥬" },
+                    { verb: "Dice", tool: "chef's knife", actionEmoji: "🔪", food: "Ripe Red Tomatoes", foodEmoji: "🍅" },
+                    { verb: "Steam", tool: "metal steamer pot", actionEmoji: "♨️", food: "Fresh Green Broccoli", foodEmoji: "🥦" },
+                    { verb: "Boil", tool: "hot pot of water", actionEmoji: "🍲", food: "Sweet Yellow Corn", foodEmoji: "🌽" },
+                    { verb: "Season", tool: "salt and pepper shakers", actionEmoji: "🧂", food: "Vegetable Soup", foodEmoji: "🥣" },
+                    { verb: "Grate", tool: "stainless steel grater", actionEmoji: "🧀", food: "Crunchy Orange Carrots", foodEmoji: "🥕" }
+                ],
+                emojiLeft: "🚰", emojiRight: "🥕"
+            },
+            3: {
+                title: "Station 3: Meats & Steaks 🥩",
+                subtitle: "(Main Course: Beef & Pork)",
+                frame: "To cook a hot main course, I [verb] the [food] on the [tool]!",
+                items: [
+                    { verb: "Grill", tool: "outdoor barbecue grill", actionEmoji: "🔥", food: "Pork Chops & Ribs", foodEmoji: "🥩" },
+                    { verb: "Tenderize", tool: "meat mallet", actionEmoji: "🔨", food: "Thick Beef Steak", foodEmoji: "🥩" },
+                    { verb: "Fry", tool: "hot frying pan", actionEmoji: "🍳", food: "Pork Sausages", foodEmoji: "🌭" },
+                    { verb: "Slice", tool: "sharp carving knife", actionEmoji: "🔪", food: "Roast Beef", foodEmoji: "🍖" },
+                    { verb: "Marinate", tool: "ceramic mixing bowl", actionEmoji: "🥣", food: "Beef Patties", foodEmoji: "🍔" },
+                    { verb: "Roast", tool: "hot oven tray", actionEmoji: "🔥", food: "Pork Loin", foodEmoji: "🥓" }
+                ],
+                emojiLeft: "🔥", emojiRight: "🍖"
+            },
+            4: {
+                title: "Station 4: Fish & Seafood 🐟",
+                subtitle: "(Main Course & Starters)",
+                frame: "Our seafood dish is amazing! First, [verb] the [food]!",
+                items: [
+                    { verb: "Scale", tool: "fish scaler tool", actionEmoji: "🔪", food: "Whole Ocean Fish", foodEmoji: "🐟" },
+                    { verb: "Filet", tool: "thin filet knife", actionEmoji: "🔪", food: "Fresh Salmon", foodEmoji: "🍣" },
+                    { verb: "Bake", tool: "glass baking dish", actionEmoji: "♨️", food: "Fish Filets with Lemon", foodEmoji: "🍋" },
+                    { verb: "Steam", tool: "bamboo steamer", actionEmoji: "♨️", food: "Whole Seabass", foodEmoji: "🐠" },
+                    { verb: "Fry", tool: "skillet with oil", actionEmoji: "🍳", food: "Crispy Calamari Rings", foodEmoji: "🦑" },
+                    { verb: "Grill", tool: "open flames", actionEmoji: "🔥", food: "Jumbo Garlic Shrimp", foodEmoji: "🍤" }
+                ],
+                emojiLeft: "🍳", emojiRight: "🍤"
+            },
+            5: {
+                title: "Station 5: Poultry & Eggs 🍗",
+                subtitle: "(Main Course & Starters)",
+                frame: "Look at station five! We [verb] the [food] for dinner!",
+                items: [
+                    { verb: "Roast", tool: "oven roasting rack", actionEmoji: "🔥", food: "Whole Chicken", foodEmoji: "🍗" },
+                    { verb: "Whisk", tool: "wire hand whisk", actionEmoji: "🥣", food: "Fresh Eggs", foodEmoji: "🥚" },
+                    { verb: "Fry", tool: "hot skillet", actionEmoji: "🍳", food: "Crispy Chicken Wings", foodEmoji: "🍗" },
+                    { verb: "Boil", tool: "saucepan of boiling water", actionEmoji: "🍲", food: "Hard-Boiled Eggs", foodEmoji: "🥚" },
+                    { verb: "Season", tool: "spice jar", actionEmoji: "🧂", food: "Chicken Breasts", foodEmoji: "🐔" },
+                    { verb: "Bake", tool: "oven pan", actionEmoji: "♨️", food: "Turkey Drumsticks", foodEmoji: "🍗" }
+                ],
+                emojiLeft: "⏲️", emojiRight: "🥚"
+            },
+            6: {
+                title: "Station 6: Grains, Dairy & Pasta 🍝",
+                subtitle: "(Starters & Main Courses)",
+                frame: "To finish the meal, we [verb] the [food] together!",
+                items: [
+                    { verb: "Stir", tool: "large wooden spoon", actionEmoji: "🥄", food: "Creamy Tomato Pasta", foodEmoji: "🍝" },
+                    { verb: "Pour", tool: "glass sauce pitcher", actionEmoji: "🥛", food: "Hot Cheese Sauce", foodEmoji: "🧀" },
+                    { verb: "Melt", tool: "small saucepan", actionEmoji: "🔥", food: "Golden Butter", foodEmoji: "🧈" },
+                    { verb: "Toss", tool: "large salad bowl", actionEmoji: "🥣", food: "Pasta & Cheese Salad", foodEmoji: "🥗" },
+                    { verb: "Bake", tool: "ceramic casserole dish", actionEmoji: "♨️", food: "Macaroni and Cheese", foodEmoji: "🧀" },
+                    { verb: "Serve", tool: "large dinner plate", actionEmoji: "🍽️", food: "Steamed White Rice", foodEmoji: "🍚" }
+                ],
+                emojiLeft: "🥣", emojiRight: "🧀"
+            }
+        };
+
+        let currentStation = 1;
+        // Roster for Grade 5 M Class 2
+        let students = [
+            { name: "Abigail", gender: "F", presented: false }, { name: "Anna", gender: "F", presented: false }, { name: "Avery", gender: "F", presented: false },
+            { name: "Charles", gender: "M", presented: false }, { name: "Dafa", gender: "M", presented: false }, { name: "David", gender: "M", presented: false },
+            { name: "Edwin", gender: "M", presented: false }, { name: "Emma", gender: "F", presented: false }, { name: "Freya", gender: "F", presented: false },
+            { name: "Grace", gender: "F", presented: false }, { name: "Henry", gender: "M", presented: false }, { name: "Jason M", gender: "M", presented: false },
+            { name: "Jason S", gender: "M", presented: false }, { name: "Jim", gender: "M", presented: false }, { name: "Julia", gender: "F", presented: false },
+            { name: "Justin", gender: "M", presented: false }, { name: "Kenneth", gender: "M", presented: false }, 
+            { name: "Nina", gender: "F", presented: false }, { name: "Patrick", gender: "M", presented: false }, { name: "Ryan", gender: "M", presented: false },
+            { name: "Susie", gender: "F", presented: false }, { name: "Terrance", gender: "M", presented: false }, { name: "Yihan", gender: "F", presented: false }
+        ];
+
+        // Speech Synthesis setup
+        const synth = window.speechSynthesis;
+        let englishVoice = null;
+
+        function loadVoices() {
+            const voices = synth.getVoices();
+            // Try to find a good English voice, preferably Microsoft or Google
+            englishVoice = voices.find(voice => voice.lang.includes('en-US') && (voice.name.includes('Microsoft') || voice.name.includes('Google'))) 
+                        || voices.find(voice => voice.lang.includes('en-US')) 
+                        || voices[0];
+        }
+        
+        synth.onvoiceschanged = loadVoices;
+        loadVoices();
+
+        function speakText(text, rate = 0.9) {
+            if (synth.speaking) {
+                synth.cancel(); // Stop current speaking
+            }
+            if (text !== '') {
+                const utterThis = new SpeechSynthesisUtterance(text);
+                if (englishVoice) {
+                    utterThis.voice = englishVoice;
+                }
+                utterThis.rate = rate; // Slightly slower for ESL
+                utterThis.pitch = 1.1; // Friendly pitch
+                synth.speak(utterThis);
+            }
+        }
+
+        // Speech Recognition setup (Web Speech API)
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        let isRecording = false;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('speech-preview').textContent = transcript;
+                document.getElementById('speech-preview').classList.remove('italic', 'text-gray-500');
+                document.getElementById('speech-preview').classList.add('text-gray-900', 'font-bold');
+                addChatMessage('student', transcript);
+                
+                // Simple logic to have the chef respond
+                setTimeout(() => {
+                    const response = generateChefResponse(transcript);
+                    addChatMessage('chef', response);
+                    speakText(response);
+                }, 1000);
+            };
+
+            recognition.onspeechend = () => {
+                stopRecording();
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error detected: ' + event.error);
+                document.getElementById('speech-preview').textContent = "Error: Please try speaking again.";
+                stopRecording();
+            };
+        } else {
+            console.warn("Speech Recognition API not supported in this browser.");
+            document.getElementById('speech-preview').textContent = "Speech recognition is not supported in this browser. Please use Chrome or Edge.";
+            document.getElementById('btn-mic').disabled = true;
+            document.getElementById('btn-mic').classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        function toggleRecording() {
+            if (!recognition) return;
+            
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        function startRecording() {
+            try {
+                recognition.start();
+                isRecording = true;
+                document.getElementById('recognition-indicator').classList.add('active');
+                document.getElementById('btn-mic').classList.replace('bg-red-500', 'bg-red-600');
+                document.getElementById('speech-preview').textContent = "Listening...";
+                document.getElementById('speech-preview').classList.add('italic', 'text-gray-500');
+            } catch (e) {
+                console.error("Could not start recognition:", e);
+            }
+        }
+
+        function stopRecording() {
+            try {
+                recognition.stop();
+            } catch(e) {}
+            isRecording = false;
+            document.getElementById('recognition-indicator').classList.remove('active');
+            document.getElementById('btn-mic').classList.replace('bg-red-600', 'bg-red-500');
+        }
+
+        function addChatMessage(sender, text) {
+            const chatWindow = document.getElementById('chat-window');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `flex items-start gap-3 ${sender === 'student' ? 'flex-row-reverse' : ''}`;
+            
+            let avatar = sender === 'chef' ? '<div class="text-4xl chef-avatar">👨‍🍳</div>' : '<div class="text-4xl">🧑‍🎓</div>';
+            
+            let bubbleClass = sender === 'chef' 
+                ? 'bg-white p-3 rounded-2xl rounded-tl-none shadow-sm border border-gray-100' 
+                : 'bg-blue-500 text-white p-3 rounded-2xl rounded-tr-none shadow-sm';
+            
+            let nameTag = sender === 'chef' 
+                ? '<p class="font-bold text-sm text-gray-500 mb-1">Chef Master</p>' 
+                : '<p class="font-bold text-sm text-blue-200 mb-1">You</p>';
+
+            msgDiv.innerHTML = `
+                ${avatar}
+                <div class="${bubbleClass} max-w-[80%]">
+                    ${nameTag}
+                    <p class="text-lg">${text}</p>
+                </div>
+            `;
+            
+            chatWindow.appendChild(msgDiv);
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function generateChefResponse(transcript) {
+            const lowerTranscript = transcript.toLowerCase();
+            
+            // Simple keyword matching for feedback
+            const hasVerb = ["slice", "peel", "chop", "squeeze", "mix", "blend", "wash", "dice", "steam", "boil", "season", "grate", "grill", "tenderize", "fry", "marinate", "roast", "scale", "filet", "bake", "whisk", "stir", "pour", "melt", "toss", "serve"].some(v => lowerTranscript.includes(v));
+            
+            if (hasVerb && (lowerTranscript.includes("with a") || lowerTranscript.includes("in a") || lowerTranscript.includes("on a"))) {
+                return "Excellent! That is a perfect sentence. You used the action verb and the tool correctly. 🌟";
+            } else if (hasVerb) {
+                return "Good job using the action verb! Try to tell me what tool you used. Say 'with a...' or 'in a...'.";
+            } else {
+                return "I heard you, but I didn't catch a cooking verb. Remember to say words like 'slice', 'chop', or 'mix'. Let's try again!";
+            }
+        }
+
+        function renderStation(stationId) {
+            const station = stationsData[stationId];
+            const container = document.getElementById('station-content');
+            
+            let html = `
+                <div class="bg-amber-100 px-3 py-1.5 md:px-4 md:py-2 border-b border-amber-200 flex justify-between items-center shrink-0">
+                    <div>
+                        <h2 class="text-lg md:text-xl font-black text-amber-900">${station.title}</h2>
+                        <p class="text-amber-700 font-bold text-xs">${station.subtitle}</p>
+                    </div>
+                    <button onclick="speakText('${station.frame}')" class="bg-amber-500 hover:bg-amber-600 text-white p-1.5 md:p-2 rounded-full shadow-md flex items-center justify-center transition-transform hover:scale-110" title="Listen to Frame">
+                        <span class="text-xl md:text-2xl">🗣️</span>
+                    </button>
+                </div>
+                
+                <div class="flex-1 p-1 md:p-2 flex flex-col justify-center overflow-hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 relative h-full">
+                        <!-- Divider Line for Desktop -->
+                        <div class="hidden md:block absolute left-1/2 top-0 bottom-0 w-1 bg-gray-200 -translate-x-1/2 rounded-full"></div>
+
+                        <!-- Left Column: Verbs & Tools -->
+                        <div class="flex flex-col h-full justify-between">
+                            <div class="flex items-center gap-1 md:gap-2 mb-1 border-b-2 border-amber-200 pb-1 shrink-0">
+                                <span class="text-xl md:text-2xl">${station.emojiLeft}</span>
+                                <h3 class="text-lg md:text-xl font-bold text-gray-800 uppercase tracking-wide">Action & Tool</h3>
+                            </div>
+                            <ul class="flex-1 flex flex-col justify-evenly gap-1">
+                                ${station.items.map(item => `
+                                    <li class="station-card bg-gray-50 border border-gray-200 rounded-lg p-1.5 md:p-2 flex items-center justify-between cursor-pointer group" onclick="speakText('${item.verb} with a ${item.tool}')">
+                                        <div class="leading-tight overflow-hidden">
+                                            <span class="font-black text-base md:text-lg text-amber-600 block group-hover:text-amber-500 truncate">${item.verb}</span>
+                                            <span class="text-[10px] md:text-xs text-gray-500 font-bold truncate block">(with/in/on a ${item.tool})</span>
+                                        </div>
+                                        <div class="text-2xl md:text-3xl bg-white p-1 rounded-md shadow-sm group-hover:bg-amber-50 transition-colors shrink-0 ml-1">${item.actionEmoji}</div>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+
+                        <!-- Right Column: Food -->
+                        <div class="flex flex-col h-full justify-between">
+                            <div class="flex items-center gap-1 md:gap-2 mb-1 border-b-2 border-green-200 pb-1 shrink-0">
+                                <span class="text-xl md:text-2xl">${station.emojiRight}</span>
+                                <h3 class="text-lg md:text-xl font-bold text-gray-800 uppercase tracking-wide">Ingredients / Dish</h3>
+                            </div>
+                            <ul class="flex-1 flex flex-col justify-evenly gap-1">
+                                ${station.items.map(item => `
+                                    <li class="station-card bg-gray-50 border border-gray-200 rounded-lg p-1.5 md:p-2 flex items-center justify-between cursor-pointer group" onclick="speakText('${item.food}')">
+                                        <span class="font-bold text-base md:text-lg text-green-700 block group-hover:text-green-600 leading-tight truncate">${item.food}</span>
+                                        <div class="text-2xl md:text-3xl bg-white p-1 rounded-md shadow-sm group-hover:bg-green-50 transition-colors shrink-0 ml-1">${item.foodEmoji}</div>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.innerHTML = html;
+            
+            // Update active state on buttons
+            document.querySelectorAll('.station-btn').forEach(btn => {
+                if(btn.dataset.station == stationId) {
+                    btn.classList.replace('bg-gray-200', 'bg-amber-500');
+                    btn.classList.replace('text-gray-700', 'text-white');
+                    btn.classList.add('shadow-md');
+                } else {
+                    btn.classList.replace('bg-amber-500', 'bg-gray-200');
+                    btn.classList.replace('text-white', 'text-gray-700');
+                    btn.classList.remove('shadow-md');
+                }
+            });
+
+            // Update Practice Builder dropdowns
+            updateBuilderOptions(stationId);
+        }
+
+        function updateBuilderOptions(stationId) {
+            const station = stationsData[stationId];
+            const verbSelect = document.getElementById('builder-verb');
+            const foodSelect = document.getElementById('builder-food');
+            
+            verbSelect.innerHTML = '<option value="" disabled selected>Select an action...</option>';
+            foodSelect.innerHTML = '<option value="" disabled selected>Select a food...</option>';
+            
+            station.items.forEach(item => {
+                // Determine preposition based on tool description loosely
+                let prep = "with a";
+                if(item.tool.includes("bowl") || item.tool.includes("pot") || item.tool.includes("pan") || item.tool.includes("dish") || item.tool.includes("water") || item.tool.includes("pitcher")) prep = "in a";
+                if(item.tool.includes("grill") || item.tool.includes("board") || item.tool.includes("rack") || item.tool.includes("plate")) prep = "on a";
+                if(item.tool.includes("open flames")) prep = "over";
+
+                const verbOption = document.createElement('option');
+                verbOption.value = `${item.verb} ${prep} ${item.tool}`;
+                verbOption.textContent = `${item.verb} (${item.tool})`;
+                verbSelect.appendChild(verbOption);
+
+                const foodOption = document.createElement('option');
+                foodOption.value = item.food;
+                foodOption.textContent = item.food;
+                foodSelect.appendChild(foodOption);
+            });
+            
+            updateBuilderOutput();
+        }
+
+        function updateBuilderOutput() {
+            const verbVal = document.getElementById('builder-verb').value;
+            const foodVal = document.getElementById('builder-food').value;
+            const outputEl = document.getElementById('builder-output');
+            const readBtn = document.getElementById('btn-read-builder');
+
+            if (verbVal && foodVal) {
+                // Split verb value to insert food in middle. E.g., "Slice with a cutting knife" -> "Slice the [food] with a cutting knife"
+                const parts = verbVal.split(' ');
+                const action = parts[0];
+                const rest = parts.slice(1).join(' ');
+                
+                const sentence = `First, I ${action.toLowerCase()} the ${foodVal.toLowerCase()} ${rest}.`;
+                outputEl.innerHTML = `First, I <span class="text-amber-600 underline">${action.toLowerCase()}</span> the <span class="text-green-600 underline">${foodVal.toLowerCase()}</span> <span class="text-blue-600 underline">${rest}</span>.`;
+                readBtn.disabled = false;
+                readBtn.dataset.sentence = sentence;
+            } else {
+                outputEl.innerHTML = "Select options above to build a sentence.";
+                readBtn.disabled = true;
+            }
+        }
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playAlarmSound() {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.3);
+            
+            gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 1);
+        }
+
+        function triggerConfetti() {
+            if (window.confetti) {
+                confetti({
+                    particleCount: 150,
+                    spread: 90,
+                    origin: { y: 0.5 },
+                    colors: ['#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#8b5cf6']
+                });
+            }
+        }
+
+        let timerInterval;
+        let timeLeft = 180; // 3 minutes in seconds default
+
+        function updateTimerDisplay() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            const display = document.getElementById('timer-display');
+            display.textContent = 
+                `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Visual warning when time is low
+            if (timeLeft <= 60 && timeLeft > 0) {
+                display.classList.add('text-red-600');
+                display.classList.remove('text-black');
+            } else if (timeLeft === 0) {
+                display.classList.add('text-red-600', 'animate-pulse');
+            } else {
+                display.classList.remove('text-red-600', 'animate-pulse', 'text-black');
+                display.classList.add('text-black');
+            }
+        }
+
+        function startTimer() {
+            const btn = document.getElementById('btn-start-timer');
+            if (btn.textContent.includes('Start')) {
+                // Start
+                if(timeLeft === 0) {
+                    const selector = document.getElementById('time-selector');
+                    timeLeft = parseInt(selector.value, 10);
+                }
+                clearInterval(timerInterval);
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    updateTimerDisplay();
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        playAlarmSound();
+                        triggerConfetti();
+                        setTimeout(() => {
+                            speakText("Time is up! Please rotate to the next station.", 1.0);
+                        }, 1000);
+                        btn.innerHTML = '▶️ Start';
+                        btn.classList.replace('bg-yellow-500', 'bg-green-500');
+                        btn.classList.replace('hover:bg-yellow-600', 'hover:bg-green-600');
+                    }
+                }, 1000);
+                btn.innerHTML = '⏸️ Pause';
+                btn.classList.replace('bg-green-500', 'bg-yellow-500');
+                btn.classList.replace('hover:bg-green-600', 'hover:bg-yellow-600');
+            } else {
+                // Pause
+                clearInterval(timerInterval);
+                btn.innerHTML = '▶️ Start';
+                btn.classList.replace('bg-yellow-500', 'bg-green-500');
+                btn.classList.replace('hover:bg-yellow-600', 'hover:bg-green-600');
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            const selector = document.getElementById('time-selector');
+            timeLeft = parseInt(selector.value, 10);
+            updateTimerDisplay();
+            const btn = document.getElementById('btn-start-timer');
+            btn.innerHTML = '▶️ Start';
+            btn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+            btn.classList.add('bg-green-500', 'hover:bg-green-600');
+        }
+
+        function renderStudentList() {
+            const container = document.getElementById('student-list-container');
+            container.innerHTML = students.map((s, i) => `
+                <div class="bg-white border border-gray-200 p-3 rounded-lg text-center font-bold text-gray-700 shadow-sm flex justify-between items-center ${s.presented ? 'opacity-50' : ''}">
+                    <div class="flex items-center gap-2">
+                        <span>${s.gender === 'F' ? '👧' : '👦'}</span>
+                        <span class="${s.presented ? 'line-through text-gray-400' : ''}">${s.name}</span>
+                    </div>
+                    <button onclick="removeStudent(${i})" class="text-red-400 hover:text-red-600 text-xs" title="Remove">✕</button>
+                </div>
+            `).join('');
+        }
+
+        function addStudent() {
+            const input = document.getElementById('new-student-input');
+            if(!input) return;
+            const name = input.value.trim();
+            if (name) {
+                // Defaulting new manual students to a generic user emoji
+                students.push({ name: name, gender: "U", presented: false });
+                input.value = '';
+                renderStudentList();
+            }
+        }
+        
+        window.removeStudent = function(index) {
+            students.splice(index, 1);
+            renderStudentList();
+        };
+
+        function callRandomStudent() {
+            const availableStudents = students.filter(s => !s.presented);
+            
+            if (availableStudents.length === 0) {
+                speakText("Everyone has presented! Great job class!");
+                return;
+            }
+            
+            const display = document.getElementById('called-student-display');
+            
+            // Animation effect
+            let ticks = 0;
+            display.classList.add('animate-pulse', 'text-amber-500');
+            
+            const rollInterval = setInterval(() => {
+                display.textContent = availableStudents[Math.floor(Math.random() * availableStudents.length)].name;
+                ticks++;
+                if (ticks > 15) {
+                    clearInterval(rollInterval);
+                    const chosenIndex = Math.floor(Math.random() * availableStudents.length);
+                    const chosen = availableStudents[chosenIndex];
+                    
+                    display.textContent = chosen.name;
+                    display.classList.remove('animate-pulse', 'text-amber-500');
+                    display.classList.add('text-green-600');
+                    
+                    // Mark as presented
+                    const originalIndex = students.findIndex(s => s.name === chosen.name);
+                    if(originalIndex !== -1) {
+                        students[originalIndex].presented = true;
+                    }
+                    
+                    renderStudentList();
+                    
+                    setTimeout(() => {
+                        display.classList.remove('text-green-600');
+                    }, 1000);
+
+                    speakText(`${chosen.name}, it is your turn to present!`);
+                }
+            }, 100);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // Tab Switching
+            const tabs = {
+                'teach': document.getElementById('section-teach'),
+                'practice': document.getElementById('section-practice'),
+                'class': document.getElementById('section-class')
+            };
+            const tabBtns = {
+                'teach': document.getElementById('tab-teach'),
+                'practice': document.getElementById('tab-practice'),
+                'class': document.getElementById('tab-class')
+            };
+
+            function switchTab(activeTab) {
+                // Hide all sections, dim all tabs
+                Object.keys(tabs).forEach(key => {
+                    tabs[key].classList.add('hidden');
+                    tabs[key].classList.remove('flex');
+                    
+                    tabBtns[key].classList.remove('bg-amber-500', 'text-white', 'shadow');
+                    tabBtns[key].classList.add('text-gray-700');
+                });
+                
+                // Show active
+                tabs[activeTab].classList.remove('hidden');
+                tabs[activeTab].classList.add('flex');
+                
+                tabBtns[activeTab].classList.remove('text-gray-700');
+                tabBtns[activeTab].classList.add('bg-amber-500', 'text-white', 'shadow');
+            }
+
+            tabBtns['teach'].addEventListener('click', () => switchTab('teach'));
+            tabBtns['practice'].addEventListener('click', () => switchTab('practice'));
+            tabBtns['class'].addEventListener('click', () => switchTab('class'));
+
+            // Station Buttons
+            document.querySelectorAll('.station-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    currentStation = e.target.dataset.station;
+                    renderStation(currentStation);
+                });
+            });
+
+            // Builder Events
+            document.getElementById('builder-verb').addEventListener('change', updateBuilderOutput);
+            document.getElementById('builder-food').addEventListener('change', updateBuilderOutput);
+            document.getElementById('btn-read-builder').addEventListener('click', (e) => {
+                if (e.target.dataset.sentence) {
+                    speakText(e.target.dataset.sentence);
+                }
+            });
+
+            // Mic Event
+            document.getElementById('btn-mic').addEventListener('click', toggleRecording);
+
+            // Timer Events
+            document.getElementById('btn-start-timer').addEventListener('click', startTimer);
+            document.getElementById('btn-reset-timer').addEventListener('click', resetTimer);
+            document.getElementById('time-selector').addEventListener('change', (e) => {
+                if (document.getElementById('btn-start-timer').textContent.includes('Start')) {
+                    timeLeft = parseInt(e.target.value, 10);
+                    updateTimerDisplay();
+                }
+            });
+
+            // Student List Events
+            document.getElementById('random-caller-box').addEventListener('click', callRandomStudent);
+
+            // Initial Render
+            renderStation(1);
+            renderStudentList();
+            
+            // Initial greeting
+            setTimeout(() => {
+                speakText("Welcome to Chef Master's English Kitchen! Let's learn how to cook.", 1.0);
+            }, 1000);
+        });
+
+    </script>
+</body>
+</html>
